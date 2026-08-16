@@ -9,6 +9,8 @@ export type {
   DownloadProgress,
   ModelMetadata,
   ModelKind,
+  LibTorchInfo,
+  LibTorchBackend,
   FfmpegInfo as FfmpegStatus,
 } from "./bindings";
 
@@ -35,3 +37,7 @@ export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>
   commands.downloadFfmpeg(onProgress);
 
 export const listModels = () => commands.listModels();
+
+export const getLibtorchStatus = () => commands.getLibtorchStatus();
+export const downloadLibtorch = (onProgress: Channel<DownloadProgress>) =>
+  commands.downloadLibtorch(onProgress);

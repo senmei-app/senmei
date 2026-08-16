@@ -63,6 +63,30 @@ pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn get_libtorch_status() -> senmei_media::LibTorchInfo {
+    senmei_media::libtorch_status(&store::data_dir())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn download_libtorch(
+    on_progress: Channel<DownloadProgress>,
+) -> Result<String, String> {
+    log::info!("downloading libtorch");
+    let dir = store::data_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        senmei_media::download_libtorch(&dir, |downloaded, total| {
+            let _ = on_progress.send(DownloadProgress { downloaded, total });
+        })
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     const EXTS: [&str; 10] = [
         "mp4", "mkv", "mov", "webm", "avi", "m4v", "ts", "m2ts", "flv", "wmv",

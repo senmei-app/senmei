@@ -1,11 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isTauri, Channel } from "@tauri-apps/api/core";
 import { Button } from "@senmei/ui";
+import {
+  downloadLibtorch,
+  getLibtorchStatus,
+  type LibTorchInfo,
+} from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
-type Section = "appearance" | "ffmpeg";
+type Section = "appearance" | "ffmpeg" | "inference";
 
 const KEY_ENCODERS = [
   "libx264",
@@ -36,13 +42,40 @@ export default function SettingsPage({
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("appearance");
   const { status, downloading, pct, error, download } = useFfmpeg();
+  const [libtorch, setLibtorch] = useState<LibTorchInfo | null>(null);
+  const [ltDownloading, setLtDownloading] = useState(false);
+  const [ltPct, setLtPct] = useState(0);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    getLibtorchStatus().then(setLibtorch).catch(() => setLibtorch(null));
+  }, []);
+
+  const startLibtorchDownload = () => {
+    if (!isTauri()) return;
+    setLtDownloading(true);
+    setLtPct(0);
+    const ch = new Channel<{ downloaded: number; total: number }>();
+    ch.onmessage = (p) => setLtPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0);
+    downloadLibtorch(ch)
+      .then(() => getLibtorchStatus().then(setLibtorch))
+      .catch(() => {})
+      .finally(() => setLtDownloading(false));
+  };
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
     { key: "ffmpeg", label: t("settings.section.ffmpeg") },
+    { key: "inference", label: t("settings.section.inference") },
   ];
 
   const encoders = status?.encoders ?? [];
+  const backendLabel =
+    libtorch?.backend === "rocm"
+      ? t("settings.inference.backend.rocm")
+      : libtorch?.backend === "cuda"
+        ? t("settings.inference.backend.cuda")
+        : t("settings.inference.backend.cpu");
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 select-none antialiased dark:bg-slate-950 dark:text-slate-200">
@@ -59,6 +92,7 @@ export default function SettingsPage({
             {t("settings.title")}
           </h1>
         </div>
+        <div data-tauri-drag-region className="flex-1 self-stretch" />
         <WindowControls />
       </header>
 
@@ -177,6 +211,39 @@ export default function SettingsPage({
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+
+          {section === "inference" && (
+            <div className="max-w-xl space-y-6">
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.inference.backend")}
+                </label>
+                <span className="rounded-md bg-indigo-600/15 px-2 py-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-300">
+                  {backendLabel}
+                </span>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.section.inference")}
+                </label>
+                {libtorch?.downloaded ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    {t("settings.inference.downloaded")}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-rose-500">{t("settings.inference.notDownloaded")}</p>
+                    <Button onClick={startLibtorchDownload} disabled={ltDownloading}>
+                      {ltDownloading
+                        ? t("settings.inference.downloading").replace("{pct}", String(ltPct))
+                        : t("settings.inference.download")}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
