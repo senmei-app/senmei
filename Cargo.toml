@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/senmei",
+    "crates/senmei-app",
+    "crates/senmei-pipeline",
+    "crates/senmei-ml",
+    "crates/senmei-media",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/senmei-app/senmei"

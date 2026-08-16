@@ -1,0 +1,9 @@
+[package]
+name = "senmei-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tauri application shell for Senmei: commands, state, and IPC."
+
+[dependencies]

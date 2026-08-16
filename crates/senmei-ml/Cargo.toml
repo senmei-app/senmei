@@ -1,0 +1,9 @@
+[package]
+name = "senmei-ml"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Inference for Senmei: engine trait, torch/ncnn engines, and model registry."
+
+[dependencies]

@@ -1,0 +1,9 @@
+[package]
+name = "senmei-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Media handling for Senmei: FFmpeg process, frame pipe, and encoder profiles."
+
+[dependencies]

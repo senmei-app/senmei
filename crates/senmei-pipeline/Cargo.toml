@@ -1,0 +1,9 @@
+[package]
+name = "senmei-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Render orchestration for Senmei: queue, events, and progress."
+
+[dependencies]

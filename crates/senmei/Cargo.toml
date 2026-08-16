@@ -1,0 +1,10 @@
+[package]
+name = "senmei"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Senmei (鮮明) — desktop video enhancer in Rust: frame interpolation and AI upscaling."
+
+[dependencies]
+senmei-app = { path = "../senmei-app" }
