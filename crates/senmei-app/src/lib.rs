@@ -1,3 +1,8 @@
+mod commands;
+
 pub fn run() {
-    // Tauri setup follows in a later step.
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![commands::health_check])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

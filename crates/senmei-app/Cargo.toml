@@ -6,4 +6,9 @@ license.workspace = true
 repository.workspace = true
 description = "Tauri application shell for Senmei: commands, state, and IPC."
 
+[build-dependencies]
+tauri-build = "2"
+
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = "2"
