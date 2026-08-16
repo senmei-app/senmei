@@ -135,13 +135,16 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 2);
+        assert_eq!(registry.models().len(), 4);
         assert_eq!(registry.models()[0].id, "rife-4.26");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[0].torch.as_deref(), Some("rife-4.26.pt"));
         assert_eq!(registry.models()[1].id, "realesrgan-x4plus");
         assert!(matches!(registry.models()[1].kind, ModelKind::Upscale));
         assert_eq!(registry.models()[1].scale, 4);
+        assert_eq!(registry.models()[2].id, "realesrgan-x4plus-anime");
+        assert_eq!(registry.models()[3].id, "realesrgan-x2plus");
+        assert_eq!(registry.models()[3].scale, 2);
     }
 
     #[test]

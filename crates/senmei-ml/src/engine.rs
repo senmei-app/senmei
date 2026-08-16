@@ -334,25 +334,33 @@ mod tests {
 
     #[cfg(feature = "torch")]
     #[test]
-    #[ignore = "requires models/realesrgan-x4plus.pt (run scripts/convert_realesrgan.py)"]
-    fn torch_loads_realesrgan() {
-        let path = std::path::PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../models/realesrgan-x4plus.pt"
-        ));
-        if !path.exists() {
-            eprintln!("model not found, skipping");
-            return;
+    #[ignore = "requires converted models/*.pt (run scripts/convert_realesrgan.py)"]
+    fn torch_loads_realesrgan_models() {
+        let models = [
+            ("realesrgan-x4plus", 4usize),
+            ("realesrgan-x4plus-anime", 4),
+            ("realesrgan-x2plus", 2),
+        ];
+        for (id, scale) in models {
+            let path = std::path::PathBuf::from(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../models"
+            ))
+            .join(format!("{id}.pt"));
+            if !path.exists() {
+                eprintln!("model {id} not found, skipping");
+                continue;
+            }
+            let mref = crate::model::ModelRef {
+                id: id.to_string(),
+                path,
+            };
+            let mut engine = crate::TorchEngine::new();
+            engine.load(&mref).unwrap();
+            let input = crate::Tensor::new(vec![1, 3, 64, 64], vec![0.5f32; 3 * 64 * 64]);
+            let opts = crate::InferOptions { half: false, tile_size: None };
+            let out = engine.infer(&input, &opts).unwrap();
+            assert_eq!(out.shape, vec![1, 3, 64 * scale, 64 * scale], "{id}");
         }
-        let mref = crate::model::ModelRef {
-            id: "realesrgan-x4plus".into(),
-            path,
-        };
-        let mut engine = crate::TorchEngine::new();
-        engine.load(&mref).unwrap();
-        let input = crate::Tensor::new(vec![1, 3, 64, 64], vec![0.5f32; 3 * 64 * 64]);
-        let opts = crate::InferOptions { half: false, tile_size: None };
-        let out = engine.infer(&input, &opts).unwrap();
-        assert_eq!(out.shape, vec![1, 3, 256, 256]);
     }
 }
