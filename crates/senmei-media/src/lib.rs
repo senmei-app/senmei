@@ -1,5 +1,11 @@
+mod decoder;
+mod encoder;
+mod frame;
 mod probe;
 
+pub use decoder::Decoder;
+pub use encoder::Encoder;
+pub use frame::Frame;
 pub use probe::{probe, VideoInfo};
 
 use std::fmt;
