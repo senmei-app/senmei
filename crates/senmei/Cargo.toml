@@ -7,4 +7,4 @@ repository.workspace = true
 description = "Senmei (鮮明) — desktop video enhancer in Rust: frame interpolation and AI upscaling."
 
 [dependencies]
-senmei-app = { path = "../senmei-app" }
+senmei-app = { path = "../senmei-app", version = "0.1.0" }
