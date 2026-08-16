@@ -30,7 +30,7 @@ impl Decoder {
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| Error::command_failed("failed to capture ffmpeg stdout".into()))?;
+            .ok_or_else(|| Error::Command("failed to capture ffmpeg stdout".into()))?;
 
         Ok(Self {
             child,

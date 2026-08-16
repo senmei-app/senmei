@@ -53,7 +53,7 @@ pub fn probe(path: &Path) -> Result<VideoInfo> {
         .output()?;
 
     if !output.status.success() {
-        return Err(Error::command_failed(
+        return Err(Error::Command(
             String::from_utf8_lossy(&output.stderr).into_owned(),
         ));
     }
@@ -63,7 +63,7 @@ pub fn probe(path: &Path) -> Result<VideoInfo> {
         .streams
         .iter()
         .find(|s| s.codec_type == "video")
-        .ok_or_else(|| Error::command_failed("no video stream".into()))?;
+        .ok_or_else(|| Error::Command("no video stream".into()))?;
 
     let fps = parse_ratio(&stream.avg_frame_rate).unwrap_or(0.0);
     let duration = parsed

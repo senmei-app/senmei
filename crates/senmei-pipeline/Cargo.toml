@@ -10,3 +10,4 @@ description = "Render orchestration for Senmei: queue, events, and progress."
 log = "0.4"
 senmei-media = { path = "../senmei-media", version = "0.1.0" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.0" }
+thiserror = "2"

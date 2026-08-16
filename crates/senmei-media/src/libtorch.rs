@@ -135,13 +135,13 @@ fn url(backend: LibTorchBackend) -> Option<&'static str> {
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
     let backend = detect_backend();
     let url = url(backend)
-        .ok_or_else(|| Error::command_failed("no libtorch download URL for this platform".into()))?;
+        .ok_or_else(|| Error::Command("no libtorch download URL for this platform".into()))?;
     log::info!("libtorch download ({backend:?}): {url}");
 
     let archive = downloader::download_to_temp(url, &data_dir.join("temp"), "libtorch.zip", None, &mut on_progress)?;
 
     let dest = libtorch_dir(data_dir);
-    std::fs::create_dir_all(&dest).map_err(|e| Error::command_failed(e.to_string()))?;
+    std::fs::create_dir_all(&dest).map_err(Error::from)?;
     downloader::extract_zip(&archive, &dest, "libtorch/")?;
 
     let _ = std::fs::remove_file(&archive);

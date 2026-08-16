@@ -3415,6 +3415,7 @@ dependencies = [
  "sha2",
  "specta",
  "tar",
+ "thiserror 2.0.20",
  "ureq",
  "xz2",
  "zip 2.4.2",
@@ -3428,6 +3429,7 @@ dependencies = [
  "serde_json",
  "specta",
  "tch",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -3437,6 +3439,7 @@ dependencies = [
  "log",
  "senmei-media",
  "senmei-ml",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

@@ -16,35 +16,16 @@ pub use libtorch::{detect_backend, download as download_libtorch, status as libt
 pub use model::download_model;
 pub use probe::{probe, VideoInfo};
 
-use std::fmt;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Clone)]
-pub struct Error(String);
-
-impl Error {
-    pub fn command_failed(msg: String) -> Self {
-        Self(msg)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Self(err.to_string())
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
-        Self(err.to_string())
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("{0}")]
+    Command(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Zip(#[from] zip::result::ZipError),
 }

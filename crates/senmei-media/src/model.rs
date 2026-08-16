@@ -18,6 +18,6 @@ pub fn download_model(
 
     let temp = downloader::download_to_temp(url, &dest_dir.join(".tmp"), filename, expected_sha256, on_progress)?;
     let out = dest_dir.join(filename);
-    fs::rename(&temp, &out).map_err(|e| Error::command_failed(e.to_string()))?;
+    fs::rename(&temp, &out).map_err(Error::from)?;
     Ok(out)
 }

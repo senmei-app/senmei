@@ -150,7 +150,7 @@ impl InferenceEngine for TorchEngine {
     }
 
     fn load(&mut self, model: &ModelRef) -> Result<()> {
-        let module = tch::CModule::load(&model.path).map_err(|e| Error::new(e.to_string()))?;
+        let module = tch::CModule::load(&model.path)?;
         self.model = Some(module);
         Ok(())
     }
@@ -164,15 +164,14 @@ impl InferenceEngine for TorchEngine {
             .to_kind(tch::Kind::Float)
             .to_device(self.device)
             .contiguous();
-        let out = model.forward_ts(&[t]).map_err(|e| Error::new(e.to_string()))?;
+        let out = model.forward_ts(&[t])?;
         let oh = out.size()[2] as usize;
         let ow = out.size()[3] as usize;
         let mut data = vec![0f32; 3 * oh * ow];
         let numel = data.len();
         out.to_device(tch::Device::Cpu)
             .contiguous()
-            .f_copy_data(&mut data, numel)
-            .map_err(|e| Error::new(e.to_string()))?;
+            .f_copy_data(&mut data, numel)?;
         Ok(Tensor::new(vec![1, 3, oh, ow], data))
     }
 }

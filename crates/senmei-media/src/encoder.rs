@@ -27,7 +27,7 @@ impl Encoder {
         let stdin = child
             .stdin
             .take()
-            .ok_or_else(|| Error::command_failed("failed to capture ffmpeg stdin".into()))?;
+            .ok_or_else(|| Error::Command("failed to capture ffmpeg stdin".into()))?;
 
         Ok(Self {
             child,
@@ -48,7 +48,7 @@ impl Encoder {
         if status.success() {
             Ok(())
         } else {
-            Err(Error::command_failed(format!(
+            Err(Error::Command(format!(
                 "ffmpeg encode exited with {status}"
             )))
         }

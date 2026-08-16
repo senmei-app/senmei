@@ -103,7 +103,7 @@ fn archive_url() -> Option<&'static str> {
 
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
     let url = archive_url().ok_or_else(|| {
-        Error::command_failed("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
+        Error::Command("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
     })?;
     log::info!("ffmpeg download from {url}");
 
@@ -116,7 +116,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     )?;
 
     let bin_dir = data_dir.join("bin");
-    fs::create_dir_all(&bin_dir).map_err(|e| Error::command_failed(e.to_string()))?;
+    fs::create_dir_all(&bin_dir).map_err(Error::from)?;
     let bin_name = if std::env::consts::OS == "windows" {
         "ffmpeg.exe"
     } else {
@@ -129,7 +129,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&out, fs::Permissions::from_mode(0o755))
-            .map_err(|e| Error::command_failed(e.to_string()))?;
+            .map_err(Error::from)?;
     }
 
     let _ = fs::remove_file(&archive);

@@ -10,24 +10,23 @@ use crate::{Error, Result};
 pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> Result<()> {
     let resp = ureq::get(url)
         .call()
-        .map_err(|e| Error::command_failed(format!("download failed: {e}")))?;
+        .map_err(|e| Error::Command(format!("download failed: {e}")))?;
     let total = resp
         .header("Content-Length")
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(0);
     let mut reader = resp.into_reader();
-    let mut file = fs::File::create(dest).map_err(|e| Error::command_failed(e.to_string()))?;
+    let mut file = fs::File::create(dest).map_err(Error::from)?;
     let mut buf = [0u8; 64 * 1024];
     let mut downloaded = 0u64;
     loop {
         let n = reader
             .read(&mut buf)
-            .map_err(|e| Error::command_failed(e.to_string()))?;
+            .map_err(Error::from)?;
         if n == 0 {
             break;
         }
-        file.write_all(&buf[..n])
-            .map_err(|e| Error::command_failed(e.to_string()))?;
+        file.write_all(&buf[..n]).map_err(Error::from)?;
         downloaded += n as u64;
         on_progress(downloaded, total);
     }
@@ -36,69 +35,57 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
 
 /// Extract every entry of a zip archive, stripping a leading directory prefix.
 pub fn extract_zip(archive: &Path, dest: &Path, strip_prefix: &str) -> Result<()> {
-    let file = fs::File::open(archive).map_err(|e| Error::command_failed(e.to_string()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::command_failed(e.to_string()))?;
+    let file = fs::File::open(archive).map_err(Error::from)?;
+    let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
     for i in 0..zip.len() {
-        let mut entry = zip
-            .by_index(i)
-            .map_err(|e| Error::command_failed(e.to_string()))?;
+        let mut entry = zip.by_index(i).map_err(Error::from)?;
         let rel = entry.name().trim_start_matches(strip_prefix).trim_start_matches('/');
         if rel.is_empty() || entry.is_dir() {
             continue;
         }
         let out = dest.join(rel);
         if let Some(parent) = out.parent() {
-            fs::create_dir_all(parent).map_err(|e| Error::command_failed(e.to_string()))?;
+            fs::create_dir_all(parent).map_err(Error::from)?;
         }
-        let mut f = fs::File::create(&out).map_err(|e| Error::command_failed(e.to_string()))?;
-        std::io::copy(&mut entry, &mut f).map_err(|e| Error::command_failed(e.to_string()))?;
+        let mut f = fs::File::create(&out).map_err(Error::from)?;
+        std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
     }
     Ok(())
 }
 
 /// Pull a single file out of a zip or tar.xz archive by path suffix.
 pub fn extract_binary(archive: &Path, out: &Path, suffix: &str) -> Result<()> {
-    let file = fs::File::open(archive).map_err(|e| Error::command_failed(e.to_string()))?;
+    let file = fs::File::open(archive).map_err(Error::from)?;
     let found = match archive.extension().and_then(|e| e.to_str()) {
         Some("zip") => {
-            let mut zip = zip::ZipArchive::new(file)
-                .map_err(|e| Error::command_failed(e.to_string()))?;
+            let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
             for i in 0..zip.len() {
-                let mut entry = zip
-                    .by_index(i)
-                    .map_err(|e| Error::command_failed(e.to_string()))?;
+                let mut entry = zip.by_index(i).map_err(Error::from)?;
                 if entry.name().ends_with(suffix) {
-                    let mut f = fs::File::create(out)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    std::io::copy(&mut entry, &mut f)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
+                    let mut f = fs::File::create(out).map_err(Error::from)?;
+                    std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
                     return Ok(());
                 }
             }
-            Err(Error::command_failed("binary not found in archive".into()))
+            Err(Error::Command("binary not found in archive".into()))
         }
         _ => {
             let xz = xz2::read::XzDecoder::new(file);
             let mut ar = tar::Archive::new(xz);
-            for entry in ar
-                .entries()
-                .map_err(|e| Error::command_failed(e.to_string()))?
-            {
-                let mut entry = entry.map_err(|e| Error::command_failed(e.to_string()))?;
+            for entry in ar.entries().map_err(Error::from)? {
+                let mut entry = entry.map_err(Error::from)?;
                 let name = entry
                     .path()
-                    .map_err(|e| Error::command_failed(e.to_string()))?
+                    .map_err(Error::from)?
                     .to_string_lossy()
                     .into_owned();
                 if name.ends_with(suffix) {
-                    let mut f = fs::File::create(out)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    std::io::copy(&mut entry, &mut f)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
+                    let mut f = fs::File::create(out).map_err(Error::from)?;
+                    std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
                     return Ok(());
                 }
             }
-            Err(Error::command_failed("binary not found in archive".into()))
+            Err(Error::Command("binary not found in archive".into()))
         }
     };
     found
@@ -115,7 +102,7 @@ pub fn verify_checksum(actual: &str, expected: &str) -> Result<()> {
     if actual.eq_ignore_ascii_case(expected) {
         Ok(())
     } else {
-        Err(Error::command_failed(format!(
+        Err(Error::Command(format!(
             "checksum mismatch (expected {expected}, got {actual})"
         )))
     }
@@ -130,7 +117,7 @@ pub fn download_to_temp(
     expected: Option<&str>,
     on_progress: &mut dyn FnMut(u64, u64),
 ) -> Result<std::path::PathBuf> {
-    fs::create_dir_all(temp_dir).map_err(|e| Error::command_failed(e.to_string()))?;
+    fs::create_dir_all(temp_dir).map_err(Error::from)?;
     let temp = temp_dir.join(filename);
     fetch(url, &temp, on_progress)?;
     if let Some(expected) = expected {
