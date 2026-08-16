@@ -147,15 +147,39 @@ pub struct RenderProgress {
     pub total_frames: u64,
 }
 
+fn models_dir() -> PathBuf {
+    for dir in [PathBuf::from("models"), PathBuf::from("../models")] {
+        if dir.is_dir() {
+            return dir;
+        }
+    }
+    PathBuf::from("models")
+}
+
+fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
+    let mut registry = senmei_ml::Registry::new();
+    let dir = models_dir();
+    registry
+        .load_dir(&dir)
+        .map_err(|e| e.to_string())?;
+    let mref = registry
+        .resolve(model_id, &dir)
+        .ok_or_else(|| format!("model not found: {model_id}"))?;
+    let mut engine = senmei_ml::engine_for_model(&mref).map_err(|e| e.to_string())?;
+    engine.load(&mref).map_err(|e| e.to_string())?;
+    Ok(engine)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn render(
     input: String,
     output: String,
     scale: Option<u32>,
+    model_id: Option<String>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
-    log::info!("render start: {input} -> {output} (scale {scale:?})");
+    log::info!("render start: {input} -> {output} (scale {scale:?}, model {model_id:?})");
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 
@@ -165,7 +189,11 @@ pub async fn render(
             vec![Box::new(senmei_pipeline::Passthrough)];
         if let Some(s) = scale {
             if s > 1 {
-                steps.push(Box::new(senmei_pipeline::Upscale::new(s, None)));
+                let engine = match model_id.as_deref() {
+                    Some(id) => Some(engine_for_model(id)?),
+                    None => None,
+                };
+                steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
             }
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);

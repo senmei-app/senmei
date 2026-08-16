@@ -76,6 +76,16 @@ pub fn infer_tiled(
     Ok(crate::stitch(&scaled, out_h, out_w, input.shape[1]))
 }
 
+/// Pick an engine for a model based on its weight-file format.
+pub fn engine_for_model(model: &ModelRef) -> Result<Box<dyn InferenceEngine>> {
+    let ext = model.path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    match ext {
+        "pt" => Ok(Box::new(TorchEngine::new())),
+        "param" | "bin" => Ok(Box::new(NcnnEngine::new())),
+        _ => Err(Error::new(format!("unsupported model format: {ext}"))),
+    }
+}
+
 #[cfg(not(feature = "torch"))]
 pub struct TorchEngine;
 
@@ -157,10 +167,11 @@ impl InferenceEngine for TorchEngine {
         let out = model.forward_ts(&[t]).map_err(|e| Error::new(e.to_string()))?;
         let oh = out.size()[2] as usize;
         let ow = out.size()[3] as usize;
-        let data: Vec<f32> = out
-            .to_device(tch::Device::Cpu)
+        let mut data = vec![0f32; 3 * oh * ow];
+        let numel = data.len();
+        out.to_device(tch::Device::Cpu)
             .contiguous()
-            .try_into()
+            .f_copy_data(&mut data, numel)
             .map_err(|e| Error::new(e.to_string()))?;
         Ok(Tensor::new(vec![1, 3, oh, ow], data))
     }
@@ -299,5 +310,26 @@ mod tests {
         let opts = InferOptions { half: false, tile_size: Some(8) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.data, t.data);
+    }
+
+    #[test]
+    fn factory_picks_engine_by_format() {
+        let pt = crate::model::ModelRef {
+            id: "span".into(),
+            path: std::path::PathBuf::from("/models/span.pt"),
+        };
+        assert_eq!(engine_for_model(&pt).unwrap().name(), "torch");
+
+        let ncnn = crate::model::ModelRef {
+            id: "rife".into(),
+            path: std::path::PathBuf::from("/models/rife.param"),
+        };
+        assert_eq!(engine_for_model(&ncnn).unwrap().name(), "ncnn");
+
+        let bad = crate::model::ModelRef {
+            id: "x".into(),
+            path: std::path::PathBuf::from("/models/x.onnx"),
+        };
+        assert!(engine_for_model(&bad).is_err());
     }
 }

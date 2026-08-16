@@ -61,7 +61,13 @@ impl Registry {
             let path = entry?.path();
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 let json = std::fs::read_to_string(&path)?;
-                self.models.push(serde_json::from_str(&json)?);
+                let value: serde_json::Value = serde_json::from_str(&json)?;
+                if value.is_array() {
+                    let models: Vec<ModelMetadata> = serde_json::from_value(value)?;
+                    self.models.extend(models);
+                } else {
+                    self.models.push(serde_json::from_value(value)?);
+                }
             }
         }
         Ok(())
@@ -69,6 +75,18 @@ impl Registry {
 
     pub fn models(&self) -> &[ModelMetadata] {
         &self.models
+    }
+
+    /// Resolve a model by id to a `ModelRef` pointing at its torch weight file.
+    pub fn resolve(&self, id: &str, dir: &Path) -> Option<ModelRef> {
+        self.models
+            .iter()
+            .find(|m| m.id == id)
+            .and_then(|m| m.torch.as_ref())
+            .map(|f| ModelRef {
+                id: id.to_string(),
+                path: dir.join(f),
+            })
     }
 }
 
@@ -94,9 +112,24 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 1);
+        assert_eq!(registry.models().len(), 2);
         assert_eq!(registry.models()[0].id, "rife-4.26");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[0].torch.as_deref(), Some("rife-4.26.pt"));
+        assert_eq!(registry.models()[1].id, "realesrgan-x4plus");
+        assert!(matches!(registry.models()[1].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[1].scale, 4);
+    }
+
+    #[test]
+    fn registry_resolves_model_ref() {
+        let json = r#"[
+            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "torch": "span.pt"}
+        ]"#;
+        let registry = Registry::from_json(json).unwrap();
+        let mref = registry.resolve("span", Path::new("/models")).unwrap();
+        assert_eq!(mref.id, "span");
+        assert_eq!(mref.path, Path::new("/models/span.pt"));
+        assert!(registry.resolve("missing", Path::new("/models")).is_none());
     }
 }

@@ -50,9 +50,11 @@ function Accordion({
 export default function Inspector({
   scale,
   onScaleChange,
+  onModelChange,
 }: {
   scale: number;
   onScaleChange: (scale: number) => void;
+  onModelChange: (modelId: string | null) => void;
 }) {
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
@@ -71,6 +73,7 @@ export default function Inspector({
       className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
       onChange={(e) => {
         const m = models.find((x) => x.id === e.target.value);
+        onModelChange(m ? m.id : null);
         if (m) onScaleChange(m.scale ?? 1);
       }}
     >
