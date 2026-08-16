@@ -12,6 +12,8 @@ export const commands = {
 	listProjects: () => __TAURI_INVOKE<ProjectEntry[]>("list_projects"),
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	rememberProject: (path: string) => __TAURI_INVOKE<null>("remember_project", { path }),
+	loadProjectSettings: (path: string) => __TAURI_INVOKE<ProjectSettings>("load_project_settings", { path }),
+	saveProjectSettings: (path: string, settings: ProjectSettings) => __TAURI_INVOKE<null>("save_project_settings", { path, settings }),
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
@@ -63,6 +65,11 @@ export type ModelMetadata = {
 export type ProjectEntry = {
 	name: string,
 	path: string,
+};
+
+/**  Per-project Inspector settings persisted in `<project>/project.json`. */
+export type ProjectSettings = {
+	stepsEnabled?: { [key in string]: boolean },
 };
 
 export type RenderProgress = {

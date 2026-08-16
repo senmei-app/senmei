@@ -9,9 +9,12 @@ import {
   healthCheck,
   importFolder,
   listProjects,
+  loadProjectSettings,
   render,
+  saveProjectSettings,
   saveSettings,
   type ProjectEntry,
+  type ProjectSettings,
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
@@ -40,6 +43,8 @@ export default function App() {
   const [modelId, setModelId] = useState<string | null>(null);
   const [resizeFactor, setResizeFactor] = useState("");
   const [outputResizeFactor, setOutputResizeFactor] = useState("");
+  const [stepsEnabled, setStepsEnabled] = useState<Record<string, boolean>>({});
+  const [hydrated, setHydrated] = useState(false);
 
   const currentFile = files[0];
 
@@ -79,6 +84,26 @@ export default function App() {
     setLang(l);
     void saveSettings({ language: l, theme });
   };
+
+  // Load per-project settings when a project opens; save on any change.
+  useEffect(() => {
+    if (!projectDir || !isTauri()) {
+      setHydrated(false);
+      return;
+    }
+    setHydrated(false);
+    loadProjectSettings(projectDir)
+      .then((s: ProjectSettings) => {
+        setStepsEnabled(s.stepsEnabled ?? {});
+        setHydrated(true);
+      })
+      .catch(() => setHydrated(true));
+  }, [projectDir]);
+
+  useEffect(() => {
+    if (!projectDir || !isTauri() || !hydrated) return;
+    void saveProjectSettings(projectDir, { stepsEnabled }).catch(() => {});
+  }, [projectDir, hydrated, stepsEnabled]);
 
   const changeTheme = (t: string) => {
     setTheme(t);
@@ -211,6 +236,10 @@ export default function App() {
                   onResizeFactorChange={setResizeFactor}
                   outputResizeFactor={outputResizeFactor}
                   onOutputResizeFactorChange={setOutputResizeFactor}
+                  stepsEnabled={stepsEnabled}
+                  onToggleStep={(id, enabled) =>
+                    setStepsEnabled((prev) => ({ ...prev, [id]: enabled }))
+                  }
                 />
               </Panel>
             </PanelGroup>

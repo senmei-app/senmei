@@ -25,6 +25,22 @@ pub struct ProjectEntry {
     pub path: String,
 }
 
+/// Per-project Inspector settings persisted in `<project>/project.json`.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSettings {
+    #[serde(default)]
+    pub steps_enabled: std::collections::HashMap<String, bool>,
+}
+
+impl Default for ProjectSettings {
+    fn default() -> Self {
+        Self {
+            steps_enabled: std::collections::HashMap::new(),
+        }
+    }
+}
+
 pub fn data_dir() -> PathBuf {
     let base = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
@@ -53,6 +69,29 @@ pub fn load_settings() -> Settings {
 
 pub fn save_settings(settings: &Settings) -> Result<(), String> {
     let path = settings_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+fn project_settings_path(project_dir: &PathBuf) -> PathBuf {
+    project_dir.join("project.json")
+}
+
+pub fn load_project_settings(project_dir: &PathBuf) -> ProjectSettings {
+    std::fs::read_to_string(project_settings_path(project_dir))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_project_settings(
+    project_dir: &PathBuf,
+    settings: &ProjectSettings,
+) -> Result<(), String> {
+    let path = project_settings_path(project_dir);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -177,6 +216,23 @@ mod tests {
         with_temp_data_dir("project", || {
             let path = create_project("Test 1").unwrap();
             assert!(PathBuf::from(&path).is_dir());
+        });
+    }
+
+    #[test]
+    fn project_settings_roundtrip() {
+        with_temp_data_dir("project_settings", || {
+            let dir = PathBuf::from(create_project("Settings").unwrap());
+            let mut settings = ProjectSettings::default();
+            settings
+                .steps_enabled
+                .insert("upscale".to_string(), true);
+            settings.steps_enabled.insert("resize".to_string(), false);
+            save_project_settings(&dir, &settings).unwrap();
+
+            let loaded = load_project_settings(&dir);
+            assert_eq!(loaded.steps_enabled.get("upscale"), Some(&true));
+            assert_eq!(loaded.steps_enabled.get("resize"), Some(&false));
         });
     }
 }

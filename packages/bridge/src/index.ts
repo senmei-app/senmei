@@ -1,10 +1,11 @@
 import type { Channel } from "@tauri-apps/api/core";
 import { commands } from "./bindings";
-import type { Settings, RenderProgress, DownloadProgress } from "./bindings";
+import type { Settings, RenderProgress, DownloadProgress, ProjectSettings } from "./bindings";
 
 export type {
   Settings,
   ProjectEntry,
+  ProjectSettings,
   RenderProgress,
   DownloadProgress,
   ModelMetadata,
@@ -34,6 +35,10 @@ export const saveSettings = (settings: Settings) => commands.saveSettings(settin
 export const listProjects = () => commands.listProjects();
 export const createProject = (name: string) => commands.createProject(name);
 export const rememberProject = (path: string) => commands.rememberProject(path);
+
+export const loadProjectSettings = (path: string) => commands.loadProjectSettings(path);
+export const saveProjectSettings = (path: string, settings: ProjectSettings) =>
+  commands.saveProjectSettings(path, settings);
 
 export const getFfmpegStatus = () => commands.getFfmpegStatus();
 export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>

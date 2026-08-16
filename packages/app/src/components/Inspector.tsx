@@ -6,18 +6,23 @@ import { useI18n } from "../i18n";
 type Group = "settings" | "advanced";
 
 function Accordion({
+  id,
   icon,
   title,
   children,
   placeholder,
+  enabled,
+  onToggle,
 }: {
+  id: string;
   icon: string;
   title: string;
   children?: ReactNode;
   placeholder?: string;
+  enabled: boolean;
+  onToggle: (id: string, enabled: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [enabled, setEnabled] = useState(false);
 
   return (
     <div
@@ -29,8 +34,11 @@ function Accordion({
     >
       <div
         onClick={() => {
-          setOpen((o) => !o);
-          setEnabled(true);
+          setOpen((o) => {
+            const next = !o;
+            if (next && !enabled) onToggle(id, true);
+            return next;
+          });
         }}
         className="flex cursor-pointer select-none items-center justify-between p-3"
       >
@@ -42,7 +50,7 @@ function Accordion({
           type="checkbox"
           checked={enabled}
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setEnabled(e.target.checked)}
+          onChange={(e) => onToggle(id, e.target.checked)}
           className="h-[18px] w-[18px] cursor-pointer accent-indigo-500"
         />
       </div>
@@ -63,6 +71,8 @@ export default function Inspector({
   onResizeFactorChange,
   outputResizeFactor,
   onOutputResizeFactorChange,
+  stepsEnabled,
+  onToggleStep,
 }: {
   scale: number;
   onScaleChange: (scale: number) => void;
@@ -71,6 +81,8 @@ export default function Inspector({
   onResizeFactorChange: (v: string) => void;
   outputResizeFactor: string;
   onOutputResizeFactorChange: (v: string) => void;
+  stepsEnabled: Record<string, boolean>;
+  onToggleStep: (id: string, enabled: boolean) => void;
 }) {
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
@@ -97,6 +109,8 @@ export default function Inspector({
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
+
+  const step = (id: string) => ({ id, enabled: !!stepsEnabled[id], onToggle: onToggleStep });
 
   const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void) => (
     <div className="space-y-1">
@@ -162,7 +176,7 @@ export default function Inspector({
 
       {group === "settings" && (
         <div className="space-y-3">
-          <Accordion icon="⚡" title={t("tab.interpolate")}>
+          <Accordion {...step("interpolate")} icon="⚡" title={t("tab.interpolate")}>
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
@@ -185,11 +199,11 @@ export default function Inspector({
             </div>
           </Accordion>
 
-          <Accordion icon="📦" title={t("tab.decompress")} placeholder={t("tab.decompress.empty")} />
-          <Accordion icon="🧹" title={t("tab.denoise")} placeholder={t("tab.denoise.empty")} />
-          <Accordion icon="✨" title={t("tab.deblur")} placeholder={t("tab.deblur.empty")} />
+          <Accordion {...step("decompress")} icon="📦" title={t("tab.decompress")} placeholder={t("tab.decompress.empty")} />
+          <Accordion {...step("denoise")} icon="🧹" title={t("tab.denoise")} placeholder={t("tab.denoise.empty")} />
+          <Accordion {...step("deblur")} icon="✨" title={t("tab.deblur")} placeholder={t("tab.deblur.empty")} />
 
-          <Accordion icon="🔍" title={t("tab.upscale")}>
+          <Accordion {...step("upscale")} icon="🔍" title={t("tab.upscale")}>
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
@@ -216,11 +230,11 @@ export default function Inspector({
             </div>
           </Accordion>
 
-          <Accordion icon="📑" title={t("tab.dedup")} placeholder={t("tab.dedup.empty")} />
-          <Accordion icon="↔️" title={t("tab.resize")}>
+          <Accordion {...step("dedup")} icon="📑" title={t("tab.dedup")} placeholder={t("tab.dedup.empty")} />
+          <Accordion {...step("resize")} icon="↔️" title={t("tab.resize")}>
             {factorField(resizeFactor, onResizeFactorChange)}
           </Accordion>
-          <Accordion icon="⤴️" title={t("tab.output_resize")}>
+          <Accordion {...step("output_resize")} icon="⤴️" title={t("tab.output_resize")}>
             {factorField(outputResizeFactor, onOutputResizeFactorChange)}
           </Accordion>
         </div>
@@ -228,9 +242,9 @@ export default function Inspector({
 
       {group === "advanced" && (
         <div className="space-y-3">
-          <Accordion icon="🎬" title={t("tab.enc_video")} placeholder={t("tab.enc_video.empty")} />
+          <Accordion {...step("enc_video")} icon="🎬" title={t("tab.enc_video")} placeholder={t("tab.enc_video.empty")} />
 
-          <Accordion icon="🎵" title={t("tab.enc_audio")}>
+          <Accordion {...step("enc_audio")} icon="🎵" title={t("tab.enc_audio")}>
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("enc_audio.codec")}</label>
@@ -244,7 +258,7 @@ export default function Inspector({
             </div>
           </Accordion>
 
-          <Accordion icon="💬" title={t("tab.subtitle")}>
+          <Accordion {...step("subtitle")} icon="💬" title={t("tab.subtitle")}>
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("subtitle.mode")}</label>
@@ -258,7 +272,7 @@ export default function Inspector({
             </div>
           </Accordion>
 
-          <Accordion icon="⚙️" title={t("tab.backend")} placeholder={t("tab.backend.empty")} />
+          <Accordion {...step("backend")} icon="⚙️" title={t("tab.backend")} placeholder={t("tab.backend.empty")} />
         </div>
       )}
 

@@ -151,6 +151,18 @@ pub fn remember_project(path: String) -> Result<(), String> {
     store::remember_project(&path)
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn load_project_settings(path: String) -> store::ProjectSettings {
+    store::load_project_settings(&PathBuf::from(path))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_project_settings(path: String, settings: store::ProjectSettings) -> Result<(), String> {
+    store::save_project_settings(&PathBuf::from(path), &settings)
+}
+
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderProgress {
