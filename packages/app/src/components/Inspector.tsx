@@ -1,8 +1,12 @@
+import { useI18n } from "../i18n";
+
 export default function Inspector() {
+  const { t } = useI18n();
+
   return (
     <aside className="h-full w-full overflow-y-auto border-l border-slate-800/80 bg-slate-900/30 p-4">
       <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
-        Inspector Settings
+        {t("inspector.title")}
       </h2>
 
       <div className="space-y-3">
@@ -10,20 +14,20 @@ export default function Inspector() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
               <span className="text-indigo-400">⚡</span>
-              <span className="text-xs font-medium text-slate-200">Frame Interpolation</span>
+              <span className="text-xs font-medium text-slate-200">{t("fi.title")}</span>
             </div>
             <input type="checkbox" defaultChecked className="accent-indigo-500" />
           </div>
           <div className="space-y-2 text-xs">
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Modell</label>
+              <label className="block text-[10px] text-slate-400 mb-1">{t("fi.model")}</label>
               <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
                 <option>RIFE v4.26 (Heavy)</option>
                 <option>GMFSS Fortuna</option>
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">FPS Multiplikator</label>
+              <label className="block text-[10px] text-slate-400 mb-1">{t("fi.fps")}</label>
               <div className="flex space-x-2">
                 <button className="flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white">
                   2x (48fps)
@@ -43,13 +47,13 @@ export default function Inspector() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
               <span className="text-indigo-400">🔍</span>
-              <span className="text-xs font-medium text-slate-200">AI Upscaling</span>
+              <span className="text-xs font-medium text-slate-200">{t("up.title")}</span>
             </div>
             <input type="checkbox" defaultChecked className="accent-indigo-500" />
           </div>
           <div className="space-y-2 text-xs">
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Modell</label>
+              <label className="block text-[10px] text-slate-400 mb-1">{t("up.model")}</label>
               <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
                 <option>SPAN (Fast Anime)</option>
                 <option>Real-ESRGAN x4+</option>
@@ -59,7 +63,7 @@ export default function Inspector() {
         </div>
 
         <button className="w-full rounded-xl bg-indigo-600 py-2.5 font-medium text-xs text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition">
-          Sample vorschauen (15s)
+          {t("sample.preview")}
         </button>
       </div>
     </aside>

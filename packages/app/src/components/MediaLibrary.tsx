@@ -1,9 +1,13 @@
+import { useI18n } from "../i18n";
+
 export default function MediaLibrary() {
+  const { t } = useI18n();
+
   return (
     <aside className="flex h-full flex-col border-r border-slate-800/80 bg-slate-900/30 p-3">
       <div className="mb-3 flex items-center justify-between px-1">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Medien-Bibliothek
+          {t("media.title")}
         </span>
         <button className="rounded-md bg-slate-800 p-1 text-slate-300 hover:bg-slate-700">+</button>
       </div>
@@ -19,8 +23,8 @@ export default function MediaLibrary() {
             />
           </svg>
         </div>
-        <p className="text-xs font-medium text-slate-300">Video hier ablegen</p>
-        <p className="mt-1 text-[10px] text-slate-500">MP4, MKV, MOV bis 4K</p>
+        <p className="text-xs font-medium text-slate-300">{t("media.drop")}</p>
+        <p className="mt-1 text-[10px] text-slate-500">{t("media.formats")}</p>
       </div>
 
       <div className="space-y-2 overflow-y-auto">

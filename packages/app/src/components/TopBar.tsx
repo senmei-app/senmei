@@ -1,7 +1,10 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useI18n } from "../i18n";
 
 export default function TopBar() {
+  const { lang, setLang, t } = useI18n();
+
   const minimize = () => {
     if (isTauri()) void getCurrentWindow().minimize();
   };
@@ -23,11 +26,11 @@ export default function TopBar() {
         </div>
 
         <nav className="flex items-center space-x-4 text-slate-400 font-medium">
-          <button className="hover:text-slate-100 transition">Datei</button>
-          <button className="hover:text-slate-100 transition">Bearbeiten</button>
-          <button className="hover:text-slate-100 transition">Prozess</button>
-          <button className="hover:text-slate-100 transition">Ansicht</button>
-          <button className="hover:text-slate-100 transition">Hilfe</button>
+          <button className="hover:text-slate-100 transition">{t("menu.file")}</button>
+          <button className="hover:text-slate-100 transition">{t("menu.edit")}</button>
+          <button className="hover:text-slate-100 transition">{t("menu.process")}</button>
+          <button className="hover:text-slate-100 transition">{t("menu.view")}</button>
+          <button className="hover:text-slate-100 transition">{t("menu.help")}</button>
         </nav>
       </div>
 
@@ -46,8 +49,24 @@ export default function TopBar() {
 
         <button className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95">
           <span>▶</span>
-          <span>Render Starten</span>
+          <span>{t("render.start")}</span>
         </button>
+
+        <div className="flex items-center space-x-1 text-[10px] font-medium">
+          <button
+            onClick={() => setLang("en")}
+            className={lang === "en" ? "text-indigo-300" : "text-slate-500 hover:text-slate-300 transition"}
+          >
+            EN
+          </button>
+          <span className="text-slate-600">/</span>
+          <button
+            onClick={() => setLang("de")}
+            className={lang === "de" ? "text-indigo-300" : "text-slate-500 hover:text-slate-300 transition"}
+          >
+            DE
+          </button>
+        </div>
 
         <div className="flex items-center space-x-3 border-l border-slate-800 pl-3 text-slate-500">
           <button onClick={minimize} className="hover:text-slate-200 transition">
