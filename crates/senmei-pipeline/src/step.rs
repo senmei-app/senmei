@@ -21,9 +21,14 @@ impl Step for Passthrough {
 fn frame_to_tensor(frame: &Frame) -> Tensor {
     let h = frame.height as usize;
     let w = frame.width as usize;
-    let mut data = vec![0f32; 3 * h * w];
-    for i in 0..frame.data.len() {
-        data[i] = frame.data[i] as f32 / 255.0;
+    let hw = h * w;
+    let mut data = vec![0f32; 3 * hw];
+    // FFmpeg rgb24 frames are packed (R,G,B interleaved); de-interleave to planar NCHW.
+    for p in 0..hw {
+        let src = p * 3;
+        data[p] = frame.data[src] as f32 / 255.0;
+        data[hw + p] = frame.data[src + 1] as f32 / 255.0;
+        data[2 * hw + p] = frame.data[src + 2] as f32 / 255.0;
     }
     Tensor::new(vec![1, 3, h, w], data)
 }
@@ -31,10 +36,14 @@ fn frame_to_tensor(frame: &Frame) -> Tensor {
 fn tensor_to_frame(t: &Tensor, width: u32, height: u32) -> Frame {
     let h = t.shape[2];
     let w = t.shape[3];
-    let mut data = vec![0u8; 3 * h * w];
-    for i in 0..data.len() {
-        let v = (t.data[i] * 255.0).round();
-        data[i] = v.clamp(0.0, 255.0) as u8;
+    let hw = h * w;
+    let mut data = vec![0u8; 3 * hw];
+    // Planar NCHW -> packed rgb24 for the encoder.
+    for p in 0..hw {
+        let dst = p * 3;
+        data[dst] = (t.data[p] * 255.0).round().clamp(0.0, 255.0) as u8;
+        data[dst + 1] = (t.data[hw + p] * 255.0).round().clamp(0.0, 255.0) as u8;
+        data[dst + 2] = (t.data[2 * hw + p] * 255.0).round().clamp(0.0, 255.0) as u8;
     }
     Frame {
         width,
@@ -73,6 +82,15 @@ impl Step for Upscale {
                     .map_err(|e| crate::Error::new(e.to_string()))?
             }
             None => senmei_ml::bilinear(&input, frame.height as usize * self.scale as usize, frame.width as usize * self.scale as usize),
+        };
+        // An engine may upscale at a fixed factor (e.g. x4); enforce the
+        // requested scale when the engine's output dims differ.
+        let target_h = frame.height * self.scale;
+        let target_w = frame.width * self.scale;
+        let out = if out.shape[2] != target_h as usize || out.shape[3] != target_w as usize {
+            senmei_ml::bilinear(&out, target_h as usize, target_w as usize)
+        } else {
+            out
         };
         let new_w = out.shape[3] as u32;
         let new_h = out.shape[2] as u32;
@@ -203,5 +221,76 @@ mod tests {
         frame.data[0] = 255; // top-left pixel red
         Resize::new(2.0).process(&mut frame).unwrap();
         assert_eq!(frame.data[0], 255); // top-left corner stays red
+    }
+
+    // 2x2 packed rgb24 frame with four distinct pixel colors.
+    const PIXELS: [u8; 12] = [
+        255, 0, 0, // red
+        0, 255, 0, // green
+        0, 0, 255, // blue
+        255, 255, 255, // white
+    ];
+
+    #[test]
+    fn frame_tensor_roundtrip_preserves_pixels() {
+        let frame = Frame {
+            width: 2,
+            height: 2,
+            data: PIXELS.to_vec(),
+        };
+        let t = frame_to_tensor(&frame);
+        assert_eq!(t.shape, vec![1, 3, 2, 2]);
+        let back = tensor_to_frame(&t, 2, 2);
+        assert_eq!(back.data, PIXELS.to_vec());
+    }
+
+    #[test]
+    fn upscale_x1_preserves_pixels() {
+        let mut frame = Frame {
+            width: 2,
+            height: 2,
+            data: PIXELS.to_vec(),
+        };
+        let mut step = Upscale::new(1, None);
+        step.process(&mut frame).unwrap();
+        assert_eq!((frame.width, frame.height), (2, 2));
+        assert_eq!(frame.data, PIXELS.to_vec());
+    }
+
+    // Fake engine that always upscales 4x, regardless of the requested scale.
+    struct QuadEngine;
+
+    impl senmei_ml::InferenceEngine for QuadEngine {
+        fn name(&self) -> &'static str {
+            "quad-test"
+        }
+        fn capabilities(&self) -> senmei_ml::EngineCaps {
+            senmei_ml::EngineCaps {
+                backend: senmei_ml::Backend::Cpu,
+                half: false,
+                tiles: false,
+            }
+        }
+        fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
+            Ok(())
+        }
+        fn infer(&mut self, input: &Tensor, _o: &senmei_ml::InferOptions) -> senmei_ml::Result<Tensor> {
+            let h = input.shape[2];
+            let w = input.shape[3];
+            Ok(senmei_ml::bilinear(input, h * 4, w * 4))
+        }
+    }
+
+    #[test]
+    fn engine_output_resized_to_requested_scale() {
+        let mut frame = Frame {
+            width: 4,
+            height: 4,
+            data: vec![128u8; 3 * 4 * 4],
+        };
+        let mut step = Upscale::new(2, Some(Box::new(QuadEngine)));
+        step.process(&mut frame).unwrap();
+        assert_eq!((frame.width, frame.height), (8, 8)); // 4x engine output forced back to 2x
+        assert_eq!(frame.data.len(), 3 * 8 * 8);
     }
 }

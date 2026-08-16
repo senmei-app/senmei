@@ -60,6 +60,11 @@ export type ModelMetadata = {
 	source_url?: string | null,
 	download_url?: string | null,
 	sha256?: string | null,
+	/**
+	 *  Whether an engine can load these weights yet (e.g. a `.pth` state dict
+	 *  that still needs TorchScript conversion is not loadable).
+	 */
+	loadable?: boolean,
 };
 
 export type ProjectEntry = {

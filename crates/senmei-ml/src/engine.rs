@@ -104,8 +104,8 @@ impl InferenceEngine for TorchEngine {
 
     fn capabilities(&self) -> EngineCaps {
         EngineCaps {
-            backend: Backend::Cuda,
-            half: true,
+            backend: Backend::Cpu,
+            half: false,
             tiles: true,
         }
     }

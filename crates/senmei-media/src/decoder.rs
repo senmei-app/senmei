@@ -38,7 +38,7 @@ impl Decoder {
             width: info.width,
             height: info.height,
             fps: info.fps,
-            total_frames: (info.duration * info.fps).round() as u64,
+            total_frames: (info.duration * info.fps).round().max(1.0) as u64,
             frame_size: (info.width * info.height * 3) as usize,
         })
     }

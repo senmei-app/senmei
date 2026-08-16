@@ -33,9 +33,17 @@ pub struct ModelMetadata {
     pub download_url: Option<String>,
     #[serde(default)]
     pub sha256: Option<String>,
+    /// Whether an engine can load these weights yet (e.g. a `.pth` state dict
+    /// that still needs TorchScript conversion is not loadable).
+    #[serde(default = "default_true")]
+    pub loadable: bool,
     #[serde(default)]
     #[specta(skip)]
     pub metadata: serde_json::Value,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +117,17 @@ mod tests {
         assert_eq!(registry.models()[0].id, "rife-v4");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[1].scale, 4);
+        // `loadable` defaults to true when absent.
+        assert!(registry.models()[0].loadable);
+    }
+
+    #[test]
+    fn registry_parses_loadable_false() {
+        let json = r#"[
+            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "loadable": false}
+        ]"#;
+        let registry = Registry::from_json(json).unwrap();
+        assert!(!registry.models()[0].loadable);
     }
 
     #[test]

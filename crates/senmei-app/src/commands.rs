@@ -216,6 +216,15 @@ fn ensure_model_downloaded(
 }
 
 fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
+    let (registry, _dir) = load_registry()?;
+    let meta = registry
+        .models()
+        .iter()
+        .find(|m| m.id == model_id)
+        .ok_or_else(|| format!("model not found: {model_id}"))?;
+    if !meta.loadable {
+        return Err(format!("model {model_id} has no loadable weights yet"));
+    }
     let path = ensure_model_downloaded(model_id, &mut |_, _| {})?;
     let mref = senmei_ml::ModelRef {
         id: model_id.to_string(),
