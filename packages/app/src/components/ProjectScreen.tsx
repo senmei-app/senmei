@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@senmei/ui";
 import { useI18n } from "../i18n";
 import FfmpegIndicator from "./FfmpegIndicator";
 import WindowControls from "./WindowControls";
@@ -53,13 +54,7 @@ export default function ProjectScreen({
               placeholder={t("project.namePlaceholder")}
               className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             />
-            <button
-              onClick={create}
-              disabled={!name.trim()}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition"
-            >
-              {t("project.create")}
-            </button>
+            <Button onClick={create} disabled={!name.trim()}>{t("project.create")}</Button>
           </div>
         </div>
 
@@ -82,12 +77,9 @@ export default function ProjectScreen({
           </div>
         </div>
 
-        <button
-          onClick={onBrowse}
-          className="mt-6 w-72 rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-300 transition dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
+        <Button onClick={onBrowse} variant="secondary" className="mt-6 w-72 py-2.5">
           {t("project.browse")}
-        </button>
+        </Button>
       </div>
     </div>
   );

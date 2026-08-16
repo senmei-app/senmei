@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { listModels, type ModelMetadata } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 
 type Group = "settings" | "advanced";
@@ -48,6 +50,26 @@ function Accordion({
 export default function Inspector() {
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
+  const [models, setModels] = useState<ModelMetadata[]>([]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    listModels().then(setModels).catch(() => {});
+  }, []);
+
+  const interpolateModels = models.filter((m) => m.kind === "interpolate");
+  const upscaleModels = models.filter((m) => m.kind === "upscale");
+
+  const modelSelect = (models: ModelMetadata[]) => (
+    <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+      {models.length === 0 && <option value="">—</option>}
+      {models.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
+        </option>
+      ))}
+    </select>
+  );
 
   return (
     <aside className="h-full w-full overflow-y-auto border-l border-slate-200 bg-slate-100/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
@@ -77,10 +99,7 @@ export default function Inspector() {
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
-                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                  <option>RIFE v4.26 (Heavy)</option>
-                  <option>GMFSS Fortuna</option>
-                </select>
+                {modelSelect(interpolateModels)}
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.fps")}</label>
@@ -107,10 +126,7 @@ export default function Inspector() {
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
-                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                  <option>SPAN (Fast Anime)</option>
-                  <option>Real-ESRGAN x4+</option>
-                </select>
+                {modelSelect(upscaleModels)}
               </div>
             </div>
           </Accordion>

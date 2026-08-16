@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { isTauri } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { isTauri, Channel } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   createProject,
@@ -9,8 +9,10 @@ import {
   healthCheck,
   importFolder,
   listProjects,
+  render,
   saveSettings,
   type ProjectEntry,
+  type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
 import TopBar from "./components/TopBar";
@@ -32,6 +34,10 @@ export default function App() {
   const [theme, setTheme] = useState<string>("dark");
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [rendering, setRendering] = useState(false);
+  const [progress, setProgress] = useState<RenderProgress | null>(null);
+
+  const currentFile = files[0];
 
   const resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
@@ -120,6 +126,26 @@ export default function App() {
     if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
   };
 
+  const startRender = async () => {
+    if (!isTauri() || !currentFile || rendering) return;
+    const output = await save({
+      defaultPath: currentFile.replace(/\.[^.]+$/, "_senmei.mp4"),
+      filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
+    });
+    if (typeof output !== "string") return;
+    setRendering(true);
+    setProgress(null);
+    const ch = new Channel<RenderProgress>();
+    ch.onmessage = setProgress;
+    try {
+      await render(currentFile, output, ch);
+    } catch (e) {
+      setHealth(`render failed: ${e}`);
+    } finally {
+      setRendering(false);
+    }
+  };
+
   return (
     <I18nProvider lang={lang} setLang={changeLang}>
       <div className={resolvedTheme === "dark" ? "dark" : ""}>
@@ -141,8 +167,11 @@ export default function App() {
         ) : (
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
             <TopBar
+              file={currentFile}
+              rendering={rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
+              onStartRender={startRender}
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
@@ -153,14 +182,14 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={55} minSize={35}>
-                <Monitor />
+                <Monitor file={currentFile} />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
                 <Inspector />
               </Panel>
             </PanelGroup>
-            <StatusBar health={health} />
+            <StatusBar health={health} fileCount={files.length} progress={progress} rendering={rendering} />
           </div>
         )}
       </div>

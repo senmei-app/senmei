@@ -7,6 +7,8 @@ export type {
   ProjectEntry,
   RenderProgress,
   DownloadProgress,
+  ModelMetadata,
+  ModelKind,
   FfmpegInfo as FfmpegStatus,
 } from "./bindings";
 
@@ -30,3 +32,5 @@ export const rememberProject = (path: string) => commands.rememberProject(path);
 export const getFfmpegStatus = () => commands.getFfmpegStatus();
 export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>
   commands.downloadFfmpeg(onProgress);
+
+export const listModels = () => commands.listModels();

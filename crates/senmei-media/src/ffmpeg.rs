@@ -4,11 +4,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::{Error, Result};
 
 const ENV_PATH: &str = "SENMEI_FFMPEG";
 const ARCHIVE_DIR: &str = "temp";
+// SHA-256 of the pinned BtbN build; update when bumping the download.
+const FFMPEG_SHA256: &str = "e0ae9c7c76dd029457ac54d8d6f95742bd398c8ed5ac434ad313a1e99136278e";
 
 fn system_ffmpeg_works() -> bool {
     Command::new("ffmpeg")
@@ -183,10 +186,16 @@ fn extract_binary(
     found
 }
 
+fn sha256_hex(path: &Path) -> Result<String> {
+    let bytes = fs::read(path)?;
+    Ok(format!("{:x}", Sha256::digest(&bytes)))
+}
+
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
     let url = archive_url().ok_or_else(|| {
         Error::command_failed("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
     })?;
+    log::info!("ffmpeg download from {url}");
 
     let temp = data_dir.join(ARCHIVE_DIR);
     fs::create_dir_all(&temp).map_err(|e| Error::command_failed(e.to_string()))?;
@@ -195,6 +204,14 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     );
 
     fetch_file(url, &archive, &mut on_progress)?;
+
+    let actual = sha256_hex(&archive)?;
+    if !actual.eq_ignore_ascii_case(FFMPEG_SHA256) {
+        let _ = fs::remove_file(&archive);
+        return Err(Error::command_failed(format!(
+            "ffmpeg checksum mismatch (expected {FFMPEG_SHA256}, got {actual}); update FFMPEG_SHA256 for the new build"
+        )));
+    }
 
     let bin_dir = data_dir.join("bin");
     fs::create_dir_all(&bin_dir).map_err(|e| Error::command_failed(e.to_string()))?;
@@ -214,12 +231,20 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     }
 
     let _ = fs::remove_file(&archive);
+    log::info!("ffmpeg installed to {}", out.display());
     Ok(out)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_caps_extracts_names() {
+        let out = "Encoders:\n V..... libx264              H.264 (codec h264)\n V..... libx265              HEVC (codec hevc)\n A..... libopus              Opus\n";
+        let names = parse_caps(out);
+        assert_eq!(names, vec!["libx264", "libx265", "libopus"]);
+    }
 
     #[test]
     fn probe_system_ffmpeg() {

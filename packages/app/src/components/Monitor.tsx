@@ -1,13 +1,18 @@
 import { useI18n } from "../i18n";
 
-export default function Monitor() {
+export default function Monitor({ file }: { file?: string }) {
   const { t } = useI18n();
+  const name = file ? file.split("/").pop() : null;
 
   return (
     <main className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
       <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800">
         <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
-          <span className="font-mono text-sm text-slate-500 dark:text-slate-600">{t("monitor.placeholder")}</span>
+          {name ? (
+            <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">{name}</span>
+          ) : (
+            <span className="font-mono text-sm text-slate-500 dark:text-slate-600">{t("monitor.placeholder")}</span>
+          )}
         </div>
 
         <div className="absolute inset-y-0 left-1/2 w-0.5 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]">

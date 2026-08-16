@@ -7,8 +7,10 @@ repository.workspace = true
 description = "Media handling for Senmei: FFmpeg process, frame pipe, and encoder profiles."
 
 [dependencies]
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 specta = "2.0.0-rc.25"
 tar = "0.4"
 ureq = "2"

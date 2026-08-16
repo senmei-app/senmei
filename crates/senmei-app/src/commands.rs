@@ -34,6 +34,7 @@ pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
 pub async fn download_ffmpeg(
     on_progress: Channel<DownloadProgress>,
 ) -> Result<String, String> {
+    log::info!("downloading portable ffmpeg");
     let dir = store::data_dir();
     tauri::async_runtime::spawn_blocking(move || {
         senmei_media::download(&dir, |downloaded, total| {
@@ -44,6 +45,20 @@ pub async fn download_ffmpeg(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
+    let mut registry = senmei_ml::Registry::new();
+    for dir in [PathBuf::from("models"), PathBuf::from("../models")] {
+        if dir.is_dir() {
+            if registry.load_dir(&dir).is_ok() {
+                break;
+            }
+        }
+    }
+    registry.models().to_vec()
 }
 
 #[tauri::command]
@@ -115,6 +130,7 @@ pub async fn render(
     output: String,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
+    log::info!("render start: {input} -> {output}");
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 

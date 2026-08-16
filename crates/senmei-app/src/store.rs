@@ -130,3 +130,47 @@ pub fn create_project(name: &str) -> Result<String, String> {
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_temp_data_dir(test: impl FnOnce()) {
+        let base = std::env::temp_dir().join(format!("senmei-store-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::env::set_var("XDG_DATA_HOME", &base);
+        test();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn settings_roundtrip() {
+        with_temp_data_dir(|| {
+            let settings = Settings {
+                language: "de".into(),
+                theme: "light".into(),
+            };
+            save_settings(&settings).unwrap();
+            let loaded = load_settings();
+            assert_eq!(loaded.language, "de");
+            assert_eq!(loaded.theme, "light");
+        });
+    }
+
+    #[test]
+    fn settings_default_when_missing() {
+        with_temp_data_dir(|| {
+            let loaded = load_settings();
+            assert_eq!(loaded.language, "en");
+            assert_eq!(loaded.theme, "dark");
+        });
+    }
+
+    #[test]
+    fn project_dir_created_by_create_project() {
+        with_temp_data_dir(|| {
+            let path = create_project("Test 1").unwrap();
+            assert!(PathBuf::from(&path).is_dir());
+        });
+    }
+}

@@ -14,6 +14,7 @@ export const commands = {
 	rememberProject: (path: string) => __TAURI_INVOKE<null>("remember_project", { path }),
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
+	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
 };
 
 /* Types */
@@ -28,6 +29,19 @@ export type FfmpegInfo = {
 	version: string | null,
 	encoders: string[],
 	decoders: string[],
+};
+
+export type ModelKind = "interpolate" | "upscale" | "denoise" | "decompress" | "deblur";
+
+export type ModelMetadata = {
+	id: string,
+	kind: ModelKind,
+	scale?: number,
+	arch: string,
+	torch?: string | null,
+	ncnn?: string[] | null,
+	license?: string | null,
+	source_url?: string | null,
 };
 
 export type ProjectEntry = {

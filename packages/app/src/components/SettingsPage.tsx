@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@senmei/ui";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
 import WindowControls from "./WindowControls";
@@ -169,15 +170,11 @@ export default function SettingsPage({
               {!status?.found && (
                 <div className="space-y-2">
                   {error && <p className="text-xs text-rose-500">{error}</p>}
-                  <button
-                    onClick={download}
-                    disabled={downloading}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                  >
+                  <Button onClick={download} disabled={downloading}>
                     {downloading
                       ? t("settings.ffmpeg.downloading").replace("{pct}", String(pct))
                       : t("settings.ffmpeg.download")}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

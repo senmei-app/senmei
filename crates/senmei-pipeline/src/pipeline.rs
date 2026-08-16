@@ -26,6 +26,7 @@ impl Pipeline {
         output: &Path,
         mut on_progress: impl FnMut(Progress),
     ) -> Result<()> {
+        log::info!("pipeline: decode/encode {input:?} -> {output:?}");
         let mut decoder = Decoder::open(ffmpeg, input)?;
         let total_frames = decoder.total_frames;
         let mut encoder = Encoder::open(ffmpeg, output, decoder.width, decoder.height, decoder.fps)?;

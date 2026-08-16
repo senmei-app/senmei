@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Result;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum ModelKind {
     Interpolate,
@@ -14,7 +14,7 @@ pub enum ModelKind {
     Deblur,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ModelMetadata {
     pub id: String,
     pub kind: ModelKind,
@@ -30,6 +30,7 @@ pub struct ModelMetadata {
     #[serde(default)]
     pub source_url: Option<String>,
     #[serde(default)]
+    #[specta(skip)]
     pub metadata: serde_json::Value,
 }
 
@@ -68,5 +69,34 @@ impl Registry {
 
     pub fn models(&self) -> &[ModelMetadata] {
         &self.models
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_from_json_array() {
+        let json = r#"[
+            {"id": "rife-v4", "kind": "interpolate", "scale": 1, "arch": "rife425"},
+            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span"}
+        ]"#;
+        let registry = Registry::from_json(json).unwrap();
+        assert_eq!(registry.models().len(), 2);
+        assert_eq!(registry.models()[0].id, "rife-v4");
+        assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[1].scale, 4);
+    }
+
+    #[test]
+    fn registry_loads_example_metadata() {
+        let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+        let mut registry = Registry::new();
+        registry.load_dir(path).unwrap();
+        assert_eq!(registry.models().len(), 1);
+        assert_eq!(registry.models()[0].id, "rife-4.26");
+        assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[0].torch.as_deref(), Some("rife-4.26.pt"));
     }
 }

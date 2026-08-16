@@ -23,7 +23,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::create_project,
             commands::remember_project,
             commands::get_ffmpeg_status,
-            commands::download_ffmpeg
+            commands::download_ffmpeg,
+            commands::list_models
         ])
 }
 
