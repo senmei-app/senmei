@@ -16,7 +16,7 @@ export default function TopBar() {
   };
 
   return (
-    <header className="flex h-12 w-full items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-4 text-xs backdrop-blur-md">
+    <header data-tauri-drag-region className="flex h-12 w-full items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-4 text-xs backdrop-blur-md">
       <div className="flex items-center space-x-6">
         <div className="flex items-center space-x-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
