@@ -2,7 +2,7 @@ mod pipeline;
 mod step;
 
 pub use pipeline::{Pipeline, Progress};
-pub use step::{Passthrough, Step, Upscale};
+pub use step::{Passthrough, Resize, Step, Upscale};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

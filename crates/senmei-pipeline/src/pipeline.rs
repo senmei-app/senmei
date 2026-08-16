@@ -29,9 +29,24 @@ impl Pipeline {
         log::info!("pipeline: decode/encode {input:?} -> {output:?}");
         let mut decoder = Decoder::open(ffmpeg, input)?;
         let total_frames = decoder.total_frames;
-        let mut encoder = Encoder::open(ffmpeg, output, decoder.width, decoder.height, decoder.fps)?;
 
-        let mut processed = 0u64;
+        // Steps may resize frames, so the encoder size must match the first
+        // processed frame, not the decoded source.
+        let mut first = match decoder.next_frame()? {
+            Some(frame) => frame,
+            None => return Err(Error::new("no frames decoded")),
+        };
+        for step in &mut self.steps {
+            step.process(&mut first)?;
+        }
+        let mut encoder = Encoder::open(ffmpeg, output, first.width, first.height, decoder.fps)?;
+        encoder.write_frame(&first)?;
+        let mut processed = 1u64;
+        on_progress(Progress {
+            frames_processed: processed,
+            total_frames,
+        });
+
         while let Some(mut frame) = decoder.next_frame()? {
             for step in &mut self.steps {
                 step.process(&mut frame)?;
@@ -44,10 +59,6 @@ impl Pipeline {
             });
         }
         encoder.finish()?;
-
-        if processed == 0 {
-            return Err(Error::new("no frames decoded"));
-        }
 
         Ok(())
     }

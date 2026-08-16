@@ -38,8 +38,15 @@ export default function App() {
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [scale, setScale] = useState(2);
   const [modelId, setModelId] = useState<string | null>(null);
+  const [resizeFactor, setResizeFactor] = useState("");
+  const [outputResizeFactor, setOutputResizeFactor] = useState("");
 
   const currentFile = files[0];
+
+  const toFactor = (v: string): number | null => {
+    const f = Number(v);
+    return f > 0 ? f : null;
+  };
 
   const resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
@@ -140,7 +147,15 @@ export default function App() {
     const ch = new Channel<RenderProgress>();
     ch.onmessage = setProgress;
     try {
-      await render(currentFile, output, scale, modelId, ch);
+      await render(
+        currentFile,
+        output,
+        scale,
+        modelId,
+        toFactor(resizeFactor),
+        toFactor(outputResizeFactor),
+        ch,
+      );
     } catch (e) {
       setHealth(`render failed: ${e}`);
     } finally {
@@ -192,6 +207,10 @@ export default function App() {
                   scale={scale}
                   onScaleChange={setScale}
                   onModelChange={setModelId}
+                  resizeFactor={resizeFactor}
+                  onResizeFactorChange={setResizeFactor}
+                  outputResizeFactor={outputResizeFactor}
+                  onOutputResizeFactorChange={setOutputResizeFactor}
                 />
               </Panel>
             </PanelGroup>

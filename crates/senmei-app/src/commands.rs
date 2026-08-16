@@ -159,7 +159,10 @@ pub struct RenderProgress {
 }
 
 fn models_dir() -> PathBuf {
-    for dir in [PathBuf::from("models"), PathBuf::from("../models")] {
+    // Anchor to the repo checkout: cargo tauri dev runs the binary from the
+    // crate dir, so CWD-relative paths can miss models/ at the repo root.
+    let anchored = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models");
+    for dir in [anchored, PathBuf::from("models"), PathBuf::from("../models")] {
         if dir.is_dir() {
             return dir;
         }
@@ -218,9 +221,13 @@ pub async fn render(
     output: String,
     scale: Option<u32>,
     model_id: Option<String>,
+    resize: Option<f32>,
+    output_resize: Option<f32>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
-    log::info!("render start: {input} -> {output} (scale {scale:?}, model {model_id:?})");
+    log::info!(
+        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?})"
+    );
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 
@@ -228,14 +235,28 @@ pub async fn render(
         let ffmpeg = senmei_media::resolve(&store::data_dir());
         let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];
+        if let Some(f) = resize {
+            steps.push(Box::new(senmei_pipeline::Resize::new(f)));
+        }
         if let Some(s) = scale {
             if s > 1 {
+                // A selected model that cannot be loaded (missing weights,
+                // unsupported format) falls back to the reference scaler.
                 let engine = match model_id.as_deref() {
-                    Some(id) => Some(engine_for_model(id)?),
+                    Some(id) => match engine_for_model(id) {
+                        Ok(e) => Some(e),
+                        Err(err) => {
+                            log::warn!("model {id} unavailable, using reference scaler: {err}");
+                            None
+                        }
+                    },
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
             }
+        }
+        if let Some(f) = output_resize {
+            steps.push(Box::new(senmei_pipeline::Resize::new(f)));
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
 

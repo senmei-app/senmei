@@ -59,10 +59,18 @@ export default function Inspector({
   scale,
   onScaleChange,
   onModelChange,
+  resizeFactor,
+  onResizeFactorChange,
+  outputResizeFactor,
+  onOutputResizeFactorChange,
 }: {
   scale: number;
   onScaleChange: (scale: number) => void;
   onModelChange: (modelId: string | null) => void;
+  resizeFactor: string;
+  onResizeFactorChange: (v: string) => void;
+  outputResizeFactor: string;
+  onOutputResizeFactorChange: (v: string) => void;
 }) {
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
@@ -72,7 +80,19 @@ export default function Inspector({
 
   useEffect(() => {
     if (!isTauri()) return;
-    listModels().then(setModels).catch(() => {});
+    listModels()
+      .then((list) => {
+        setModels(list);
+        const interp = list.find((m) => m.kind === "interpolate");
+        if (interp) setInterpolateModel(interp.id);
+        const up = list.find((m) => m.kind === "upscale");
+        if (up) {
+          setUpscaleModel(up.id);
+          onModelChange(up.id);
+          onScaleChange(up.scale ?? 1);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
@@ -98,6 +118,23 @@ export default function Inspector({
           </option>
         ))}
       </select>
+    </div>
+  );
+
+  const factorField = (value: string, onValue: (v: string) => void) => (
+    <div>
+      <label className="mb-1 block text-[10px] text-slate-500 dark:text-slate-400">
+        {t("resize.factor")}
+      </label>
+      <input
+        type="number"
+        min={0.1}
+        step={0.1}
+        value={value}
+        placeholder="1.0"
+        onChange={(e) => onValue(e.target.value)}
+        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+      />
     </div>
   );
 
@@ -180,8 +217,12 @@ export default function Inspector({
           </Accordion>
 
           <Accordion icon="📑" title={t("tab.dedup")} placeholder={t("tab.dedup.empty")} />
-          <Accordion icon="↔️" title={t("tab.resize")} placeholder={t("tab.resize.empty")} />
-          <Accordion icon="⤴️" title={t("tab.output_resize")} placeholder={t("tab.output_resize.empty")} />
+          <Accordion icon="↔️" title={t("tab.resize")}>
+            {factorField(resizeFactor, onResizeFactorChange)}
+          </Accordion>
+          <Accordion icon="⤴️" title={t("tab.output_resize")}>
+            {factorField(outputResizeFactor, onOutputResizeFactorChange)}
+          </Accordion>
         </div>
       )}
 

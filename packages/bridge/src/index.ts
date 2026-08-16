@@ -21,8 +21,10 @@ export const render = (
   output: string,
   scale: number | null,
   modelId: string | null,
+  resize: number | null,
+  outputResize: number | null,
   onProgress: Channel<RenderProgress>,
-) => commands.render(input, output, scale, modelId, onProgress);
+) => commands.render(input, output, scale, modelId, resize, outputResize, onProgress);
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 
