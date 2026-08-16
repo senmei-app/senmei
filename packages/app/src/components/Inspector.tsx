@@ -124,7 +124,35 @@ export default function Inspector() {
       {group === "advanced" && (
         <div className="space-y-3">
           <Accordion icon="🎬" title={t("tab.enc_video")} placeholder={t("tab.enc_video.empty")} />
-          <Accordion icon="🎵" title={t("tab.enc_audio")} placeholder={t("tab.enc_audio.empty")} />
+
+          <Accordion icon="🎵" title={t("tab.enc_audio")}>
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-1">{t("enc_audio.codec")}</label>
+                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                  <option>Passthrough</option>
+                  <option>AAC</option>
+                  <option>Opus</option>
+                  <option>FLAC</option>
+                </select>
+              </div>
+            </div>
+          </Accordion>
+
+          <Accordion icon="💬" title={t("tab.subtitle")}>
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-1">{t("subtitle.mode")}</label>
+                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                  <option>None</option>
+                  <option>Copy</option>
+                  <option>HardSub</option>
+                  <option>SoftSub</option>
+                </select>
+              </div>
+            </div>
+          </Accordion>
+
           <Accordion icon="⚙️" title={t("tab.backend")} placeholder={t("tab.backend.empty")} />
         </div>
       )}

@@ -48,7 +48,14 @@ export default function Monitor() {
         </div>
 
         <div className="relative h-3 w-full rounded-full bg-slate-800">
-          <div className="absolute left-1/4 right-1/2 h-full rounded-full bg-indigo-500/40 border-x-2 border-indigo-400"></div>
+          <div className="absolute left-1/4 right-1/2 h-full rounded-full bg-indigo-500/40 border-x-2 border-indigo-400">
+            <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-indigo-400 border-2 border-slate-950 cursor-ew-resize"></div>
+            <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-indigo-400 border-2 border-slate-950 cursor-ew-resize"></div>
+          </div>
+        </div>
+        <div className="mt-1.5 flex justify-between text-[10px] font-mono text-slate-500">
+          <span>{t("timeline.in")}: 00:00:12.40</span>
+          <span>{t("timeline.out")}: 00:00:27.40</span>
         </div>
       </div>
     </main>
