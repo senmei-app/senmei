@@ -35,7 +35,7 @@ pub fn resolve(data_dir: &Path) -> PathBuf {
     PathBuf::from("ffmpeg")
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FfmpegInfo {
     pub found: bool,

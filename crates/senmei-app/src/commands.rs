@@ -6,11 +6,12 @@ use tauri::ipc::Channel;
 use crate::store;
 
 #[tauri::command]
+#[specta::specta]
 pub fn health_check() -> String {
     "ok".to_string()
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadProgress {
     pub downloaded: u64,
@@ -18,6 +19,7 @@ pub struct DownloadProgress {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
     if std::env::var_os("SENMEI_FORCE_FFMPEG_MISSING").is_some() {
         return senmei_media::FfmpegInfo::default();
@@ -28,6 +30,7 @@ pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn download_ffmpeg(
     on_progress: Channel<DownloadProgress>,
 ) -> Result<String, String> {
@@ -44,6 +47,7 @@ pub async fn download_ffmpeg(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     const EXTS: [&str; 10] = [
         "mp4", "mkv", "mov", "webm", "avi", "m4v", "ts", "m2ts", "flv", "wmv",
@@ -68,31 +72,36 @@ pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_settings() -> store::Settings {
     store::load_settings()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_settings(settings: store::Settings) -> Result<(), String> {
     store::save_settings(&settings)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn list_projects() -> Vec<store::ProjectEntry> {
     store::list_projects()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn create_project(name: String) -> Result<String, String> {
     store::create_project(&name)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn remember_project(path: String) -> Result<(), String> {
     store::remember_project(&path)
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderProgress {
     pub frames_processed: u64,
@@ -100,6 +109,7 @@ pub struct RenderProgress {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn render(
     input: String,
     output: String,

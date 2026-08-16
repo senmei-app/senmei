@@ -1,69 +1,32 @@
-import { invoke, type Channel } from "@tauri-apps/api/core";
+import type { Channel } from "@tauri-apps/api/core";
+import { commands } from "./bindings";
+import type { Settings, RenderProgress, DownloadProgress } from "./bindings";
 
-export interface RenderProgress {
-  framesProcessed: number;
-  totalFrames: number;
-}
+export type {
+  Settings,
+  ProjectEntry,
+  RenderProgress,
+  DownloadProgress,
+  FfmpegInfo as FfmpegStatus,
+} from "./bindings";
 
-export async function healthCheck(): Promise<string> {
-  return invoke<string>("health_check");
-}
+export const healthCheck = () => commands.healthCheck();
 
-export async function render(
+export const render = (
   input: string,
   output: string,
   onProgress: Channel<RenderProgress>,
-): Promise<string> {
-  return invoke<string>("render", { input, output, onProgress });
-}
+) => commands.render(input, output, onProgress);
 
-export async function importFolder(dir: string): Promise<string[]> {
-  return invoke<string[]>("import_folder", { dir });
-}
+export const importFolder = (dir: string) => commands.importFolder(dir);
 
-export interface Settings {
-  language: string;
-  theme: string;
-}
+export const getSettings = () => commands.getSettings();
+export const saveSettings = (settings: Settings) => commands.saveSettings(settings);
 
-export async function getSettings(): Promise<Settings> {
-  return invoke<Settings>("get_settings");
-}
+export const listProjects = () => commands.listProjects();
+export const createProject = (name: string) => commands.createProject(name);
+export const rememberProject = (path: string) => commands.rememberProject(path);
 
-export async function saveSettings(settings: Settings): Promise<void> {
-  await invoke("save_settings", { settings });
-}
-
-export interface ProjectEntry {
-  name: string;
-  path: string;
-}
-
-export async function listProjects(): Promise<ProjectEntry[]> {
-  return invoke<ProjectEntry[]>("list_projects");
-}
-
-export async function createProject(name: string): Promise<string> {
-  return invoke<string>("create_project", { name });
-}
-
-export interface FfmpegStatus {
-  found: boolean;
-  path: string | null;
-  version: string | null;
-  encoders: string[];
-  decoders: string[];
-}
-
-export async function getFfmpegStatus(): Promise<FfmpegStatus> {
-  return invoke<FfmpegStatus>("get_ffmpeg_status");
-}
-
-export interface DownloadProgress {
-  downloaded: number;
-  total: number;
-}
-
-export async function downloadFfmpeg(onProgress: Channel<DownloadProgress>): Promise<string> {
-  return invoke<string>("download_ffmpeg", { onProgress });
-}
+export const getFfmpegStatus = () => commands.getFfmpegStatus();
+export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>
+  commands.downloadFfmpeg(onProgress);
