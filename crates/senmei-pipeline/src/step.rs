@@ -1,5 +1,7 @@
 use senmei_media::Frame;
-use senmei_ml::{InferenceEngine, InferOptions, Tensor};
+use senmei_ml::{InferenceEngine, InferOptions};
+
+use crate::frame::{frame_to_tensor, tensor_to_frame};
 
 pub trait Step: Send {
     fn name(&self) -> &'static str;
@@ -15,40 +17,6 @@ impl Step for Passthrough {
 
     fn process(&mut self, _frame: &mut Frame) -> crate::Result<()> {
         Ok(())
-    }
-}
-
-fn frame_to_tensor(frame: &Frame) -> Tensor {
-    let h = frame.height as usize;
-    let w = frame.width as usize;
-    let hw = h * w;
-    let mut data = vec![0f32; 3 * hw];
-    // FFmpeg rgb24 frames are packed (R,G,B interleaved); de-interleave to planar NCHW.
-    for p in 0..hw {
-        let src = p * 3;
-        data[p] = frame.data[src] as f32 / 255.0;
-        data[hw + p] = frame.data[src + 1] as f32 / 255.0;
-        data[2 * hw + p] = frame.data[src + 2] as f32 / 255.0;
-    }
-    Tensor::new(vec![1, 3, h, w], data)
-}
-
-fn tensor_to_frame(t: &Tensor, width: u32, height: u32) -> Frame {
-    let h = t.shape[2];
-    let w = t.shape[3];
-    let hw = h * w;
-    let mut data = vec![0u8; 3 * hw];
-    // Planar NCHW -> packed rgb24 for the encoder.
-    for p in 0..hw {
-        let dst = p * 3;
-        data[dst] = (t.data[p] * 255.0).round().clamp(0.0, 255.0) as u8;
-        data[dst + 1] = (t.data[hw + p] * 255.0).round().clamp(0.0, 255.0) as u8;
-        data[dst + 2] = (t.data[2 * hw + p] * 255.0).round().clamp(0.0, 255.0) as u8;
-    }
-    Frame {
-        width,
-        height,
-        data,
     }
 }
 
@@ -168,6 +136,7 @@ fn resize_frame(frame: &mut Frame, nw: u32, nh: u32) -> crate::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use senmei_ml::Tensor;
 
     #[test]
     fn upscale_reference_doubles_size() {

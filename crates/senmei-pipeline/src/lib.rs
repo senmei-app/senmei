@@ -1,6 +1,9 @@
+mod frame;
+mod interpolate;
 mod pipeline;
 mod step;
 
+pub use interpolate::Interpolator;
 pub use pipeline::{Pipeline, Progress};
 pub use step::{Passthrough, Resize, Step, Upscale};
 
