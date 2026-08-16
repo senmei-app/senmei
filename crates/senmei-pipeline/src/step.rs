@@ -43,6 +43,9 @@ fn tensor_to_frame(t: &Tensor, width: u32, height: u32) -> Frame {
     }
 }
 
+/// Default tile size handed to engines that advertise tiling support.
+const TILE_SIZE: u32 = 256;
+
 /// Upscale step: runs the input frame through an ML engine, or falls back
 /// to a CPU bilinear scaler when no engine is available.
 pub struct Upscale {
@@ -65,8 +68,9 @@ impl Step for Upscale {
         let input = frame_to_tensor(frame);
         let out = match self.engine.as_mut() {
             Some(engine) => {
-                let opts = InferOptions { half: false, tile_size: None };
-                engine.infer(&input, &opts).map_err(|e| crate::Error::new(e.to_string()))?
+                let opts = InferOptions { half: false, tile_size: Some(TILE_SIZE) };
+                senmei_ml::infer_tiled(engine.as_mut(), &input, &opts)
+                    .map_err(|e| crate::Error::new(e.to_string()))?
             }
             None => senmei_ml::bilinear(&input, frame.height as usize * self.scale as usize, frame.width as usize * self.scale as usize),
         };

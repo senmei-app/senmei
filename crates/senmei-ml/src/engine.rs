@@ -31,6 +31,51 @@ pub trait InferenceEngine: Send + Sync {
     fn infer(&mut self, input: &Tensor, opts: &InferOptions) -> Result<Tensor>;
 }
 
+/// Run an engine over a full input, tiling when the engine advertises tile support
+/// and the input exceeds `opts.tile_size`. Tile outputs are stitched with overlap
+/// averaging; the output canvas is scaled by the engine's per-tile scale factor.
+pub fn infer_tiled(
+    engine: &mut dyn InferenceEngine,
+    input: &Tensor,
+    opts: &InferOptions,
+) -> Result<Tensor> {
+    let caps = engine.capabilities();
+    let Some(tile_size) = opts.tile_size else {
+        return engine.infer(input, opts);
+    };
+    if !caps.tiles {
+        return engine.infer(input, opts);
+    }
+    let tile_size = tile_size as usize;
+    let h = input.shape[2];
+    let w = input.shape[3];
+    if h <= tile_size && w <= tile_size {
+        return engine.infer(input, opts);
+    }
+
+    let overlap = tile_size / 4;
+    let tiles = crate::tile(input, tile_size, overlap);
+    let mut out_tiles = Vec::with_capacity(tiles.len());
+    for (x, y, t) in &tiles {
+        let out = engine.infer(t, opts)?;
+        out_tiles.push((*x, *y, out));
+    }
+
+    let scale_h = out_tiles[0].2.shape[2] as f32 / tiles[0].2.shape[2] as f32;
+    let scale_w = out_tiles[0].2.shape[3] as f32 / tiles[0].2.shape[3] as f32;
+    let out_h = (h as f32 * scale_h).round() as usize;
+    let out_w = (w as f32 * scale_w).round() as usize;
+    let scaled: Vec<(usize, usize, Tensor)> = out_tiles
+        .iter()
+        .map(|(x, y, t)| {
+            let sx = (*x as f32 * scale_w).round() as usize;
+            let sy = (*y as f32 * scale_h).round() as usize;
+            (sx, sy, t.clone())
+        })
+        .collect();
+    Ok(crate::stitch(&scaled, out_h, out_w, input.shape[1]))
+}
+
 #[cfg(not(feature = "torch"))]
 pub struct TorchEngine;
 
@@ -148,5 +193,111 @@ impl InferenceEngine for NcnnEngine {
 
     fn infer(&mut self, _input: &Tensor, _opts: &InferOptions) -> Result<Tensor> {
         Err(Error::unimplemented("NcnnEngine::infer"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input(h: usize, w: usize) -> Tensor {
+        let mut data = vec![0f32; 3 * h * w];
+        for (i, v) in data.iter_mut().enumerate() {
+            *v = (i % 251) as f32 / 251.0;
+        }
+        Tensor::new(vec![1, 3, h, w], data)
+    }
+
+    struct IdentityEngine;
+
+    impl InferenceEngine for IdentityEngine {
+        fn name(&self) -> &'static str {
+            "identity-test"
+        }
+        fn capabilities(&self) -> EngineCaps {
+            EngineCaps { backend: Backend::Cpu, half: false, tiles: true }
+        }
+        fn load(&mut self, _m: &ModelRef) -> Result<()> {
+            Ok(())
+        }
+        fn infer(&mut self, input: &Tensor, _o: &InferOptions) -> Result<Tensor> {
+            Ok(input.clone())
+        }
+    }
+
+    struct ScaleEngine {
+        factor: usize,
+    }
+
+    impl InferenceEngine for ScaleEngine {
+        fn name(&self) -> &'static str {
+            "scale-test"
+        }
+        fn capabilities(&self) -> EngineCaps {
+            EngineCaps { backend: Backend::Cpu, half: false, tiles: true }
+        }
+        fn load(&mut self, _m: &ModelRef) -> Result<()> {
+            Ok(())
+        }
+        fn infer(&mut self, input: &Tensor, _o: &InferOptions) -> Result<Tensor> {
+            let h = input.shape[2];
+            let w = input.shape[3];
+            Ok(crate::bilinear(input, h * self.factor, w * self.factor))
+        }
+    }
+
+    struct NoTilesEngine;
+
+    impl InferenceEngine for NoTilesEngine {
+        fn name(&self) -> &'static str {
+            "notiles-test"
+        }
+        fn capabilities(&self) -> EngineCaps {
+            EngineCaps { backend: Backend::Cpu, half: false, tiles: false }
+        }
+        fn load(&mut self, _m: &ModelRef) -> Result<()> {
+            Ok(())
+        }
+        fn infer(&mut self, input: &Tensor, _o: &InferOptions) -> Result<Tensor> {
+            Ok(input.clone())
+        }
+    }
+
+    #[test]
+    fn tiled_identity_reconstructs() {
+        let t = input(16, 16);
+        let mut engine = IdentityEngine;
+        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let out = infer_tiled(&mut engine, &t, &opts).unwrap();
+        assert_eq!(out.shape, t.shape);
+        assert_eq!(out.data, t.data);
+    }
+
+    #[test]
+    fn tiled_scaled_dims() {
+        let t = input(16, 16);
+        let mut engine = ScaleEngine { factor: 2 };
+        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let out = infer_tiled(&mut engine, &t, &opts).unwrap();
+        assert_eq!(out.shape, vec![1, 3, 32, 32]);
+        assert!(out.data.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn small_input_skips_tiling() {
+        let t = input(8, 8);
+        let mut engine = ScaleEngine { factor: 2 };
+        let opts = InferOptions { half: false, tile_size: Some(16) };
+        let out = infer_tiled(&mut engine, &t, &opts).unwrap();
+        assert_eq!(out.shape, vec![1, 3, 16, 16]);
+    }
+
+    #[test]
+    fn engine_without_tiling_goes_whole() {
+        let t = input(16, 16);
+        let mut engine = NoTilesEngine;
+        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let out = infer_tiled(&mut engine, &t, &opts).unwrap();
+        assert_eq!(out.data, t.data);
     }
 }
