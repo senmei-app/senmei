@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { Button } from "@senmei/ui";
+import type { ProjectEntry } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 import FfmpegIndicator from "./FfmpegIndicator";
 import WindowControls from "./WindowControls";
-
-export interface ProjectEntry {
-  name: string;
-  path: string;
-}
 
 export default function ProjectScreen({
   projects,
