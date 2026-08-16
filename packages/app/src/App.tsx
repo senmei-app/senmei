@@ -43,6 +43,7 @@ export default function App() {
   const [modelId, setModelId] = useState<string | null>(null);
   const [resizeFactor, setResizeFactor] = useState("");
   const [outputResizeFactor, setOutputResizeFactor] = useState("");
+  const [fpsMultiplier, setFpsMultiplier] = useState<number | null>(null);
   const [stepsEnabled, setStepsEnabled] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
 
@@ -179,6 +180,7 @@ export default function App() {
         modelId,
         toFactor(resizeFactor),
         toFactor(outputResizeFactor),
+        fpsMultiplier,
         ch,
       );
     } catch (e) {
@@ -237,6 +239,8 @@ export default function App() {
                   onResizeFactorChange={setResizeFactor}
                   outputResizeFactor={outputResizeFactor}
                   onOutputResizeFactorChange={setOutputResizeFactor}
+                  fpsMultiplier={fpsMultiplier}
+                  onFpsChange={setFpsMultiplier}
                   stepsEnabled={stepsEnabled}
                   onToggleStep={(id, enabled) =>
                     setStepsEnabled((prev) => ({ ...prev, [id]: enabled }))

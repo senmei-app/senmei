@@ -244,10 +244,11 @@ pub async fn render(
     model_id: Option<String>,
     resize: Option<f32>,
     output_resize: Option<f32>,
+    fps_multiplier: Option<u32>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
     log::info!(
-        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?})"
+        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?})"
     );
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
@@ -280,6 +281,11 @@ pub async fn render(
             steps.push(Box::new(senmei_pipeline::Resize::new(f)));
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        if let Some(f) = fps_multiplier {
+            if f > 1 {
+                pipeline.set_interpolator(senmei_pipeline::Interpolator::new(f));
+            }
+        }
 
         pipeline
             .run(&ffmpeg, &input, &output, |p| {

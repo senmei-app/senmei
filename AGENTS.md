@@ -12,7 +12,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Inference:** `tch` (libtorch) + NCNN/Vulkan — **no ONNX Runtime**
 - **Preview:** 2D canvas fed by FFmpeg-decoded frames (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
 - **Media:** FFmpeg as subprocess with `rawvideo` pipe · source: **system FFmpeg preferred, portable download fallback** (BtbN builds, GPL — separate process, not bundled/linked)
-- **Pipeline:** composable `Vec<Step>` (phase 1: `Interpolate` + `Upscale` + `Resize`)
+- **Pipeline:** composable `Vec<Step>` (`Upscale` + `Resize`) + a stateful interpolation stage (`Interpolator`) that emits blended intermediates (or duplicates across scene cuts) before the step chain
 - **License:** MIT OR Apache-2.0 · FFmpeg only as **LGPL build**
 - **No code** from RVE/TAS (AGPL-3.0) — clean re-implementation
 

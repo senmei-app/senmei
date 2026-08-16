@@ -24,8 +24,9 @@ export const render = (
   modelId: string | null,
   resize: number | null,
   outputResize: number | null,
+  fpsMultiplier: number | null,
   onProgress: Channel<RenderProgress>,
-) => commands.render(input, output, scale, modelId, resize, outputResize, onProgress);
+) => commands.render(input, output, scale, modelId, resize, outputResize, fpsMultiplier, onProgress);
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 

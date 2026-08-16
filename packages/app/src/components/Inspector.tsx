@@ -71,6 +71,8 @@ export default function Inspector({
   onResizeFactorChange,
   outputResizeFactor,
   onOutputResizeFactorChange,
+  fpsMultiplier,
+  onFpsChange,
   stepsEnabled,
   onToggleStep,
 }: {
@@ -81,6 +83,8 @@ export default function Inspector({
   onResizeFactorChange: (v: string) => void;
   outputResizeFactor: string;
   onOutputResizeFactorChange: (v: string) => void;
+  fpsMultiplier: number | null;
+  onFpsChange: (f: number | null) => void;
   stepsEnabled: Record<string, boolean>;
   onToggleStep: (id: string, enabled: boolean) => void;
 }) {
@@ -112,7 +116,7 @@ export default function Inspector({
 
   const step = (id: string) => ({ id, enabled: !!stepsEnabled[id], onToggle: onToggleStep });
 
-  const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void) => (
+  const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void, propagate: boolean) => (
     <div className="space-y-1">
       <select
         value={value}
@@ -120,8 +124,10 @@ export default function Inspector({
           const id = e.target.value;
           onValue(id);
           const m = models.find((x) => x.id === id);
-          onModelChange(m ? m.id : null);
-          if (m) onScaleChange(m.scale ?? 1);
+          if (propagate) {
+            onModelChange(m ? m.id : null);
+            if (m) onScaleChange(m.scale ?? 1);
+          }
         }}
         className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
       >
@@ -180,20 +186,24 @@ export default function Inspector({
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
-                {modelSelect(interpolateModels, interpolateModel, setInterpolateModel)}
+                {modelSelect(interpolateModels, interpolateModel, setInterpolateModel, false)}
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.fps")}</label>
                 <div className="flex space-x-2">
-                  <button className="flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white">
-                    2x (48fps)
-                  </button>
-                  <button className="flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
-                    3x
-                  </button>
-                  <button className="flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
-                    4x
-                  </button>
+                  {[2, 3, 4].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onFpsChange(fpsMultiplier === s ? null : s)}
+                      className={
+                        fpsMultiplier === s
+                          ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
+                          : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                      }
+                    >
+                      {s}x
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -207,7 +217,7 @@ export default function Inspector({
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
-                {modelSelect(upscaleModels, upscaleModel, setUpscaleModel)}
+                {modelSelect(upscaleModels, upscaleModel, setUpscaleModel, true)}
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.scale")}</label>
