@@ -1,0 +1,9 @@
+{
+  "name": "senmei",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "cd packages/app && bun run dev",
+    "build": "cd packages/app && bun run build"
+  }
+}
