@@ -18,6 +18,9 @@ pub enum LibTorchBackend {
 pub struct LibTorchInfo {
     pub backend: LibTorchBackend,
     pub downloaded: bool,
+    pub version: Option<String>,
+    pub driver: Option<String>,
+    pub devices: Vec<String>,
     pub path: Option<String>,
 }
 
@@ -36,6 +39,70 @@ pub fn detect_backend() -> LibTorchBackend {
     LibTorchBackend::Cpu
 }
 
+fn cmd_out(cmd: &str, args: &[&str]) -> Option<String> {
+    std::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+}
+
+fn libtorch_version(dir: &Path) -> Option<String> {
+    let path = dir.join("build-version");
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn driver_version(backend: LibTorchBackend) -> Option<String> {
+    match backend {
+        LibTorchBackend::Cuda => cmd_out(
+            "nvidia-smi",
+            &["--query-gpu=driver_version", "--format=csv,noheader"],
+        )
+        .and_then(|s| s.lines().next().map(|l| l.trim().to_string()))
+        .filter(|s| !s.is_empty()),
+        LibTorchBackend::Rocm => cmd_out("rocm-smi", &["--showdriverversion"]).and_then(|s| {
+            s.lines()
+                .find(|l| l.to_ascii_lowercase().contains("version"))
+                .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
+        }),
+        LibTorchBackend::Cpu => None,
+    }
+}
+
+fn devices(backend: LibTorchBackend) -> Vec<String> {
+    match backend {
+        LibTorchBackend::Cuda => cmd_out("nvidia-smi", &["-L"])
+            .map(|s| {
+                s.lines()
+                    .filter_map(|l| {
+                        let name = l.split(": ").nth(1)?;
+                        Some(
+                            name.split(" (UUID")
+                                .next()
+                                .unwrap_or(name)
+                                .trim()
+                                .to_string(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        LibTorchBackend::Rocm => cmd_out("rocm-smi", &["--showproductname"])
+            .map(|s| {
+                s.lines()
+                    .filter_map(|l| l.split_once("Product Name:").map(|(_, n)| n.trim().to_string()))
+                    .filter(|n| !n.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default(),
+        LibTorchBackend::Cpu => Vec::new(),
+    }
+}
+
 pub fn libtorch_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("libtorch")
 }
@@ -47,6 +114,9 @@ pub fn status(data_dir: &Path) -> LibTorchInfo {
     LibTorchInfo {
         backend: detect_backend(),
         downloaded,
+        version: downloaded.then(|| libtorch_version(&dir)).flatten(),
+        driver: driver_version(detect_backend()),
+        devices: devices(detect_backend()),
         path: downloaded.then(|| dir.to_string_lossy().into_owned()),
     }
 }

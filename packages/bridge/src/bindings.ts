@@ -38,6 +38,9 @@ export type LibTorchBackend = "cpu" | "cuda" | "rocm";
 export type LibTorchInfo = {
 	backend: LibTorchBackend,
 	downloaded: boolean,
+	version: string | null,
+	driver: string | null,
+	devices: string[],
 	path: string | null,
 };
 

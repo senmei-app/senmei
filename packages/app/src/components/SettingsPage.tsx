@@ -6,7 +6,7 @@ import { useLibtorch } from "../useLibtorch";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
-type Section = "appearance" | "ffmpeg" | "inference";
+type Section = "appearance" | "info";
 
 const KEY_ENCODERS = [
   "libx264",
@@ -44,11 +44,11 @@ export default function SettingsPage({
     error: ltError,
     download: startLibtorchDownload,
   } = useLibtorch();
+  const [device, setDevice] = useState("");
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
-    { key: "ffmpeg", label: t("settings.section.ffmpeg") },
-    { key: "inference", label: t("settings.section.inference") },
+    { key: "info", label: t("settings.section.info") },
   ];
 
   const encoders = status?.encoders ?? [];
@@ -142,90 +142,137 @@ export default function SettingsPage({
             </div>
           )}
 
-          {section === "ffmpeg" && (
+          {section === "info" && (
             <div className="max-w-xl space-y-6">
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.ffmpeg.status")}
-                </label>
-                {status?.found ? (
-                  <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
-                    <p className="text-slate-700 dark:text-slate-300">
-                      {t("settings.ffmpeg.version")}: {status.version}
+              <div className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  {t("settings.section.ffmpeg")}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t("settings.ffmpeg.status")}
+                    </label>
+                    {status?.found ? (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
+                        <p className="text-slate-700 dark:text-slate-300">
+                          {t("settings.ffmpeg.version")}: {status.version}
+                        </p>
+                        <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{status.path}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-rose-500">{t("settings.ffmpeg.notFound")}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t("settings.ffmpeg.encoders")}
+                    </label>
+                    <div className="flex flex-wrap gap-1">
+                      {KEY_ENCODERS.map((e) => (
+                        <span
+                          key={e}
+                          className={
+                            encoders.includes(e)
+                              ? "rounded-md bg-emerald-500/15 px-2 py-1 font-mono text-[11px] text-emerald-600 dark:text-emerald-400"
+                              : "rounded-md bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-400 dark:bg-slate-800 dark:text-slate-600"
+                          }
+                        >
+                          {e}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      {t("settings.ffmpeg.available").replace("{count}", String(encoders.length))}
                     </p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{status.path}</p>
                   </div>
-                ) : (
-                  <p className="text-xs text-rose-500">{t("settings.ffmpeg.notFound")}</p>
-                )}
-              </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.ffmpeg.encoders")}
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {KEY_ENCODERS.map((e) => (
-                    <span
-                      key={e}
-                      className={
-                        encoders.includes(e)
-                          ? "rounded-md bg-emerald-500/15 px-2 py-1 font-mono text-[11px] text-emerald-600 dark:text-emerald-400"
-                          : "rounded-md bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-400 dark:bg-slate-800 dark:text-slate-600"
-                      }
-                    >
-                      {e}
-                    </span>
-                  ))}
+                  {!status?.found && (
+                    <div className="space-y-2">
+                      {error && <p className="text-xs text-rose-500">{error}</p>}
+                      <Button onClick={download} disabled={downloading}>
+                        {downloading
+                          ? t("settings.ffmpeg.downloading").replace("{pct}", String(pct))
+                          : t("settings.ffmpeg.download")}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  {t("settings.ffmpeg.available").replace("{count}", String(encoders.length))}
-                </p>
               </div>
 
-              {!status?.found && (
-                <div className="space-y-2">
-                  {error && <p className="text-xs text-rose-500">{error}</p>}
-                  <Button onClick={download} disabled={downloading}>
-                    {downloading
-                      ? t("settings.ffmpeg.downloading").replace("{pct}", String(pct))
-                      : t("settings.ffmpeg.download")}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {section === "inference" && (
-            <div className="max-w-xl space-y-6">
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.inference.backend")}
-                </label>
-                <span className="rounded-md bg-indigo-600/15 px-2 py-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-300">
-                  {backendLabel}
-                </span>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+              <div className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t("settings.section.inference")}
-                </label>
-                {libtorch?.downloaded ? (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    {t("settings.inference.downloaded")}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-rose-500">{t("settings.inference.notDownloaded")}</p>
-                    {ltError && <p className="text-xs text-rose-500">{ltError}</p>}
-                    <Button onClick={startLibtorchDownload} disabled={ltDownloading}>
-                      {ltDownloading
-                        ? t("settings.inference.downloading").replace("{pct}", String(ltPct))
-                        : t("settings.inference.download")}
-                    </Button>
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t("settings.inference.backend")}
+                    </label>
+                    <span className="rounded-md bg-indigo-600/15 px-2 py-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-300">
+                      {backendLabel}
+                    </span>
                   </div>
-                )}
+
+                  {libtorch?.driver && (
+                    <div>
+                      <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t("settings.inference.driver")}
+                      </label>
+                      <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                        {libtorch.driver}
+                      </span>
+                    </div>
+                  )}
+
+                  {libtorch?.devices.length ? (
+                    <div>
+                      <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t("settings.inference.device")}
+                      </label>
+                      <select
+                        value={device}
+                        onChange={(e) => setDevice(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                      >
+                        {libtorch.devices.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    {libtorch?.downloaded ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                          {t("settings.inference.downloaded")}
+                        </p>
+                        {libtorch.version && (
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                            {t("settings.inference.version")}: {libtorch.version}
+                          </p>
+                        )}
+                        {libtorch.path && (
+                          <p className="truncate font-mono text-[11px] text-slate-500">{libtorch.path}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-rose-500">{t("settings.inference.notDownloaded")}</p>
+                        {ltError && <p className="text-xs text-rose-500">{ltError}</p>}
+                        <Button onClick={startLibtorchDownload} disabled={ltDownloading}>
+                          {ltDownloading
+                            ? t("settings.inference.downloading").replace("{pct}", String(ltPct))
+                            : t("settings.inference.download")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
