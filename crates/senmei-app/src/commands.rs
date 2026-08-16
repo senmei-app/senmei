@@ -50,15 +50,9 @@ pub async fn download_ffmpeg(
 #[tauri::command]
 #[specta::specta]
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
-    let mut registry = senmei_ml::Registry::new();
-    for dir in [PathBuf::from("models"), PathBuf::from("../models")] {
-        if dir.is_dir() {
-            if registry.load_dir(&dir).is_ok() {
-                break;
-            }
-        }
-    }
-    registry.models().to_vec()
+    load_registry()
+        .map(|(registry, _)| registry.models().to_vec())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -93,9 +87,7 @@ pub async fn download_model(
 ) -> Result<String, String> {
     log::info!("downloading model {model_id}");
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
-        let mut registry = senmei_ml::Registry::new();
-        let dir = models_dir();
-        registry.load_dir(&dir).map_err(|e| e.to_string())?;
+        let (registry, dir) = load_registry()?;
         let meta = registry
             .models()
             .iter()
@@ -193,12 +185,15 @@ fn models_dir() -> PathBuf {
     PathBuf::from("models")
 }
 
-fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
-    let mut registry = senmei_ml::Registry::new();
+fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
     let dir = models_dir();
-    registry
-        .load_dir(&dir)
-        .map_err(|e| e.to_string())?;
+    let mut registry = senmei_ml::Registry::new();
+    registry.load_dir(&dir).map_err(|e| e.to_string())?;
+    Ok((registry, dir))
+}
+
+fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
+    let (registry, dir) = load_registry()?;
     let mref = registry
         .resolve(model_id, &dir)
         .ok_or_else(|| format!("model not found: {model_id}"))?;

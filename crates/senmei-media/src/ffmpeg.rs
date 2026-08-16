@@ -4,7 +4,7 @@ use std::process::Command;
 
 use serde::Serialize;
 
-use crate::downloader;
+use crate::{downloader, process};
 use crate::{Error, Result};
 
 const ENV_PATH: &str = "SENMEI_FFMPEG";
@@ -47,14 +47,7 @@ pub struct FfmpegInfo {
     pub decoders: Vec<String>,
 }
 
-fn run_args(ffmpeg: &Path, args: &[&str]) -> Option<String> {
-    Command::new(ffmpeg)
-        .args(args)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-}
+
 
 fn parse_caps(output: &str) -> Vec<String> {
     output
@@ -69,7 +62,7 @@ fn parse_caps(output: &str) -> Vec<String> {
 }
 
 pub fn probe(ffmpeg: &Path) -> FfmpegInfo {
-    let version = run_args(ffmpeg, &["-version"]).and_then(|s| {
+    let version = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-version"]).and_then(|s| {
         s.lines().next().and_then(|l| {
             l.strip_prefix("ffmpeg version")
                 .map(|v| v.trim().trim_end_matches("Copyright").trim().to_string())
@@ -80,10 +73,10 @@ pub fn probe(ffmpeg: &Path) -> FfmpegInfo {
         return FfmpegInfo::default();
     }
 
-    let encoders = run_args(ffmpeg, &["-hide_banner", "-encoders"])
+    let encoders = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-hide_banner", "-encoders"])
         .map(|s| parse_caps(&s))
         .unwrap_or_default();
-    let decoders = run_args(ffmpeg, &["-hide_banner", "-decoders"])
+    let decoders = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-hide_banner", "-decoders"])
         .map(|s| parse_caps(&s))
         .unwrap_or_default();
 
@@ -114,21 +107,13 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     })?;
     log::info!("ffmpeg download from {url}");
 
-    let temp = data_dir.join(ARCHIVE_DIR);
-    fs::create_dir_all(&temp).map_err(|e| Error::command_failed(e.to_string()))?;
-    let archive = temp.join(
+    let archive = downloader::download_to_temp(
+        url,
+        &data_dir.join(ARCHIVE_DIR),
         url.rsplit('/').next().unwrap_or("ffmpeg-archive"),
-    );
-
-    downloader::fetch(url, &archive, &mut on_progress)?;
-
-    let actual = downloader::sha256_hex(&archive)?;
-    if !actual.eq_ignore_ascii_case(FFMPEG_SHA256) {
-        let _ = fs::remove_file(&archive);
-        return Err(Error::command_failed(format!(
-            "ffmpeg checksum mismatch (expected {FFMPEG_SHA256}, got {actual}); update FFMPEG_SHA256 for the new build"
-        )));
-    }
+        Some(FFMPEG_SHA256),
+        &mut on_progress,
+    )?;
 
     let bin_dir = data_dir.join("bin");
     fs::create_dir_all(&bin_dir).map_err(|e| Error::command_failed(e.to_string()))?;
@@ -165,7 +150,7 @@ mod tests {
 
     #[test]
     fn probe_system_ffmpeg() {
-        if !run_args(&PathBuf::from("ffmpeg"), &["-version"]).is_some() {
+        if !process::command_output("ffmpeg", &["-version"]).is_some() {
             eprintln!("ffmpeg not found, skipping");
             return;
         }

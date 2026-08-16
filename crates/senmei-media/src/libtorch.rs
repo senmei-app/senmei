@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::downloader;
+use crate::{downloader, process};
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -39,14 +39,7 @@ pub fn detect_backend() -> LibTorchBackend {
     LibTorchBackend::Cpu
 }
 
-fn cmd_out(cmd: &str, args: &[&str]) -> Option<String> {
-    std::process::Command::new(cmd)
-        .args(args)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-}
+
 
 fn libtorch_version(dir: &Path) -> Option<String> {
     let path = dir.join("build-version");
@@ -58,24 +51,26 @@ fn libtorch_version(dir: &Path) -> Option<String> {
 
 fn driver_version(backend: LibTorchBackend) -> Option<String> {
     match backend {
-        LibTorchBackend::Cuda => cmd_out(
+        LibTorchBackend::Cuda => process::command_output(
             "nvidia-smi",
             &["--query-gpu=driver_version", "--format=csv,noheader"],
         )
         .and_then(|s| s.lines().next().map(|l| l.trim().to_string()))
         .filter(|s| !s.is_empty()),
-        LibTorchBackend::Rocm => cmd_out("rocm-smi", &["--showdriverversion"]).and_then(|s| {
-            s.lines()
-                .find(|l| l.to_ascii_lowercase().contains("version"))
-                .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
-        }),
+        LibTorchBackend::Rocm => {
+            process::command_output("rocm-smi", &["--showdriverversion"]).and_then(|s| {
+                s.lines()
+                    .find(|l| l.to_ascii_lowercase().contains("version"))
+                    .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
+            })
+        }
         LibTorchBackend::Cpu => None,
     }
 }
 
 fn devices(backend: LibTorchBackend) -> Vec<String> {
     match backend {
-        LibTorchBackend::Cuda => cmd_out("nvidia-smi", &["-L"])
+        LibTorchBackend::Cuda => process::command_output("nvidia-smi", &["-L"])
             .map(|s| {
                 s.lines()
                     .filter_map(|l| {
@@ -91,7 +86,7 @@ fn devices(backend: LibTorchBackend) -> Vec<String> {
                     .collect()
             })
             .unwrap_or_default(),
-        LibTorchBackend::Rocm => cmd_out("rocm-smi", &["--showproductname"])
+        LibTorchBackend::Rocm => process::command_output("rocm-smi", &["--showproductname"])
             .map(|s| {
                 s.lines()
                     .filter_map(|l| l.split_once("Product Name:").map(|(_, n)| n.trim().to_string()))
@@ -143,10 +138,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
         .ok_or_else(|| Error::command_failed("no libtorch download URL for this platform".into()))?;
     log::info!("libtorch download ({backend:?}): {url}");
 
-    let temp = data_dir.join("temp");
-    std::fs::create_dir_all(&temp).map_err(|e| Error::command_failed(e.to_string()))?;
-    let archive = temp.join("libtorch.zip");
-    downloader::fetch(url, &archive, &mut on_progress)?;
+    let archive = downloader::download_to_temp(url, &data_dir.join("temp"), "libtorch.zip", None, &mut on_progress)?;
 
     let dest = libtorch_dir(data_dir);
     std::fs::create_dir_all(&dest).map_err(|e| Error::command_failed(e.to_string()))?;

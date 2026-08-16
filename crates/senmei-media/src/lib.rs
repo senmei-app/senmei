@@ -6,6 +6,7 @@ mod frame;
 mod libtorch;
 mod model;
 mod probe;
+mod process;
 
 pub use decoder::Decoder;
 pub use encoder::Encoder;

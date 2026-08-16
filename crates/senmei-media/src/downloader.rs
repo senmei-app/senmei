@@ -110,6 +110,39 @@ pub fn sha256_hex(path: &Path) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(&bytes)))
 }
 
+/// Case-insensitive SHA-256 comparison against an expected value.
+pub fn verify_checksum(actual: &str, expected: &str) -> Result<()> {
+    if actual.eq_ignore_ascii_case(expected) {
+        Ok(())
+    } else {
+        Err(Error::command_failed(format!(
+            "checksum mismatch (expected {expected}, got {actual})"
+        )))
+    }
+}
+
+/// Download `url` into `temp_dir/<filename>`, verifying SHA-256 when `expected`
+/// is provided. On mismatch the temp file is removed. Returns the temp path.
+pub fn download_to_temp(
+    url: &str,
+    temp_dir: &Path,
+    filename: &str,
+    expected: Option<&str>,
+    on_progress: &mut dyn FnMut(u64, u64),
+) -> Result<std::path::PathBuf> {
+    fs::create_dir_all(temp_dir).map_err(|e| Error::command_failed(e.to_string()))?;
+    let temp = temp_dir.join(filename);
+    fetch(url, &temp, on_progress)?;
+    if let Some(expected) = expected {
+        let actual = sha256_hex(&temp)?;
+        if let Err(e) = verify_checksum(&actual, expected) {
+            let _ = fs::remove_file(&temp);
+            return Err(e);
+        }
+    }
+    Ok(temp)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
