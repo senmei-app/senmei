@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listModels, type ModelMetadata } from "@senmei/bridge";
 import { useI18n } from "../i18n";
-import { useModelDownload } from "../useModel";
 
 type Group = "settings" | "advanced";
 
@@ -18,25 +17,33 @@ function Accordion({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/60">
-      <div className="flex items-center justify-between p-3">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center space-x-2 text-left"
-        >
+    <div
+      className={
+        enabled
+          ? "rounded-xl border border-indigo-400/60 bg-indigo-50/60 dark:border-indigo-500/40 dark:bg-indigo-500/10"
+          : "rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/60"
+      }
+    >
+      <div
+        onClick={() => {
+          setOpen((o) => !o);
+          setEnabled(true);
+        }}
+        className="flex cursor-pointer select-none items-center justify-between p-3"
+      >
+        <div className="flex items-center space-x-2 text-left">
           <span className="text-indigo-500 dark:text-indigo-400">{icon}</span>
           <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{title}</span>
-          <span className="text-xs text-slate-500">{open ? "−" : "+"}</span>
-        </button>
+        </div>
         <input
           type="checkbox"
           checked={enabled}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => setEnabled(e.target.checked)}
-          className="accent-indigo-500"
+          className="h-[18px] w-[18px] cursor-pointer accent-indigo-500"
         />
       </div>
       {open && (
@@ -60,7 +67,8 @@ export default function Inspector({
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
   const [models, setModels] = useState<ModelMetadata[]>([]);
-  const modelDownload = useModelDownload();
+  const [interpolateModel, setInterpolateModel] = useState("");
+  const [upscaleModel, setUpscaleModel] = useState("");
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -70,41 +78,26 @@ export default function Inspector({
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
 
-  const modelSelect = (models: ModelMetadata[]) => (
+  const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void) => (
     <div className="space-y-1">
       <select
-        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+        value={value}
         onChange={(e) => {
-          const m = models.find((x) => x.id === e.target.value);
+          const id = e.target.value;
+          onValue(id);
+          const m = models.find((x) => x.id === id);
           onModelChange(m ? m.id : null);
           if (m) onScaleChange(m.scale ?? 1);
         }}
+        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
       >
-        {models.length === 0 && <option value="">—</option>}
+        <option value="">—</option>
         {models.map((m) => (
           <option key={m.id} value={m.id}>
             {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
           </option>
         ))}
       </select>
-      {models
-        .filter((m) => m.download_url)
-        .map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            disabled={modelDownload.downloading}
-            onClick={() => modelDownload.download(m.id)}
-            className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-50 dark:text-indigo-300"
-          >
-            {modelDownload.downloading
-              ? `${t("model.downloading")} ${modelDownload.pct}%`
-              : t("model.download")}
-          </button>
-        ))}
-      {modelDownload.error && (
-        <div className="text-[10px] text-red-500">{modelDownload.error}</div>
-      )}
     </div>
   );
 
@@ -136,7 +129,7 @@ export default function Inspector({
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
-                {modelSelect(interpolateModels)}
+                {modelSelect(interpolateModels, interpolateModel, setInterpolateModel)}
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.fps")}</label>
@@ -163,7 +156,7 @@ export default function Inspector({
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
-                {modelSelect(upscaleModels)}
+                {modelSelect(upscaleModels, upscaleModel, setUpscaleModel)}
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.scale")}</label>
