@@ -34,6 +34,7 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
 }
 
 /// Extract every entry of a zip archive, stripping a leading directory prefix.
+#[allow(dead_code)] // used by M7 model download (NCNN release zips)
 pub fn extract_zip(archive: &Path, dest: &Path, strip_prefix: &str) -> Result<()> {
     let file = fs::File::open(archive).map_err(Error::from)?;
     let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;

@@ -7,7 +7,7 @@ interface DownloadableOptions<TStatus> {
   download: (onProgress: Channel<DownloadProgress>) => Promise<unknown>;
 }
 
-/** Shared status/refresh/download state for one-off downloads (ffmpeg, libtorch). */
+/** Shared status/refresh/download state for one-off downloads (ffmpeg). */
 export function useDownloadable<TStatus>({
   getStatus,
   download,

@@ -17,8 +17,6 @@ export const commands = {
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
-	getLibtorchStatus: () => __TAURI_INVOKE<LibTorchInfo>("get_libtorch_status"),
-	downloadLibtorch: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_libtorch", { onProgress }),
 };
 
 /* Types */
@@ -33,17 +31,6 @@ export type FfmpegInfo = {
 	version: string | null,
 	encoders: string[],
 	decoders: string[],
-};
-
-export type LibTorchBackend = "cpu" | "cuda" | "rocm";
-
-export type LibTorchInfo = {
-	backend: LibTorchBackend,
-	downloaded: boolean,
-	version: string | null,
-	driver: string | null,
-	devices: string[],
-	path: string | null,
 };
 
 export type ModelKind = "interpolate" | "upscale" | "denoise" | "decompress" | "deblur";

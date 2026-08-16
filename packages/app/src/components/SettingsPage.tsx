@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@senmei/ui";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
-import { useLibtorch } from "../useLibtorch";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
@@ -37,14 +36,6 @@ export default function SettingsPage({
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("appearance");
   const { status, downloading, pct, error, download } = useFfmpeg();
-  const {
-    status: libtorch,
-    downloading: ltDownloading,
-    pct: ltPct,
-    error: ltError,
-    download: startLibtorchDownload,
-  } = useLibtorch();
-  const [device, setDevice] = useState("");
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
@@ -52,12 +43,6 @@ export default function SettingsPage({
   ];
 
   const encoders = status?.encoders ?? [];
-  const backendLabel =
-    libtorch?.backend === "rocm"
-      ? t("settings.inference.backend.rocm")
-      : libtorch?.backend === "cuda"
-        ? t("settings.inference.backend.cuda")
-        : t("settings.inference.backend.cpu");
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 select-none antialiased dark:bg-slate-950 dark:text-slate-200">
@@ -198,80 +183,6 @@ export default function SettingsPage({
                       </Button>
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
-                <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  {t("settings.section.inference")}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                      {t("settings.inference.backend")}
-                    </label>
-                    <span className="rounded-md bg-indigo-600/15 px-2 py-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-300">
-                      {backendLabel}
-                    </span>
-                  </div>
-
-                  {libtorch?.driver && (
-                    <div>
-                      <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                        {t("settings.inference.driver")}
-                      </label>
-                      <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                        {libtorch.driver}
-                      </span>
-                    </div>
-                  )}
-
-                  {libtorch?.devices.length ? (
-                    <div>
-                      <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                        {t("settings.inference.device")}
-                      </label>
-                      <select
-                        value={device}
-                        onChange={(e) => setDevice(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-                      >
-                        {libtorch.devices.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : null}
-
-                  <div>
-                    {libtorch?.downloaded ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                          {t("settings.inference.downloaded")}
-                        </p>
-                        {libtorch.version && (
-                          <p className="text-xs text-slate-600 dark:text-slate-300">
-                            {t("settings.inference.version")}: {libtorch.version}
-                          </p>
-                        )}
-                        {libtorch.path && (
-                          <p className="truncate font-mono text-[11px] text-slate-500">{libtorch.path}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs text-rose-500">{t("settings.inference.notDownloaded")}</p>
-                        {ltError && <p className="text-xs text-rose-500">{ltError}</p>}
-                        <Button onClick={startLibtorchDownload} disabled={ltDownloading}>
-                          {ltDownloading
-                            ? t("settings.inference.downloading").replace("{pct}", String(ltPct))
-                            : t("settings.inference.download")}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
