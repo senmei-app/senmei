@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "app.senmei.desktop",
   "build": {
-    "beforeDevCommand": "cd ../../packages/app && bun run dev",
+    "beforeDevCommand": "cd packages/app && bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "cd ../../packages/app && bun run build",
+    "beforeBuildCommand": "cd packages/app && bun run build",
     "frontendDist": "../../packages/app/dist"
   },
   "app": {

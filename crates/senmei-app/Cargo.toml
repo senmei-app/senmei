@@ -6,9 +6,6 @@ license.workspace = true
 repository.workspace = true
 description = "Tauri application shell for Senmei: commands, state, and IPC."
 
-[build-dependencies]
-tauri-build = "2"
-
 [dependencies]
 senmei-media = { path = "../senmei-media", version = "0.1.0" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.0" }

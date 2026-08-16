@@ -5,7 +5,7 @@ dist/
 *.log
 .DS_Store
 .vscode
-crates/senmei-app/gen/
+crates/senmei/gen/
 models/*.pt
 models/*.param
 models/*.bin

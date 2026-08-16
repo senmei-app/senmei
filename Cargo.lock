@@ -3384,6 +3384,11 @@ dependencies = [
  "env_logger",
  "log",
  "senmei-app",
+ "specta-typescript",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
 ]
 
 [[package]]
@@ -3399,7 +3404,6 @@ dependencies = [
  "specta",
  "specta-typescript",
  "tauri",
- "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tauri-specta",

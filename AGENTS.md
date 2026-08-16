@@ -25,8 +25,8 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Module Structure (follows with M0)
 
-- `crates/senmei` — entry, logging, version
-- `crates/senmei-app` — Tauri commands, state, IPC (`Channel<PreviewFrame>`)
+- `crates/senmei` — entry, Tauri app shell (`tauri.conf.json`, `build.rs`, `main.rs`), logging
+- `crates/senmei-app` — Tauri commands, state, IPC (`Channel<PreviewFrame>`), specta builder (lib)
 - `crates/senmei-pipeline` — orchestration, queue, events
 - `crates/senmei-ml` — `InferenceEngine` trait, `TorchEngine`, `NcnnEngine`, model registry
 - `crates/senmei-media` — FFmpeg process, frame pipe, encoder profiles
@@ -71,6 +71,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - `cargo build --workspace`
 
 ## Run
-- `bun run dev`
+- `bun run dev` — full app: `cargo tauri dev` (Vite + Rust, `tauri.conf.json` in `crates/senmei`)
+- `bun run ui:dev` — frontend only
 
 Keep this file focused on long-lived decision rules, not current implementation details. Engineering principles adapted from Koharu (MIT OR Apache-2.0).
