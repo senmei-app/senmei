@@ -17,6 +17,7 @@ export const commands = {
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
 	getLibtorchStatus: () => __TAURI_INVOKE<LibTorchInfo>("get_libtorch_status"),
 	downloadLibtorch: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_libtorch", { onProgress }),
+	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 };
 
 /* Types */
@@ -55,6 +56,8 @@ export type ModelMetadata = {
 	ncnn?: string[] | null,
 	license?: string | null,
 	source_url?: string | null,
+	download_url?: string | null,
+	sha256?: string | null,
 };
 
 export type ProjectEntry = {

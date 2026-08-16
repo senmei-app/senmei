@@ -26,7 +26,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::download_ffmpeg,
             commands::list_models,
             commands::get_libtorch_status,
-            commands::download_libtorch
+            commands::download_libtorch,
+            commands::download_model
         ])
 }
 

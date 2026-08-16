@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listModels, type ModelMetadata } from "@senmei/bridge";
 import { useI18n } from "../i18n";
+import { useModelDownload } from "../useModel";
 
 type Group = "settings" | "advanced";
 
@@ -59,6 +60,7 @@ export default function Inspector({
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
   const [models, setModels] = useState<ModelMetadata[]>([]);
+  const modelDownload = useModelDownload();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -69,21 +71,41 @@ export default function Inspector({
   const upscaleModels = models.filter((m) => m.kind === "upscale");
 
   const modelSelect = (models: ModelMetadata[]) => (
-    <select
-      className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-      onChange={(e) => {
-        const m = models.find((x) => x.id === e.target.value);
-        onModelChange(m ? m.id : null);
-        if (m) onScaleChange(m.scale ?? 1);
-      }}
-    >
-      {models.length === 0 && <option value="">—</option>}
-      {models.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
-        </option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <select
+        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+        onChange={(e) => {
+          const m = models.find((x) => x.id === e.target.value);
+          onModelChange(m ? m.id : null);
+          if (m) onScaleChange(m.scale ?? 1);
+        }}
+      >
+        {models.length === 0 && <option value="">—</option>}
+        {models.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
+          </option>
+        ))}
+      </select>
+      {models
+        .filter((m) => m.download_url)
+        .map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            disabled={modelDownload.downloading}
+            onClick={() => modelDownload.download(m.id)}
+            className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-50 dark:text-indigo-300"
+          >
+            {modelDownload.downloading
+              ? `${t("model.downloading")} ${modelDownload.pct}%`
+              : t("model.download")}
+          </button>
+        ))}
+      {modelDownload.error && (
+        <div className="text-[10px] text-red-500">{modelDownload.error}</div>
+      )}
+    </div>
   );
 
   return (

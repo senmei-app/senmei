@@ -87,6 +87,43 @@ pub async fn download_libtorch(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn download_model(
+    model_id: String,
+    on_progress: Channel<DownloadProgress>,
+) -> Result<String, String> {
+    log::info!("downloading model {model_id}");
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let mut registry = senmei_ml::Registry::new();
+        let dir = models_dir();
+        registry.load_dir(&dir).map_err(|e| e.to_string())?;
+        let meta = registry
+            .models()
+            .iter()
+            .find(|m| m.id == model_id)
+            .ok_or_else(|| format!("model not found: {model_id}"))?;
+        let url = meta
+            .download_url
+            .as_deref()
+            .ok_or_else(|| format!("model has no download URL: {model_id}"))?;
+        let file = meta.torch.as_deref().unwrap_or("model.pt");
+        senmei_media::download_model(
+            url,
+            &dir,
+            file,
+            meta.sha256.as_deref(),
+            &mut |downloaded, total| {
+                let _ = on_progress.send(DownloadProgress { downloaded, total });
+            },
+        )
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     const EXTS: [&str; 10] = [
         "mp4", "mkv", "mov", "webm", "avi", "m4v", "ts", "m2ts", "flv", "wmv",

@@ -42,3 +42,8 @@ export const listModels = () => commands.listModels();
 export const getLibtorchStatus = () => commands.getLibtorchStatus();
 export const downloadLibtorch = (onProgress: Channel<DownloadProgress>) =>
   commands.downloadLibtorch(onProgress);
+
+export const downloadModel = (
+  modelId: string,
+  onProgress: Channel<DownloadProgress>,
+) => commands.downloadModel(modelId, onProgress);

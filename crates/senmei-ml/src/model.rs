@@ -30,6 +30,10 @@ pub struct ModelMetadata {
     #[serde(default)]
     pub source_url: Option<String>,
     #[serde(default)]
+    pub download_url: Option<String>,
+    #[serde(default)]
+    pub sha256: Option<String>,
+    #[serde(default)]
     #[specta(skip)]
     pub metadata: serde_json::Value,
 }
