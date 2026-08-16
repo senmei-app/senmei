@@ -1,0 +1,9 @@
+{
+  "id": "rife-4.26",
+  "kind": "interpolate",
+  "scale": 1,
+  "arch": "rife425",
+  "torch": "rife-4.26.pt",
+  "ncnn": ["rife-4.26.param", "rife-4.26.bin"],
+  "metadata": { "input_range": "0..1", "half": true }
+}
