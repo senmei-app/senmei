@@ -274,9 +274,11 @@ sequenceDiagram
 | **M3** | **Interpolation** | RIFE via NCNN, scene-change detection, interpolation factor | 🟡 linear blend + scene-cut only (RIFE pending) |
 | **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 basic settings only |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ⬜ pending |
-| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection | ⬜ pending (`NcnnEngine` is a stub) |
+| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection | ⬜ pending — **execute first** (`NcnnEngine` is a stub) |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue | ⬜ pending |
 | **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | ⬜ pending |
+
+> **Execution order (2026-08-16):** the NCNN/Vulkan shim (**M6**) is the **critical path** and is executed **first** (right after M0/M1). It unblocks real upscaling (M2) and RIFE (M3); M4/M5 follow. The M-numbers are stable feature labels, not a strict build sequence.
 
 ---
 
