@@ -48,7 +48,7 @@
     "kind": "upscale",
     "scale": 2,
     "arch": "realcugan",
-    "ncnn": ["up2x-latest-no-denoise.param", "up2x-latest-no-denoise.bin"],
+    "ncnn": ["up2x-no-denoise.param", "up2x-no-denoise.bin"],
     "license": "MIT",
     "source_url": "https://github.com/nihui/realcugan-ncnn-vulkan",
     "loadable": false,

@@ -9,5 +9,6 @@ description = "Inference for Senmei: engine trait, ncnn engine, and model regist
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+senmei-ncnn = { path = "../senmei-ncnn" }
 specta = { version = "2.0.0-rc.25", features = ["serde_json", "derive"] }
 thiserror = "2"

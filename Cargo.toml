@@ -6,6 +6,7 @@ members = [
     "crates/senmei-pipeline",
     "crates/senmei-ml",
     "crates/senmei-media",
+    "crates/senmei-ncnn",
 ]
 
 [workspace.package]
