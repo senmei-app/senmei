@@ -81,23 +81,6 @@ pub async fn download_libtorch(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn download_model(
-    model_id: String,
-    on_progress: Channel<DownloadProgress>,
-) -> Result<String, String> {
-    log::info!("downloading model {model_id}");
-    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
-        ensure_model_downloaded(&model_id, &mut |downloaded, total| {
-            let _ = on_progress.send(DownloadProgress { downloaded, total });
-        })
-        .map(|p| p.to_string_lossy().into_owned())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     const EXTS: [&str; 10] = [
         "mp4", "mkv", "mov", "webm", "avi", "m4v", "ts", "m2ts", "flv", "wmv",
@@ -189,34 +172,8 @@ fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
     Ok((registry, dir))
 }
 
-/// Resolve a model's weight file, downloading it first when missing but a
-/// download URL is configured. Reports progress via `on_progress`.
-fn ensure_model_downloaded(
-    model_id: &str,
-    on_progress: &mut dyn FnMut(u64, u64),
-) -> Result<PathBuf, String> {
-    let (registry, dir) = load_registry()?;
-    let meta = registry
-        .models()
-        .iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| format!("model not found: {model_id}"))?;
-    let file = meta.torch.as_deref().unwrap_or("model.pt");
-    let path = dir.join(file);
-    if path.exists() {
-        return Ok(path);
-    }
-    let url = meta.download_url.as_deref().ok_or_else(|| {
-        format!("model weights missing and no download URL: {model_id}")
-    })?;
-    log::info!("auto-downloading model {model_id}");
-    senmei_media::download_model(url, &dir, file, meta.sha256.as_deref(), on_progress)
-        .map_err(|e| e.to_string())?;
-    Ok(path)
-}
-
 fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
-    let (registry, _dir) = load_registry()?;
+    let (registry, dir) = load_registry()?;
     let meta = registry
         .models()
         .iter()
@@ -225,11 +182,9 @@ fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine
     if !meta.loadable {
         return Err(format!("model {model_id} has no loadable weights yet"));
     }
-    let path = ensure_model_downloaded(model_id, &mut |_, _| {})?;
-    let mref = senmei_ml::ModelRef {
-        id: model_id.to_string(),
-        path,
-    };
+    let mref = registry
+        .resolve(model_id, &dir)
+        .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
     let mut engine = senmei_ml::engine_for_model(&mref).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)

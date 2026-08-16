@@ -5,7 +5,7 @@ mod resize;
 mod tensor;
 mod tiling;
 
-pub use engine::{engine_for_model, infer_tiled, Backend, EngineCaps, InferOptions, InferenceEngine, NcnnEngine, TorchEngine};
+pub use engine::{engine_for_model, infer_tiled, Backend, EngineCaps, InferOptions, InferenceEngine, NcnnEngine};
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
@@ -20,9 +20,6 @@ pub enum Error {
     Unimplemented(&'static str),
     #[error("{0}")]
     Message(String),
-    #[cfg(feature = "torch")]
-    #[error(transparent)]
-    Torch(#[from] tch::TchError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

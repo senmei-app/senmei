@@ -4,10 +4,10 @@
     "kind": "interpolate",
     "scale": 1,
     "arch": "rife425",
-    "torch": "rife-4.26.pt",
     "ncnn": ["rife-4.26.param", "rife-4.26.bin"],
     "license": "MIT",
     "source_url": "https://github.com/hzwer/Practical-RIFE",
+    "loadable": false,
     "metadata": { "input_range": "0..1", "half": true }
   },
   {
@@ -15,10 +15,10 @@
     "kind": "upscale",
     "scale": 4,
     "arch": "realesrgan",
-    "torch": "realesrgan-x4plus.pt",
+    "ncnn": ["realesrgan-x4plus.param", "realesrgan-x4plus.bin"],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "loadable": true,
+    "loadable": false,
     "metadata": { "input_range": "0..1", "half": true }
   },
   {
@@ -26,10 +26,10 @@
     "kind": "upscale",
     "scale": 4,
     "arch": "realesrgan",
-    "torch": "realesrgan-x4plus-anime.pt",
+    "ncnn": ["realesrgan-x4plus-anime.param", "realesrgan-x4plus-anime.bin"],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "loadable": true,
+    "loadable": false,
     "metadata": { "input_range": "0..1", "half": true }
   },
   {
@@ -37,10 +37,43 @@
     "kind": "upscale",
     "scale": 2,
     "arch": "realesrgan",
-    "torch": "realesrgan-x2plus.pt",
+    "ncnn": ["realesrgan-x2plus.param", "realesrgan-x2plus.bin"],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "loadable": true,
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true }
+  },
+  {
+    "id": "real-cugan-x2",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "realcugan",
+    "ncnn": ["up2x-latest-no-denoise.param", "up2x-latest-no-denoise.bin"],
+    "license": "MIT",
+    "source_url": "https://github.com/nihui/realcugan-ncnn-vulkan",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true }
+  },
+  {
+    "id": "swinir-x2",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "swinir",
+    "ncnn": ["swinir-x2.param", "swinir-x2.bin"],
+    "license": "Apache-2.0",
+    "source_url": "https://github.com/JingyunLiang/SwinIR",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true }
+  },
+  {
+    "id": "swinir-x4",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "swinir",
+    "ncnn": ["swinir-x4.param", "swinir-x4.bin"],
+    "license": "Apache-2.0",
+    "source_url": "https://github.com/JingyunLiang/SwinIR",
+    "loadable": false,
     "metadata": { "input_range": "0..1", "half": true }
   }
 ]

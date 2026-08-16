@@ -19,7 +19,6 @@ export const commands = {
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
 	getLibtorchStatus: () => __TAURI_INVOKE<LibTorchInfo>("get_libtorch_status"),
 	downloadLibtorch: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_libtorch", { onProgress }),
-	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 };
 
 /* Types */
@@ -54,15 +53,12 @@ export type ModelMetadata = {
 	kind: ModelKind,
 	scale?: number,
 	arch: string,
-	torch?: string | null,
 	ncnn?: string[] | null,
 	license?: string | null,
 	source_url?: string | null,
-	download_url?: string | null,
-	sha256?: string | null,
 	/**
-	 *  Whether an engine can load these weights yet (e.g. a `.pth` state dict
-	 *  that still needs TorchScript conversion is not loadable).
+	 *  Whether the engine can load these weights yet (the ncnn shim is not
+	 *  wired until M6, so all models are not loadable for now).
 	 */
 	loadable?: boolean,
 };

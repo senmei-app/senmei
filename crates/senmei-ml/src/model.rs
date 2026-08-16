@@ -22,19 +22,13 @@ pub struct ModelMetadata {
     pub scale: u32,
     pub arch: String,
     #[serde(default)]
-    pub torch: Option<String>,
-    #[serde(default)]
     pub ncnn: Option<Vec<String>>,
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]
     pub source_url: Option<String>,
-    #[serde(default)]
-    pub download_url: Option<String>,
-    #[serde(default)]
-    pub sha256: Option<String>,
-    /// Whether an engine can load these weights yet (e.g. a `.pth` state dict
-    /// that still needs TorchScript conversion is not loadable).
+    /// Whether the engine can load these weights yet (the ncnn shim is not
+    /// wired until M6, so all models are not loadable for now).
     #[serde(default = "default_true")]
     pub loadable: bool,
     #[serde(default)]
@@ -89,12 +83,14 @@ impl Registry {
         &self.models
     }
 
-    /// Resolve a model by id to a `ModelRef` pointing at its torch weight file.
+    /// Resolve a model by id to a `ModelRef` pointing at its ncnn `.param`
+    /// file; the `.bin` sits next to it under the same base name.
     pub fn resolve(&self, id: &str, dir: &Path) -> Option<ModelRef> {
         self.models
             .iter()
             .find(|m| m.id == id)
-            .and_then(|m| m.torch.as_ref())
+            .and_then(|m| m.ncnn.as_ref())
+            .and_then(|f| f.first())
             .map(|f| ModelRef {
                 id: id.to_string(),
                 path: dir.join(f),
@@ -135,27 +131,34 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 4);
+        assert_eq!(registry.models().len(), 7);
         assert_eq!(registry.models()[0].id, "rife-4.26");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
-        assert_eq!(registry.models()[0].torch.as_deref(), Some("rife-4.26.pt"));
+        let ncnn = registry.models()[0].ncnn.as_deref().unwrap();
+        assert_eq!(ncnn[0], "rife-4.26.param");
+        assert_eq!(ncnn[1], "rife-4.26.bin");
         assert_eq!(registry.models()[1].id, "realesrgan-x4plus");
         assert!(matches!(registry.models()[1].kind, ModelKind::Upscale));
         assert_eq!(registry.models()[1].scale, 4);
         assert_eq!(registry.models()[2].id, "realesrgan-x4plus-anime");
         assert_eq!(registry.models()[3].id, "realesrgan-x2plus");
         assert_eq!(registry.models()[3].scale, 2);
+        assert_eq!(registry.models()[4].id, "real-cugan-x2");
+        assert_eq!(registry.models()[4].scale, 2);
+        assert_eq!(registry.models()[5].id, "swinir-x2");
+        assert_eq!(registry.models()[6].id, "swinir-x4");
+        assert_eq!(registry.models()[6].scale, 4);
     }
 
     #[test]
     fn registry_resolves_model_ref() {
         let json = r#"[
-            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "torch": "span.pt"}
+            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "ncnn": ["span.param", "span.bin"]}
         ]"#;
         let registry = Registry::from_json(json).unwrap();
         let mref = registry.resolve("span", Path::new("/models")).unwrap();
         assert_eq!(mref.id, "span");
-        assert_eq!(mref.path, Path::new("/models/span.pt"));
+        assert_eq!(mref.path, Path::new("/models/span.param"));
         assert!(registry.resolve("missing", Path::new("/models")).is_none());
     }
 }

@@ -4,15 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Inference for Senmei: engine trait, torch/ncnn engines, and model registry."
-
-[features]
-default = []
-torch = ["dep:tch"]
+description = "Inference for Senmei: engine trait, ncnn engine, and model registry."
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = { version = "2.0.0-rc.25", features = ["serde_json", "derive"] }
-tch = { version = "0.24", optional = true }
 thiserror = "2"

@@ -11,7 +11,7 @@
 A fast, modern desktop video enhancer in Rust with:
 
 - **Frame interpolation** (e.g. 24 → 48 fps) and **upscaling** (e.g. 1080p → 4K)
-- **Multi-backend GPU inference**: libtorch (CUDA / ROCm / MPS / possibly XPU) + NCNN/Vulkan
+- **GPU inference**: NCNN/Vulkan via C++ shim with CPU fallback — no libtorch, no ONNX, no TorchScript
 - **Consistent HTML/CSS/JS UI** via platform webviews (webkit2gtk / WebView2 / WKWebView)
 - **Better FFmpeg settings** than RVE (profile-based, extensible, validated)
 - **Sample preview** of 10–60 s directly in the app
@@ -24,8 +24,8 @@ A fast, modern desktop video enhancer in Rust with:
 |---|---|---|
 | 1 | Shell / UI host | **Tauri 2 + platform webview** (webkit2gtk / WebView2 / WKWebView), not CEF |
 | 2 | Frontend | **React + TypeScript**, `react-resizable-panels`, Tailwind, lucide-react |
-| 3 | Inference | **libtorch** (`tch` crate, own wrapper as fallback) + **NCNN/Vulkan** |
-| 4 | No ONNX Runtime | all models run via libtorch or NCNN |
+| 3 | Inference | **NCNN/Vulkan** via C++ shim (`cxx`/bindgen), CPU fallback — no libtorch, no ONNX, no candle |
+| 4 | No ONNX / no TorchScript | all models run via NCNN (`.param`/`.bin`); no safetensors graph loading |
 | 5 | No WebGPU/WASM | preview via FFmpeg-decoded frames → 2D canvas (codec-agnostic, incl. H.265) |
 | 6 | Media | **FFmpeg as subprocess** with `rawvideo` pipe; prefer **system FFmpeg**, fallback: portable download (BtbN builds) into data dir |
 | 7 | Layout | **3-panel + timeline**: Input \| Monitor \| Settings |
@@ -46,7 +46,7 @@ A fast, modern desktop video enhancer in Rust with:
 | Package manager | **bun** | like Koharu (fast, bun lockfile) |
 | UI kit | Base UI + Tailwind CSS + lucide-react | Koharu pattern, maintainable |
 | IPC | Tauri commands + `tauri-specta` + `Channel` | typed bridge, streaming for preview |
-| Inference | `tch` (libtorch) · NCNN via C++ shim (`cxx`/bindgen) | CUDA/ROCm/MPS + Vulkan |
+| Inference | NCNN via C++ shim (`cxx`/bindgen) | Vulkan + CPU fallback |
 | Media | FFmpeg subprocess (`rawvideo` pipe) | robust, full encoder selection |
 | Async | tokio | worker threads for inference |
 | Config | serde + JSON (`config.json` + profiles) | persistable, schema-validated |
@@ -99,7 +99,7 @@ flowchart TB
     subgraph Rust["crates/"]
         APP[senmei-app<br/>Tauri commands · state · channel]
         PIPE[senmei-pipeline<br/>orchestration · queue · events]
-        ML[senmei-ml<br/>InferenceEngine: tch + ncnn]
+        ML[senmei-ml<br/>InferenceEngine: ncnn]
         MEDIA[senmei-media<br/>FFmpeg process · frame pipe · probe]
     end
 
@@ -128,13 +128,13 @@ senmei/
 │  ├─ senmei/                 # entry point, logging, diagnostics, version
 │  ├─ senmei-app/             # Tauri commands, app state, IPC (Channel<PreviewFrame>)
 │  ├─ senmei-pipeline/        # render orchestration, queue, events, progress
-│  ├─ senmei-ml/              # InferenceEngine trait, tch engine, ncnn engine, model registry
+│  ├─ senmei-ml/              # InferenceEngine trait, ncnn engine, model registry
 │  └─ senmei-media/           # FFmpeg process, frame decode/encode, video probe, encoder profiles
 ├─ packages/
 │  ├─ ui/                     # reusable UI kit (Base UI + Tailwind)
 │  ├─ bridge/                 # generated types (tauri-specta)
 │  └─ app/                    # React frontend (3-panel + timeline)
-└─ models/                    # .pt / .param / .bin + metadata.json
+└─ models/                    # .param / .bin + metadata.json
 ```
 
 ---
@@ -156,23 +156,23 @@ pub trait InferenceEngine: Send + Sync {
 
 | Engine | Backend | Model format |
 |---|---|---|
-| `TorchEngine` | CUDA / ROCm / MPS (via `tch`, `Device::Cuda`/`Device::Mps`) | TorchScript `.pt` (`CModule::load`) |
-| `NcnnEngine` | Vulkan (C++ shim via `cxx`/bindgen) | ncnn `.param` + `.bin` |
+| `NcnnEngine` | Vulkan + CPU fallback (C++ shim via `cxx`/bindgen) | ncnn `.param` + `.bin` (community ports) |
 
-- **No ONNX Runtime.** Models are exported once to **TorchScript** in Python.
-- NCNN is the **universal fallback** (AMD/Intel/iGPU), libtorch the performance path.
-- `tch` first; if there are limitations, own thin wrapper in Koharu style (`koharu_torch`).
+- **No ONNX Runtime, no libtorch, no TorchScript, no candle.** Models are **downloaded** as ncnn `.param`/`.bin` (Koharu-style: pinned repo + commit SHA) — **no conversion, no Python, no Rust arch ports**.
+- The per-model cost is finding/verifying a **permissively-licensed community NCNN port**; the Rust side just shells out via the shim.
+- NCNN/Vulkan is the GPU path, NCNN's CPU path is the fallback — one backend covers all. Decision is benchmark-verified (2026-08-16) — see `docs/benchmarks.md`.
 
 ### 6.3 Backend Matrix (honest)
 
-| Platform / GPU | libtorch | NCNN/Vulkan |
+| Platform / GPU | NCNN/Vulkan | CPU fallback |
 |---|---|---|
-| NVIDIA (Win/Linux) | ✅ CUDA | ✅ |
-| AMD Linux | ✅ ROCm | ✅ |
-| AMD Windows | ❌ | ✅ (only path) |
-| Intel Arc Linux | ⚠️ check XPU build | ✅ |
-| Intel Windows | ❌ | ✅ |
-| Apple Silicon | ✅ MPS | ⚠️ via MoltenVK |
+| NVIDIA (Win/Linux) | ✅ | ✅ |
+| AMD Linux | ✅ (Mesa/RADV) | ✅ |
+| AMD Windows | ✅ | ✅ |
+| Intel Arc Linux | ✅ | ✅ |
+| Intel Windows | ✅ | ✅ |
+| Apple Silicon | ⚠️ via MoltenVK | ✅ |
+| CPU-only | ❌ | ✅ |
 
 ### 6.4 Model Registry
 
@@ -182,8 +182,7 @@ pub trait InferenceEngine: Send + Sync {
   "kind": "interpolate",            // interpolate | upscale | denoise | decompress | deblur
   "scale": 1,
   "arch": "rife425",
-  "torch": "rife-4.26.pt",          // libtorch
-  "ncnn": ["rife-4.26.param", "rife-4.26.bin"],  // Vulkan
+  "ncnn": ["rife-4.26.param", "rife-4.26.bin"],
   "metadata": { "input_range": "0..1", "half": true }
 }
 ```
@@ -239,7 +238,7 @@ sequenceDiagram
     participant APP as senmei-app
     participant PIPE as senmei-pipeline
     participant MEDIA as senmei-media (FFmpeg decode)
-    participant ML as senmei-ml (tch/ncnn)
+    participant ML as senmei-ml (ncnn)
     participant ENC as senmei-media (FFmpeg encode)
 
     UI->>APP: startRender(Settings + SampleRange)
@@ -271,24 +270,24 @@ sequenceDiagram
 |---|---|---|
 | **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait |
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain |
-| **M2** | **Upscaling** | SPAN/Real-ESRGAN via libtorch, tiling, progress |
-| **M3** | **Interpolation** | RIFE via TorchScript, scene-change detection, interpolation factor |
+| **M2** | **Upscaling** | SPAN/Real-ESRGAN via NCNN, tiling, progress |
+| **M3** | **Interpolation** | RIFE via NCNN, scene-change detection, interpolation factor |
 | **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor |
-| **M6** | **NCNN/Vulkan** | C++ shim, `NcnnEngine`, backend selection |
+| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue |
-| **M8** | **Packaging** | libtorch bundling, static FFmpeg, installer, auto-updater |
+| **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater |
 
 ---
 
 ## 11. Risks
 
-1. **Model porting** (largest effort): `.pkl/.pth` → TorchScript export, one-time in Python.
-   - RIFE/SPAN/Real-ESRGAN: quite doable
+1. **NCNN model availability** (largest effort): find/verify a permissively-licensed community NCNN port (`.param`/`.bin`) per model; convert otherwise (`pnnx`/`onnx2ncnn`) where licenses allow.
+   - RIFE/SPAN/Real-ESRGAN/Real-CUGAN: ports available
    - GMFSS/GIMM (custom CUDA kernels like Softsplat): schedule **late**
-2. **libtorch size** (~1–2 GB with CUDA/ROCm): build matrix per backend needed (like RVE's portable Python).
+2. ~~libtorch size~~ — resolved: no libtorch; NCNN is a small native dep, models are `.param`/`.bin` downloads.
 3. **Preview codec**: HEVC is **not** supported in webviews — in-app preview is frame-based (FFmpeg decode → canvas), so any source codec (incl. H.265) plays.
-4. **XPU (Intel)**: libtorch-XPU build must be checked — otherwise NCNN/Vulkan as Intel path.
+4. **Single-backend risk**: NCNN covers all vendors; the CPU fallback keeps dev/render usable without Vulkan.
 
 ---
 
@@ -298,7 +297,7 @@ sequenceDiagram
 |---|---|
 | Frontend build | **Vite** |
 | Package manager | **bun** (like Koharu) |
-| libtorch binding | **`tch`** directly (own wrapper only as fallback) |
+| inference runtime | **NCNN/Vulkan** (C++ shim) — no libtorch / no ONNX / no candle |
 
 Still open: **green light for M0** (name is decided: Senmei / `senmei-app`).
 
@@ -309,7 +308,7 @@ Still open: **green light for M0** (name is decided: Senmei / `senmei-app`).
 As soon as you give the green light, I create **M0**:
 
 1. Cargo workspace with the 5 crates (stub code)
-2. `InferenceEngine` trait + empty `TorchEngine`/`NcnnEngine`
+2. `InferenceEngine` trait + empty `NcnnEngine` stub
 3. Tauri shell (`senmei-app`) with health-check command
 4. React frontend with 3-panel layout + timeline placeholder
 5. `senmei-media` stub (FFmpeg probe)
@@ -325,7 +324,6 @@ As soon as you give the green light, I create **M0**:
 |---|---|---|
 | Own code | **MIT OR Apache-2.0** | user chooses one of the two |
 | FFmpeg | **LGPL build** (dynamically linked) | compatible with permissive license; **do not bundle a GPL build** |
-| libtorch (PyTorch) | BSD-3-Clause | permissive, compatible |
 | NCNN | BSD-3-Clause | permissive, compatible |
 | Tauri / React | MIT / Apache / BSD | permissive, compatible |
 
@@ -335,8 +333,11 @@ As soon as you give the green light, I create **M0**:
 |---|---|---|---|
 | RIFE 4.26 | interpolate | **MIT** | `hzwer/Practical-RIFE` |
 | Real-ESRGAN x4plus / x4plus-anime / x2plus | upscale | **BSD-3-Clause** | `xinntao/Real-ESRGAN` |
+| Real-CUGAN up2x | upscale | **MIT** | `nihui/realcugan-ncnn-vulkan` (bilibili/ailab) |
+| SwinIR x2 (classical) / x4 (real-world) | upscale | **Apache-2.0** | `JingyunLiang/SwinIR` |
+| HAT-S x4 | upscale | **Apache-2.0** | `XPixelGroup/HAT` |
 
-**SPAN** (`hongyu01/SPAN`) is **excluded for now**: the official repo ships no license (all rights reserved). Adopt it only once a permissive license or a clearly licensed derivative is found. Modern anime upscalers (ShuffleCugan, OpenProteus, …) can be added via **spandrel (MIT)** after per-model license checks; TAS itself is AGPL, so its vendored code stays off-limits.
+**SPAN** (`hongyuanyu/SPAN`) is **Apache-2.0** (ships `LICENSE.txt`) — the earlier “no license / excluded” note is outdated; it is now a top upscaler candidate. See [`docs/models.md`](models.md) for the full adoption matrix. Modern anime upscalers (ShuffleCugan, OpenProteus, …) can be added when an NCNN port with a permissive weight license exists; TAS itself is AGPL, so its vendored code stays off-limits. Candidate/undecided models are tracked in `docs/models.md`.
 
 Weights are **never committed** — only downloaded; `metadata.json` holds id/kind/arch/scale + license/source_url.
 
@@ -352,6 +353,9 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Inference engine switch v2 (decision, 2026-08-16)** — after benchmarking on the target AMD RX 9070 (RDNA4/`gfx1201`), the engine is **NCNN/Vulkan** via C++ shim (`cxx`/bindgen) with **CPU fallback**. **candle is dropped** (no ROCm backend; per-model Rust ports). **burn set aside** (fusion/JIT immature for SR). Model format is ncnn `.param`/`.bin` (community ports) — **no safetensors graph loading, no conversion, no Python, no Rust arch ports**. The per-model cost is finding a permissively-licensed NCNN port. Evidence in `docs/benchmarks.md`: ncnn 1080p x2 = 398 ms vs torch-ROCm 7153 ms (pathological) + tile OOM/hard-fault on RDNA4. Obsolete vs v1: `CandleEngine`, `.safetensors` loading, "port each arch to Rust" plan. Registry schema: `torch` field → `ncnn` (see §6.4).
+- **NCNN-only code switch (2026-08-16)** — removed the `torch` feature, `tch` dep, `TorchEngine`, and the `torch`/`download_url`/`sha256` `ModelMetadata` fields. `engine_for_model` maps only `.param`/`.bin` → `NcnnEngine`; `Registry::resolve` points at the `.param` (the `.bin` sits alongside). Registry = 7 NCNN models (`rife-4.26`, Real-ESRGAN ×3, Real-CUGAN up2x, SwinIR x2/x4) — `loadable: false` until the C++ shim lands (M6). Dropped the `download_model` command + `senmei_media::download_model`, the `scripts/convert_*.py` pipeline, and local `models/*.pt`. `Backend` = `Cpu | Vulkan`. Bridge bindings regenerated. Exact NCNN asset filenames still need pinning in M7.
+- ~~**Inference engine switch (decision, 2026-08-16)**~~ — **superseded by v2** (candle dropped after benchmarks; engine = NCNN/Vulkan) — libtorch/`tch`/TorchScript is **dropped**. `senmei-ml` moves to **candle** (CPU/CUDA/Metal) + **NCNN/Vulkan** (no ONNX, no TorchScript). Models are **downloaded** as `.safetensors` from pinned HF repos (Koharu-style `model_repository!` pattern, repo + commit SHA) — **no conversion, no Python**. Each architecture is **ported to Rust** (`candle-nn`) once; that is the main per-model cost. Consequence: the ROCm/AMD-Linux accelerated path is dropped (AMD → NCNN/Vulkan). Obsolete: the `torch` feature, `tch` dep, `TorchEngine`, `scripts/convert_*.py`, and the existing `.pt` files (models re-fetched as `.safetensors`).
 - **M0 done** — workspace, 5 crates, `InferenceEngine` trait + engine stubs + model registry, Tauri shell (frameless), React UI, `models/metadata.json`, LICENSE (MIT/Apache), crates.io names secured.
 - **M1 done** — FFmpeg passthrough: `senmei-media` decoder/encoder (`rawvideo` pipe), `senmei-pipeline` (`Step`, `Passthrough`, `Pipeline::run`), `render` command + progress channel.
 - **UI deviations from §3.1** — Settings panel uses **2 top-level tabs** (`Settings` / `Advanced`) with **accordions** inside, instead of the 6 tabs from the plan. Steps: Interpolate, Decompress, Denoise, Deblur, Upscale, Deduplication, Resize, Output Resize (Settings) + Video Encoder, Audio Encoder, Backend (Advanced).
@@ -362,8 +366,8 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 - **Theme** — light/dark applied across all components via Tailwind `dark:` classes; `system` follows `prefers-color-scheme`.
 - **UI fix** — top bar has `z-50` so menu dropdowns render above the live monitor (stacking-context issue with `backdrop-blur`).
 - **Window controls fix** — Tauri v2 ACL: `minimize`/`toggleMaximize`/`close` need explicit `core:window:allow-*` permissions in `capabilities/default.json` (not part of `core:default`). **Window dragging** needs `core:window:allow-start-dragging` (also not in `core:default`) — added.
-- **libtorch provisioning (decision)** — libtorch is **not** bundled; downloaded at first run via Settings → Inference: backend auto-detected (CUDA via `nvidia-smi`, else ROCm via `/dev/kfd`, else CPU) and the matching pytorch.org archive is fetched into `~/.local/share/senmei/libtorch/`. **Version:** `tch 0.24` / `torch-sys 0.24` expect **libtorch 2.11.0** (URLs pinned to 2.11.0: CPU / cu126 / **rocm7.1**; newer archives use the `libtorch-shared-with-deps` filename — no `cxx11-abi`). **Note:** `tch` links libtorch at **build time**, so after the download build with `LIBTORCH=~/.local/share/senmei/libtorch cargo build --features senmei-ml/torch`. Runtime dynamic-load is not supported by `tch`.
-- **ROCm not a system dependency (decision)** — the libtorch ROCm archive **bundles its own ROCm runtime libs** (`libamdhip64.so`, `libMIOpen.so`, `librocblas.so`, … resolve inside `libtorch/lib/`, verified via `ldd`). End users therefore need **no system ROCm install**; only a Linux kernel with `amdgpu` + KFD (`/dev/kfd`) and an AMD GPU. Backend detection uses `/dev/kfd`, not an installed ROCm version. At M8 (packaging) ship the bundled libtorch and document „AMD GPU + `/dev/kfd`" as the requirement.
+- ~~**libtorch provisioning (decision)**~~ — **superseded 2026-08-16** (libtorch dropped; see engine switch) — libtorch is **not** bundled; downloaded at first run via Settings → Inference: backend auto-detected (CUDA via `nvidia-smi`, else ROCm via `/dev/kfd`, else CPU) and the matching pytorch.org archive is fetched into `~/.local/share/senmei/libtorch/`. **Version:** `tch 0.24` / `torch-sys 0.24` expect **libtorch 2.11.0** (URLs pinned to 2.11.0: CPU / cu126 / **rocm7.1**; newer archives use the `libtorch-shared-with-deps` filename — no `cxx11-abi`). **Note:** `tch` links libtorch at **build time**, so after the download build with `LIBTORCH=~/.local/share/senmei/libtorch cargo build --features senmei-ml/torch`. Runtime dynamic-load is not supported by `tch`.
+- ~~**ROCm not a system dependency (decision)**~~ — **superseded 2026-08-16** (ROCm path dropped with libtorch) — the libtorch ROCm archive **bundles its own ROCm runtime libs** (`libamdhip64.so`, `libMIOpen.so`, `librocblas.so`, … resolve inside `libtorch/lib/`, verified via `ldd`). End users therefore need **no system ROCm install**; only a Linux kernel with `amdgpu` + KFD (`/dev/kfd`) and an AMD GPU. Backend detection uses `/dev/kfd`, not an installed ROCm version. At M8 (packaging) ship the bundled libtorch and document „AMD GPU + `/dev/kfd`" as the requirement.
 - **FFmpeg sourcing (decision)** — prefer **system FFmpeg** (Linux: x264/x265/NVENC/VAAPI present). If missing/too old: download **portable FFmpeg** (BtbN GPL builds) into `~/.local/share/senmei/bin/` with progress UI (RVE-style). `get_ffmpeg_status` + `download_ffmpeg` commands; no bundling in installer (GPL binary is a separate process, does not affect MIT/Apache code). macOS download TBD at M8. Resolution order (used by status AND the decode/encode pipeline): valid `SENMEI_FFMPEG` env → system `ffmpeg` → portable. `SENMEI_FORCE_FFMPEG_MISSING=1` simulates a missing FFmpeg for testing the download flow.
 - **Webview decision (revision)** — CEF dropped; use Tauri platform webview. In-app preview is **frame-based** (FFmpeg decode → canvas) so it is codec-agnostic (incl. H.265); audio via `<audio>` (AAC/Opus). Final output via FFmpeg (x264/x265).
 - **tauri-specta** — typed bindings replace the hand-written bridge: `collect_commands!` + `#[specta::specta]`, `bindings.ts` generated (camelCase, Throw errors), bridge re-exports. `export_ts_bindings` test regenerates.
@@ -383,4 +387,5 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 - **Dependency security** — **JS:** bumped `vite` `5.4.x → 7.3.x` to clear 4 Dependabot alerts (vite `fs.deny` bypass + `.map` path traversal + launch-editor NTLMv2, and esbuild dev-server — esbuild is only patched ≥0.25, hence Vite 7). `bun audit` reports no vulnerabilities. **Rust:** one open Dependabot alert on `glib 0.18.5` (`VariantStrIter` unsoundness, fixed only in ≥0.20) is an **upstream blocker** — `gtk 0.18.2` (last GTK3 binding) pins `glib ^0.18`, and `tauri 2.11.5` is the latest; no patched 0.18.x exists, so it is unresolvable by `cargo update` until the Tauri/gtk-rs stack moves to glib 0.20. **Accepted risk** (dismissed on GitHub as "Risk is tolerable to this project"): the vulnerable `VariantStrIter` API is never exercised by the app.
 - **M3 (interpolation, partial)** — `senmei_ml::interpolate` provides `mean_abs_diff`/`is_scene_cut`/`blend`; a stateful pipeline **`Interpolator`** emits `factor-1` blended intermediates between consecutive frames, or **duplicates across scene cuts** (threshold 0.25 mean-abs-diff). `Pipeline::run` accepts an optional interpolator and scales the encoder **fps** and progress total by the factor; frame↔tensor conversion moved to a shared `frame` module. `render` takes `fps_multiplier`; the Inspector fps buttons (2x/3x/4x, toggleable) drive it, and the interpolate model select no longer writes to the upscale model. **RIFE TorchScript inference is still pending** — the reference path is linear blending (rife-4.26 has no downloadable `.pt` yet). **Tests**: ml blend/scene-cut (4), interpolator factor/scene-cut (4), e2e fps doubling (1).
 - **Real-ESRGAN TorchScript conversion** — `scripts/convert_realesrgan.py` converts official Real-ESRGAN RRDBNet checkpoints into loadable TorchScript; it auto-detects `num_block` and the input layout (classic 3-channel, or `pixel_unshuffle` for the x2 model) and traces two 2× nearest upsamples. Registry has three loadable upscalers: `realesrgan-x4plus` (4×), `realesrgan-x4plus-anime` (6B, 4×), `realesrgan-x2plus` (2×). Verified via the ignored `torch_loads_realesrgan_models` test (loads in `TorchEngine`, 64→64·scale). The `.pt`s are **not committed** (`models/*.pt` ignored) and `download_url`/`sha256` are dropped (they pointed at unloadable `.pth`s). Requires `torch` + `libtorch` to build/run with the `torch` feature.
-- **Model ingest (decision)** — raw `.pth` state dicts are converted **once** to TorchScript, maintainer-side (`scripts/convert_realesrgan.py`, needs Python + torch). End users never convert: the finished `.pt`s are **bundled/downloaded at M8** (like libtorch provisioning). `spandrel` (MIT) can later broaden the converter to more architectures; each adopted model must itself carry a permissive license (BSD/MIT/Apache).
+- ~~**Model ingest (decision)**~~ — **superseded 2026-08-16** (models are now downloaded as ncnn `.param`/`.bin`, not converted to TorchScript) — raw `.pth` state dicts are converted **once** to TorchScript, maintainer-side (`scripts/convert_realesrgan.py`, needs Python + torch). End users never convert: the finished `.pt`s are **bundled/downloaded at M8** (like libtorch provisioning). `spandrel` (MIT) can later broaden the converter to more architectures; each adopted model must itself carry a permissive license (BSD/MIT/Apache).
+- ~~**More upscalers (spandrel)**~~ — **superseded 2026-08-16** (conversion pipeline dropped; models downloaded as ncnn `.param`/`.bin`) — `scripts/convert_spandrel.py` converts permissively-licensed checkpoints (`.pth`/`.safetensors`) to TorchScript via spandrel (MIT): it retargets window-attention models (SwinIR/HAT) to the runtime tile size (256), re-derives their attention masks, and verifies trace==eager. Registered 4 new loadable upscalers: `real-cugan-x2` (MIT, anime 2×), `swinir-x2` (Apache-2.0, classical 2×), `swinir-x4` (Apache-2.0, real-world 4×), `hat-x4` (Apache-2.0, real-world 4×). **Tiling fix:** traced window-attention transformers are resolution-locked, so `infer_tiled` now pads small inputs to a full tile and `tile()` edge-aligns the last tile — every tile is exactly `tile_size`; padded borders are cropped from the output. `.pt`s are not committed; verified via the ignored `torch_loads_upscaler_models` test.

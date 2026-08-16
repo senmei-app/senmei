@@ -5,9 +5,6 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backend {
     Cpu,
-    Cuda,
-    Rocm,
-    Mps,
     Vulkan,
 }
 
@@ -80,99 +77,8 @@ pub fn infer_tiled(
 pub fn engine_for_model(model: &ModelRef) -> Result<Box<dyn InferenceEngine>> {
     let ext = model.path.extension().and_then(|e| e.to_str()).unwrap_or("");
     match ext {
-        "pt" => Ok(Box::new(TorchEngine::new())),
         "param" | "bin" => Ok(Box::new(NcnnEngine::new())),
         _ => Err(Error::new(format!("unsupported model format: {ext}"))),
-    }
-}
-
-#[cfg(not(feature = "torch"))]
-pub struct TorchEngine;
-
-#[cfg(not(feature = "torch"))]
-impl TorchEngine {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[cfg(not(feature = "torch"))]
-impl InferenceEngine for TorchEngine {
-    fn name(&self) -> &'static str {
-        "torch"
-    }
-
-    fn capabilities(&self) -> EngineCaps {
-        EngineCaps {
-            backend: Backend::Cpu,
-            half: false,
-            tiles: true,
-        }
-    }
-
-    fn load(&mut self, _model: &ModelRef) -> Result<()> {
-        Err(Error::unimplemented("TorchEngine::load (enable the `torch` feature)"))
-    }
-
-    fn infer(&mut self, _input: &Tensor, _opts: &InferOptions) -> Result<Tensor> {
-        Err(Error::unimplemented("TorchEngine::infer (enable the `torch` feature)"))
-    }
-}
-
-#[cfg(feature = "torch")]
-pub struct TorchEngine {
-    model: Option<tch::CModule>,
-    device: tch::Device,
-}
-
-#[cfg(feature = "torch")]
-impl TorchEngine {
-    pub fn new() -> Self {
-        Self {
-            model: None,
-            device: tch::Device::Cpu,
-        }
-    }
-}
-
-#[cfg(feature = "torch")]
-impl InferenceEngine for TorchEngine {
-    fn name(&self) -> &'static str {
-        "torch"
-    }
-
-    fn capabilities(&self) -> EngineCaps {
-        EngineCaps {
-            backend: Backend::Cpu,
-            half: false,
-            tiles: true,
-        }
-    }
-
-    fn load(&mut self, model: &ModelRef) -> Result<()> {
-        let module = tch::CModule::load(&model.path)?;
-        self.model = Some(module);
-        Ok(())
-    }
-
-    fn infer(&mut self, input: &Tensor, _opts: &InferOptions) -> Result<Tensor> {
-        let model = self.model.as_ref().ok_or_else(|| Error::new("model not loaded"))?;
-        let h = input.shape[2] as i64;
-        let w = input.shape[3] as i64;
-        let t = tch::Tensor::from_slice(&input.data)
-            .view([1, 3, h, w])
-            .to_kind(tch::Kind::Float)
-            .to_device(self.device)
-            .contiguous();
-        let out = model.forward_ts(&[t])?;
-        let oh = out.size()[2] as usize;
-        let ow = out.size()[3] as usize;
-        let mut data = vec![0f32; 3 * oh * ow];
-        let numel = data.len();
-        out.to_device(tch::Device::Cpu)
-            .contiguous()
-            .f_copy_data(&mut data, numel)?;
-        Ok(Tensor::new(vec![1, 3, oh, ow], data))
     }
 }
 
@@ -313,12 +219,6 @@ mod tests {
 
     #[test]
     fn factory_picks_engine_by_format() {
-        let pt = crate::model::ModelRef {
-            id: "span".into(),
-            path: std::path::PathBuf::from("/models/span.pt"),
-        };
-        assert_eq!(engine_for_model(&pt).unwrap().name(), "torch");
-
         let ncnn = crate::model::ModelRef {
             id: "rife".into(),
             path: std::path::PathBuf::from("/models/rife.param"),
@@ -330,37 +230,5 @@ mod tests {
             path: std::path::PathBuf::from("/models/x.onnx"),
         };
         assert!(engine_for_model(&bad).is_err());
-    }
-
-    #[cfg(feature = "torch")]
-    #[test]
-    #[ignore = "requires converted models/*.pt (run scripts/convert_realesrgan.py)"]
-    fn torch_loads_realesrgan_models() {
-        let models = [
-            ("realesrgan-x4plus", 4usize),
-            ("realesrgan-x4plus-anime", 4),
-            ("realesrgan-x2plus", 2),
-        ];
-        for (id, scale) in models {
-            let path = std::path::PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../models"
-            ))
-            .join(format!("{id}.pt"));
-            if !path.exists() {
-                eprintln!("model {id} not found, skipping");
-                continue;
-            }
-            let mref = crate::model::ModelRef {
-                id: id.to_string(),
-                path,
-            };
-            let mut engine = crate::TorchEngine::new();
-            engine.load(&mref).unwrap();
-            let input = crate::Tensor::new(vec![1, 3, 64, 64], vec![0.5f32; 3 * 64 * 64]);
-            let opts = crate::InferOptions { half: false, tile_size: None };
-            let out = engine.infer(&input, &opts).unwrap();
-            assert_eq!(out.shape, vec![1, 3, 64 * scale, 64 * scale], "{id}");
-        }
     }
 }

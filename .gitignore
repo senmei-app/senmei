@@ -6,7 +6,5 @@ dist/
 .DS_Store
 .vscode
 crates/senmei/gen/
-models/*.pt
 models/*.param
 models/*.bin
-models/.tmp/
