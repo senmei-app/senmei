@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Native <select> dropdowns render with the OS color scheme; force dark so
+   the popup options stay readable instead of white-on-white. */
+.dark {
+  color-scheme: dark;
+}
