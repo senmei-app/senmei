@@ -34,6 +34,11 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Commits:** `Co-authored-by` trailer for the AI assistant
 - **Models:** TorchScript `.pt` (libtorch) + `.param/.bin` (NCNN) + `metadata.json`
 
+## Check
+
+- `cargo check --workspace`
+
+
 ## Build (follows with M0)
 
 - `bun install`

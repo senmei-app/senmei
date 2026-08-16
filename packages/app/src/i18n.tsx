@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 export type Lang = "en" | "de";
 
@@ -16,6 +16,14 @@ const messages: Record<Lang, Record<string, string>> = {
     "menu.redo": "Redo",
     "menu.github": "GitHub",
     "menu.about": "About",
+    "settings.title": "Settings",
+    "settings.back": "Back",
+    "settings.section.appearance": "Appearance",
+    "settings.language": "Language",
+    "settings.theme": "Theme",
+    "theme.light": "Light",
+    "theme.dark": "Dark",
+    "theme.system": "System",
     "project.subtitle": "Frame interpolation & AI upscaling",
     "project.new": "New Project",
     "project.namePlaceholder": "Project name",
@@ -86,6 +94,14 @@ const messages: Record<Lang, Record<string, string>> = {
     "menu.redo": "Wiederholen",
     "menu.github": "GitHub",
     "menu.about": "Über",
+    "settings.title": "Einstellungen",
+    "settings.back": "Zurück",
+    "settings.section.appearance": "Darstellung",
+    "settings.language": "Sprache",
+    "settings.theme": "Design",
+    "theme.light": "Hell",
+    "theme.dark": "Dunkel",
+    "theme.system": "System",
     "project.subtitle": "Frame-Interpolation & AI-Upscaling",
     "project.new": "Neues Projekt",
     "project.namePlaceholder": "Projektname",
@@ -157,9 +173,15 @@ const I18nContext = createContext<I18nValue>({
   t: (key) => key,
 });
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("en");
-
+export function I18nProvider({
+  lang,
+  setLang,
+  children,
+}: {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  children: ReactNode;
+}) {
   const t = (key: string) => messages[lang][key] ?? messages.en[key] ?? key;
 
   return <I18nContext.Provider value={{ lang, setLang, t }}>{children}</I18nContext.Provider>;

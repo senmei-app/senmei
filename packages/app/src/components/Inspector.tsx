@@ -18,15 +18,15 @@ function Accordion({
   const [enabled, setEnabled] = useState(true);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60">
+    <div className="rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/60">
       <div className="flex items-center justify-between p-3">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           className="flex items-center space-x-2 text-left"
         >
-          <span className="text-indigo-400">{icon}</span>
-          <span className="text-xs font-medium text-slate-200">{title}</span>
+          <span className="text-indigo-500 dark:text-indigo-400">{icon}</span>
+          <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{title}</span>
           <span className="text-xs text-slate-500">{open ? "−" : "+"}</span>
         </button>
         <input
@@ -37,7 +37,7 @@ function Accordion({
         />
       </div>
       {open && (
-        <div className="border-t border-slate-800/60 p-3">
+        <div className="border-t border-slate-200/60 p-3 dark:border-slate-800/60">
           {children ?? <div className="text-xs text-slate-500">{placeholder}</div>}
         </div>
       )}
@@ -50,8 +50,8 @@ export default function Inspector() {
   const [group, setGroup] = useState<Group>("settings");
 
   return (
-    <aside className="h-full w-full overflow-y-auto border-l border-slate-800/80 bg-slate-900/30 p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+    <aside className="h-full w-full overflow-y-auto border-l border-slate-200 bg-slate-100/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
         {t("inspector.title")}
       </h2>
 
@@ -62,8 +62,8 @@ export default function Inspector() {
             onClick={() => setGroup(key)}
             className={
               group === key
-                ? "flex-1 rounded-md bg-indigo-600/30 border border-indigo-500/40 px-2 py-1.5 text-[11px] font-medium text-indigo-300"
-                : "flex-1 rounded-md bg-slate-800 px-2 py-1.5 text-[11px] text-slate-400 hover:bg-slate-700"
+                ? "flex-1 rounded-md border border-indigo-500/40 bg-indigo-600/30 px-2 py-1.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-300"
+                : "flex-1 rounded-md bg-slate-200 px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
             }
           >
             {t(`group.${key}`)}
@@ -76,22 +76,22 @@ export default function Inspector() {
           <Accordion icon="⚡" title={t("tab.interpolate")}>
             <div className="space-y-2 text-xs">
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">{t("fi.model")}</label>
-                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
+                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
                   <option>RIFE v4.26 (Heavy)</option>
                   <option>GMFSS Fortuna</option>
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">{t("fi.fps")}</label>
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.fps")}</label>
                 <div className="flex space-x-2">
                   <button className="flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white">
                     2x (48fps)
                   </button>
-                  <button className="flex-1 rounded-md bg-slate-800 py-1 text-center text-slate-400 hover:bg-slate-700">
+                  <button className="flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
                     3x
                   </button>
-                  <button className="flex-1 rounded-md bg-slate-800 py-1 text-center text-slate-400 hover:bg-slate-700">
+                  <button className="flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
                     4x
                   </button>
                 </div>
@@ -106,8 +106,8 @@ export default function Inspector() {
           <Accordion icon="🔍" title={t("tab.upscale")}>
             <div className="space-y-2 text-xs">
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">{t("up.model")}</label>
-                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
+                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
                   <option>SPAN (Fast Anime)</option>
                   <option>Real-ESRGAN x4+</option>
                 </select>
@@ -128,8 +128,8 @@ export default function Inspector() {
           <Accordion icon="🎵" title={t("tab.enc_audio")}>
             <div className="space-y-2 text-xs">
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">{t("enc_audio.codec")}</label>
-                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("enc_audio.codec")}</label>
+                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
                   <option>Passthrough</option>
                   <option>AAC</option>
                   <option>Opus</option>
@@ -142,8 +142,8 @@ export default function Inspector() {
           <Accordion icon="💬" title={t("tab.subtitle")}>
             <div className="space-y-2 text-xs">
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">{t("subtitle.mode")}</label>
-                <select className="w-full rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-slate-200">
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("subtitle.mode")}</label>
+                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
                   <option>None</option>
                   <option>Copy</option>
                   <option>HardSub</option>

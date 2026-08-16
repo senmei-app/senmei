@@ -21,6 +21,19 @@ export async function importFolder(dir: string): Promise<string[]> {
   return invoke<string[]>("import_folder", { dir });
 }
 
+export interface Settings {
+  language: string;
+  theme: string;
+}
+
+export async function getSettings(): Promise<Settings> {
+  return invoke<Settings>("get_settings");
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+  await invoke("save_settings", { settings });
+}
+
 export interface ProjectEntry {
   name: string;
   path: string;

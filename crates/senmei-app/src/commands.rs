@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::ipc::Channel;
 
+use crate::store;
+
 #[tauri::command]
 pub fn health_check() -> String {
     "ok".to_string()
@@ -32,62 +34,29 @@ pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     Ok(result)
 }
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectEntry {
-    pub name: String,
-    pub path: String,
+#[tauri::command]
+pub fn get_settings() -> store::Settings {
+    store::load_settings()
+}
+
+#[tauri::command]
+pub fn save_settings(settings: store::Settings) -> Result<(), String> {
+    store::save_settings(&settings)
+}
+
+#[tauri::command]
+pub fn list_projects() -> Vec<store::ProjectEntry> {
+    store::list_projects()
 }
 
 #[tauri::command]
 pub fn create_project(name: String) -> Result<String, String> {
-    let safe: String = name
-        .trim()
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let safe = safe.trim();
-    if safe.is_empty() {
-        return Err("project name is empty".into());
-    }
-
-    let path = projects_dir().join(safe);
-    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-    Ok(path.to_string_lossy().into_owned())
+    store::create_project(&name)
 }
 
 #[tauri::command]
-pub fn list_projects() -> Result<Vec<ProjectEntry>, String> {
-    let mut result = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(projects_dir()) {
-        for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                result.push(ProjectEntry {
-                    name: entry.file_name().to_string_lossy().into_owned(),
-                    path: entry.path().to_string_lossy().into_owned(),
-                });
-            }
-        }
-    }
-    result.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(result)
-}
-
-fn projects_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("share")
-        });
-    base.join("senmei").join("projects")
+pub fn remember_project(path: String) -> Result<(), String> {
+    store::remember_project(&path)
 }
 
 #[derive(Clone, Serialize)]

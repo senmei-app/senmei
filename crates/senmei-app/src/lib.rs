@@ -1,4 +1,5 @@
 mod commands;
+mod store;
 
 pub fn run() {
     tauri::Builder::default()
@@ -8,8 +9,11 @@ pub fn run() {
             commands::health_check,
             commands::render,
             commands::import_folder,
+            commands::get_settings,
+            commands::save_settings,
+            commands::list_projects,
             commands::create_project,
-            commands::list_projects
+            commands::remember_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
