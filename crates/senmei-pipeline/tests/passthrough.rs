@@ -21,7 +21,7 @@ fn passthrough_decodes_and_encodes() {
     std::fs::create_dir_all(&dir).unwrap();
 
     let input: PathBuf = dir.join("input.mp4");
-    let output: PathBuf = dir.join("output.webm");
+    let output: PathBuf = dir.join("output.mp4");
 
     let status = Command::new("ffmpeg")
         .args([

@@ -12,7 +12,7 @@ A fast, modern desktop video enhancer in Rust with:
 
 - **Frame interpolation** (e.g. 24 → 48 fps) and **upscaling** (e.g. 1080p → 4K)
 - **Multi-backend GPU inference**: libtorch (CUDA / ROCm / MPS / possibly XPU) + NCNN/Vulkan
-- **Consistent HTML/CSS/JS UI** via CEF on Windows/Linux/macOS
+- **Consistent HTML/CSS/JS UI** via platform webviews (webkit2gtk / WebView2 / WKWebView)
 - **Better FFmpeg settings** than RVE (profile-based, extensible, validated)
 - **Sample preview** of 10–60 s directly in the app
 
@@ -22,14 +22,14 @@ A fast, modern desktop video enhancer in Rust with:
 
 | # | Topic | Decision |
 |---|---|---|
-| 1 | Shell / UI host | **Tauri 2 + CEF** (`tauri::Cef`), not raw `cef-rs` |
+| 1 | Shell / UI host | **Tauri 2 + platform webview** (webkit2gtk / WebView2 / WKWebView), not CEF |
 | 2 | Frontend | **React + TypeScript**, `react-resizable-panels`, Tailwind, lucide-react |
 | 3 | Inference | **libtorch** (`tch` crate, own wrapper as fallback) + **NCNN/Vulkan** |
 | 4 | No ONNX Runtime | all models run via libtorch or NCNN |
-| 5 | No WebGPU/WASM | preview via `<video>` + 2D canvas (Chromium-native) |
+| 5 | No WebGPU/WASM | preview via FFmpeg-decoded frames → 2D canvas (codec-agnostic, incl. H.265) |
 | 6 | Media | **FFmpeg as subprocess** with `rawvideo` pipe |
 | 7 | Layout | **3-panel + timeline**: Input \| Monitor \| Settings |
-| 8 | Codecs | FFmpeg produces preview in **WebM/VP9** (Chromium-compatible); final file freely selectable |
+| 8 | Codecs | in-app preview is **codec-agnostic** (FFmpeg decode → canvas, incl. H.265); final file freely selectable (x264/x265) |
 | 9 | Phase-1 models | **RIFE** (interpolation) + **SPAN / Real-ESRGAN** (upscale) |
 | 10 | Platform order | **Linux first** (AMD/ROCm), then Windows, then macOS |
 | 11 | License | **MIT OR Apache-2.0** (Koharu-style), FFmpeg as **LGPL build**, no AGPL code |
@@ -41,7 +41,7 @@ A fast, modern desktop video enhancer in Rust with:
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Shell | Tauri 2 + CEF | IPC/plugins/windows for free, consistent Chromium everywhere |
+| Shell | Tauri 2 + platform webview | IPC/plugins/windows for free, small footprint |
 | Frontend | React 18+ / TypeScript / Vite | simple, Koharu-compatible pattern |
 | Package manager | **bun** | like Koharu (fast, bun lockfile) |
 | UI kit | Base UI + Tailwind CSS + lucide-react | Koharu pattern, maintainable |
@@ -83,7 +83,7 @@ flowchart LR
 |---|---|
 | Live monitor (last frame) | Rust → JPEG → Tauri `Channel<PreviewFrame>` → `createImageBitmap` → 2D `<canvas>` (~10–15 fps) |
 | Before/after | two bitmaps, movable divider (CSS `clip-path`) |
-| Sample playback | FFmpeg renders **WebM/VP9** → `<video>` element (Chromium HW decode) |
+| Sample playback | FFmpeg decodes frames (any codec incl. H.265) → 2D canvas; audio via `<audio>` (AAC/Opus) |
 
 ---
 
@@ -213,8 +213,7 @@ Instead of RVE's `if/else` encoder blocks, a **schema-driven profile system**:
     }
   },
   "profiles": {
-    "output":  { "encoder": "libx265", "quality": "high", "pixel_format": "yuv420p10le" },
-    "preview": { "encoder": "libvpx-vp9", "quality": "medium", "container": "webm" }
+    "output": { "encoder": "libx265", "quality": "high", "pixel_format": "yuv420p10le" }
   }
 }
 ```
@@ -227,7 +226,7 @@ Features:
 5. HDR→SDR tone mapping + color metadata (colorprim/transfer/matrix)
 6. Audio: AAC/Opus/FLAC/passthrough · subtitles: copy/srt/ass/webvtt
 7. HW encoders with capability detection (NVENC/VAAPI/AMF/VideoToolbox)
-8. **Output profile** (final file) + **preview profile** (WebM/VP9 for in-app)
+8. **Output profile** (final file); in-app preview is frame-based (no encode needed)
 9. Live command preview + validation
 
 ---
@@ -260,7 +259,7 @@ sequenceDiagram
 
 - Timeline with **in/out markers** + preset buttons
 - Exact seek via FFmpeg (`-ss` after `-i`)
-- Sample is rendered as **WebM/VP9** and played back via `<video>`
+- Sample playback is **codec-agnostic** (incl. H.265): FFmpeg decodes sample → frames → 2D canvas; audio via `<audio>` (AAC/Opus)
 - Button **"apply sample settings to full render"**
 - Live monitor: last frame as JPEG via `Channel`, ~10–15 fps
 
@@ -270,7 +269,7 @@ sequenceDiagram
 
 | # | Milestone | Content |
 |---|---|---|
-| **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri/CEF shell, React 3-panel, `InferenceEngine` trait |
+| **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait |
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain |
 | **M2** | **Upscaling** | SPAN/Real-ESRGAN via libtorch, tiling, progress |
 | **M3** | **Interpolation** | RIFE via TorchScript, scene-change detection, interpolation factor |
@@ -288,7 +287,7 @@ sequenceDiagram
    - RIFE/SPAN/Real-ESRGAN: quite doable
    - GMFSS/GIMM (custom CUDA kernels like Softsplat): schedule **late**
 2. **libtorch size** (~1–2 GB with CUDA/ROCm): build matrix per backend needed (like RVE's portable Python).
-3. **CEF build**: use prebuilt CEF; WebM/VP9 for preview completely sidesteps the codec topic.
+3. **Preview codec**: HEVC is **not** supported in webviews — in-app preview is frame-based (FFmpeg decode → canvas), so any source codec (incl. H.265) plays.
 4. **XPU (Intel)**: libtorch-XPU build must be checked — otherwise NCNN/Vulkan as Intel path.
 
 ---
@@ -311,7 +310,7 @@ As soon as you give the green light, I create **M0**:
 
 1. Cargo workspace with the 5 crates (stub code)
 2. `InferenceEngine` trait + empty `TorchEngine`/`NcnnEngine`
-3. Tauri/CEF shell (`senmei-app`) with health-check command
+3. Tauri shell (`senmei-app`) with health-check command
 4. React frontend with 3-panel layout + timeline placeholder
 5. `senmei-media` stub (FFmpeg probe)
 6. `models/` with example `metadata.json`
@@ -328,7 +327,9 @@ As soon as you give the green light, I create **M0**:
 | FFmpeg | **LGPL build** (dynamically linked) | compatible with permissive license; **do not bundle a GPL build** |
 | libtorch (PyTorch) | BSD-3-Clause | permissive, compatible |
 | NCNN | BSD-3-Clause | permissive, compatible |
-| Tauri / CEF / React | MIT / Apache / BSD | permissive, compatible |
+| Tauri / React | MIT / Apache / BSD | permissive, compatible |
+
+**Note (codecs):** `libx264`/`libx265` require a **GPL** FFmpeg build — conflicts with the LGPL-only rule. Dev encoder uses `libx264`; when bundling (M8) pick a GPL build for output, or LGPL-safe encoders (`libopenh264` / HW `h264_nvenc`/`vaapi`). In-app preview is frame-based (canvas) and needs no encoder.
 
 **Optional:** if a weak copyleft for the own code is desired later, **LGPL-3.0** is possible as an alternative — the default is **MIT OR Apache-2.0**.
 
@@ -350,3 +351,4 @@ As soon as you give the green light, I create **M0**:
 - **Theme** — light/dark applied across all components via Tailwind `dark:` classes; `system` follows `prefers-color-scheme`.
 - **UI fix** — top bar has `z-50` so menu dropdowns render above the live monitor (stacking-context issue with `backdrop-blur`).
 - **Window controls fix** — Tauri v2 ACL: `minimize`/`toggleMaximize`/`close` need explicit `core:window:allow-*` permissions in `capabilities/default.json` (not part of `core:default`).
+- **Webview decision (revision)** — CEF dropped; use Tauri platform webview. In-app preview is **frame-based** (FFmpeg decode → canvas) so it is codec-agnostic (incl. H.265); audio via `<audio>` (AAC/Opus). Final output via FFmpeg (x264/x265).

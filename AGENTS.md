@@ -7,10 +7,10 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Binding Decisions (do not change)
 
-- **UI host:** Tauri 2 + CEF (`tauri::Cef`) — no raw `cef-rs`
+- **UI host:** Tauri 2 + platform webview (webkit2gtk / WebView2 / WKWebView) — no CEF
 - **Frontend:** React + TypeScript + Vite · package manager `bun` · Base UI + Tailwind + lucide-react
 - **Inference:** `tch` (libtorch) + NCNN/Vulkan — **no ONNX Runtime**
-- **Preview:** `<video>` + 2D canvas — **no WebGPU/WASM**
+- **Preview:** 2D canvas fed by FFmpeg-decoded frames (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
 - **Media:** FFmpeg as subprocess with `rawvideo` pipe
 - **Pipeline:** composable `Vec<Step>` (phase 1: only `Interpolate` + `Upscale`)
 - **License:** MIT OR Apache-2.0 · FFmpeg only as **LGPL build**

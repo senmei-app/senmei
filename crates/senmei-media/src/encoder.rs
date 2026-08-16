@@ -18,7 +18,7 @@ impl Encoder {
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"])
-            .args(["-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p"])
+            .args(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
             .arg(path)
             .stdin(Stdio::piped())
             .stderr(Stdio::null())
