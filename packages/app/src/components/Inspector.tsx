@@ -47,7 +47,13 @@ function Accordion({
   );
 }
 
-export default function Inspector() {
+export default function Inspector({
+  scale,
+  onScaleChange,
+}: {
+  scale: number;
+  onScaleChange: (scale: number) => void;
+}) {
   const { t } = useI18n();
   const [group, setGroup] = useState<Group>("settings");
   const [models, setModels] = useState<ModelMetadata[]>([]);
@@ -61,7 +67,13 @@ export default function Inspector() {
   const upscaleModels = models.filter((m) => m.kind === "upscale");
 
   const modelSelect = (models: ModelMetadata[]) => (
-    <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+    <select
+      className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+      onChange={(e) => {
+        const m = models.find((x) => x.id === e.target.value);
+        if (m) onScaleChange(m.scale ?? 1);
+      }}
+    >
       {models.length === 0 && <option value="">—</option>}
       {models.map((m) => (
         <option key={m.id} value={m.id}>
@@ -127,6 +139,24 @@ export default function Inspector() {
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
                 {modelSelect(upscaleModels)}
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.scale")}</label>
+                <div className="flex space-x-2">
+                  {[2, 3, 4].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onScaleChange(s)}
+                      className={
+                        scale === s
+                          ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
+                          : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                      }
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </Accordion>

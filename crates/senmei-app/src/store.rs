@@ -135,8 +135,14 @@ pub fn create_project(name: &str) -> Result<String, String> {
 mod tests {
     use super::*;
 
-    fn with_temp_data_dir(test: impl FnOnce()) {
-        let base = std::env::temp_dir().join(format!("senmei-store-test-{}", std::process::id()));
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let base = std::env::temp_dir().join(format!(
+            "senmei-store-test-{}-{name}",
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&base);
         std::env::set_var("XDG_DATA_HOME", &base);
         test();
@@ -145,7 +151,7 @@ mod tests {
 
     #[test]
     fn settings_roundtrip() {
-        with_temp_data_dir(|| {
+        with_temp_data_dir("roundtrip", || {
             let settings = Settings {
                 language: "de".into(),
                 theme: "light".into(),
@@ -159,7 +165,7 @@ mod tests {
 
     #[test]
     fn settings_default_when_missing() {
-        with_temp_data_dir(|| {
+        with_temp_data_dir("defaults", || {
             let loaded = load_settings();
             assert_eq!(loaded.language, "en");
             assert_eq!(loaded.theme, "dark");
@@ -168,7 +174,7 @@ mod tests {
 
     #[test]
     fn project_dir_created_by_create_project() {
-        with_temp_data_dir(|| {
+        with_temp_data_dir("project", || {
             let path = create_project("Test 1").unwrap();
             assert!(PathBuf::from(&path).is_dir());
         });

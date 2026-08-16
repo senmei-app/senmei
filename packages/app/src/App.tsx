@@ -36,6 +36,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
+  const [scale, setScale] = useState(2);
 
   const currentFile = files[0];
 
@@ -138,7 +139,7 @@ export default function App() {
     const ch = new Channel<RenderProgress>();
     ch.onmessage = setProgress;
     try {
-      await render(currentFile, output, ch);
+      await render(currentFile, output, scale, ch);
     } catch (e) {
       setHealth(`render failed: ${e}`);
     } finally {
@@ -186,7 +187,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
-                <Inspector />
+                <Inspector scale={scale} onScaleChange={setScale} />
               </Panel>
             </PanelGroup>
             <StatusBar health={health} fileCount={files.length} progress={progress} rendering={rendering} />

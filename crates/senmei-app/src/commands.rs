@@ -128,16 +128,22 @@ pub struct RenderProgress {
 pub async fn render(
     input: String,
     output: String,
+    scale: Option<u32>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
-    log::info!("render start: {input} -> {output}");
+    log::info!("render start: {input} -> {output} (scale {scale:?})");
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
         let ffmpeg = senmei_media::resolve(&store::data_dir());
-        let steps: Vec<Box<dyn senmei_pipeline::Step>> =
+        let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];
+        if let Some(s) = scale {
+            if s > 1 {
+                steps.push(Box::new(senmei_pipeline::Upscale::new(s, None)));
+            }
+        }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
 
         pipeline

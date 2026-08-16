@@ -1,10 +1,14 @@
 mod engine;
 mod model;
+mod resize;
 mod tensor;
+mod tiling;
 
 pub use engine::{Backend, EngineCaps, InferOptions, InferenceEngine, NcnnEngine, TorchEngine};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
+pub use resize::bilinear;
 pub use tensor::Tensor;
+pub use tiling::{stitch, tile};
 
 use std::fmt;
 
@@ -16,6 +20,10 @@ pub struct Error(String);
 impl Error {
     pub fn unimplemented(what: &'static str) -> Self {
         Self(format!("not implemented: {what}"))
+    }
+
+    pub fn new(msg: impl Into<String>) -> Self {
+        Self(msg.into())
     }
 }
 

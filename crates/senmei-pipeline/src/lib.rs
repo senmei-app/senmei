@@ -2,7 +2,7 @@ mod pipeline;
 mod step;
 
 pub use pipeline::{Pipeline, Progress};
-pub use step::{Passthrough, Step};
+pub use step::{Passthrough, Step, Upscale};
 
 use std::fmt;
 

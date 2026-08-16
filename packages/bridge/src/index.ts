@@ -17,8 +17,9 @@ export const healthCheck = () => commands.healthCheck();
 export const render = (
   input: string,
   output: string,
+  scale: number | null,
   onProgress: Channel<RenderProgress>,
-) => commands.render(input, output, onProgress);
+) => commands.render(input, output, scale, onProgress);
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 
