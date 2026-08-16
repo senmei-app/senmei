@@ -210,6 +210,7 @@ export default function App() {
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
             <TopBar
               file={currentFile}
+              projectName={projectDir ? projectDir.split("/").pop() : undefined}
               rendering={rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}

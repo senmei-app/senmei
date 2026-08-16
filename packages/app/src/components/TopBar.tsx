@@ -4,6 +4,7 @@ import WindowControls from "./WindowControls";
 
 export default function TopBar({
   file,
+  projectName,
   rendering,
   onImportFile,
   onImportFolder,
@@ -13,6 +14,7 @@ export default function TopBar({
   onGithub,
 }: {
   file?: string;
+  projectName?: string;
   rendering?: boolean;
   onImportFile: () => void;
   onImportFolder: () => void;
@@ -41,6 +43,15 @@ export default function TopBar({
       />
 
       <div data-tauri-drag-region className="flex-1 self-stretch" />
+
+      {projectName && (
+        <div
+          data-tauri-drag-region
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2 max-w-[320px] truncate text-sm font-medium text-slate-600 dark:text-slate-300"
+        >
+          {projectName}
+        </div>
+      )}
 
       <div className="flex items-center space-x-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-700 dark:border-slate-800/80 dark:bg-slate-950/80 dark:text-slate-300">
         <span className={"h-2 w-2 rounded-full " + (file ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}></span>
