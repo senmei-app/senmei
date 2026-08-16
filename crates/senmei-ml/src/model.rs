@@ -26,6 +26,10 @@ pub struct ModelMetadata {
     #[serde(default)]
     pub ncnn: Option<Vec<String>>,
     #[serde(default)]
+    pub license: Option<String>,
+    #[serde(default)]
+    pub source_url: Option<String>,
+    #[serde(default)]
     pub metadata: serde_json::Value,
 }
 
