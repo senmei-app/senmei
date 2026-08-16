@@ -1,4 +1,5 @@
 mod decoder;
+mod downloader;
 mod encoder;
 mod ffmpeg;
 mod frame;

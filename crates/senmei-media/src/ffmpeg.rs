@@ -1,11 +1,10 @@
 use std::fs;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 
+use crate::downloader;
 use crate::{Error, Result};
 
 const ENV_PATH: &str = "SENMEI_FFMPEG";
@@ -109,88 +108,6 @@ fn archive_url() -> Option<&'static str> {
     }
 }
 
-fn fetch_file(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> Result<()> {
-    let resp = ureq::get(url).call().map_err(|e| Error::command_failed(format!("download failed: {e}")))?;
-    let total = resp
-        .header("Content-Length")
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(0);
-    let mut reader = resp.into_reader();
-    let mut file = fs::File::create(dest).map_err(|e| Error::command_failed(e.to_string()))?;
-    let mut buf = [0u8; 64 * 1024];
-    let mut downloaded = 0u64;
-    loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(|e| Error::command_failed(e.to_string()))?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n])
-            .map_err(|e| Error::command_failed(e.to_string()))?;
-        downloaded += n as u64;
-        on_progress(downloaded, total);
-    }
-    Ok(())
-}
-
-fn extract_binary(
-    archive: &Path,
-    out: &Path,
-    bin_name: &str,
-) -> Result<()> {
-    let file = fs::File::open(archive).map_err(|e| Error::command_failed(e.to_string()))?;
-    let target = format!("/bin/{bin_name}");
-    let found = match archive.extension().and_then(|e| e.to_str()) {
-        Some("zip") => {
-            let mut zip = zip::ZipArchive::new(file)
-                .map_err(|e| Error::command_failed(e.to_string()))?;
-            for i in 0..zip.len() {
-                let mut entry = zip
-                    .by_index(i)
-                    .map_err(|e| Error::command_failed(e.to_string()))?;
-                if entry.name().ends_with(&target) {
-                    let mut f = fs::File::create(out)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    std::io::copy(&mut entry, &mut f)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    return Ok(());
-                }
-            }
-            Err(Error::command_failed("ffmpeg binary not found in archive".into()))
-        }
-        _ => {
-            let xz = xz2::read::XzDecoder::new(file);
-            let mut ar = tar::Archive::new(xz);
-            for entry in ar
-                .entries()
-                .map_err(|e| Error::command_failed(e.to_string()))?
-            {
-                let mut entry = entry.map_err(|e| Error::command_failed(e.to_string()))?;
-                let name = entry
-                    .path()
-                    .map_err(|e| Error::command_failed(e.to_string()))?
-                    .to_string_lossy()
-                    .into_owned();
-                if name.ends_with(&target) {
-                    let mut f = fs::File::create(out)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    std::io::copy(&mut entry, &mut f)
-                        .map_err(|e| Error::command_failed(e.to_string()))?;
-                    return Ok(());
-                }
-            }
-            Err(Error::command_failed("ffmpeg binary not found in archive".into()))
-        }
-    };
-    found
-}
-
-fn sha256_hex(path: &Path) -> Result<String> {
-    let bytes = fs::read(path)?;
-    Ok(format!("{:x}", Sha256::digest(&bytes)))
-}
-
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
     let url = archive_url().ok_or_else(|| {
         Error::command_failed("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
@@ -203,9 +120,9 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
         url.rsplit('/').next().unwrap_or("ffmpeg-archive"),
     );
 
-    fetch_file(url, &archive, &mut on_progress)?;
+    downloader::fetch(url, &archive, &mut on_progress)?;
 
-    let actual = sha256_hex(&archive)?;
+    let actual = downloader::sha256_hex(&archive)?;
     if !actual.eq_ignore_ascii_case(FFMPEG_SHA256) {
         let _ = fs::remove_file(&archive);
         return Err(Error::command_failed(format!(
@@ -221,7 +138,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
         "ffmpeg"
     };
     let out = bin_dir.join(bin_name);
-    extract_binary(&archive, &out, bin_name)?;
+    downloader::extract_binary(&archive, &out, &format!("/bin/{bin_name}"))?;
 
     #[cfg(unix)]
     {
