@@ -266,23 +266,23 @@ sequenceDiagram
 
 ## 10. Milestones
 
-| # | Milestone | Content |
-|---|---|---|
-| **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait |
-| **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain |
-| **M2** | **Upscaling** | SPAN/Real-ESRGAN via NCNN, tiling, progress |
-| **M3** | **Interpolation** | RIFE via NCNN, scene-change detection, interpolation factor |
-| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR |
-| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor |
-| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection |
-| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue |
-| **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater |
+| # | Milestone | Content | Status |
+|---|---|---|---|
+| **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait | ✅ done |
+| **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain | ✅ done |
+| **M2** | **Upscaling** | SPAN/Real-ESRGAN via NCNN, tiling, progress | 🟡 reference bilinear scaler only (ML via NCNN pending M6) |
+| **M3** | **Interpolation** | RIFE via NCNN, scene-change detection, interpolation factor | 🟡 linear blend + scene-cut only (RIFE pending) |
+| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 basic settings only |
+| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ⬜ pending |
+| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection | ⬜ pending (`NcnnEngine` is a stub) |
+| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue | ⬜ pending |
+| **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | ⬜ pending |
 
 ---
 
 ## 11. Risks
 
-1. **NCNN model availability** (largest effort): find/verify a permissively-licensed community NCNN port (`.param`/`.bin`) per model; convert otherwise (`pnnx`/`onnx2ncnn`) where licenses allow.
+1. **NCNN model availability** (largest effort): find a community NCNN port (`.param`/`.bin`) per model, or convert once maintainer-side (`pnnx`/`onnx2ncnn`) where licenses allow. Weights are **not bundled** — the app downloads them from a pinned upstream URL on first use (download-on-demand), so redistribution licensing is not required for the weights.
    - RIFE/SPAN/Real-ESRGAN/Real-CUGAN: ports available
    - GMFSS/GIMM (custom CUDA kernels like Softsplat): schedule **late**
 2. ~~libtorch size~~ — resolved: no libtorch; NCNN is a small native dep, models are `.param`/`.bin` downloads.
@@ -355,6 +355,8 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 - **Inference engine switch v2 (decision, 2026-08-16)** — after benchmarking on the target AMD RX 9070 (RDNA4/`gfx1201`), the engine is **NCNN/Vulkan** via C++ shim (`cxx`/bindgen) with **CPU fallback**. **candle is dropped** (no ROCm backend; per-model Rust ports). **burn set aside** (fusion/JIT immature for SR). Model format is ncnn `.param`/`.bin` (community ports) — **no safetensors graph loading, no conversion, no Python, no Rust arch ports**. The per-model cost is finding a permissively-licensed NCNN port. Evidence in `docs/benchmarks.md`: ncnn 1080p x2 = 398 ms vs torch-ROCm 7153 ms (pathological) + tile OOM/hard-fault on RDNA4. Obsolete vs v1: `CandleEngine`, `.safetensors` loading, "port each arch to Rust" plan. Registry schema: `torch` field → `ncnn` (see §6.4).
 - **NCNN-only code switch (2026-08-16)** — removed the `torch` feature, `tch` dep, `TorchEngine`, and the `torch`/`download_url`/`sha256` `ModelMetadata` fields. `engine_for_model` maps only `.param`/`.bin` → `NcnnEngine`; `Registry::resolve` points at the `.param` (the `.bin` sits alongside). Registry = 7 NCNN models (`rife-4.26`, Real-ESRGAN ×3, Real-CUGAN up2x, SwinIR x2/x4) — `loadable: false` until the C++ shim lands (M6). Dropped the `download_model` command + `senmei_media::download_model`, the `scripts/convert_*.py` pipeline, and local `models/*.pt`. `Backend` = `Cpu | Vulkan`. Bridge bindings regenerated. Exact NCNN asset filenames still need pinning in M7.
+- **Download-on-demand (decision, 2026-08-16)** — model weights are **not bundled or redistributed**. The app downloads `.param`/`.bin` from a pinned upstream URL on first use (M7). Keeps the runtime small and sidesteps redistribution-license questions for models whose ports lack a clear license; `metadata.json` records license + source for transparency.
+- **Libtorch downloader/UI cleanup (TODO, 2026-08-16)** — the libtorch provisioning path still exists (`senmei-media/src/libtorch.rs`, `get_libtorch_status`/`download_libtorch`, `useLibtorch`, SettingsPage inference section, i18n strings) and contradicts the engine switch. Remove it in a follow-up; the Settings inference section should later show the NCNN backend instead.
 - ~~**Inference engine switch (decision, 2026-08-16)**~~ — **superseded by v2** (candle dropped after benchmarks; engine = NCNN/Vulkan) — libtorch/`tch`/TorchScript is **dropped**. `senmei-ml` moves to **candle** (CPU/CUDA/Metal) + **NCNN/Vulkan** (no ONNX, no TorchScript). Models are **downloaded** as `.safetensors` from pinned HF repos (Koharu-style `model_repository!` pattern, repo + commit SHA) — **no conversion, no Python**. Each architecture is **ported to Rust** (`candle-nn`) once; that is the main per-model cost. Consequence: the ROCm/AMD-Linux accelerated path is dropped (AMD → NCNN/Vulkan). Obsolete: the `torch` feature, `tch` dep, `TorchEngine`, `scripts/convert_*.py`, and the existing `.pt` files (models re-fetched as `.safetensors`).
 - **M0 done** — workspace, 5 crates, `InferenceEngine` trait + engine stubs + model registry, Tauri shell (frameless), React UI, `models/metadata.json`, LICENSE (MIT/Apache), crates.io names secured.
 - **M1 done** — FFmpeg passthrough: `senmei-media` decoder/encoder (`rawvideo` pipe), `senmei-pipeline` (`Step`, `Passthrough`, `Pipeline::run`), `render` command + progress channel.
