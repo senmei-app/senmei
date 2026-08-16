@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useI18n } from "../i18n";
 
-export default function MediaLibrary() {
+export default function MediaLibrary({
+  files,
+  onOpen,
+}: {
+  files: string[];
+  onOpen: () => void;
+}) {
   const { t } = useI18n();
   const [view, setView] = useState<"library" | "queue">("library");
 
@@ -36,7 +42,10 @@ export default function MediaLibrary() {
       <div className="flex-1 overflow-y-auto">
         {view === "library" ? (
           <>
-            <div className="mb-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-900/40 p-4 text-center transition hover:border-indigo-500/50 hover:bg-slate-900/80 cursor-pointer">
+            <div
+            onClick={onOpen}
+            className="mb-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-900/40 p-4 text-center transition hover:border-indigo-500/50 hover:bg-slate-900/80 cursor-pointer"
+          >
               <div className="mb-2 rounded-full bg-indigo-500/10 p-2 text-indigo-400">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -52,21 +61,24 @@ export default function MediaLibrary() {
             </div>
 
             <div className="space-y-2">
-              <div className="group flex cursor-pointer items-center space-x-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2 transition">
-                <div className="h-10 w-14 shrink-0 overflow-hidden rounded bg-slate-800 relative">
-                  <div className="absolute inset-0 bg-slate-700/50 flex items-center justify-center text-[9px] text-slate-300">
-                    THUMB
+              {files.map((path) => (
+                <div
+                  key={path}
+                  className="group flex cursor-pointer items-center space-x-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2 transition"
+                >
+                  <div className="h-10 w-14 shrink-0 overflow-hidden rounded bg-slate-800 relative">
+                    <div className="absolute inset-0 bg-slate-700/50 flex items-center justify-center text-[9px] text-slate-300">
+                      THUMB
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-slate-100">
+                      {path.split("/").pop()}
+                    </p>
+                    <div className="mt-0.5 text-[10px] text-slate-400">video</div>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-slate-100">jujutsu_kaisen_op.mkv</p>
-                  <div className="mt-0.5 flex items-center space-x-1.5 text-[10px] text-slate-400">
-                    <span className="rounded bg-slate-800 px-1">1080p</span>
-                    <span>•</span>
-                    <span>24 fps</span>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </>
         ) : (

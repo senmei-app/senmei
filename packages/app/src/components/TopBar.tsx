@@ -1,8 +1,19 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useI18n } from "../i18n";
+import MenuBar from "./MenuBar";
 
-export default function TopBar() {
+export default function TopBar({
+  onImportFile,
+  onImportFolder,
+  onCloseProject,
+  onGithub,
+}: {
+  onImportFile: () => void;
+  onImportFolder: () => void;
+  onCloseProject: () => void;
+  onGithub: () => void;
+}) {
   const { lang, setLang, t } = useI18n();
 
   const minimize = () => {
@@ -16,23 +27,26 @@ export default function TopBar() {
   };
 
   return (
-    <header data-tauri-drag-region className="flex h-12 w-full items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-4 text-xs backdrop-blur-md">
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
-            鮮
-          </div>
-          <span className="font-bold tracking-wide text-slate-100 text-sm">Senmei</span>
+    <header className="flex h-12 w-full items-center gap-4 border-b border-slate-800/80 bg-slate-900/90 px-4 text-xs backdrop-blur-md">
+      <div
+        data-tauri-drag-region
+        onDoubleClick={toggleMax}
+        className="flex items-center space-x-2"
+      >
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
+          鮮
         </div>
-
-        <nav className="flex items-center space-x-4 text-slate-400 font-medium">
-          <button className="hover:text-slate-100 transition">{t("menu.file")}</button>
-          <button className="hover:text-slate-100 transition">{t("menu.edit")}</button>
-          <button className="hover:text-slate-100 transition">{t("menu.process")}</button>
-          <button className="hover:text-slate-100 transition">{t("menu.view")}</button>
-          <button className="hover:text-slate-100 transition">{t("menu.help")}</button>
-        </nav>
+        <span className="font-bold tracking-wide text-slate-100 text-sm">Senmei</span>
       </div>
+
+      <MenuBar
+        onImportFile={onImportFile}
+        onImportFolder={onImportFolder}
+        onCloseProject={onCloseProject}
+        onGithub={onGithub}
+      />
+
+      <div data-tauri-drag-region onDoubleClick={toggleMax} className="flex-1 self-stretch" />
 
       <div className="flex items-center space-x-2 rounded-full bg-slate-950/80 border border-slate-800/80 px-3 py-1 text-slate-300 font-mono text-[11px]">
         <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>

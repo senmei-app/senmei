@@ -13,3 +13,5 @@ tauri-build = "2"
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = ["custom-protocol"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
