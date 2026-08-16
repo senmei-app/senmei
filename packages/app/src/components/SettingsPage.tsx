@@ -1,13 +1,8 @@
-import { useEffect, useState } from "react";
-import { isTauri, Channel } from "@tauri-apps/api/core";
+import { useState } from "react";
 import { Button } from "@senmei/ui";
-import {
-  downloadLibtorch,
-  getLibtorchStatus,
-  type LibTorchInfo,
-} from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
+import { useLibtorch } from "../useLibtorch";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
@@ -42,26 +37,13 @@ export default function SettingsPage({
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("appearance");
   const { status, downloading, pct, error, download } = useFfmpeg();
-  const [libtorch, setLibtorch] = useState<LibTorchInfo | null>(null);
-  const [ltDownloading, setLtDownloading] = useState(false);
-  const [ltPct, setLtPct] = useState(0);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    getLibtorchStatus().then(setLibtorch).catch(() => setLibtorch(null));
-  }, []);
-
-  const startLibtorchDownload = () => {
-    if (!isTauri()) return;
-    setLtDownloading(true);
-    setLtPct(0);
-    const ch = new Channel<{ downloaded: number; total: number }>();
-    ch.onmessage = (p) => setLtPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0);
-    downloadLibtorch(ch)
-      .then(() => getLibtorchStatus().then(setLibtorch))
-      .catch(() => {})
-      .finally(() => setLtDownloading(false));
-  };
+  const {
+    status: libtorch,
+    downloading: ltDownloading,
+    pct: ltPct,
+    error: ltError,
+    download: startLibtorchDownload,
+  } = useLibtorch();
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
@@ -236,6 +218,7 @@ export default function SettingsPage({
                 ) : (
                   <div className="space-y-2">
                     <p className="text-xs text-rose-500">{t("settings.inference.notDownloaded")}</p>
+                    {ltError && <p className="text-xs text-rose-500">{ltError}</p>}
                     <Button onClick={startLibtorchDownload} disabled={ltDownloading}>
                       {ltDownloading
                         ? t("settings.inference.downloading").replace("{pct}", String(ltPct))
