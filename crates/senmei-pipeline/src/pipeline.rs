@@ -21,13 +21,14 @@ impl Pipeline {
 
     pub fn run(
         &mut self,
+        ffmpeg: &Path,
         input: &Path,
         output: &Path,
         mut on_progress: impl FnMut(Progress),
     ) -> Result<()> {
-        let mut decoder = Decoder::open(input)?;
+        let mut decoder = Decoder::open(ffmpeg, input)?;
         let total_frames = decoder.total_frames;
-        let mut encoder = Encoder::open(output, decoder.width, decoder.height, decoder.fps)?;
+        let mut encoder = Encoder::open(ffmpeg, output, decoder.width, decoder.height, decoder.fps)?;
 
         let mut processed = 0u64;
         while let Some(mut frame) = decoder.next_frame()? {

@@ -46,3 +46,24 @@ export async function listProjects(): Promise<ProjectEntry[]> {
 export async function createProject(name: string): Promise<string> {
   return invoke<string>("create_project", { name });
 }
+
+export interface FfmpegStatus {
+  found: boolean;
+  path: string | null;
+  version: string | null;
+  encoders: string[];
+  decoders: string[];
+}
+
+export async function getFfmpegStatus(): Promise<FfmpegStatus> {
+  return invoke<FfmpegStatus>("get_ffmpeg_status");
+}
+
+export interface DownloadProgress {
+  downloaded: number;
+  total: number;
+}
+
+export async function downloadFfmpeg(onProgress: Channel<DownloadProgress>): Promise<string> {
+  return invoke<string>("download_ffmpeg", { onProgress });
+}

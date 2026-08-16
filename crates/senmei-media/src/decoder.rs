@@ -16,10 +16,10 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn open(path: &Path) -> Result<Self> {
+    pub fn open(ffmpeg: &Path, path: &Path) -> Result<Self> {
         let info = crate::probe::probe(path)?;
 
-        let mut child = Command::new("ffmpeg")
+        let mut child = Command::new(ffmpeg)
             .arg("-i")
             .arg(path)
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])

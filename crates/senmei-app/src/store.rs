@@ -25,7 +25,7 @@ pub struct ProjectEntry {
     pub path: String,
 }
 
-fn data_dir() -> PathBuf {
+pub fn data_dir() -> PathBuf {
     let base = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| {

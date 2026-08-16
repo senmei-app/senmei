@@ -11,7 +11,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Frontend:** React + TypeScript + Vite · package manager `bun` · Base UI + Tailwind + lucide-react
 - **Inference:** `tch` (libtorch) + NCNN/Vulkan — **no ONNX Runtime**
 - **Preview:** 2D canvas fed by FFmpeg-decoded frames (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
-- **Media:** FFmpeg as subprocess with `rawvideo` pipe
+- **Media:** FFmpeg as subprocess with `rawvideo` pipe · source: **system FFmpeg preferred, portable download fallback** (BtbN builds, GPL — separate process, not bundled/linked)
 - **Pipeline:** composable `Vec<Step>` (phase 1: only `Interpolate` + `Upscale`)
 - **License:** MIT OR Apache-2.0 · FFmpeg only as **LGPL build**
 - **No code** from RVE/TAS (AGPL-3.0) — clean re-implementation

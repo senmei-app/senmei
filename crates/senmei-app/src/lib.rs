@@ -13,7 +13,9 @@ pub fn run() {
             commands::save_settings,
             commands::list_projects,
             commands::create_project,
-            commands::remember_project
+            commands::remember_project,
+            commands::get_ffmpeg_status,
+            commands::download_ffmpeg
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

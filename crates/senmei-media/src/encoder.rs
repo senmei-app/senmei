@@ -11,8 +11,8 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    pub fn open(path: &Path, width: u32, height: u32, fps: f64) -> Result<Self> {
-        let mut child = Command::new("ffmpeg")
+    pub fn open(ffmpeg: &Path, path: &Path, width: u32, height: u32, fps: f64) -> Result<Self> {
+        let mut child = Command::new(ffmpeg)
             .arg("-y")
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
             .args(["-s", &format!("{width}x{height}")])

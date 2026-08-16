@@ -10,6 +10,39 @@ pub fn health_check() -> String {
     "ok".to_string()
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgress {
+    pub downloaded: u64,
+    pub total: u64,
+}
+
+#[tauri::command]
+pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
+    if std::env::var_os("SENMEI_FORCE_FFMPEG_MISSING").is_some() {
+        return senmei_media::FfmpegInfo::default();
+    }
+    let dir = store::data_dir();
+    let ffmpeg = senmei_media::resolve(&dir);
+    senmei_media::probe_ffmpeg(&ffmpeg)
+}
+
+#[tauri::command]
+pub async fn download_ffmpeg(
+    on_progress: Channel<DownloadProgress>,
+) -> Result<String, String> {
+    let dir = store::data_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        senmei_media::download(&dir, |downloaded, total| {
+            let _ = on_progress.send(DownloadProgress { downloaded, total });
+        })
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
     const EXTS: [&str; 10] = [
@@ -76,12 +109,13 @@ pub async fn render(
     let output = PathBuf::from(output);
 
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let ffmpeg = senmei_media::resolve(&store::data_dir());
         let steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
 
         pipeline
-            .run(&input, &output, |p| {
+            .run(&ffmpeg, &input, &output, |p| {
                 let _ = on_progress.send(RenderProgress {
                     frames_processed: p.frames_processed,
                     total_frames: p.total_frames,

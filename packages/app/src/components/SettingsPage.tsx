@@ -1,9 +1,23 @@
 import { useState } from "react";
 import { useI18n, type Lang } from "../i18n";
+import { useFfmpeg } from "../useFfmpeg";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
-type Section = "appearance";
+type Section = "appearance" | "ffmpeg";
+
+const KEY_ENCODERS = [
+  "libx264",
+  "libx265",
+  "libopenh264",
+  "h264_nvenc",
+  "hevc_nvenc",
+  "av1_nvenc",
+  "h264_vaapi",
+  "hevc_vaapi",
+  "av1_vaapi",
+  "libsvtav1",
+];
 
 export default function SettingsPage({
   language,
@@ -20,10 +34,14 @@ export default function SettingsPage({
 }) {
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("appearance");
+  const { status, downloading, pct, error, download } = useFfmpeg();
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
+    { key: "ffmpeg", label: t("settings.section.ffmpeg") },
   ];
+
+  const encoders = status?.encoders ?? [];
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 select-none antialiased dark:bg-slate-950 dark:text-slate-200">
@@ -104,6 +122,64 @@ export default function SettingsPage({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {section === "ffmpeg" && (
+            <div className="max-w-xl space-y-6">
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.ffmpeg.status")}
+                </label>
+                {status?.found ? (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs dark:border-slate-800 dark:bg-slate-900">
+                    <p className="text-slate-700 dark:text-slate-300">
+                      {t("settings.ffmpeg.version")}: {status.version}
+                    </p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{status.path}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-rose-500">{t("settings.ffmpeg.notFound")}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.ffmpeg.encoders")}
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {KEY_ENCODERS.map((e) => (
+                    <span
+                      key={e}
+                      className={
+                        encoders.includes(e)
+                          ? "rounded-md bg-emerald-500/15 px-2 py-1 font-mono text-[11px] text-emerald-600 dark:text-emerald-400"
+                          : "rounded-md bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-400 dark:bg-slate-800 dark:text-slate-600"
+                      }
+                    >
+                      {e}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  {t("settings.ffmpeg.available").replace("{count}", String(encoders.length))}
+                </p>
+              </div>
+
+              {!status?.found && (
+                <div className="space-y-2">
+                  {error && <p className="text-xs text-rose-500">{error}</p>}
+                  <button
+                    onClick={download}
+                    disabled={downloading}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    {downloading
+                      ? t("settings.ffmpeg.downloading").replace("{pct}", String(pct))
+                      : t("settings.ffmpeg.download")}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

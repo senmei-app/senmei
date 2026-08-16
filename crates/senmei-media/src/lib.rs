@@ -1,10 +1,12 @@
 mod decoder;
 mod encoder;
+mod ffmpeg;
 mod frame;
 mod probe;
 
 pub use decoder::Decoder;
 pub use encoder::Encoder;
+pub use ffmpeg::{download, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
 pub use probe::{probe, VideoInfo};
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "../i18n";
+import FfmpegIndicator from "./FfmpegIndicator";
 import WindowControls from "./WindowControls";
 
 export interface ProjectEntry {
@@ -34,6 +35,7 @@ export default function ProjectScreen({
         <div data-tauri-drag-region className="flex-1 self-stretch" />
         <WindowControls />
       </header>
+      <FfmpegIndicator />
       <div className="flex flex-1 flex-col items-center justify-center">
         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-3xl font-bold text-white shadow-lg shadow-indigo-500/30">
           鮮

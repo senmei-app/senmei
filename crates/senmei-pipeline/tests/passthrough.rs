@@ -40,9 +40,10 @@ fn passthrough_decodes_and_encodes() {
 
     let steps: Vec<Box<dyn senmei_pipeline::Step>> = vec![Box::new(senmei_pipeline::Passthrough)];
     let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+    let ffmpeg = senmei_media::resolve(&dir);
 
     let mut frames = 0u64;
-    pipeline.run(&input, &output, |_| frames += 1).unwrap();
+    pipeline.run(&ffmpeg, &input, &output, |_| frames += 1).unwrap();
 
     assert!(frames > 0, "expected at least one frame");
     assert!(output.exists());
