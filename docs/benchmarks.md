@@ -71,6 +71,32 @@ Setup: `burn` 0.21.0, `burn-rocm`, `burn-wgpu` (Vulkan via RADV).
   `BurnpackStore` + `HalfPrecisionAdapter`); a `burn-fusion` bug crashes Vulkan
   f32 at 1080p.
 
+## Full-app render pipeline (2026-08-17)
+
+Real end-to-end numbers from `senmei-pipeline/tests/bench.rs`
+(`cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture`,
+optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc →
+2160p x2, ShuffleCugan f16 burnpack, Vulkan, 48 frames.
+
+| Path | convert-in | infer | convert-out | total | FPS |
+|---|---|---|---|---|---|
+| before (sequential) | 3.7 ms | 158 ms | 35.7 ms | 197 ms | 5.1 |
+| after (optimized) | 1.9 ms | 157 ms | 9.7 ms | 168 ms | 5.9 |
+| full threaded pipeline + x264 veryfast | — | — | — | — | **5.1** |
+
+- The 4K `tensor_to_frame` (35.7 → 9.7 ms) was the biggest CPU win: replaced
+  `round().clamp()` per element with a saturating `(x*255+0.5) as u8`
+  (autovectorizes); `frame_to_tensor` uses a `x/255` LUT (3.7 → 1.9 ms).
+- `Pipeline::run` now runs decode/encode on threads so CPU I/O hides behind the
+  GPU inference; the encode thread uses x264 `-preset veryfast` (was default
+  medium — that had become the bottleneck at 2160p: 4.7 FPS).
+- **Model inference (157 ms) is the hard floor** on burn/Vulkan/RDNA4: ~6 FPS
+  pure, ~5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified
+  via rocm-smi); no throttling. Closing the gap to TensorRT-class speed (36 FPS)
+  needs hand-tuned kernels / GPU-side color conversion — not a config change.
+- Real-CUGAN up2x and ShuffleCugan both measure identically (158 ms) — the
+  per-frame transfer cost dominates, not the weights.
+
 ## Decision (2026-08-16, revised 2026-08-17)
 
 - **torch/ROCm is not viable on RDNA4 for SR** (1080p perf + tile OOM/hard fault).

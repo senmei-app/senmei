@@ -10,6 +10,14 @@ pub struct Encoder {
     stdin: Option<ChildStdin>,
 }
 
+/// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
+/// the GPU pipeline; override via `SENMEI_X264_PRESET`.
+fn x264_preset() -> &'static str {
+    std::env::var("SENMEI_X264_PRESET")
+        .unwrap_or_else(|_| "veryfast".into())
+        .leak()
+}
+
 impl Encoder {
     pub fn open(ffmpeg: &Path, path: &Path, width: u32, height: u32, fps: f64) -> Result<Self> {
         let mut child = Command::new(ffmpeg)
@@ -18,7 +26,7 @@ impl Encoder {
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"])
-            .args(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
+            .args(["-c:v", "libx264", "-preset", x264_preset(), "-pix_fmt", "yuv420p"])
             .arg(path)
             .stdin(Stdio::piped())
             .stderr(Stdio::null())

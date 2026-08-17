@@ -42,15 +42,15 @@ impl Pipeline {
         ffmpeg: &Path,
         input: &Path,
         output: &Path,
-        mut on_progress: impl FnMut(Progress),
+        mut on_progress: impl FnMut(Progress) + Send + 'static,
     ) -> Result<()> {
         log::info!("pipeline: decode/encode {input:?} -> {output:?}");
         let mut decoder = Decoder::open(ffmpeg, input)?;
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
         let total_frames = decoder.total_frames * factor;
+        let fps = decoder.fps * factor as f64;
 
-        // Apply interpolation first, then the 1:1 steps; the encoder size and
-        // fps must match the first emitted frame and the output frame rate.
+        // First frame fixes the encoder dimensions.
         let first = match decoder.next_frame()? {
             Some(frame) => frame,
             None => return Err(Error::new("no frames decoded")),
@@ -61,46 +61,100 @@ impl Pipeline {
                 step.process(frame)?;
             }
         }
-        let mut encoder = Encoder::open(
-            ffmpeg,
-            output,
-            first_batch[0].width,
-            first_batch[0].height,
-            decoder.fps * factor as f64,
-        )?;
+        let (w, h) = (first_batch[0].width, first_batch[0].height);
 
-        let mut processed = 0u64;
-        for frame in &first_batch {
-            encoder.write_frame(frame)?;
-            processed += 1;
-            on_progress(Progress {
-                frames_processed: processed,
-                total_frames,
-            });
-        }
+        // 3-stage pipeline: decode (thread) -> process (main) -> encode (thread).
+        // The CPU-side decode/encode runs while the GPU is busy on the current
+        // frame, hiding those costs behind the inference.
+        let (raw_tx, raw_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
+        let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
-        while let Some(frame) = decoder.next_frame()? {
-            if self.cancel.load(Ordering::Relaxed) {
-                return Err(Error::cancelled());
-            }
-            let mut batch = self.emit(frame)?;
-            for step in &mut self.steps {
-                for frame in &mut batch {
-                    step.process(frame)?;
-                }
-            }
-            for frame in &batch {
-                encoder.write_frame(frame)?;
+        let encoder = Encoder::open(ffmpeg, output, w, h, fps)?;
+        let enc_handle = std::thread::spawn(move || -> Result<()> {
+            let mut enc = encoder;
+            let mut processed = 0u64;
+            while let Ok(frame) = out_rx.recv() {
+                enc.write_frame(&frame)?;
                 processed += 1;
                 on_progress(Progress {
                     frames_processed: processed,
                     total_frames,
                 });
             }
-        }
-        encoder.finish()?;
+            enc.finish().map_err(Error::from)
+        });
 
-        Ok(())
+        let dec_handle = std::thread::spawn(move || -> Result<()> {
+            let mut dec = decoder;
+            while let Some(frame) = dec.next_frame()? {
+                if raw_tx.send(frame).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+
+        let mut main_err: Option<Error> = None;
+        for frame in first_batch {
+            if out_tx.send(frame).is_err() {
+                main_err = Some(Error::new("encode channel closed"));
+                break;
+            }
+        }
+        while main_err.is_none() {
+            match raw_rx.recv() {
+                Ok(frame) => {
+                    if self.cancel.load(Ordering::Relaxed) {
+                        main_err = Some(Error::cancelled());
+                        break;
+                    }
+                    let mut batch = match self.emit(frame) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            main_err = Some(e);
+                            break;
+                        }
+                    };
+                    let mut failed = false;
+                    for step in &mut self.steps {
+                        for frame in &mut batch {
+                            if let Err(e) = step.process(frame) {
+                                main_err = Some(e);
+                                failed = true;
+                                break;
+                            }
+                        }
+                        if failed {
+                            break;
+                        }
+                    }
+                    if failed {
+                        break;
+                    }
+                    for frame in batch {
+                        if out_tx.send(frame).is_err() {
+                            main_err = Some(Error::new("encode channel closed"));
+                            failed = true;
+                            break;
+                        }
+                    }
+                }
+                Err(_) => break, // decoder finished
+            }
+        }
+
+        drop(out_tx);
+        drop(raw_rx); // unblock the decode thread if we bailed early
+        let dec_res =
+            dec_handle.join().unwrap_or_else(|_| Err(Error::new("decode thread panicked")));
+        let enc_res =
+            enc_handle.join().unwrap_or_else(|_| Err(Error::new("encode thread panicked")));
+
+        if let Some(e) = main_err {
+            return Err(e);
+        }
+        dec_res?;
+        enc_res
     }
 
     fn emit(&mut self, frame: senmei_media::Frame) -> Result<Vec<senmei_media::Frame>> {

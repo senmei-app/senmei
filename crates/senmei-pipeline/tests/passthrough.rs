@@ -42,10 +42,16 @@ fn passthrough_decodes_and_encodes() {
     let mut pipeline = senmei_pipeline::Pipeline::new(steps);
     let ffmpeg = senmei_media::resolve(&dir);
 
-    let mut frames = 0u64;
-    pipeline.run(&ffmpeg, &input, &output, |_| frames += 1).unwrap();
+    // The progress callback runs on the encode thread, so use a shared counter.
+    let frames = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let counter = frames.clone();
+    pipeline
+        .run(&ffmpeg, &input, &output, move |p| {
+            counter.store(p.frames_processed, std::sync::atomic::Ordering::Relaxed);
+        })
+        .unwrap();
 
-    assert!(frames > 0, "expected at least one frame");
+    assert!(frames.load(std::sync::atomic::Ordering::Relaxed) > 0, "expected at least one frame");
     assert!(output.exists());
     assert!(output.metadata().unwrap().len() > 0);
 

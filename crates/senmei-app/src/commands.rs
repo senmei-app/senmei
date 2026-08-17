@@ -319,7 +319,7 @@ pub async fn render(
             }
         }
 
-        let run = pipeline.run(&ffmpeg, &input, &output, |p| {
+        let run = pipeline.run(&ffmpeg, &input, &output, move |p| {
             let _ = on_progress.send(RenderProgress {
                 frames_processed: p.frames_processed,
                 total_frames: p.total_frames,

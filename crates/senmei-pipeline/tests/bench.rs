@@ -87,3 +87,57 @@ fn bench_shufflecugan_1080p_fullframe() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// End-to-end render speed through the (threaded) pipeline, incl. x264 encode.
+#[test]
+#[ignore = "benchmark: requires Vulkan + ShuffleCugan bpk + ffmpeg"]
+fn bench_pipeline_full_render() {
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "shuffle-cugan".to_string());
+    let models_dir = std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../models"
+    ));
+    let mut registry = senmei_ml::Registry::new();
+    registry.load_dir(&models_dir).unwrap();
+    let mref = registry.resolve(&model_id, &models_dir).expect("model in registry");
+
+    let dir = std::env::temp_dir().join("senmei-bench-render");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("input.mp4");
+    let output = dir.join("output.mp4");
+    let ok = std::process::Command::new("ffmpeg")
+        .args([
+            "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1920x1080:rate=24",
+            "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok);
+
+    let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
+    engine.load(&mref).unwrap();
+    let steps: Vec<Box<dyn senmei_pipeline::Step>> =
+        vec![Box::new(senmei_pipeline::Upscale::new(2, Some(engine)))];
+    let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+
+    let ffmpeg = senmei_media::resolve(&dir);
+    let frames = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let counter = frames.clone();
+    let start = Instant::now();
+    pipeline
+        .run(&ffmpeg, &input, &output, move |p| {
+            counter.store(p.frames_processed, std::sync::atomic::Ordering::Relaxed);
+        })
+        .unwrap();
+    let elapsed = start.elapsed().as_secs_f64();
+    let n = frames.load(std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "full pipeline ({model_id} 1080p->2160p, threaded + x264): {n} frames in {elapsed:.1}s -> {:.1} FPS",
+        n as f64 / elapsed
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
