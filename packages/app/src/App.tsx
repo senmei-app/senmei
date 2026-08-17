@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   cancelRender,
@@ -10,7 +10,6 @@ import {
   uniquePath,
   createProject,
   deleteProject,
-  exportProject,
   getSettings,
   healthCheck,
   importFolder,
@@ -264,26 +263,6 @@ export default function App() {
     }
   };
 
-  const handleExportProject = async () => {
-    if (!projectDir) return;
-    if (!isTauri()) {
-      setHealth("export not available in the browser demo");
-      return;
-    }
-    const base = projectDir.split("/").pop() ?? "project";
-    const dest = await save({
-      defaultPath: `${base}.json`,
-      filters: [{ name: "Senmei project", extensions: ["json"] }],
-    });
-    if (!dest) return;
-    try {
-      await exportProject(projectDir, dest);
-      setHealth(`project exported to ${dest}`);
-    } catch (e) {
-      setHealth(`export failed: ${e}`);
-    }
-  };
-
   const pickOutputDir = async () => {
     if (!isTauri()) {
       setOutputDir("/demo/output");
@@ -512,7 +491,6 @@ export default function App() {
               onStartRender={() => startBatch()}
               onCloseProject={closeProject}
               onSaveProjectAs={handleSaveProjectAs}
-              onExportProject={handleExportProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
               onSelectAll={selectAll}

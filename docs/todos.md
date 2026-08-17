@@ -8,7 +8,7 @@
 - [ ] burn für macOS Grundgerüst als Experiment (keine Garantie)
 
 ## UI
-- [x] Export Project / Save Project As (File-Menü)
+- [x] Save Project As (File-Menü); Export entfernt (nicht ladbar)
 - [x] Drop-Box nur wenn leer + volle Höhe; Drag & Drop von Videos überall
 - [x] Pfeile zwischen den Stacks entfernen
 - [x] Videoname mittig (`project / video`), keine Box
