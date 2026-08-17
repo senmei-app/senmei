@@ -9,6 +9,14 @@ separate licenses: a clean arch re-implementation does not relicense the
 weights. Each adopted model gets a `metadata.json` entry with license + source +
 download URL (+ sha256 where known).
 
+## Status at a glance
+
+| Kind | Adopted & loadable | Port pending | License verify |
+|---|---|---|---|
+| Upscale | Real-CUGAN up2x (2×) · ShuffleCugan (2×) · Real-ESRGAN animevideo x2/x4 · x4plus-anime 6B | — | — |
+| Interpolation | RIFE v4.6 | — | — |
+| Denoise / restore | — | SCUNet | Real-PLKSr DeJPG/DeH264 · Anime1080Fixer |
+
 ## Model flow (2026-08-17, v3)
 
 - Inference stack: **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU
@@ -65,6 +73,21 @@ download URL (+ sha256 where known).
 
 Weights are never committed (`models/*` gitignored); the app downloads them
 (download-on-demand, sha256-verified) and converts to f16 `.bpk`.
+
+## Backlog (candidates to evaluate)
+
+Goal: ~4–5 models per stack, each needing a clean burn port + a permissive
+weight license before `loadable: true`. Candidates come from
+[`chaiNNer-org/spandrel`](https://github.com/chaiNNer-org/spandrel) (permissive
+arch reference) and the sources above — this is a research list, not a
+commitment.
+
+| Stack | Candidates | License check |
+|---|---|---|
+| Interpolation | RIFE family (more variants) | MIT ok |
+| Denoise | SCUNet, Real-PLKSr DeJPG/DeH264 | cszn verify · Phhofm verify |
+| Restoration | Real-ESRGAN family, Anime1080Fixer | BSD-3 ok · Zarxrax verify |
+| Depth map (use-case open) | MiDaS / Depth-Anything class | TBD — is it useful for video enhancement? |
 
 ## Notes
 
