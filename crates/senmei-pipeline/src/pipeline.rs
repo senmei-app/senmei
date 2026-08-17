@@ -16,6 +16,7 @@ pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
     interpolator: Option<Interpolator>,
     cancel: Arc<AtomicBool>,
+    pause: Arc<AtomicBool>,
     encoder_args: Vec<String>,
 }
 
@@ -25,6 +26,7 @@ impl Pipeline {
             steps,
             interpolator: None,
             cancel: Arc::new(AtomicBool::new(false)),
+            pause: Arc::new(AtomicBool::new(false)),
             encoder_args: Vec::new(),
         }
     }
@@ -37,6 +39,11 @@ impl Pipeline {
     /// Install a cancellation flag; `run` aborts between frames once it is set.
     pub fn set_cancel(&mut self, cancel: Arc<AtomicBool>) {
         self.cancel = cancel;
+    }
+
+    /// Install a pause flag; `run` waits between frames while it is set.
+    pub fn set_pause(&mut self, pause: Arc<AtomicBool>) {
+        self.pause = pause;
     }
 
     /// Enable frame interpolation (e.g. 24 → 48 fps) before the step chain.
@@ -111,6 +118,15 @@ impl Pipeline {
         while main_err.is_none() {
             match raw_rx.recv() {
                 Ok(frame) => {
+                    if self.cancel.load(Ordering::Relaxed) {
+                        main_err = Some(Error::cancelled());
+                        break;
+                    }
+                    // Wait while paused; the bounded channels keep the decode/encode
+                    // threads blocked, so no frames accumulate.
+                    while self.pause.load(Ordering::Relaxed) && !self.cancel.load(Ordering::Relaxed) {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
                     if self.cancel.load(Ordering::Relaxed) {
                         main_err = Some(Error::cancelled());
                         break;

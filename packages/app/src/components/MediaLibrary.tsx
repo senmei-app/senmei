@@ -9,6 +9,8 @@ export default function MediaLibrary({
   outputDir,
   onPickOutputDir,
   rendering,
+  paused,
+  onTogglePause,
   onCancel,
   progress,
   renderedFile,
@@ -19,6 +21,8 @@ export default function MediaLibrary({
   outputDir: string | null;
   onPickOutputDir: () => void;
   rendering: boolean;
+  paused: boolean;
+  onTogglePause: () => void;
   onCancel: () => void;
   progress: RenderProgress | null;
   renderedFile: string | null;
@@ -116,14 +120,22 @@ export default function MediaLibrary({
               <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
-                    {t("queue.rendering")}
+                    {paused ? t("queue.paused") : t("queue.rendering")}
                   </p>
-                  <button
-                    onClick={onCancel}
-                    className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/20 dark:text-red-400"
-                  >
-                    {t("queue.cancel")}
-                  </button>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={onTogglePause}
+                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                    >
+                      {paused ? "▶ " + t("queue.resume") : "❚❚ " + t("queue.pause")}
+                    </button>
+                    <button
+                      onClick={onCancel}
+                      className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/20 dark:text-red-400"
+                    >
+                      {t("queue.cancel")}
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                   <div

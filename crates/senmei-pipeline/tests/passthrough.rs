@@ -121,3 +121,63 @@ fn passthrough_copies_audio() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn passthrough_pause_resume() {
+    if !ffmpeg_available() {
+        eprintln!("ffmpeg not found, skipping");
+        return;
+    }
+
+    let dir = std::env::temp_dir().join("senmei-pause-test");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let input: PathBuf = dir.join("input.mp4");
+    let output: PathBuf = dir.join("output.mp4");
+
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y", "-f", "lavfi", "-i", "testsrc=duration=8:size=320x240:rate=24",
+            "-pix_fmt", "yuv420p",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success(), "failed to generate test input");
+
+    let steps: Vec<Box<dyn senmei_pipeline::Step>> = vec![Box::new(senmei_pipeline::Passthrough)];
+    let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+    let pause = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    pipeline.set_pause(pause.clone());
+    let ffmpeg = senmei_media::resolve(&dir);
+
+    let frames = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let counter = frames.clone();
+    let handle = std::thread::spawn(move || {
+        pipeline
+            .run(&ffmpeg, &input, &output, move |p| {
+                counter.store(p.frames_processed, std::sync::atomic::Ordering::Relaxed);
+            })
+            .expect("render failed");
+    });
+
+    // Let the pipeline reach the frame loop, then pause and verify no progress.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    pause.store(true, std::sync::atomic::Ordering::Relaxed);
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    let during = frames.load(std::sync::atomic::Ordering::Relaxed);
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    let during2 = frames.load(std::sync::atomic::Ordering::Relaxed);
+    pause.store(false, std::sync::atomic::Ordering::Relaxed);
+
+    handle.join().unwrap();
+    let total = frames.load(std::sync::atomic::Ordering::Relaxed);
+
+    assert!(total > 0, "expected frames to render");
+    assert!(during > 0, "expected some frames before pausing");
+    assert_eq!(during, during2, "frames must not advance while paused");
+    assert!(total >= during, "frames must advance after resume");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

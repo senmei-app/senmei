@@ -28,6 +28,8 @@ export const commands = {
 	readFrame: (input: string, positionMs: number | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
+	/**  Pause/resume the active render (the pipeline waits between frames). */
+	pauseRender: (paused: boolean) => __TAURI_INVOKE<void>("pause_render", { paused }),
 };
 
 /* Types */

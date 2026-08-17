@@ -355,6 +355,10 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Pause/resume render (2026-08-17)** — the pipeline waits between frames on a
+  pause flag (`set_pause`); `pause_render(bool)` command toggles it. The Queue
+  tab shows Pause/Resume next to Cancel next to the progress. Regression test
+  `passthrough_pause_resume` proves frames stall while paused and resume after.
 - **Output naming/flow (2026-08-17)** — the rendered filename includes the
   Output-step `label` when set (`{stem}_{label}.{ext}`, else `{stem}_senmei.{ext}`);
   when a folder mode is configured (Global/Custom) the render writes straight
