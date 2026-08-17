@@ -19,6 +19,8 @@ export default function MenuBar({
   onImportFile,
   onImportFolder,
   onCloseProject,
+  onSaveProjectAs,
+  onExportProject,
   onSettings,
   onGithub,
   onSelectAll,
@@ -31,6 +33,8 @@ export default function MenuBar({
   onImportFile: () => void;
   onImportFolder: () => void;
   onCloseProject: () => void;
+  onSaveProjectAs: () => void;
+  onExportProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
   onSelectAll: () => void;
@@ -57,6 +61,8 @@ export default function MenuBar({
           ],
         },
         { key: "close", label: t("menu.closeProject"), action: onCloseProject },
+        { key: "save-as", label: t("menu.saveAs"), action: onSaveProjectAs },
+        { key: "export", label: t("menu.exportProject"), action: onExportProject },
         { key: "sep", separator: true },
         { key: "settings", label: t("menu.settings"), action: onSettings },
       ],

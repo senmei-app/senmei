@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   cancelRender,
@@ -10,12 +10,14 @@ import {
   uniquePath,
   createProject,
   deleteProject,
+  exportProject,
   getSettings,
   healthCheck,
   importFolder,
   listProjects,
   loadProjectSettings,
   render,
+  saveProjectAs,
   saveProjectSettings,
   saveSettings,
   type ProjectEntry,
@@ -249,6 +251,39 @@ export default function App() {
     void reloadProjects();
   };
 
+  const handleSaveProjectAs = async () => {
+    if (!projectDir) return;
+    const base = projectDir.split("/").pop() ?? "project";
+    const name = window.prompt("Save project as", base);
+    if (!name?.trim() || name.trim() === base) return;
+    try {
+      const dir = await saveProjectAs(projectDir, name.trim());
+      setProjectDir(dir);
+    } catch (e) {
+      setHealth(`save as failed: ${e}`);
+    }
+  };
+
+  const handleExportProject = async () => {
+    if (!projectDir) return;
+    if (!isTauri()) {
+      setHealth("export not available in the browser demo");
+      return;
+    }
+    const base = projectDir.split("/").pop() ?? "project";
+    const dest = await save({
+      defaultPath: `${base}.json`,
+      filters: [{ name: "Senmei project", extensions: ["json"] }],
+    });
+    if (!dest) return;
+    try {
+      await exportProject(projectDir, dest);
+      setHealth(`project exported to ${dest}`);
+    } catch (e) {
+      setHealth(`export failed: ${e}`);
+    }
+  };
+
   const pickOutputDir = async () => {
     if (!isTauri()) {
       setOutputDir("/demo/output");
@@ -476,6 +511,8 @@ export default function App() {
               onImportFolder={importFolderFiles}
               onStartRender={() => startBatch()}
               onCloseProject={closeProject}
+              onSaveProjectAs={handleSaveProjectAs}
+              onExportProject={handleExportProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
               onSelectAll={selectAll}

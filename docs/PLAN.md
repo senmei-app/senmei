@@ -355,6 +355,10 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Project save-as & export (2026-08-17)** — the File menu gains "Save
+  Project As…" (duplicates the project folder + settings under a new name) and
+  "Export Project…" (writes `project.json` to a user-chosen location via the
+  native save dialog). New commands `save_project_as` / `export_project`.
 - **UI polish (2026-08-17)** — the media-library drop box now only shows when
   no video is loaded (and fills the whole panel height); videos can be added
   by dragging them anywhere in the window (Tauri `onDragDropEvent` with full
