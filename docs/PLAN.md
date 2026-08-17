@@ -355,6 +355,9 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Version badge with build hash (2026-08-17)** — the TopBar shows
+  `v0.1.0-<short-hash>`; Vite injects `__APP_VERSION__`/`__BUILD_HASH__`
+  (last commit) via `define`, so every build identifies its exact source.
 - **Audio passthrough (2026-08-17)** — the encoder now takes the source file as
   a second ffmpeg input and maps its audio (`-map 0:v:0 -map 1:a:0?`), so the
   rendered file keeps the soundtrack. The Output-step Audio dropdown drives it:

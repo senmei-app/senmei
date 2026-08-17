@@ -34,8 +34,11 @@ export default function TopBar({
           鮮
         </div>
         <span className="font-bold tracking-wide text-slate-900 dark:text-slate-100 text-sm">Senmei</span>
-        <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-          v0.1.0
+        <span
+          title={`build ${__BUILD_HASH__}`}
+          className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+        >
+          v{__APP_VERSION__}-{__BUILD_HASH__}
         </span>
       </div>
 

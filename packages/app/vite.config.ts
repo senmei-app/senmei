@@ -1,11 +1,25 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { execSync } from "node:child_process";
 
 const host = process.env.TAURI_DEV_HOST;
+
+// Short hash of the last commit, shown in the version badge.
+const buildHash = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return "dev";
+  }
+})();
 
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  define: {
+    __APP_VERSION__: JSON.stringify("0.1.0"),
+    __BUILD_HASH__: JSON.stringify(buildHash),
+  },
   server: {
     port: 1420,
     strictPort: true,
