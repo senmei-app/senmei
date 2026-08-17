@@ -4,7 +4,7 @@ import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@sen
 import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
 
-const FRAME_STEP_MS = 250;
+const FRAME_STEP_MS = 100;
 
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -14,6 +14,29 @@ function fmt(ms: number): string {
   const cs = Math.floor((ms % 1000) / 10);
   const pad = (n: number, w = 2) => String(n).padStart(w, "0");
   return `${pad(h)}:${pad(m)}:${pad(sec)}.${pad(cs)}`;
+}
+
+// "55s", "10m", "1h", "1m30s" or a bare number (seconds).
+function parseDuration(input: string): number | null {
+  const s = input.trim().toLowerCase();
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s) * 1000);
+  const re = /(\d+)([smh])/g;
+  let ms = 0;
+  let m: RegExpExecArray | null;
+  let any = false;
+  while ((m = re.exec(s)) !== null) {
+    any = true;
+    const v = Number(m[1]);
+    ms += m[2] === "s" ? v * 1000 : m[2] === "m" ? v * 60000 : v * 3600000;
+  }
+  return any ? ms : null;
+}
+
+function fmtDuration(ms: number): string {
+  if (ms % 60000 === 0) return `${Math.round(ms / 60000)}m`;
+  if (ms % 1000 === 0) return `${Math.round(ms / 1000)}s`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 export default function Monitor({
@@ -47,41 +70,63 @@ export default function Monitor({
   const inMs = sampleInMs;
   const outMs = sampleOutMs;
   const [playing, setPlaying] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customVal, setCustomVal] = useState("");
+  const [sampleMenu, setSampleMenu] = useState(false);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
+  const sampleMenuRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(0);
   const name = src ? src.split("/").pop() : null;
 
-  const loadFrame = (ms: number) => {
+  const loadFrame = (ms: number): Promise<void> => {
     const targets: string[] = [];
     if (mode === "compare") {
       if (file) targets.push(file);
-      if (renderedFile) targets.push(renderedFile);
+      if (effRendered) targets.push(effRendered);
     } else if (src) {
       targets.push(src);
     }
-    if (targets.length === 0) return;
+    if (targets.length === 0) return Promise.resolve();
     if (!isTauri()) {
       targets.forEach((p) =>
         setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${demoFrame()}` })),
       );
-      return;
+      return Promise.resolve();
     }
     setLoading(true);
-    targets.forEach((p) => {
-      readFrame(p, ms)
-        .then((b64) => {
-          setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${b64}` }));
-          setError(null);
-        })
-        .catch((e) => {
-          console.error("readFrame failed:", e);
-          setError(String(e));
-        })
-        .finally(() => setLoading(false));
-    });
+    return Promise.all(
+      targets.map((p) =>
+        readFrame(p, ms)
+          .then((b64) => {
+            setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${b64}` }));
+            setError(null);
+          })
+          .catch((e) => {
+            console.error("readFrame failed:", e);
+            setError(String(e));
+          }),
+      ),
+    )
+      .then(() => undefined)
+      .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    posRef.current = posMs;
+  }, [posMs]);
+
+  // Close the sample preset menu on outside click.
+  useEffect(() => {
+    if (!sampleMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (sampleMenuRef.current && !sampleMenuRef.current.contains(e.target as Node)) setSampleMenu(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [sampleMenu]);
 
   // Auto-switch to the Result view once a render completes.
   const prevRendered = useRef<string | null>(null);
@@ -127,22 +172,44 @@ export default function Monitor({
     debounce.current = window.setTimeout(() => loadFrame(ms), 120);
   };
 
+  // Playback advances the time indicator 1:1 with wall clock. At most one
+  // decode is in flight: frames load only on FRAME_STEP_MS boundaries and are
+  // skipped if the decoder can't keep up, so requests never pile up.
   useEffect(() => {
     if (!playing || !info || (info.duration ?? 0) <= 0) return;
-    const endMs = Math.max(inMs, Math.min(outMs || (info.duration ?? 0) * 1000, (info.duration ?? 0) * 1000));
+    const durMs = (info.duration ?? 0) * 1000;
+    const endMs = Math.max(inMs, Math.min(outMs || durMs, durMs));
+    let last = performance.now();
+    let busy = false;
     const id = window.setInterval(() => {
-      setPosMs((p) => {
-        const next = p + FRAME_STEP_MS;
-        if (next >= endMs) {
-          setPosMs(inMs); // loop the sample within in..out
-          loadFrame(inMs);
-          return inMs;
+      const now = performance.now();
+      const elapsed = now - last;
+      last = now;
+      const prev = posRef.current;
+      let next = prev + elapsed;
+      if (next >= endMs) {
+        next = inMs; // loop the sample within in..out
+        posRef.current = next;
+        setPosMs(next);
+        if (!busy) {
+          busy = true;
+          loadFrame(inMs).finally(() => {
+            busy = false;
+          });
         }
-        loadFrame(next);
-        return next;
-      });
-    }, FRAME_STEP_MS + 80);
+        return;
+      }
+      posRef.current = next;
+      setPosMs(next);
+      if (!busy && Math.floor(next / FRAME_STEP_MS) !== Math.floor(prev / FRAME_STEP_MS)) {
+        busy = true;
+        loadFrame(next).finally(() => {
+          busy = false;
+        });
+      }
+    }, 33);
     return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, info, inMs, outMs]);
 
   const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
@@ -161,6 +228,52 @@ export default function Monitor({
     if (!info) return;
     onSampleChange?.(0, (info.duration ?? 0) * 1000);
   };
+
+  const presetOf = (): string => {
+    if (!info) return "10s";
+    const durMs = outMs - inMs;
+    const totalMs = (info.duration ?? 0) * 1000;
+    if (Math.abs(durMs - 10000) < 50) return "10s";
+    if (Math.abs(durMs - 30000) < 50) return "30s";
+    if (Math.abs(durMs - 60000) < 50) return "60s";
+    if (outMs >= totalMs || Math.abs(durMs - totalMs) < 50) return "full";
+    return "custom";
+  };
+
+  const curSampleLabel = (() => {
+    const p = presetOf();
+    if (p === "full") return t("sample.full");
+    if (p === "custom") return fmtDuration(outMs - inMs);
+    return p;
+  })();
+
+  const onSampleSel = (v: string) => {
+    setCustomOpen(false);
+    if (v === "custom") {
+      setCustomVal(fmtDuration(outMs - inMs));
+      setCustomOpen(true);
+    } else if (v === "full") {
+      setFullRange();
+    } else {
+      applySample(parseInt(v, 10)); // "30s" -> 30
+    }
+  };
+
+  const applyCustom = () => {
+    if (!info) return;
+    const ms = parseDuration(customVal);
+    if (ms === null) return;
+    const durMs = (info.duration ?? 0) * 1000;
+    const start = Math.min(posMs, durMs);
+    onSampleChange?.(start, Math.min(start + ms, durMs));
+    setCustomOpen(false);
+  };
+
+  // Close the custom input when the range becomes a preset (e.g. probe reset).
+  useEffect(() => {
+    if (customOpen) setCustomOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inMs, outMs]);
   const pct =
     rendering && progress && progress.totalFrames > 0
       ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
@@ -310,32 +423,76 @@ export default function Monitor({
         </div>
         <div className="mb-2 flex items-center space-x-1">
           <span className="text-[10px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
-          {[10, 15, 30, 60].map((s) => {
-            const active = info && Math.round((outMs - inMs) / 1000) === s;
-            return (
+          <div className="relative flex items-center" ref={sampleMenuRef}>
+            <button
+              onClick={() => setSampleMenu((m) => !m)}
+              disabled={!info}
+              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white py-1 pl-2.5 pr-1.5 font-mono text-[10px] text-slate-700 hover:border-indigo-500/50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <span>{curSampleLabel}</span>
+              <span className="text-slate-400">▾</span>
+            </button>
+            {sampleMenu && (
+              <div className="absolute right-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                {[
+                  { v: "10s", label: "10s" },
+                  { v: "30s", label: "30s" },
+                  { v: "60s", label: "60s" },
+                  { v: "full", label: t("sample.full") },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    onClick={() => {
+                      setSampleMenu(false);
+                      onSampleSel(o.v);
+                    }}
+                    className={
+                      "block w-full px-3 py-1.5 text-left text-[11px] hover:bg-slate-100 dark:hover:bg-slate-800 " +
+                      (presetOf() === o.v
+                        ? "font-medium text-indigo-600 dark:text-indigo-400"
+                        : "text-slate-700 dark:text-slate-200")
+                    }
+                  >
+                    {presetOf() === o.v ? "✓ " : ""}
+                    {o.label}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                <button
+                  onClick={() => {
+                    setSampleMenu(false);
+                    onSampleSel("custom");
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-[11px] text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800"
+                >
+                  {t("sample.custom")}
+                </button>
+              </div>
+            )}
+          </div>
+          {customOpen && (
+            <div className="flex items-center space-x-1">
+              <input
+                value={customVal}
+                onChange={(e) => setCustomVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyCustom();
+                  if (e.key === "Escape") setCustomOpen(false);
+                }}
+                placeholder={t("sample.customPlaceholder")}
+                autoFocus
+                className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              />
               <button
-                key={s}
-                onClick={() => applySample(s)}
+                onClick={applyCustom}
                 disabled={!info}
-                title={`${s}s sample from current position`}
-                className={
-                  "rounded-lg border px-2 py-1 font-mono text-[10px] disabled:opacity-40 " +
-                  (active
-                    ? "border-indigo-500/60 bg-indigo-600/20 text-indigo-500 dark:text-indigo-300"
-                    : "border-slate-200 text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-400")
-                }
+                title={t("sample.apply")}
+                className="rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
               >
-                {s}s
+                ✓
               </button>
-            );
-          })}
-          <button
-            onClick={setFullRange}
-            disabled={!info}
-            className="rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
-          >
-            {t("sample.full")}
-          </button>
+            </div>
+          )}
           {onRenderSample && (
             <button
               onClick={onRenderSample}
