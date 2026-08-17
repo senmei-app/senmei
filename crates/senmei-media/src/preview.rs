@@ -11,9 +11,10 @@ pub fn extract_frame(ffmpeg: &Path, path: &Path, pos_secs: f64) -> Result<Vec<u8
     let output = Command::new(ffmpeg)
         .args(["-ss", &format!("{pos_secs:.3}"), "-i"])
         .arg(path)
-        // `-strict unofficial`: the mjpeg encoder refuses limited-range (tv) YUV
-        // (e.g. libx265/hevc output) without it ("Non full-range YUV is non-standard").
-        .args(["-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "-strict", "unofficial", "-"])
+        // PNG (not mjpeg): the mjpeg encoder refuses limited-range (tv) YUV
+        // (e.g. libx265/hevc renders) without -strict unofficial, PNG has no
+        // such range restriction and works on every FFmpeg build.
+        .args(["-frames:v", "1", "-f", "image2pipe", "-c:v", "png", "-"])
         .output()?;
     if !output.status.success() {
         return Err(Error::Command(

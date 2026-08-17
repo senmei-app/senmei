@@ -20,8 +20,8 @@ fn preview_backend_functions_work() {
     assert!(info.width > 0 && info.duration > 0.0);
 
     let ffmpeg = senmei_media::resolve(std::path::Path::new("."));
-    let jpeg = senmei_media::extract_frame(&ffmpeg, &input, 0.5).expect("extract_frame failed");
-    assert!(jpeg.starts_with(&[0xFF, 0xD8]), "not a JPEG");
+    let png = senmei_media::extract_frame(&ffmpeg, &input, 0.5).expect("extract_frame failed");
+    assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
 
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -130,7 +130,7 @@ export default function Monitor({
       targets.map(({ path, ms: t }) =>
         readFrame(path, t)
           .then((b64) => {
-            setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${b64}` }));
+            setFrames((prev) => ({ ...prev, [path]: `data:image/png;base64,${b64}` }));
             setError(null);
           })
           .catch((e) => {

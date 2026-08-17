@@ -4,11 +4,18 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Preview frames as PNG instead of mjpeg (2026-08-18)** — `extract_frame`
+  encodes the preview frame to PNG. The mjpeg encoder refuses limited-range
+  (tv) YUV from libx265/HEVC renders ("Non full-range YUV is non-standard")
+  unless `-strict unofficial` is passed, which still produced a broken preview
+  on some FFmpeg builds; PNG has no such range restriction. Frontend now uses
+  `data:image/png` for decoded frames.
 - **Fix monitor frame read-back of HEVC/x265 renders (2026-08-18)** —
   `extract_frame` now passes `-strict unofficial` to the mjpeg `image2pipe`
   encode. The mjpeg encoder refuses limited-range (tv) YUV from libx265/HEVC
   renders without it ("Non full-range YUV is non-standard"), which made the
   result/compare preview fail right after rendering with an ffmpeg error.
+  (Superseded by the PNG switch above.)
 - **Preview uses the pipeline's ffmpeg (2026-08-18)** — `extract_frame` no
   longer resolves ffmpeg from the current directory; the `read_frame` command
   resolves the same binary the pipeline uses (app data dir / bundled) and passes
