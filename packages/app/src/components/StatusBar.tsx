@@ -50,15 +50,23 @@ export default function StatusBar({
           {fileCount} {fileCount === 1 ? t("status.file") : t("status.files")}
         </span>
       </div>
-      {rendering && progress && (
-        <div className="flex items-center gap-2">
-          <span>{t("status.rendering")}</span>
-          <span>{pct}%</span>
-          <div className="h-1.5 w-24 rounded-full bg-slate-200 dark:bg-slate-800">
-            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+      <div className="flex items-center space-x-3">
+        {rendering && progress && (
+          <div className="flex items-center gap-2">
+            <span>{t("status.rendering")}</span>
+            <span>{pct}%</span>
+            <div className="h-1.5 w-24 rounded-full bg-slate-200 dark:bg-slate-800">
+              <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        <span
+          title={`build ${__BUILD_HASH__}`}
+          className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+        >
+          v{__APP_VERSION__}-{__BUILD_HASH__}
+        </span>
+      </div>
     </footer>
   );
 }
