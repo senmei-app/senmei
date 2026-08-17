@@ -265,6 +265,13 @@ export default function Monitor({
               {fmt(posMs)} / {info ? fmt((info.duration ?? 0) * 1000) : "00:00:00.00"}
             </span>
           </div>
+          <button
+            onClick={() => onScrub(0)}
+            disabled={!info}
+            className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-[10px] text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
+          >
+            {t("sample.preview")}
+          </button>
         </div>
         <input
           type="range"
