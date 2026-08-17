@@ -276,7 +276,7 @@ sequenceDiagram
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain | ✅ done |
 | **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (shuffle-cugan, e2e verified 1080p→2160p); NCNN plan superseded |
 | **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | � RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
-| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 quality profiles + live command preview done; HDR tone-mapping pending |
+| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | � profiles + preview + audio/subtitles + color metadata done; true HDR→SDR tone-map needs a 16-bit decode path (follow-up) |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | 🟡 live monitor + compare + timeline in/out sample presets done |
 | **M6** | **Engine** | decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**; no C++/ncnn shim | ✅ burn default, ncnn engine dropped |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks done; more models/backends pending |
@@ -366,6 +366,11 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
   sets crf + preset as a bundle; "Custom" when the values diverge) and a live
   command preview that renders the merged ffmpeg args. Persisted via
   `StepParams.quality`.
+- **Color metadata (M4, 2026-08-17):** the Output step gains a Color group
+  (primaries / transfer / matrix) that tags the encode with
+  `-color_primaries` / `-color_trc` / `-colorspace` (e.g. bt2020 / smpte2084).
+  True HDR→SDR tone-mapping is a follow-up: it needs a 16-bit decode path
+  (the pipeline currently feeds 8-bit rgb24 frames).
 - **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
 - **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.

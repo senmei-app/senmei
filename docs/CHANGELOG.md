@@ -4,6 +4,10 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Color metadata (M4, 2026-08-17)** — the Output step gains a Color group
+  (primaries / transfer / matrix) that tags the encode with `-color_primaries`,
+  `-color_trc` and `-colorspace`. Verified in the app: bt2020 primaries →
+  `-color_primaries bt2020` in the command preview.
 - **FFmpeg quality profiles + command preview (M4, 2026-08-17)** — the Output
   step gains a Quality dropdown (Lossless / Very High / High / Medium / Low)
   that sets crf + preset as a bundle ("Custom" when they diverge), persisted as

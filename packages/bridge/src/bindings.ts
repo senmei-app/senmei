@@ -152,6 +152,10 @@ export type StepParams = {
 	tune?: string | null,
 	/**  Encoder quality profile (sets crf + preset as a bundle). */
 	quality?: string | null,
+	/**  Output color metadata tags (primaries / transfer / matrix, e.g. bt2020). */
+	colorPrimaries?: string | null,
+	colorTransfer?: string | null,
+	colorMatrix?: string | null,
 	/**  Output container/extension (e.g. "mp4", "mkv", "webm"). */
 	container?: string | null,
 	/**  Output folder mode: "input" | "global" | "custom". */

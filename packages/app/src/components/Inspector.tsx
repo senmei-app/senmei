@@ -535,6 +535,50 @@ export default function Inspector({
                 ))}
               </select>,
             )}
+            <div className="border-t border-slate-200 pt-2 dark:border-slate-700/60">
+              <label className="mb-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                {t("output.color")}
+              </label>
+              {field(
+                t("output.colorPrimaries"),
+                <select
+                  value={s.params?.colorPrimaries ?? ""}
+                  onChange={(e) => updateParams(s.id, { colorPrimaries: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="">—</option>
+                  {["bt709", "bt2020"].map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>,
+              )}
+              {field(
+                t("output.colorTransfer"),
+                <select
+                  value={s.params?.colorTransfer ?? ""}
+                  onChange={(e) => updateParams(s.id, { colorTransfer: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="">—</option>
+                  {["bt709", "smpte2084", "arib-std-b67", "gamma22"].map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>,
+              )}
+              {field(
+                t("output.colorMatrix"),
+                <select
+                  value={s.params?.colorMatrix ?? ""}
+                  onChange={(e) => updateParams(s.id, { colorMatrix: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="">—</option>
+                  {["bt709", "bt2020nc", "bt2020c"].map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>,
+              )}
+            </div>
             {field(
               t("output.audio"),
               <select
