@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
+import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
 
 const FRAME_STEP_MS = 250;
@@ -39,7 +40,6 @@ export default function Monitor({
   const name = src ? src.split("/").pop() : null;
 
   const loadFrame = (ms: number) => {
-    if (!isTauri()) return;
     const targets: string[] = [];
     if (mode === "compare") {
       if (file) targets.push(file);
@@ -48,6 +48,12 @@ export default function Monitor({
       targets.push(src);
     }
     if (targets.length === 0) return;
+    if (!isTauri()) {
+      targets.forEach((p) =>
+        setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${demoFrame()}` })),
+      );
+      return;
+    }
     setLoading(true);
     targets.forEach((p) => {
       readFrame(p, ms)
@@ -76,7 +82,12 @@ export default function Monitor({
     setPlaying(false);
     setFrames({});
     setError(null);
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      const probeTarget = src ?? file;
+      if (probeTarget) setInfo(demoProbe());
+      loadFrame(0);
+      return;
+    }
     const probeTarget = src ?? file;
     if (probeTarget) {
       probeVideo(probeTarget)

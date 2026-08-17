@@ -20,6 +20,12 @@ import {
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
+import {
+  demoProjects,
+  demoVideos,
+  startDemoRender,
+  stopDemoRender,
+} from "./mock";
 import TopBar from "./components/TopBar";
 import MediaLibrary from "./components/MediaLibrary";
 import Monitor from "./components/Monitor";
@@ -61,21 +67,28 @@ export default function App() {
   const resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
   const reloadProjects = async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setProjects([...demoProjects]);
+      return;
+    }
     const list = await listProjects();
     setProjects(list);
   };
 
   useEffect(() => {
-    healthCheck()
-      .then(setHealth)
-      .catch(() => setHealth("n/a"));
-    void getSettings()
-      .then((s) => {
-        setLang((s.language as Lang) || "en");
-        setTheme(s.theme || "dark");
-      })
-      .catch(() => {});
+    if (!isTauri()) {
+      setHealth("demo (browser)");
+    } else {
+      healthCheck()
+        .then(setHealth)
+        .catch(() => setHealth("n/a"));
+      void getSettings()
+        .then((s) => {
+          setLang((s.language as Lang) || "en");
+          setTheme(s.theme || "dark");
+        })
+        .catch(() => {});
+    }
     void reloadProjects();
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -127,7 +140,10 @@ export default function App() {
   };
 
   const openFiles = async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setFiles((prev) => [...prev, ...demoVideos]);
+      return;
+    }
     const selected = await open({
       multiple: true,
       filters: [{ name: "Video", extensions: VIDEO_EXTS }],
@@ -138,7 +154,10 @@ export default function App() {
   };
 
   const importFolderFiles = async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setFiles((prev) => [...prev, ...demoVideos]);
+      return;
+    }
     const dir = await open({ directory: true, title: "Import videos from folder" });
     if (typeof dir !== "string") return;
     const found = await importFolder(dir);
@@ -146,7 +165,15 @@ export default function App() {
   };
 
   const handleCreateProject = async (name: string) => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      const p: ProjectEntry = { name, path: `/demo/${name.toLowerCase().replace(/\s+/g, "-")}` };
+      demoProjects.push(p);
+      setProjectDir(p.path);
+      setFiles([]);
+      setRenderedFile(null);
+      setOutputDir(null);
+      return;
+    }
     const dir = await createProject(name);
     setProjectDir(dir);
     setFiles([]);
@@ -159,10 +186,14 @@ export default function App() {
     setFiles([]);
     setRenderedFile(null);
     setOutputDir(null);
+    if (!isTauri()) setFiles([...demoVideos]);
   };
 
   const browseProject = async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      handleOpenProject("/demo/quanzhi-fashi");
+      return;
+    }
     const dir = await open({ directory: true, title: "Open project folder" });
     if (typeof dir === "string") {
       setProjectDir(dir);
@@ -181,7 +212,10 @@ export default function App() {
   };
 
   const pickOutputDir = async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setOutputDir("/demo/output");
+      return;
+    }
     const dir = await open({ directory: true, title: "Output folder" });
     if (typeof dir === "string") setOutputDir(dir);
   };
@@ -192,12 +226,22 @@ export default function App() {
   };
 
   const handleCancelRender = () => {
+    if (!isTauri()) {
+      stopDemoRender();
+      setRendering(false);
+      return;
+    }
     void cancelRender();
   };
 
   const handleDeleteProject = async (path: string) => {
     try {
-      await deleteProject(path);
+      if (!isTauri()) {
+        const i = demoProjects.findIndex((p) => p.path === path);
+        if (i >= 0) demoProjects.splice(i, 1);
+      } else {
+        await deleteProject(path);
+      }
       await reloadProjects();
     } catch (e) {
       setHealth(`delete failed: ${e}`);
@@ -209,7 +253,19 @@ export default function App() {
   };
 
   const startRender = async () => {
-    if (!isTauri() || !currentFile || rendering) return;
+    if (!currentFile || rendering) return;
+    if (!isTauri()) {
+      setRendering(true);
+      setProgress(null);
+      setRenderedFile(null);
+      try {
+        const out = await startDemoRender(setProgress);
+        setRenderedFile(out);
+      } finally {
+        setRendering(false);
+      }
+      return;
+    }
     const base = currentFile.split("/").pop()?.replace(/\.[^.]+$/, "_senmei.mp4") ?? "output_senmei.mp4";
     const defaultPath = outputDir ? `${outputDir}/${base}` : currentFile.replace(/\.[^.]+$/, "_senmei.mp4");
     const output = await save({

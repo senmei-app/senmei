@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
+import { demoDownloadModel, demoModels } from "../mock";
 import { useI18n } from "../i18n";
 
 type Group = "settings" | "advanced";
@@ -98,7 +99,19 @@ export default function Inspector({
   const [dlPct, setDlPct] = useState(0);
 
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setModels(demoModels);
+      const interp = demoModels.find((m) => m.kind === "interpolate");
+      if (interp) setInterpolateModel(interp.id);
+      if (!modelId) {
+        const up = demoModels.find((m) => m.kind === "upscale" && m.loadable);
+        if (up) {
+          onModelChange(up.id);
+          onScaleChange(up.scale ?? 1);
+        }
+      }
+      return;
+    }
     listModels()
       .then((list) => {
         setModels(list);
@@ -123,9 +136,15 @@ export default function Inspector({
   const upModel = upscaleModels.find((m) => m.id === selectedUpscaleId);
 
   const downloadWeights = (modelId: string) => {
-    if (!isTauri() || downloading) return;
+    if (downloading) return;
     setDownloading(modelId);
     setDlPct(0);
+    if (!isTauri()) {
+      demoDownloadModel((p) => setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0))
+        .catch((e) => console.error(e))
+        .finally(() => setDownloading(null));
+      return;
+    }
     const ch = new Channel<DownloadProgress>();
     ch.onmessage = (p) => setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0);
     downloadModel(modelId, ch)
