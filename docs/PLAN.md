@@ -26,7 +26,7 @@ A fast, modern desktop video enhancer in Rust with:
 | 2 | Frontend | **React + TypeScript**, `react-resizable-panels`, Tailwind, lucide-react |
 | 3 | Inference | **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback — no libtorch, no ONNX, no candle, no ncnn engine |
 | 4 | No ONNX / no TorchScript | every arch is a **clean burn re-implementation**; weights from a permissive source (torch `.pth` → f16 `.bpk`, or ncnn `.bin` for RIFE) |
-| 5 | No WebGPU/WASM | preview via FFmpeg-decoded frames → 2D canvas (codec-agnostic, incl. H.265) |
+| 5 | No WebGPU/WASM | preview via native `<video>` where the webview can play the file; FFmpeg-decoded frame fallback (codec-agnostic, incl. H.265) |
 | 6 | Media | **FFmpeg as subprocess** with `rawvideo` pipe; prefer **system FFmpeg**, fallback: portable download (BtbN builds) into data dir |
 | 7 | Layout | **3-panel + timeline**: Input \| Monitor \| Settings |
 | 8 | Codecs | in-app preview is **codec-agnostic** (FFmpeg decode → canvas, incl. H.265); final file freely selectable (x264/x265) |
@@ -83,7 +83,7 @@ flowchart LR
 |---|---|
 | Live monitor (last frame) | Rust → JPEG → Tauri `Channel<PreviewFrame>` → `createImageBitmap` → 2D `<canvas>` (~10–15 fps) |
 | Before/after | two bitmaps, movable divider (CSS `clip-path`) |
-| Sample playback | FFmpeg decodes frames (any codec incl. H.265) → 2D canvas; audio via `<audio>` (AAC/Opus) |
+| Sample playback | native `<video>` (hardware decode) where supported; else FFmpeg decodes frames → 2D canvas; audio via `<audio>` (AAC/Opus) |
 
 ---
 

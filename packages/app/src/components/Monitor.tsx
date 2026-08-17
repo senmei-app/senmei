@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { isTauri } from "@tauri-apps/api/core";
+import { useEffect, useRef, useState, type CSSProperties, type SyntheticEvent } from "react";
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
@@ -81,6 +81,30 @@ export default function Monitor({
   const posRef = useRef(0);
   const name = src ? src.split("/").pop() : null;
 
+  // Native <video> for the source preview; fall back to FFmpeg-decoded frames
+  // only when the webview cannot load/play the file.
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const nativeSrc = isTauri() && !nativeFailed && file && mode === "source" ? convertFileSrc(file) : null;
+
+  const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    setPosMs(v.currentTime * 1000);
+    const endSec = outMs / 1000;
+    if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
+  };
+
+  const togglePlay = () => {
+    if (!info) return;
+    if (nativeSrc && videoRef.current) {
+      const v = videoRef.current;
+      if (v.paused) void v.play();
+      else v.pause();
+      return;
+    }
+    setPlaying((p) => !p);
+  };
+
   const loadFrame = (ms: number): Promise<void> => {
     const targets: string[] = [];
     if (mode === "compare") {
@@ -141,6 +165,7 @@ export default function Monitor({
     setPlaying(false);
     setFrames({});
     setError(null);
+    setNativeFailed(false);
     if (!isTauri()) {
       const probeTarget = src ?? file;
       if (probeTarget) {
@@ -168,6 +193,10 @@ export default function Monitor({
 
   const onScrub = (ms: number) => {
     setPosMs(ms);
+    if (nativeSrc && videoRef.current) {
+      videoRef.current.currentTime = ms / 1000;
+      return;
+    }
     if (debounce.current) window.clearTimeout(debounce.current);
     debounce.current = window.setTimeout(() => loadFrame(ms), 120);
   };
@@ -176,7 +205,7 @@ export default function Monitor({
   // decode is in flight: frames load only on FRAME_STEP_MS boundaries and are
   // skipped if the decoder can't keep up, so requests never pile up.
   useEffect(() => {
-    if (!playing || !info || (info.duration ?? 0) <= 0) return;
+    if (!playing || nativeSrc || !info || (info.duration ?? 0) <= 0) return;
     const durMs = (info.duration ?? 0) * 1000;
     const endMs = Math.max(inMs, Math.min(outMs || durMs, durMs));
     let last = performance.now();
@@ -210,7 +239,7 @@ export default function Monitor({
     }, 33);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, info, inMs, outMs]);
+  }, [playing, nativeSrc, info, inMs, outMs]);
 
   const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
   const scrubPct = maxMs > 0 ? Math.min(100, (posMs / maxMs) * 100) : 0;
@@ -344,6 +373,18 @@ export default function Monitor({
               </span>
             </div>
           </div>
+        ) : nativeSrc ? (
+          <video
+            key={nativeSrc}
+            ref={videoRef}
+            src={nativeSrc}
+            onError={() => setNativeFailed(true)}
+            onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
+            onTimeUpdate={onVideoTime}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            className="max-h-full max-w-full object-contain"
+          />
         ) : src && frames[src] ? (
           <img
             src={frames[src]}
@@ -410,7 +451,7 @@ export default function Monitor({
         <div className="mb-2 flex items-center">
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setPlaying((p) => !p)}
+              onClick={togglePlay}
               disabled={!info}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40"
             >
