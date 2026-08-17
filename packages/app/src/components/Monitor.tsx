@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { demoFrame, demoProbe } from "../mock";
@@ -535,6 +535,17 @@ export default function Monitor({
           )}
         </div>
         <div className="relative">
+          <div className="pointer-events-none absolute top-1/2 z-0 h-1.5 w-full -translate-y-1/2 rounded-full bg-slate-300 dark:bg-slate-700" />
+          <div
+            className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-300 dark:bg-indigo-400/60"
+            style={{ width: `${scrubPct}%` }}
+          />
+          {info && (
+            <div
+              className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-600 ring-1 ring-indigo-400 dark:bg-indigo-500 dark:ring-indigo-300"
+              style={{ left: `${inPct}%`, width: `${Math.max(0, outPct - inPct)}%` }}
+            />
+          )}
           <input
             type="range"
             min={0}
@@ -544,14 +555,7 @@ export default function Monitor({
             onChange={(e) => onScrub(Number(e.target.value))}
             disabled={!info}
             className="scrubber relative z-10 w-full cursor-ew-resize"
-            style={{ "--scrub-pct": `${scrubPct}%` } as CSSProperties}
           />
-          {info && (
-            <div
-              className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-500/25 dark:bg-indigo-500/30"
-              style={{ left: `${inPct}%`, width: `${Math.max(0, outPct - inPct)}%` }}
-            />
-          )}
         </div>
         {info && (
           <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-500">

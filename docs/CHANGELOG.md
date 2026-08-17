@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Slider sample-range highlight (2026-08-18)** — the timeline slider's track
+  is now transparent with drawn underlays: a slate base, an indigo played fill
+  up to the current position, and the sample window as a strong indigo bar with
+  a ring. Previously the highlight sat behind the opaque native track and was
+  invisible.
 - **Compare alignment (2026-08-18)** — in Compare both sides now show the same
   source moment: the original is clamped to the sample in-point (the rendered
   sample has no frames before it) and the result is read at `source − inMs`
