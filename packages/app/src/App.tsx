@@ -425,7 +425,7 @@ export default function App() {
               rendering={rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
-              onStartRender={startBatch}
+              onStartRender={() => startBatch()}
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
