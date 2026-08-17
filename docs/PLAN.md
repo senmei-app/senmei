@@ -355,6 +355,11 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Fix: neon color artifacts on hard edges (2026-08-17)** — the GPU output
+  path (`infer_rgb8`) cast to U8 **without clamping**, so model values >1.0 at
+  hard edges (burnt-in subtitles) wrapped (e.g. 275 → 19 → magenta/cyan).
+  Now `out.clamp(0.0, 1.0)` before the 0..255 scale + U8 cast. The CPU path
+  already saturates (`as u8`). Regression: `app_render_upscales_real_model`.
 - **Batch rendering (2026-08-17, M7)** — `Start Render` now renders **all files
   sequentially** (a single file is a batch of one). The Queue tab lists one job
   per file with status (queued/rendering/done/failed/cancelled), per-file

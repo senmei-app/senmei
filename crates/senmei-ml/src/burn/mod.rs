@@ -137,9 +137,11 @@ impl InferenceEngine for BurnEngine {
         let out = model.forward(x);
         let [_, _, oh, ow] = out.dims();
 
-        // NCHW -> NHWC, then round to 0..255 and cast to U8 on the GPU.
+        // NCHW -> NHWC, clamp to 0..1, then round to 0..255 and cast to U8 on
+        // the GPU. Without the clamp, out-of-range values (>1.0 at hard edges,
+        // e.g. burnt-in subtitles) wrap on the U8 cast -> neon color artifacts.
         let nhwc = out.permute([0, 2, 3, 1]);
-        let rgb_f = (nhwc * 255.0) + 0.5;
+        let rgb_f = (nhwc.clamp(0.0, 1.0) * 255.0) + 0.5;
         let rgb_u8 = rgb_f.cast(burn::tensor::IntDType::U8);
         let bytes: Vec<u8> = match rgb_u8.into_data().to_vec() {
             Ok(v) => v,
