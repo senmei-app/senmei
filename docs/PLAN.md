@@ -355,6 +355,11 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Dev stale-UI fix (2026-08-17)** — WebKitGTK showed a stale/cached page
+  under Wayland; `dev:release`/`dev` now run under XWayland
+  (`GDK_BACKEND=x11`), Vite binds `127.0.0.1` explicitly, `devUrl` matches it,
+  and `predev`/`predev:release` auto-run `dev:clean` (kill port 1420 + senmei,
+  clear WebKit cache) like Koharu's `predev: kill-port`.
 - **Structured encoder settings + merge (2026-08-17)** — the `output` step
   gains RVE-style structured fields, all persisted in `StepParams`
   (`crf`/`preset`/`pix_fmt`/`tune` + existing `videoCodec`/`audioCodec`/

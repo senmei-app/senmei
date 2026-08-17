@@ -9,7 +9,9 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Bind IPv4 loopback explicitly: WebKitGTK resolves localhost to
+    // 127.0.0.1, while `false` let Vite bind only ::1 on some systems.
+    host: host || "127.0.0.1",
     watch: { ignored: ["**/crates/**"] },
   },
   build: {
