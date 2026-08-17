@@ -266,7 +266,7 @@ export default function App() {
     if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
   };
 
-  const desiredPath = (input: string, lastOut?: PipelineStep): string => {
+  const desiredPath = (input: string, lastOut?: PipelineStep, up?: PipelineStep): string => {
     const container = lastOut?.params?.container || "mkv";
     const outMode = lastOut?.params?.outputMode ?? "input";
     const customFolder = lastOut?.params?.outputFolder ?? "";
@@ -274,10 +274,11 @@ export default function App() {
       outMode === "global" ? outputDir : outMode === "custom" ? customFolder || null : null;
     const label = lastOut?.params?.label?.trim();
     const marker = label || "senmei";
+    const info = up?.params?.modelId && up.params?.scale ? `_${up.params.modelId}_x${up.params.scale}` : "";
     const base =
-      input.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}.${container}`) ??
-      `output_${marker}.${container}`;
-    return targetDir ? `${targetDir}/${base}` : input.replace(/\.[^.]+$/, `_${marker}.${container}`);
+      input.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}${info}.${container}`) ??
+      `output_${marker}${info}.${container}`;
+    return targetDir ? `${targetDir}/${base}` : input.replace(/\.[^.]+$/, `_${marker}${info}.${container}`);
   };
 
   // Batch render: one render per file, sequentially. A single file is just a
@@ -329,7 +330,7 @@ export default function App() {
 
     const initial: BatchJob[] = inputs.map((f) => ({
       input: f,
-      output: desiredPath(f, lastOut),
+      output: desiredPath(f, lastOut, up),
       status: "queued",
       progress: null,
     }));
