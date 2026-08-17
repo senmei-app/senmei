@@ -6,8 +6,8 @@ use std::process::Command;
 use crate::{Error, Result};
 
 /// Extract one frame at `pos_secs` as a JPEG (codec-agnostic via ffmpeg).
-pub fn extract_frame(path: &Path, pos_secs: f64) -> Result<Vec<u8>> {
-    let ffmpeg = crate::resolve(Path::new("."));
+/// `ffmpeg` must be the resolved binary (same one the pipeline uses).
+pub fn extract_frame(ffmpeg: &Path, path: &Path, pos_secs: f64) -> Result<Vec<u8>> {
     let output = Command::new(ffmpeg)
         .args(["-ss", &format!("{pos_secs:.3}"), "-i"])
         .arg(path)

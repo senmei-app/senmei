@@ -139,7 +139,10 @@ pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
 pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
     use base64::Engine;
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
-    let jpeg = senmei_media::extract_frame(std::path::Path::new(&input), position_ms / 1000.0)
+    // Resolve the same ffmpeg the pipeline uses (data dir / bundled), so the
+    // rendered output read-back works even when system ffmpeg is missing.
+    let ffmpeg = senmei_media::resolve(&store::data_dir());
+    let jpeg = senmei_media::extract_frame(&ffmpeg, std::path::Path::new(&input), position_ms / 1000.0)
         .map_err(|e| {
             log::warn!("read_frame failed: {e}");
             e.to_string()
