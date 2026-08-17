@@ -129,12 +129,16 @@ The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. It was a
   unlocks RDNA4 fp16 conv kernels**: ShuffleCugan fp16 drops 111.5 → 41.8 ms —
   **3.8× faster than burn-Vulkan fp16 (157.4 ms / 6.4 FPS)**. fp32 also drops
   569 → 94.2 ms.
-- **FP8 (e4m3/e5m2/fnuz) does NOT work via torch on ROCm** — not even in the
-  7.14-built nightly: `addmm_cuda not implemented for Float8_*`, and
-  `_scaled_mm` is CUDA-only (cuBLASLt error) on ROCm builds. The hipBLASLt 1.4
-  library in ROCm 7.14 *does* support fp8 on gfx1201 (fp8 datatypes + "default
-  mode for fp8"); torch just never calls it. fp8 needs a direct hipBLASLt path
-  or a runtime that wires it (vLLM/ONNXRuntime-style) — not stock torch.
+- **FP8 (e4m3/e5m2) is NOT usable on RDNA4 yet — two independent gaps:**
+  (1) torch on ROCm never wires fp8: `addmm_cuda not implemented for
+  Float8_*`, `_scaled_mm` is CUDA-only (cuBLASLt error) even in the 7.14-built
+  nightly. (2) A **direct hipBLASLt 1.4 C++ probe** (`/tmp/fp8probe2.cpp`) found
+  fp8 kernels ARE compiled for gfx1201 (`Cijk_Ailk_Bljk_F8SS_..._ISA1201`;
+  heuristic returns 8 algos), but every `hipblasLtMatmul` crashes with a GPU
+  Memory Fault ("Page not present or supervisor privilege") regardless of algo
+  or workspace → **broken fp8 kernel on RDNA4 in this ROCm release**. fp8 needs
+  a newer ROCm/driver or a framework that works around it — not reachable
+  today. fp16 via torch-ROCm-7.14 remains the win.
 - **Caveat — fp16 is input-range sensitive:** on inputs outside 0..1 (e.g.
   randn) the fp16 path collapses to all-NaN; fp32 stays clean. With realistic
   video (normalized 0..1, what the app feeds) fp16 is clean: max diff vs fp32
