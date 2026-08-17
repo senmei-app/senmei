@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Demo Compare/Result (2026-08-18)** — the browser demo now simulates a
+  rendered output per video, so the Compare and Result tabs work immediately
+  (previously they stayed disabled until a fake render finished). The simulated
+  result gets a subtle saturate/brightness filter so the split visibly differs;
+  the real Tauri app still only enables them after an actual render.
 - **Docs cleanup (2026-08-18)** — `models.md` gains a status-at-a-glance table
   and a backlog/candidates section (per-stack, spandrel as source);
   `benchmarks.md` gains a TL;DR box with the engine decision and key numbers.
