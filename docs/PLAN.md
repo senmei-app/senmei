@@ -358,8 +358,9 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 - **Sample preview (M5, 2026-08-17):** the Monitor timeline gains an in/out
   sample range with 10s/15s/30s/60s/Full presets; playback loops inside the
   range and the selected window is highlighted on the slider with In/Out
-  markers. (Live monitor, source/compare/result tabs and the scrubber were
-  already in place.)
+  markers. A "Render Sample" button renders only that range (decoder `-ss`
+  seek + frame cap, encoder audio sync). (Live monitor,
+  source/compare/result tabs and the scrubber were already in place.)
 - **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
 - **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.

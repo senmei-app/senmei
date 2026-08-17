@@ -23,6 +23,7 @@ impl Encoder {
     /// user-supplied codec/filter options override the built-in x264 defaults.
     /// `input` is a second ffmpeg input whose audio is mapped (`-map 1:a:0?`,
     /// optional) so the output keeps the source sound unless `-an` is passed.
+    /// `start_ms` seeks the audio input so it stays in sync with a ranged render.
     pub fn open(
         ffmpeg: &Path,
         input: &Path,
@@ -30,23 +31,27 @@ impl Encoder {
         width: u32,
         height: u32,
         fps: f64,
+        start_ms: u64,
         extra_args: &[String],
     ) -> Result<Self> {
-        let mut child = Command::new(ffmpeg)
-            .arg("-y")
+        let mut cmd = Command::new(ffmpeg);
+        cmd.arg("-y")
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
-            .args(["-i", "-"])
-            .arg("-i")
+            .args(["-i", "-"]);
+        if start_ms > 0 {
+            cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+        }
+        cmd.arg("-i")
             .arg(input)
             .args(["-map", "0:v:0", "-map", "1:a:0?"])
             .args(["-c:v", "libx264", "-preset", x264_preset(), "-pix_fmt", "yuv420p"])
             .args(extra_args)
             .arg(path)
             .stdin(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
+            .stderr(Stdio::null());
+        let mut child = cmd.spawn()?;
 
         let stdin = child
             .stdin

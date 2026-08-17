@@ -13,16 +13,34 @@ pub struct Decoder {
     pub fps: f64,
     pub total_frames: u64,
     frame_size: usize,
+    remaining: Option<u64>,
 }
 
 impl Decoder {
     pub fn open(ffmpeg: &Path, path: &Path) -> Result<Self> {
-        let info = crate::probe::probe(path)?;
+        Self::open_with_range(ffmpeg, path, 0, None)
+    }
 
-        let mut child = Command::new(ffmpeg)
-            .arg("-i")
+    /// Decode a time range. `start_ms` seeks the input (fast `-ss` before `-i`);
+    /// `end_ms` caps the frame count (None = to the end).
+    pub fn open_with_range(
+        ffmpeg: &Path,
+        path: &Path,
+        start_ms: u64,
+        end_ms: Option<u64>,
+    ) -> Result<Self> {
+        let info = crate::probe::probe(path)?;
+        let fps = info.fps;
+
+        let mut cmd = Command::new(ffmpeg);
+        if start_ms > 0 {
+            cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+        }
+        cmd.arg("-i")
             .arg(path)
-            .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+            .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+
+        let mut child = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?;
@@ -32,28 +50,51 @@ impl Decoder {
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdout".into()))?;
 
+        let dur_ms = (info.duration * 1000.0).round().max(1.0) as u64;
+        let remaining = end_ms.map(|end| {
+            let end = end.min(dur_ms);
+            if end > start_ms {
+                (((end - start_ms) as f64 / 1000.0) * fps).round() as u64
+            } else {
+                0
+            }
+        });
+        let total_frames = remaining.unwrap_or((info.duration * fps).round().max(1.0) as u64);
+
         Ok(Self {
             child,
             stdout: BufReader::new(stdout),
             width: info.width,
             height: info.height,
-            fps: info.fps,
-            total_frames: (info.duration * info.fps).round().max(1.0) as u64,
+            fps,
+            total_frames,
             frame_size: (info.width * info.height * 3) as usize,
+            remaining,
         })
     }
 
     pub fn next_frame(&mut self) -> Result<Option<Frame>> {
+        if let Some(r) = self.remaining.as_mut() {
+            if *r == 0 {
+                return Ok(None);
+            }
+        }
         let mut buf = vec![0u8; self.frame_size];
-        match self.stdout.read_exact(&mut buf) {
-            Ok(()) => Ok(Some(Frame {
+        let frame = match self.stdout.read_exact(&mut buf) {
+            Ok(()) => Some(Frame {
                 width: self.width,
                 height: self.height,
                 data: buf,
-            })),
-            Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
-            Err(err) => Err(err.into()),
+            }),
+            Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => None,
+            Err(err) => return Err(err.into()),
+        };
+        if let Some(r) = self.remaining.as_mut() {
+            if frame.is_some() {
+                *r = r.saturating_sub(1);
+            }
         }
+        Ok(frame)
     }
 }
 

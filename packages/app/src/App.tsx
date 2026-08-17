@@ -62,6 +62,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
+  const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
 
   const currentFile = files[0];
 
@@ -385,7 +386,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selected]);
 
-  const startBatch = async (onlySelected = false) => {
+  const startBatch = async (onlySelected = false, range?: { inMs: number; outMs: number } | null) => {
     const inputs = onlySelected ? files.filter((f) => selected.includes(f)) : files;
     if (!inputs.length || rendering) return;
     const outs = steps.filter((s) => s.enabled && s.stepType === "output");
@@ -417,6 +418,8 @@ export default function App() {
       fpsMultiplier: outFps,
       interpModel: outInterpModel,
       ffmpegArgs: outFfmpegArgs,
+      startMs: range?.inMs ?? null,
+      endMs: range?.outMs ?? null,
     };
 
     const initial: BatchJob[] = inputs.map((f) => ({
@@ -547,6 +550,10 @@ export default function App() {
                   renderedFile={renderedFile}
                   rendering={rendering}
                   progress={progress}
+                  sampleInMs={sampleRange?.inMs ?? 0}
+                  sampleOutMs={sampleRange?.outMs ?? 0}
+                  onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
+                  onRenderSample={() => void startBatch(false, sampleRange)}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />

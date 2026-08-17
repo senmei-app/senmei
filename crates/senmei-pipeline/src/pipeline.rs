@@ -18,6 +18,7 @@ pub struct Pipeline {
     cancel: Arc<AtomicBool>,
     pause: Arc<AtomicBool>,
     encoder_args: Vec<String>,
+    range: Option<(u64, Option<u64>)>,
 }
 
 impl Pipeline {
@@ -28,7 +29,13 @@ impl Pipeline {
             cancel: Arc::new(AtomicBool::new(false)),
             pause: Arc::new(AtomicBool::new(false)),
             encoder_args: Vec::new(),
+            range: None,
         }
+    }
+
+    /// Render only a time range (start ms, end ms); `None` end = to the end.
+    pub fn set_range(&mut self, start_ms: u64, end_ms: Option<u64>) {
+        self.range = Some((start_ms, end_ms));
     }
 
     /// Extra ffmpeg arguments appended to the output encode command.
@@ -59,7 +66,8 @@ impl Pipeline {
         mut on_progress: impl FnMut(Progress) + Send + 'static,
     ) -> Result<()> {
         log::info!("pipeline: decode/encode {input:?} -> {output:?}");
-        let mut decoder = Decoder::open(ffmpeg, input)?;
+        let (start_ms, end_ms) = self.range.unwrap_or((0, None));
+        let mut decoder = Decoder::open_with_range(ffmpeg, input, start_ms, end_ms)?;
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
         let total_frames = decoder.total_frames * factor;
         let fps = decoder.fps * factor as f64;
@@ -81,7 +89,7 @@ impl Pipeline {
         let (raw_tx, raw_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
         let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
-        let encoder = Encoder::open(ffmpeg, input, output, w, h, fps, &self.encoder_args)?;
+        let encoder = Encoder::open(ffmpeg, input, output, w, h, fps, start_ms, &self.encoder_args)?;
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
