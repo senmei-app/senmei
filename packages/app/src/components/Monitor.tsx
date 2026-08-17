@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { demoFrame, demoProbe } from "../mock";
@@ -126,6 +126,7 @@ export default function Monitor({
   }, [playing, info]);
 
   const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
+  const scrubPct = maxMs > 0 ? Math.min(100, (posMs / maxMs) * 100) : 0;
   const pct =
     rendering && progress && progress.totalFrames > 0
       ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
@@ -273,7 +274,8 @@ export default function Monitor({
           value={Math.min(posMs, maxMs)}
           onChange={(e) => onScrub(Number(e.target.value))}
           disabled={!info}
-          className="w-full cursor-ew-resize accent-indigo-600"
+          className="scrubber w-full cursor-ew-resize"
+          style={{ "--scrub-pct": `${scrubPct}%` } as CSSProperties}
         />
       </div>
     </main>

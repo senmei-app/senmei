@@ -7,3 +7,46 @@
 .dark {
   color-scheme: dark;
 }
+
+/* Timeline scrubber: filled up to the current position (--scrub-pct). */
+.scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  outline: none;
+  background: linear-gradient(
+    to right,
+    #818cf8 var(--scrub-pct, 0%),
+    #cbd5e1 var(--scrub-pct, 0%)
+  );
+}
+.dark .scrubber {
+  background: linear-gradient(
+    to right,
+    #818cf8 var(--scrub-pct, 0%),
+    #334155 var(--scrub-pct, 0%)
+  );
+}
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #6366f1;
+  cursor: ew-resize;
+}
+.scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #6366f1;
+  cursor: ew-resize;
+}
+.scrubber:disabled::-webkit-slider-thumb,
+.scrubber:disabled::-moz-range-thumb {
+  opacity: 0.4;
+}
