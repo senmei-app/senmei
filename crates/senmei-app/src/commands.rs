@@ -296,11 +296,12 @@ pub async fn render(
     resize: Option<f32>,
     output_resize: Option<f32>,
     fps_multiplier: Option<u32>,
+    interp_model: Option<String>,
     ffmpeg_args: Option<String>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
     log::info!(
-        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?}, ffmpeg {ffmpeg_args:?})"
+        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?}, interp_model {interp_model:?}, ffmpeg {ffmpeg_args:?})"
     );
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
@@ -350,7 +351,20 @@ pub async fn render(
         pipeline.set_pause(pause);
         if let Some(f) = fps_multiplier {
             if f > 1 {
-                pipeline.set_interpolator(senmei_pipeline::Interpolator::new(f));
+                // An interpolate model that cannot be loaded (missing weights,
+                // unsupported arch) falls back to the reference blend.
+                let interp = match interp_model.as_deref() {
+                    Some(id) => match engine_for_model(id) {
+                        Ok(e) => Some(senmei_pipeline::Interpolator::with_engine(f, e)),
+                        Err(err) => {
+                            log::warn!("interp model {id} unavailable, using reference blend: {err}");
+                            None
+                        }
+                    },
+                    None => None,
+                };
+                let interpolator = interp.unwrap_or_else(|| senmei_pipeline::Interpolator::new(f));
+                pipeline.set_interpolator(interpolator);
             }
         }
 

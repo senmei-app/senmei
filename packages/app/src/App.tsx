@@ -326,6 +326,7 @@ export default function App() {
     const outModel = up ? (up.params?.modelId ?? null) : null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
+    const outInterpModel = interp ? (interp.params?.modelId ?? null) : null;
     const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
 
     const initial: BatchJob[] = inputs.map((f) => ({
@@ -368,6 +369,7 @@ export default function App() {
               null,
               outOutputResize,
               outFps,
+              outInterpModel,
               outFfmpegArgs,
               ch,
             );

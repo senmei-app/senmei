@@ -26,6 +26,7 @@ export const render = (
   resize: number | null,
   outputResize: number | null,
   fpsMultiplier: number | null,
+  interpModel: string | null,
   ffmpegArgs: string | null,
   onProgress: Channel<RenderProgress>,
 ) =>
@@ -37,6 +38,7 @@ export const render = (
     resize,
     outputResize,
     fpsMultiplier,
+    interpModel,
     ffmpegArgs,
     onProgress,
   );

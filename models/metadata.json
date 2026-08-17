@@ -113,11 +113,11 @@
     "kind": "interpolate",
     "scale": 1,
     "arch": "rife425",
-    "weights": ["rife-4.25.pth"],
+    "weights": ["rife-4.25.pth.f16.bpk"],
     "license": "Apache-2.0",
     "source_url": "https://github.com/hzwer/Practical-RIFE",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "needs 2-input infer (frame pair + t); InferenceEngine is single-tensor today" }
+    "metadata": { "input_range": "0..1", "half": true, "note": "2-input infer (frame pair + t) wired in Phase 1; RIFE burn arch port pending" }
   }
 ]
 

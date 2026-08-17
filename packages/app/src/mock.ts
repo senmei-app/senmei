@@ -50,6 +50,16 @@ export const demoModels: ModelMetadata[] = [
     source_url: "demo",
     download_url: "demo",
   },
+  {
+    id: "rife-4.25",
+    kind: "interpolate",
+    scale: 1,
+    arch: "rife425",
+    loadable: false,
+    license: "demo",
+    source_url: "demo",
+    download_url: "demo",
+  },
 ];
 
 export const demoVideos = [
