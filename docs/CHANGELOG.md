@@ -12,7 +12,10 @@
   custom duration editor supporting `55s`, `10m`, `1m30s`, `1h`. Fixed a bug
   where picking a preset produced `NaN` (unit strings were parsed with
   `Number()` → now `parseInt`). Verified: 30s → Out 00:00:30.00, 60s →
-  00:01:00.00, custom 55s → 00:00:55.00, 10m → 00:10:00.00.
+  00:01:00.00, custom 55s → 00:00:55.00, 10m → 00:10:00.00. The sample panel
+  now carries `relative z-10` so its upward-opening dropdown paints above the
+  positioned preview area, and the menu is a compact 2-column grid (~89 px tall)
+  so it no longer covers the preview.
 - **Monitor sample bar (2026-08-18)** — removed the redundant "Preview sample
   (15s)" button, promoted "Render Sample" to a filled primary button like
   Start Render, and made the sample range default to 10 s (highlighted preset).

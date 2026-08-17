@@ -406,7 +406,7 @@ export default function Monitor({
         )}
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40">
+      <div className="relative z-10 mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40">
         <div className="mb-2 flex items-center">
           <div className="flex items-center space-x-2">
             <button
@@ -433,37 +433,39 @@ export default function Monitor({
               <span className="text-slate-400">▾</span>
             </button>
             {sampleMenu && (
-              <div className="absolute right-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                {[
-                  { v: "10s", label: "10s" },
-                  { v: "30s", label: "30s" },
-                  { v: "60s", label: "60s" },
-                  { v: "full", label: t("sample.full") },
-                ].map((o) => (
-                  <button
-                    key={o.v}
-                    onClick={() => {
-                      setSampleMenu(false);
-                      onSampleSel(o.v);
-                    }}
-                    className={
-                      "block w-full px-3 py-1.5 text-left text-[11px] hover:bg-slate-100 dark:hover:bg-slate-800 " +
-                      (presetOf() === o.v
-                        ? "font-medium text-indigo-600 dark:text-indigo-400"
-                        : "text-slate-700 dark:text-slate-200")
-                    }
-                  >
-                    {presetOf() === o.v ? "✓ " : ""}
-                    {o.label}
-                  </button>
-                ))}
+              <div className="absolute right-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <div className="grid grid-cols-2 gap-0.5">
+                  {[
+                    { v: "10s", label: "10s" },
+                    { v: "30s", label: "30s" },
+                    { v: "60s", label: "60s" },
+                    { v: "full", label: t("sample.full") },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      onClick={() => {
+                        setSampleMenu(false);
+                        onSampleSel(o.v);
+                      }}
+                      className={
+                        "rounded px-1.5 py-1 text-left text-[10px] hover:bg-slate-100 dark:hover:bg-slate-800 " +
+                        (presetOf() === o.v
+                          ? "font-medium text-indigo-600 dark:text-indigo-400"
+                          : "text-slate-700 dark:text-slate-200")
+                      }
+                    >
+                      {presetOf() === o.v ? "✓ " : ""}
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
                 <button
                   onClick={() => {
                     setSampleMenu(false);
                     onSampleSel("custom");
                   }}
-                  className="block w-full px-3 py-1.5 text-left text-[11px] text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800"
+                  className="block w-full rounded px-2 py-1 text-left text-[10px] text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800"
                 >
                   {t("sample.custom")}
                 </button>
