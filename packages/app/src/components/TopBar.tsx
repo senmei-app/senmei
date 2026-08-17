@@ -34,6 +34,9 @@ export default function TopBar({
           鮮
         </div>
         <span className="font-bold tracking-wide text-slate-900 dark:text-slate-100 text-sm">Senmei</span>
+        <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          v0.1.0
+        </span>
       </div>
 
       <MenuBar
@@ -60,26 +63,24 @@ export default function TopBar({
         <span className="truncate max-w-[220px]">{file ? file.split("/").pop() : t("topbar.noFile")}</span>
       </div>
 
-      <div className="flex items-center space-x-3">
-        {rendering ? (
-          <button
-            onClick={onCancelRender}
-            className="flex items-center space-x-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-1.5 font-medium text-red-500 transition hover:bg-red-500/20 active:scale-95 dark:text-red-400"
-          >
-            <span>■</span>
-            <span>{t("queue.cancel")}</span>
-          </button>
-        ) : (
-          <button
-            onClick={onStartRender}
-            disabled={!file}
-            className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95 disabled:opacity-40"
-          >
-            <span>▶</span>
-            <span>{t("render.start")}</span>
-          </button>
-        )}
-
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={onStartRender}
+          disabled={!file || rendering}
+          className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95 disabled:opacity-40"
+        >
+          <span>▶</span>
+          <span>{t("render.start")}</span>
+        </button>
+        <button
+          onClick={onCancelRender}
+          disabled={!rendering}
+          title={t("queue.cancel")}
+          className="flex items-center space-x-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-1.5 font-medium text-red-500 transition hover:bg-red-500/20 active:scale-95 disabled:opacity-30 dark:text-red-400"
+        >
+          <span>■</span>
+          <span>{t("queue.cancel")}</span>
+        </button>
         <div className="border-l border-slate-200 pl-3 dark:border-slate-800">
           <WindowControls />
         </div>

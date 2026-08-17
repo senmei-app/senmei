@@ -174,16 +174,20 @@ export default function Monitor({
             {t("monitor.original")}
             {mode === "source" && info ? ` ${info.width}x${info.height}` : ""}
           </button>
-          {renderedFile && (
-            <>
-              <button onClick={() => setMode("compare")} className={tabCls(mode === "compare")}>
-                {t("monitor.compare")}
-              </button>
-              <button onClick={() => setMode("result")} className={tabCls(mode === "result")}>
-                {t("monitor.result")}
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => setMode("compare")}
+            disabled={!renderedFile}
+            className={tabCls(mode === "compare")}
+          >
+            {t("monitor.compare")}
+          </button>
+          <button
+            onClick={() => setMode("result")}
+            disabled={!renderedFile}
+            className={tabCls(mode === "result")}
+          >
+            {t("monitor.result")}
+          </button>
         </div>
 
         {loading && (
