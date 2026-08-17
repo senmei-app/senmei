@@ -196,8 +196,12 @@ export default function App() {
   };
 
   const handleDeleteProject = async (path: string) => {
-    await deleteProject(path);
-    await reloadProjects();
+    try {
+      await deleteProject(path);
+      await reloadProjects();
+    } catch (e) {
+      setHealth(`delete failed: ${e}`);
+    }
   };
 
   const openGithub = () => {

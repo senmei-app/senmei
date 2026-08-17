@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Button } from "@senmei/ui";
+import { isTauri } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
 import type { ProjectEntry } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 import FfmpegIndicator from "./FfmpegIndicator";
@@ -28,8 +30,11 @@ export default function ProjectScreen({
     }
   };
 
-  const remove = (path: string) => {
-    if (window.confirm(t("project.deleteConfirm"))) onDelete(path);
+  const remove = async (path: string) => {
+    const ok = isTauri()
+      ? await ask(t("project.deleteConfirm"), { title: t("project.delete"), kind: "warning" })
+      : window.confirm(t("project.deleteConfirm"));
+    if (ok) onDelete(path);
   };
 
   return (
@@ -80,7 +85,7 @@ export default function ProjectScreen({
                   <button
                     onClick={() => remove(p.path)}
                     title={t("project.delete")}
-                    className="px-2.5 py-2 text-sm text-slate-400 opacity-0 transition hover:text-red-500 group-hover:opacity-100 dark:hover:text-red-400"
+                    className="px-2.5 py-2 text-sm text-slate-300 transition hover:bg-red-500/10 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
                   >
                     🗑
                   </button>

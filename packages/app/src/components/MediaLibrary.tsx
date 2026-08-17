@@ -100,7 +100,7 @@ export default function MediaLibrary({
                   <button
                     onClick={() => onRemoveFile(path)}
                     title={t("media.remove")}
-                    className="rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100 dark:hover:text-red-400"
+                    className="rounded-md p-1 text-slate-300 transition hover:bg-red-500/10 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeWidth="2" d="M6 6l12 12M18 6L6 18" />

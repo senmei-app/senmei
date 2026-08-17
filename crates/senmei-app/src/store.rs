@@ -258,6 +258,28 @@ mod tests {
     }
 
     #[test]
+    fn delete_project_removes_dir_and_forgets() {
+        with_temp_data_dir("delete_project", || {
+            let path = create_project("DeleteMe").unwrap();
+            assert!(PathBuf::from(&path).is_dir());
+            delete_project(&path).unwrap();
+            assert!(!PathBuf::from(&path).exists());
+            assert!(!list_projects().iter().any(|p| p.path == path));
+        });
+    }
+
+    #[test]
+    fn delete_project_refuses_outside_dir() {
+        with_temp_data_dir("delete_outside", || {
+            let outside = std::env::temp_dir().join("senmei-outside-dir");
+            std::fs::create_dir_all(&outside).unwrap();
+            let err = delete_project(&outside.to_string_lossy()).unwrap_err();
+            assert!(err.contains("refusing"), "unexpected error: {err}");
+            let _ = std::fs::remove_dir_all(&outside);
+        });
+    }
+
+    #[test]
     fn project_settings_roundtrip() {
         with_temp_data_dir("project_settings", || {
             let dir = PathBuf::from(create_project("Settings").unwrap());
