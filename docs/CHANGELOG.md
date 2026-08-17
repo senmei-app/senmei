@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Fix runtime asset scope (2026-08-18)** — `probe_video` and `read_frame` now
+  also extend the asset-protocol scope at runtime via `app.state::<Scopes>()`
+  `allow_file`, so arbitrary video paths (e.g. outside `$HOME`) and freshly
+  written preview frames are always loadable by the webview, even before the
+  config globs apply.
+
 - **Fix asset protocol scope (2026-08-18)** — the `assetProtocol` scope was
   `["**"]`, which matches almost nothing: Tauri enables `require_literal_separator`
   for the scope (so `**` behaves like `*`) and requires a literal leading dot to

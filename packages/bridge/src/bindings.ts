@@ -26,7 +26,6 @@ export const commands = {
 	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
-	/**  Extract one frame at `position_ms` and return it as a base64 JPEG. */
 	readFrame: (input: string, positionMs: number | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
