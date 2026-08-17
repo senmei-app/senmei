@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Sample selector as segmented control (2026-08-18)** — the monitor's sample
+  range picker is now a compact segmented control `[10s | 30s | 60s | Full | ▾]`
+  instead of a dropdown field: presets are one-click segments, the ▾ opens a
+  small popup with the custom duration editor (55s, 10m, 1m30s, 1h), and an
+  active custom range shows its duration next to ▾. No double field anymore.
 - **Native video preview + FFmpeg fallback (2026-08-18)** — the monitor source
   preview now uses a native `<video>` element (hardware decode, via the Tauri
   asset protocol + `convertFileSrc`), falling back to the FFmpeg-decoded frame

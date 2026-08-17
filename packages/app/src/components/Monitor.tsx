@@ -70,7 +70,6 @@ export default function Monitor({
   const inMs = sampleInMs;
   const outMs = sampleOutMs;
   const [playing, setPlaying] = useState(false);
-  const [customOpen, setCustomOpen] = useState(false);
   const [customVal, setCustomVal] = useState("");
   const [sampleMenu, setSampleMenu] = useState(false);
   const [frames, setFrames] = useState<Record<string, string>>({});
@@ -269,25 +268,6 @@ export default function Monitor({
     return "custom";
   };
 
-  const curSampleLabel = (() => {
-    const p = presetOf();
-    if (p === "full") return t("sample.full");
-    if (p === "custom") return fmtDuration(outMs - inMs);
-    return p;
-  })();
-
-  const onSampleSel = (v: string) => {
-    setCustomOpen(false);
-    if (v === "custom") {
-      setCustomVal(fmtDuration(outMs - inMs));
-      setCustomOpen(true);
-    } else if (v === "full") {
-      setFullRange();
-    } else {
-      applySample(parseInt(v, 10)); // "30s" -> 30
-    }
-  };
-
   const applyCustom = () => {
     if (!info) return;
     const ms = parseDuration(customVal);
@@ -295,14 +275,8 @@ export default function Monitor({
     const durMs = (info.duration ?? 0) * 1000;
     const start = Math.min(posMs, durMs);
     onSampleChange?.(start, Math.min(start + ms, durMs));
-    setCustomOpen(false);
+    setSampleMenu(false);
   };
-
-  // Close the custom input when the range becomes a preset (e.g. probe reset).
-  useEffect(() => {
-    if (customOpen) setCustomOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inMs, outMs]);
   const pct =
     rendering && progress && progress.totalFrames > 0
       ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
@@ -464,77 +438,87 @@ export default function Monitor({
         </div>
         <div className="mb-2 flex items-center space-x-1">
           <span className="text-[10px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
+          <div className="flex divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+            {[
+              { v: "10s", label: "10s", sec: 10 },
+              { v: "30s", label: "30s", sec: 30 },
+              { v: "60s", label: "60s", sec: 60 },
+            ].map((o) => (
+              <button
+                key={o.v}
+                onClick={() => applySample(o.sec)}
+                disabled={!info}
+                className={
+                  "px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 " +
+                  (presetOf() === o.v
+                    ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
+                    : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800")
+                }
+              >
+                {o.label}
+              </button>
+            ))}
+            <button
+              onClick={setFullRange}
+              disabled={!info}
+              className={
+                "px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 " +
+                (presetOf() === "full"
+                  ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
+                  : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800")
+              }
+            >
+              {t("sample.full")}
+            </button>
+          </div>
           <div className="relative flex items-center" ref={sampleMenuRef}>
             <button
-              onClick={() => setSampleMenu((m) => !m)}
+              onClick={() => {
+                setSampleMenu((m) => !m);
+                setCustomVal(fmtDuration(outMs - inMs));
+              }}
               disabled={!info}
-              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white py-1 pl-2.5 pr-1.5 font-mono text-[10px] text-slate-700 hover:border-indigo-500/50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              title={t("sample.custom")}
+              className={
+                "rounded-lg border px-2 py-1 text-[10px] leading-none disabled:opacity-40 " +
+                (presetOf() === "custom"
+                  ? "border-indigo-500/60 bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400")
+              }
             >
-              <span>{curSampleLabel}</span>
-              <span className="text-slate-400">▾</span>
+              ▾
             </button>
             {sampleMenu && (
-              <div className="absolute left-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                <div className="grid grid-cols-2 gap-0.5">
-                  {[
-                    { v: "10s", label: "10s" },
-                    { v: "30s", label: "30s" },
-                    { v: "60s", label: "60s" },
-                    { v: "full", label: t("sample.full") },
-                  ].map((o) => (
-                    <button
-                      key={o.v}
-                      onClick={() => {
-                        setSampleMenu(false);
-                        onSampleSel(o.v);
-                      }}
-                      className={
-                        "rounded px-1.5 py-1 text-left text-[10px] hover:bg-slate-100 dark:hover:bg-slate-800 " +
-                        (presetOf() === o.v
-                          ? "font-medium text-indigo-600 dark:text-indigo-400"
-                          : "text-slate-700 dark:text-slate-200")
-                      }
-                    >
-                      {presetOf() === o.v ? "✓ " : ""}
-                      {o.label}
-                    </button>
-                  ))}
+              <div className="absolute left-0 bottom-full z-30 mb-1 w-48 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <p className="mb-1 text-[9px] uppercase tracking-wider text-slate-400">{t("sample.custom")}</p>
+                <div className="flex items-center space-x-1">
+                  <input
+                    value={customVal}
+                    onChange={(e) => setCustomVal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") applyCustom();
+                      if (e.key === "Escape") setSampleMenu(false);
+                    }}
+                    placeholder={t("sample.customPlaceholder")}
+                    autoFocus
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                  <button
+                    onClick={applyCustom}
+                    disabled={!info}
+                    title={t("sample.apply")}
+                    className="shrink-0 rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+                  >
+                    ✓
+                  </button>
                 </div>
-                <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
-                <button
-                  onClick={() => {
-                    setSampleMenu(false);
-                    onSampleSel("custom");
-                  }}
-                  className="block w-full rounded px-2 py-1 text-left text-[10px] text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800"
-                >
-                  {t("sample.custom")}
-                </button>
               </div>
             )}
           </div>
-          {customOpen && (
-            <div className="flex items-center space-x-1">
-              <input
-                value={customVal}
-                onChange={(e) => setCustomVal(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applyCustom();
-                  if (e.key === "Escape") setCustomOpen(false);
-                }}
-                placeholder={t("sample.customPlaceholder")}
-                autoFocus
-                className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-              />
-              <button
-                onClick={applyCustom}
-                disabled={!info}
-                title={t("sample.apply")}
-                className="rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
-              >
-                ✓
-              </button>
-            </div>
+          {presetOf() === "custom" && (
+            <span className="font-mono text-[10px] text-indigo-500 dark:text-indigo-300">
+              {fmtDuration(outMs - inMs)}
+            </span>
           )}
           {onRenderSample && (
             <button
