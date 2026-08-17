@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
+use tauri::Manager;
 
 use crate::store;
 
@@ -123,14 +124,20 @@ pub async fn download_model(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
-#[specta::specta]
-pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
-    log::info!("probe_video: {input}");
-    senmei_media::probe(std::path::Path::new(&input)).map_err(|e| {
+fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
+    senmei_media::probe(std::path::Path::new(input)).map_err(|e| {
         log::warn!("probe_video failed: {e}");
         e.to_string()
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn probe_video(input: String, app: tauri::AppHandle) -> Result<senmei_media::VideoInfo, String> {
+    log::info!("probe_video: {input}");
+    // Let the webview load this file via the asset protocol (native <video>).
+    let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&input));
+    probe_video_inner(&input)
 }
 
 /// Extract one frame at `position_ms` as a PNG file and return its path. The
@@ -138,12 +145,11 @@ pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
 /// asset protocol (`convertFileSrc`); large `data:` URIs can fail in WebKitGTK.
 #[tauri::command]
 #[specta::specta]
-pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
-    log::info!("read_frame: {input} @ {position_ms:.0}ms");
+fn read_frame_inner(input: &str, position_ms: f64) -> Result<String, String> {
     // Resolve the same ffmpeg the pipeline uses (data dir / bundled), so the
     // rendered output read-back works even when system ffmpeg is missing.
     let ffmpeg = senmei_media::resolve(&store::data_dir());
-    let png = senmei_media::extract_frame(&ffmpeg, std::path::Path::new(&input), position_ms / 1000.0)
+    let png = senmei_media::extract_frame(&ffmpeg, std::path::Path::new(input), position_ms / 1000.0)
         .map_err(|e| {
             log::warn!("read_frame failed: {e}");
             e.to_string()
@@ -166,6 +172,16 @@ pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
     let path = dir.join(format!("frame_{millis}.png"));
     std::fs::write(&path, &png).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_frame(input: String, position_ms: f64, app: tauri::AppHandle) -> Result<String, String> {
+    log::info!("read_frame: {input} @ {position_ms:.0}ms");
+    let path = read_frame_inner(&input, position_ms)?;
+    // Let the webview load this frame through the asset protocol.
+    let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&path));
+    Ok(path)
 }
 
 #[tauri::command]
@@ -540,11 +556,11 @@ mod tests {
             .success();
         assert!(ok, "ffmpeg input generation failed");
 
-        let info = probe_video(input.to_string_lossy().into_owned()).expect("probe_video failed");
+        let info = probe_video_inner(&input.to_string_lossy()).expect("probe_video failed");
         assert_eq!((info.width, info.height), (160, 120));
         assert!(info.duration > 0.0);
 
-        let file = read_frame(input.to_string_lossy().into_owned(), 500.0).expect("read_frame failed");
+        let file = read_frame_inner(&input.to_string_lossy(), 500.0).expect("read_frame failed");
         let png = std::fs::read(&file).unwrap();
         assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
         let _ = std::fs::remove_dir_all(&dir);
@@ -597,7 +613,7 @@ mod tests {
             .run(&ffmpeg, &input, &output, |_| {})
             .expect("render failed");
 
-        let info = probe_video(output.to_string_lossy().into_owned()).expect("probe output");
+        let info = probe_video_inner(&output.to_string_lossy()).expect("probe output");
         assert_eq!((info.width, info.height), (3840, 2160));
         assert!(output.exists());
         let ffprobe = std::process::Command::new("ffprobe")
