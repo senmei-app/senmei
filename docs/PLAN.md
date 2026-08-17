@@ -355,6 +355,12 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Output filename includes model & scale (2026-08-17)** — rendered files are
+  named `{stem}_{label|senmei}_{model}_x{scale}.{ext}` (e.g.
+  `Folge 7_senmei_shuffle-cugan_x2.mkv`), so the applied processing is visible
+  at a glance. Also fixed: the Start Render button passed its click event as
+  `onlySelected` (truthy), which filtered by the empty selection and never
+  started the batch — wrapped in `() => startBatch()`.
 - **Selection + Edit/Process menus + hotkeys (2026-08-17)** — library rows
   are selectable (ring highlight; click toggles). Ctrl/Cmd+A selects all,
   Delete removes the selection, Ctrl/Cmd+R starts the batch render. The
