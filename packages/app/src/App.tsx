@@ -20,6 +20,7 @@ import {
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
+import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
 import {
   demoProjects,
   demoVideos,
@@ -47,12 +48,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
-  const [scale, setScale] = useState(2);
-  const [modelId, setModelId] = useState<string | null>(null);
-  const [resizeFactor, setResizeFactor] = useState("");
-  const [outputResizeFactor, setOutputResizeFactor] = useState("");
-  const [fpsMultiplier, setFpsMultiplier] = useState<number | null>(null);
-  const [stepsEnabled, setStepsEnabled] = useState<Record<string, boolean>>({});
+  const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
@@ -112,9 +108,7 @@ export default function App() {
     setHydrated(false);
     loadProjectSettings(projectDir)
       .then((s: ProjectSettings) => {
-        setStepsEnabled(s.stepsEnabled ?? {});
-        if (s.upscaleModel) setModelId(s.upscaleModel);
-        if (s.scale) setScale(s.scale);
+        if (s.steps && s.steps.length > 0) setSteps(normalizeSteps(s.steps));
         if (s.files && s.files.length > 0) setFiles(s.files);
         if (s.outputDir) setOutputDir(s.outputDir);
         setRenderedFile(null);
@@ -126,13 +120,11 @@ export default function App() {
   useEffect(() => {
     if (!projectDir || !isTauri() || !hydrated) return;
     void saveProjectSettings(projectDir, {
-      stepsEnabled,
-      upscaleModel: modelId,
-      scale,
+      steps,
       files,
       outputDir,
     }).catch(() => {});
-  }, [projectDir, hydrated, stepsEnabled, modelId, scale, files, outputDir]);
+  }, [projectDir, hydrated, steps, files, outputDir]);
 
   const changeTheme = (t: string) => {
     setTheme(t);
@@ -278,12 +270,15 @@ export default function App() {
     setRenderedFile(null);
     const ch = new Channel<RenderProgress>();
     ch.onmessage = setProgress;
-    const enabled = (id: string) => stepsEnabled[id] !== false;
-    const outScale = enabled("upscale") ? scale : null;
-    const outModel = enabled("upscale") ? modelId : null;
-    const outResize = enabled("resize") ? toFactor(resizeFactor) : null;
-    const outOutputResize = enabled("output_resize") ? toFactor(outputResizeFactor) : null;
-    const outFps = enabled("interpolate") ? fpsMultiplier : null;
+    const enabled = steps.filter((s) => s.enabled);
+    const interp = enabled.find((s) => s.stepType === "interpolation");
+    const up = enabled.find((s) => s.stepType === "upscale");
+    const res = enabled.find((s) => s.stepType === "resize");
+    const outScale = up ? (up.params?.scale ?? null) : null;
+    const outModel = up ? (up.params?.modelId ?? null) : null;
+    const outResize = null;
+    const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
+    const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     try {
       await render(
         currentFile,
@@ -362,22 +357,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
-                <Inspector
-                  modelId={modelId}
-                  scale={scale}
-                  onScaleChange={setScale}
-                  onModelChange={setModelId}
-                  resizeFactor={resizeFactor}
-                  onResizeFactorChange={setResizeFactor}
-                  outputResizeFactor={outputResizeFactor}
-                  onOutputResizeFactorChange={setOutputResizeFactor}
-                  fpsMultiplier={fpsMultiplier}
-                  onFpsChange={setFpsMultiplier}
-                  stepsEnabled={stepsEnabled}
-                  onToggleStep={(id, enabled) =>
-                    setStepsEnabled((prev) => ({ ...prev, [id]: enabled }))
-                  }
-                />
+                <Inspector steps={steps} onChange={setSteps} />
               </Panel>
             </PanelGroup>
             <StatusBar health={health} fileCount={files.length} progress={progress} rendering={rendering} />

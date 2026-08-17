@@ -355,6 +355,20 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Pipeline-stack Inspector (2026-08-17)** — Inspector's flat accordion list is
+  replaced by a **dynamic layer stack** (order top→bottom = execution order):
+  add steps via a "+ Add step" menu, remove (✕), enable/disable (checkbox),
+  reorder (▲/▼). Step types: `interpolation`, `upscale`, `denoise`, `deblur`,
+  `deduplication`, `resize`, `output` — the **not-yet-implemented** ones
+  (denoise/deblur/dedup) are **disabled in the add menu** ("Soon"). `output` is
+  a regular step addable anywhere (multi-output design: each carries a `name`
+  label + video/audio codec + subtitle mode; the backend renders the last
+  active one for now). `ProjectSettings` schema changed
+  (`stepsEnabled`/`upscaleModel`/`scale` → ordered `steps: Vec<PipelineStep>`
+  with a typed `StepParams`); bindings regenerated via the specta export test.
+  Frontend holds `steps[]` in App state, persists per project, and `startRender`
+  derives scale/model/resize/fps from the **enabled** steps. Model select
+  auto-fills the first loadable upscaler (ShuffleCugan).
 - **UX feedback batch (2026-08-17)** — projects are deletable (🗑 on the
   project screen, `delete_project` command, confirm dialog); videos can be
   removed from the library (✕ per row); **cancel render** (TopBar ■ + Queue

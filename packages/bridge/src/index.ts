@@ -6,6 +6,8 @@ export type {
   Settings,
   ProjectEntry,
   ProjectSettings,
+  PipelineStep,
+  StepParams,
   RenderProgress,
   DownloadProgress,
   ModelMetadata,
