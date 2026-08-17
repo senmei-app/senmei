@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Compare alignment (2026-08-18)** — in Compare both sides now show the same
+  source moment: the original is clamped to the sample in-point (the rendered
+  sample has no frames before it) and the result is read at `source − inMs`
+  (its timeline starts at inMs). Previously the result was offset by the sample
+  start, so Original at 0 vs Result at the render point were misaligned.
 - **Monitor preview opacity (2026-08-18)** — a loaded frame/video now shows at
   80% opacity; the pre-load placeholder is 70% and greyscaled, consistently in
   Original / Compare / Result.

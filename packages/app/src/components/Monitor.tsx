@@ -105,26 +105,30 @@ export default function Monitor({
   };
 
   const loadFrame = (ms: number): Promise<void> => {
-    const targets: string[] = [];
+    // In compare both sides show the same source moment: the original is
+    // clamped to the sample in-point (the result has no frames before it) and
+    // the result is read at `source - inMs` (its timeline starts at inMs).
+    const targets: { path: string; ms: number }[] = [];
     if (mode === "compare") {
-      if (file) targets.push(file);
-      if (effRendered) targets.push(effRendered);
+      const source = Math.max(ms, inMs);
+      if (file) targets.push({ path: file, ms: source });
+      if (effRendered) targets.push({ path: effRendered, ms: Math.max(0, source - inMs) });
     } else if (src) {
-      targets.push(src);
+      targets.push({ path: src, ms });
     }
     if (targets.length === 0) return Promise.resolve();
     if (!isTauri()) {
-      targets.forEach((p) =>
-        setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${demoFrame()}` })),
+      targets.forEach(({ path }) =>
+        setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${demoFrame()}` })),
       );
       return Promise.resolve();
     }
     setLoading(true);
     return Promise.all(
-      targets.map((p) =>
-        readFrame(p, ms)
+      targets.map(({ path, ms: t }) =>
+        readFrame(path, t)
           .then((b64) => {
-            setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${b64}` }));
+            setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${b64}` }));
             setError(null);
           })
           .catch((e) => {
