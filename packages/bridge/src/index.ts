@@ -69,3 +69,5 @@ export const readFrame = (input: string, positionMs: number | null) =>
   commands.readFrame(input, positionMs);
 
 export const cancelRender = () => commands.cancelRender();
+
+export const pauseRender = (paused: boolean) => commands.pauseRender(paused);

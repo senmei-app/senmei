@@ -10,6 +10,8 @@ use crate::store;
 
 /// Shared cancellation flag for the active render (set by `cancel_render`).
 static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+/// Shared pause flag for the active render (set by `pause_render`).
+static PAUSE_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 #[tauri::command]
 #[specta::specta]
@@ -341,6 +343,11 @@ pub async fn render(
             .clone();
         cancel.store(false, Ordering::Relaxed);
         pipeline.set_cancel(cancel);
+        let pause = PAUSE_RENDER
+            .get_or_init(|| Arc::new(AtomicBool::new(false)))
+            .clone();
+        pause.store(false, Ordering::Relaxed);
+        pipeline.set_pause(pause);
         if let Some(f) = fps_multiplier {
             if f > 1 {
                 pipeline.set_interpolator(senmei_pipeline::Interpolator::new(f));
@@ -369,6 +376,15 @@ pub async fn render(
 pub fn cancel_render() {
     if let Some(c) = CANCEL_RENDER.get() {
         c.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Pause/resume the active render (the pipeline waits between frames).
+#[tauri::command]
+#[specta::specta]
+pub fn pause_render(paused: bool) {
+    if let Some(p) = PAUSE_RENDER.get() {
+        p.store(paused, Ordering::Relaxed);
     }
 }
 

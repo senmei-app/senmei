@@ -5,6 +5,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   cancelRender,
+  pauseRender,
   createProject,
   deleteProject,
   getSettings,
@@ -47,6 +48,7 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
   const [hydrated, setHydrated] = useState(false);
@@ -221,9 +223,22 @@ export default function App() {
     if (!isTauri()) {
       stopDemoRender();
       setRendering(false);
+      setPaused(false);
       return;
     }
+    setPaused(false);
     void cancelRender();
+  };
+
+  const handleTogglePause = () => {
+    if (!isTauri()) {
+      setPaused((p) => !p);
+      return;
+    }
+    setPaused((p) => {
+      void pauseRender(!p);
+      return !p;
+    });
   };
 
   const handleDeleteProject = async (path: string) => {
@@ -359,6 +374,8 @@ export default function App() {
                   outputDir={outputDir}
                   onPickOutputDir={pickOutputDir}
                   rendering={rendering}
+                  paused={paused}
+                  onTogglePause={handleTogglePause}
                   onCancel={handleCancelRender}
                   progress={progress}
                   renderedFile={renderedFile}
