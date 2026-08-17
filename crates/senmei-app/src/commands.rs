@@ -375,4 +375,46 @@ mod tests {
         assert!(jpeg.starts_with(&[0xFF, 0xD8]), "not a JPEG");
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// End-to-end proof of the app's render path: models_dir resolution +
+    /// BurnEngine load + real 1080p→2160p upscale + ffmpeg encode.
+    #[test]
+    #[ignore = "requires burn Vulkan engine + ffmpeg; ~15s render"]
+    fn app_render_upscales_real_model() {
+        let dir = std::env::temp_dir().join("senmei-render-smoke");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("input.mp4");
+        let output = dir.join("output.mp4");
+        let ok = std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=1:size=1920x1080:rate=24",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&input)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "ffmpeg input generation failed");
+
+        let engine = engine_for_model("shuffle-cugan").expect("engine_for_model");
+        let ffmpeg = senmei_media::resolve(&store::data_dir());
+        let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
+            vec![Box::new(senmei_pipeline::Passthrough)];
+        steps.push(Box::new(senmei_pipeline::Upscale::new(2, Some(engine))));
+        let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        pipeline
+            .run(&ffmpeg, &input, &output, |_| {})
+            .expect("render failed");
+
+        let info = probe_video(output.to_string_lossy().into_owned()).expect("probe output");
+        assert_eq!((info.width, info.height), (3840, 2160));
+        assert!(output.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
