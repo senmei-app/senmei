@@ -451,5 +451,26 @@ impl<B: Backend> RifeNet<B> {
         let b_340 = warp(b_2, b_339);
         let b_341 = b_340 * b_334;
         let b_out0 = b_341 + b_338;        b_out0
-    }
-}
+    }}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn::tensor::TensorData;
+
+    /// Structural check: the graph runs end-to-end and preserves resolution.
+    /// Weights are random (unloaded), so this validates shapes/wiring only.
+    #[test]
+    #[ignore = "requires Vulkan"]
+    fn rife_net_forward_preserves_shape() {
+        use burn_wgpu::{Vulkan, WgpuDevice};
+        let device = WgpuDevice::DiscreteGpu(0);
+        let net = RifeNet::<Vulkan<f32>>::new(&device);
+        let in0 = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.5f32; 3 * 64 * 64], [1, 3, 64, 64]), &device);
+        let in1 = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.6f32; 3 * 64 * 64], [1, 3, 64, 64]), &device);
+        let t = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.5f32; 64 * 64], [1, 1, 64, 64]), &device);
+        let out = net.forward(in0, in1, t);
+        assert_eq!(out.dims(), [1, 3, 64, 64]);
+        let v: Vec<f32> = out.into_data().convert::<f32>().to_vec().unwrap();
+        assert!(v.iter().all(|x| x.is_finite()));
+    }}
