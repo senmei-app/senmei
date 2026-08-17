@@ -27,9 +27,9 @@ export type StepType =
 export const STEP_META: Record<StepType, { icon: string; labelKey: string; implemented: boolean }> = {
   interpolation: { icon: "⚡", labelKey: "tab.interpolate", implemented: true },
   upscale: { icon: "🔍", labelKey: "tab.upscale", implemented: true },
-  denoise: { icon: "🧹", labelKey: "tab.denoise", implemented: false },
-  deblur: { icon: "✨", labelKey: "tab.deblur", implemented: false },
-  deduplication: { icon: "🎞️", labelKey: "tab.dedup", implemented: false },
+  denoise: { icon: "🧹", labelKey: "tab.denoise", implemented: true },
+  deblur: { icon: "✨", labelKey: "tab.deblur", implemented: true },
+  deduplication: { icon: "🎞️", labelKey: "tab.dedup", implemented: true },
   resize: { icon: "📐", labelKey: "tab.resize", implemented: true },
   output: { icon: "📦", labelKey: "tab.output", implemented: true },
 };
@@ -47,9 +47,9 @@ export const STEP_ORDER: StepType[] = [
 const DEFAULTS: Record<StepType, StepParams> = {
   interpolation: { modelId: null, fpsMultiplier: 2 },
   upscale: { modelId: null, scale: 2 },
-  denoise: {},
-  deblur: {},
-  deduplication: {},
+  denoise: { radius: 1 },
+  deblur: { amount: 0.5 },
+  deduplication: { threshold: 0.02 },
   resize: { factor: "" },
   output: {
     label: "",

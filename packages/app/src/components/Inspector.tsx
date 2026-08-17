@@ -317,6 +317,47 @@ export default function Inspector({
             className={inputCls}
           />,
         );
+      case "denoise":
+        return field(
+          t("denoise.radius"),
+          <select
+            value={s.params?.radius ?? 1}
+            onChange={(e) => updateParams(s.id, { radius: Number(e.target.value) })}
+            className={inputCls}
+          >
+            {[1, 2, 3, 4].map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>,
+        );
+      case "deblur":
+        return field(
+          t("deblur.amount"),
+          <input
+            type="range"
+            min={0}
+            max={2}
+            step={0.1}
+            value={s.params?.amount ?? 0.5}
+            onChange={(e) => updateParams(s.id, { amount: Number(e.target.value) })}
+            className="w-full accent-indigo-500"
+          />,
+        );
+      case "deduplication":
+        return field(
+          t("dedup.threshold"),
+          <input
+            type="range"
+            min={0}
+            max={0.05}
+            step={0.002}
+            value={s.params?.threshold ?? 0.02}
+            onChange={(e) => updateParams(s.id, { threshold: Number(e.target.value) })}
+            className="w-full accent-indigo-500"
+          />,
+        );
       case "output": {
         const mode = s.params?.outputMode ?? "input";
         return (

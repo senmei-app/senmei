@@ -19,6 +19,7 @@ import {
   saveSettings,
   type ProjectEntry,
   type ProjectSettings,
+  type RenderConfig,
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
@@ -322,12 +323,30 @@ export default function App() {
     const interp = enabled.find((s) => s.stepType === "interpolation");
     const up = enabled.find((s) => s.stepType === "upscale");
     const res = enabled.find((s) => s.stepType === "resize");
+    const dn = enabled.find((s) => s.stepType === "denoise");
+    const db = enabled.find((s) => s.stepType === "deblur");
+    const dd = enabled.find((s) => s.stepType === "deduplication");
     const outScale = up ? (up.params?.scale ?? null) : null;
     const outModel = up ? (up.params?.modelId ?? null) : null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     const outInterpModel = interp ? (interp.params?.modelId ?? null) : null;
     const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
+    const outFilter = {
+      denoiseRadius: dn ? (dn.params?.radius ?? null) : null,
+      deblurAmount: db ? (db.params?.amount ?? null) : null,
+      dedupThreshold: dd ? (dd.params?.threshold ?? null) : null,
+    };
+    const config: RenderConfig = {
+      scale: outScale,
+      modelId: outModel,
+      resize: null,
+      filter: outFilter,
+      outputResize: outOutputResize,
+      fpsMultiplier: outFps,
+      interpModel: outInterpModel,
+      ffmpegArgs: outFfmpegArgs,
+    };
 
     const initial: BatchJob[] = inputs.map((f) => ({
       input: f,
@@ -361,18 +380,7 @@ export default function App() {
               patch(i, { progress: p });
               setProgress(p);
             };
-            await render(
-              initial[i].input,
-              output,
-              outScale,
-              outModel,
-              null,
-              outOutputResize,
-              outFps,
-              outInterpModel,
-              outFfmpegArgs,
-              ch,
-            );
+            await render(initial[i].input, output, config, ch);
           } else {
             await startDemoRender((p) => {
               patch(i, { progress: p });

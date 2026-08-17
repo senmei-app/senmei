@@ -1,6 +1,6 @@
 import type { Channel } from "@tauri-apps/api/core";
 import { commands } from "./bindings";
-import type { Settings, RenderProgress, DownloadProgress, ProjectSettings } from "./bindings";
+import type { Settings, RenderProgress, DownloadProgress, ProjectSettings, RenderConfig } from "./bindings";
 
 export type {
   Settings,
@@ -14,6 +14,8 @@ export type {
   ModelKind,
   VideoInfo,
   FfmpegInfo as FfmpegStatus,
+  RenderConfig,
+  FilterParams,
 } from "./bindings";
 
 export const healthCheck = () => commands.healthCheck();
@@ -21,27 +23,9 @@ export const healthCheck = () => commands.healthCheck();
 export const render = (
   input: string,
   output: string,
-  scale: number | null,
-  modelId: string | null,
-  resize: number | null,
-  outputResize: number | null,
-  fpsMultiplier: number | null,
-  interpModel: string | null,
-  ffmpegArgs: string | null,
+  config: RenderConfig,
   onProgress: Channel<RenderProgress>,
-) =>
-  commands.render(
-    input,
-    output,
-    scale,
-    modelId,
-    resize,
-    outputResize,
-    fpsMultiplier,
-    interpModel,
-    ffmpegArgs,
-    onProgress,
-  );
+) => commands.render(input, output, config, onProgress);
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 
