@@ -8,6 +8,7 @@
 
 mod realesrgan;
 mod upcunet;
+mod warp;
 
 use crate::engine::{Backend, EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
