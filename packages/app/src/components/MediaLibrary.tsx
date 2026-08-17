@@ -1,6 +1,14 @@
 import { useState } from "react";
-import type { RenderProgress } from "@senmei/bridge";
 import { useI18n } from "../i18n";
+import type { BatchJob, BatchStatus } from "../steps";
+
+const STATUS_ICON: Record<BatchStatus, { icon: string; color: string; labelKey: string }> = {
+  queued: { icon: "⏳", color: "text-slate-400", labelKey: "queue.queued" },
+  rendering: { icon: "▶", color: "text-indigo-500 dark:text-indigo-400", labelKey: "queue.rendering" },
+  done: { icon: "✓", color: "text-emerald-500", labelKey: "queue.done" },
+  failed: { icon: "✗", color: "text-rose-500", labelKey: "queue.failed" },
+  cancelled: { icon: "■", color: "text-slate-400", labelKey: "queue.cancelled" },
+};
 
 export default function MediaLibrary({
   files,
@@ -12,8 +20,7 @@ export default function MediaLibrary({
   paused,
   onTogglePause,
   onCancel,
-  progress,
-  renderedFile,
+  jobs,
 }: {
   files: string[];
   onOpen: () => void;
@@ -24,16 +31,12 @@ export default function MediaLibrary({
   paused: boolean;
   onTogglePause: () => void;
   onCancel: () => void;
-  progress: RenderProgress | null;
-  renderedFile: string | null;
+  jobs: BatchJob[];
 }) {
   const { t } = useI18n();
   const [view, setView] = useState<"library" | "queue">("library");
 
-  const pct =
-    rendering && progress && progress.totalFrames > 0
-      ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
-      : null;
+  const doneCount = jobs.filter((j) => j.status !== "queued" && j.status !== "rendering").length;
 
   return (
     <aside className="flex h-full flex-col border-r border-slate-200 bg-slate-100/70 p-3 dark:border-slate-800/80 dark:bg-slate-900/30">
@@ -117,52 +120,73 @@ export default function MediaLibrary({
         ) : (
           <div className="space-y-2 p-1">
             {rendering && (
-              <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
-                    {paused ? t("queue.paused") : t("queue.rendering")}
-                  </p>
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={onTogglePause}
-                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
-                    >
-                      {paused ? "▶ " + t("queue.resume") : "❚❚ " + t("queue.pause")}
-                    </button>
-                    <button
-                      onClick={onCancel}
-                      className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/20 dark:text-red-400"
-                    >
-                      {t("queue.cancel")}
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-2">
+                <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                  {paused ? t("queue.paused") : t("queue.rendering")} · {doneCount}/{jobs.length}
+                </p>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={onTogglePause}
+                    className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                  >
+                    {paused ? "▶ " + t("queue.resume") : "❚❚ " + t("queue.pause")}
+                  </button>
+                  <button
+                    onClick={onCancel}
+                    className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/20 dark:text-red-400"
+                  >
+                    {t("queue.cancel")}
+                  </button>
                 </div>
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                  <div
-                    className="h-full bg-indigo-500 transition-all"
-                    style={{ width: `${pct ?? 0}%` }}
-                  />
-                </div>
-                {progress && (
-                  <p className="mt-1 font-mono text-[10px] text-slate-500">
-                    {progress.framesProcessed} / {progress.totalFrames}
-                  </p>
-                )}
               </div>
             )}
-            {renderedFile && (
-              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2">
-                <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-300">
-                  {t("queue.done")}
-                </p>
-                <p className="mt-0.5 truncate font-mono text-[10px] text-slate-500">
-                  {renderedFile.split("/").pop()}
-                </p>
-              </div>
-            )}
-            {!rendering && !renderedFile && (
+            {jobs.length === 0 ? (
               <div className="flex h-32 items-center justify-center text-xs text-slate-500">
                 {t("queue.empty")}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {jobs.map((j) => {
+                  const meta = STATUS_ICON[j.status];
+                  const pct =
+                    j.status === "rendering" && j.progress && j.progress.totalFrames > 0
+                      ? Math.round((j.progress.framesProcessed / j.progress.totalFrames) * 100)
+                      : 0;
+                  return (
+                    <div key={j.input} className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
+                      <div className="flex items-center justify-between space-x-2">
+                        <p className="min-w-0 truncate text-[11px] font-medium text-slate-800 dark:text-slate-200">
+                          {j.input.split("/").pop()}
+                        </p>
+                        <span title={t(meta.labelKey)} className={`shrink-0 ${meta.color}`}>
+                          {meta.icon}
+                        </span>
+                      </div>
+                      {j.status === "rendering" && (
+                        <>
+                          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                            <div className="h-full bg-indigo-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          {j.progress && (
+                            <p className="mt-0.5 font-mono text-[9px] text-slate-500">
+                              {j.progress.framesProcessed} / {j.progress.totalFrames}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {j.status === "done" && (
+                        <p className="mt-0.5 truncate font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
+                          {j.output.split("/").pop()}
+                        </p>
+                      )}
+                      {j.status === "failed" && j.error && (
+                        <p className="mt-0.5 truncate text-[10px] text-rose-500" title={j.error}>
+                          {j.error}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -355,6 +355,15 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Batch rendering (2026-08-17, M7)** — `Start Render` now renders **all files
+  sequentially** (a single file is a batch of one). The Queue tab lists one job
+  per file with status (queued/rendering/done/failed/cancelled), per-file
+  progress bar + frames, and batch controls (Pause/Resume, Stop). Errors mark
+  the file failed and continue; Stop aborts after the current file; Pause
+  freezes the running file. Output paths are derived from the Output-step
+  (folder mode / label / container); new `unique_path` command appends
+  `_2`, `_3`, … on filename collisions instead of overwriting. No per-file
+  save dialog (auto path + dedupe).
 - **Stack reorder via drag (2026-08-17)** — the ▲▼ move buttons are replaced by
   a ≡ drag handle; the whole step header is draggable (pointer-based
   mousedown/move/up with a 4px click-vs-drag threshold, target hit-test on
