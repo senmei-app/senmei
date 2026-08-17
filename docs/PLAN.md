@@ -355,6 +355,12 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **UI polish (2026-08-17)** — the media-library drop box now only shows when
+  no video is loaded (and fills the whole panel height); videos can be added
+  by dragging them anywhere in the window (Tauri `onDragDropEvent` with full
+  paths; HTML5 fallback in the browser demo). The `↓` arrows between stack
+  steps are gone. The top bar shows `project / video` centered (no pill box),
+  and a settings gear sits at the bottom-left of the status bar.
 - **Reference filter stacks (M7, 2026-08-17)** — the previously disabled
   `denoise`, `deblur` and `deduplication` steps are now implemented with CPU
   references: box-blur denoise (radius), unsharp-mask deblur (amount), and a
