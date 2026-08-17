@@ -1,5 +1,10 @@
 fn main() {
-    env_logger::init();
+    // Skip wgpu_hal: its Vulkan loader prints benign 32-bit ICD/layer scan
+    // errors (e.g. leftover NVIDIA/obs JSONs) on every startup.
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("error,wgpu_hal=off"),
+    )
+    .init();
     log::info!("Senmei starting");
 
     let builder = senmei_app::specta_builder();

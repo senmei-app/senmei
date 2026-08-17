@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "cargo tauri dev",
     "ui:dev": "cd packages/app && bun run dev",
-    "build": "cd packages/app && bun run build"
+    "build": "cd packages/app && bun run build",
+    "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pgrep -f target/debug/senmei | xargs -r kill -9; echo cleaned"
   }
 }
