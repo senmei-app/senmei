@@ -357,5 +357,5 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 - **Interpolation (M3):** RIFE v4.6 wired end-to-end — clean burn port of the ncnn `flownet` (215 layers), weights loaded from `flownet.bin` (MIT), verified on Vulkan (flow-based, symmetric, directionally correct).
 - **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
-- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-as/export project.
+- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.
 - **Next:** end-to-end RIFE render in the app, more model ports, docs tidy-up.
