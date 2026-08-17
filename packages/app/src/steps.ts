@@ -125,7 +125,8 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   if (params?.pixFmt) structured.push("-pix_fmt", params.pixFmt);
   if (params?.tune) structured.push("-tune", params.tune);
   const ac = params?.audioCodec;
-  if (ac && ac !== "None" && AUDIO_MAP[ac]) structured.push("-c:a", AUDIO_MAP[ac]);
+  if (ac === "None") structured.push("-an");
+  else if (ac && AUDIO_MAP[ac]) structured.push("-c:a", AUDIO_MAP[ac]);
   if (params?.subtitleMode === "Copy") structured.push("-c:s", "copy");
 
   const customTokens = custom.trim() ? splitArgs(custom) : [];

@@ -76,7 +76,7 @@ impl Pipeline {
         let (raw_tx, raw_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
         let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
-        let encoder = Encoder::open(ffmpeg, output, w, h, fps, &self.encoder_args)?;
+        let encoder = Encoder::open(ffmpeg, input, output, w, h, fps, &self.encoder_args)?;
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
