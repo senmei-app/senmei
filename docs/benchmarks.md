@@ -108,37 +108,52 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 - Real-CUGAN up2x and ShuffleCugan both measure identically — the per-frame
   transfer cost dominates, not the weights.
 
-## torch-ROCm fp16 re-test (2026-08-17, ROCm 7.14 runtime)
+## torch-ROCm re-test (2026-08-17, ROCm 7.14)
 
-The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. That run used the
-ROCm **7.1** runtime; the machine now runs the **ROCm 7.14** RDNA4 port
-(`/opt/therock-tarball/install`) with a torch 2.13.0+rocm7.1 binary. Bare matmul
-+ the real model:
+The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. It was a
+**ROCm-7.1 software gap** — the machine runs the **ROCm 7.14** RDNA4 port
+(`/opt/therock-tarball/install`). Two torch builds tested: the installed
+`2.13.0+rocm7.1` binary driving the 7.14 runtime, and a fresh nightly built
+**for** 7.14 (`2.15.0.dev+rocm7.14`, in `/home/mzach/torch714-venv`).
 
-| Test | Result |
-|---|---|
-| fp16 matmul 2048² | 0.29 ms |
-| bf16 matmul 2048² | 0.28 ms |
-| fp32 matmul 2048² | 1.24 ms |
-| **ShuffleCugan fp16 1080p→2160p** | **111.5 ms → 9.0 FPS** |
-| ShuffleCugan fp32 1080p→2160p | 569.0 ms → 1.8 FPS |
+| Test | torch 2.13 (7.1-built) | **torch 2.15 (7.14-built)** |
+|---|---|---|
+| fp16 matmul 2048² | 0.29 ms | **0.18 ms** |
+| bf16 matmul 2048² | 0.28 ms | **0.18 ms** |
+| fp32 matmul 2048² | 1.24 ms | 1.43 ms |
+| **ShuffleCugan fp16 1080p→2160p** | 111.5 ms → 9.0 FPS | **41.8 ms → 23.9 FPS** |
+| ShuffleCugan fp32 1080p→2160p | 569.0 ms → 1.8 FPS | 94.2 ms → 10.6 FPS |
 
-- WMMA (FP8/BF8/FP16/BF16) is **present on RDNA4** and torch uses it — the
-  earlier `LLVM Cannot select` was a **cubecl-hip / ROCm-7.1 kernel gap**.
-- torch-ROCm fp16 **beats burn-Vulkan fp16 by ~29 % on the model** (111.5 vs
-  157.4 ms) and is ~5× faster than torch fp32 (569 ms).
-- Caveats that still apply: needs ROCm 7.x + RDNA4 installed (not portable like
-  Vulkan) + libtorch size + first-kernel JIT. The end-to-end pipeline gain is
+- WMMA (FP16/BF16/FP8/BF8) is **present on RDNA4**; the earlier `LLVM Cannot
+  select` was a **cubecl-hip / ROCm-7.1 kernel gap**. The **7.14-built torch
+  unlocks RDNA4 fp16 conv kernels**: ShuffleCugan fp16 drops 111.5 → 41.8 ms —
+  **3.8× faster than burn-Vulkan fp16 (157.4 ms / 6.4 FPS)**. fp32 also drops
+  569 → 94.2 ms.
+- **FP8 (e4m3/e5m2/fnuz) does NOT work via torch on ROCm** — not even in the
+  7.14-built nightly: `addmm_cuda not implemented for Float8_*`, and
+  `_scaled_mm` is CUDA-only (cuBLASLt error) on ROCm builds. The hipBLASLt 1.4
+  library in ROCm 7.14 *does* support fp8 on gfx1201 (fp8 datatypes + "default
+  mode for fp8"); torch just never calls it. fp8 needs a direct hipBLASLt path
+  or a runtime that wires it (vLLM/ONNXRuntime-style) — not stock torch.
+- **Caveat — fp16 is input-range sensitive:** on inputs outside 0..1 (e.g.
+  randn) the fp16 path collapses to all-NaN; fp32 stays clean. With realistic
+  video (normalized 0..1, what the app feeds) fp16 is clean: max diff vs fp32
+  0.075, mean 0.0006, no NaN. **Clamp input to 0..1 before the fp16 forward.**
+- Other caveats: needs ROCm 7.x + RDNA4 + a matching torch install (not
+  portable like Vulkan) + libtorch size + first-kernel JIT. End-to-end gain is
   smaller than the model-only number (decode/encode + transfers dominate).
 
 ## Decision (2026-08-16, revised 2026-08-17)
 
-- **torch/ROCm is viable on RDNA4 with ROCm ≥ 7.14 + fp16** (111.5 ms / 9 FPS —
-  beats burn-Vulkan fp16 by ~29 %; the 2026-08-16 "not viable" verdict was a
-  ROCm-7.1 + fp32 artifact, and the tile OOM/hard-fault were ROCm-7.1 too).
-  Portability cost: requires a local ROCm install + libtorch, so **burn-Vulkan
-  stays the shipped default**; torch-ROCm is a viable optional high-perf
-  backend on AMD RDNA4.
+- **torch/ROCm (7.14-built, fp16) is now the fastest engine measured** on RDNA4:
+  ShuffleCugan fp16 1080p→2160p at **41.8 ms / 23.9 FPS** — **3.8× faster than
+  burn-Vulkan fp16 (157.4 ms / 6.4 FPS)**. The 2026-08-16 "not viable" verdict
+  was a ROCm-7.1 + fp32 artifact (incl. the tile OOM/hard-fault). FP8 is not
+  reachable from stock torch on ROCm (CUDA-only path).
+  Portability cost: needs ROCm 7.x + RDNA4 + matching torch (not portable like
+  Vulkan) + libtorch size, so **burn-Vulkan stays the shipped default**;
+  torch-ROCm-7.14 fp16 is a strong optional AMD backend (worth wiring behind
+  the `InferenceEngine` trait) — clamp inputs to 0..1.
 - **ncnn/Vulkan** won on 2026-08-16 (398 ms @1080p) and remains the **shipped
   engine** via the C++ shim.
 - **2026-08-17 re-benchmark:** the earlier "burn set aside" verdict rested on a
