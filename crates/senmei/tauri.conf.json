@@ -5,7 +5,7 @@
   "identifier": "app.senmei.desktop",
   "build": {
     "beforeDevCommand": "cd packages/app && bun run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "cd packages/app && bun run build",
     "frontendDist": "../../packages/app/dist"
   },
