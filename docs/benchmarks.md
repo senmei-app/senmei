@@ -3,6 +3,17 @@
 Comparative inference benchmarks behind the engine decision (final: 2026-08-17).
 Target device = the actual dev machine, not a synthetic proxy.
 
+## TL;DR (2026-08-17)
+
+- **Shipped:** burn (`burn-wgpu`) **Vulkan fp16** — Real-CUGAN up2x **302 ms**
+  @1080p, ShuffleCugan **103 ms** @1080p; beats ncnn (398 ms) and is portable.
+- **Fastest measured:** torch-ROCm (ROCm-7.14 build) fp16 ShuffleCugan
+  **41.8 ms** @1080p — but not portable (needs ROCm 7.x + RDNA4 + matching
+  torch) → not shipped.
+- **Dropped:** ncnn/Vulkan (superseded), candle/ROCm, burn-ROCm (cubecl fp16
+  kernel gap on RDNA4).
+- Full pipeline: **~6.5 FPS** end-to-end (1080p → 2160p, x264 veryfast, GPU RGB8).
+
 ## Environment
 
 | | |

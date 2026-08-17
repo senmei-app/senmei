@@ -12,6 +12,7 @@
 - macht folgendes sinn:
   - Depth Map Models
   - Object Detection Models
+  - Video Stabilization
 
 
 ## Backend
@@ -32,7 +33,7 @@
 - [x] ncnn-Engine komplett aus Todos/Plan entfernen (burn ist Default)
 - [x] PLAN.md §15 → docs/CHANGELOG.md ausgelagert
 - [x] PLAN.md aktualisiert/redesignet
-- [ ] models.md übersichtlicher
-- [ ] benchmarks.md übersichtlicher
+- [x] models.md übersichtlicher (Status-Überblick + Backlog/Kandidaten-Tabelle)
+- [x] benchmarks.md übersichtlicher (TL;DR-Box mit Entscheidung + Kernzahlen)
 
 ## Project website wenn release fertig

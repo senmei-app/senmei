@@ -4,6 +4,9 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Docs cleanup (2026-08-18)** — `models.md` gains a status-at-a-glance table
+  and a backlog/candidates section (per-stack, spandrel as source);
+  `benchmarks.md` gains a TL;DR box with the engine decision and key numbers.
 - **UI backlog (2026-08-18)** — About dialog (Help → About: version, engine,
   license, GitHub link), media-library multi-select (plain click selects one,
   Ctrl/Cmd+click or the ⧉ toggle adds/removes), and the version badge moved
