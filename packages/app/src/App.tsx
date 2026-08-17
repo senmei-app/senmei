@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { isTauri, Channel } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   cancelRender,
   pauseRender,
+  uniquePath,
   createProject,
   deleteProject,
   getSettings,
@@ -21,7 +22,7 @@ import {
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
-import { buildEncoderArgs, defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
+import { buildEncoderArgs, defaultSteps, normalizeSteps, type BatchJob, type PipelineStep } from "./steps";
 import {
   demoProjects,
   demoVideos,
@@ -50,6 +51,7 @@ export default function App() {
   const [rendering, setRendering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
+  const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -222,11 +224,14 @@ export default function App() {
   const handleCancelRender = () => {
     if (!isTauri()) {
       stopDemoRender();
-      setRendering(false);
-      setPaused(false);
-      return;
     }
+    setRendering(false);
     setPaused(false);
+    setJobs((prev) =>
+      prev.map((j) =>
+        j.status === "queued" || j.status === "rendering" ? { ...j, status: "cancelled" as const } : j,
+      ),
+    );
     void cancelRender();
   };
 
@@ -259,22 +264,7 @@ export default function App() {
     if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
   };
 
-  const startRender = async () => {
-    if (!currentFile || rendering) return;
-    if (!isTauri()) {
-      setRendering(true);
-      setProgress(null);
-      setRenderedFile(null);
-      try {
-        const out = await startDemoRender(setProgress);
-        setRenderedFile(out);
-      } finally {
-        setRendering(false);
-      }
-      return;
-    }
-    const outs = steps.filter((s) => s.enabled && s.stepType === "output");
-    const lastOut = outs.length ? outs[outs.length - 1] : undefined;
+  const desiredPath = (input: string, lastOut?: PipelineStep): string => {
     const container = lastOut?.params?.container || "mkv";
     const outMode = lastOut?.params?.outputMode ?? "input";
     const customFolder = lastOut?.params?.outputFolder ?? "";
@@ -283,53 +273,95 @@ export default function App() {
     const label = lastOut?.params?.label?.trim();
     const marker = label || "senmei";
     const base =
-      currentFile.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}.${container}`) ??
+      input.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}.${container}`) ??
       `output_${marker}.${container}`;
-    let output: string;
-    if (targetDir) {
-      // Folder mode configured: render straight into it, no save dialog.
-      output = `${targetDir}/${base}`;
-    } else {
-      const picked = await save({
-        defaultPath: currentFile.replace(/\.[^.]+$/, `_${marker}.${container}`),
-        filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
-      });
-      if (typeof picked !== "string") return;
-      output = picked;
-    }
-    setRendering(true);
-    setProgress(null);
-    setRenderedFile(null);
-    const ch = new Channel<RenderProgress>();
-    ch.onmessage = setProgress;
+    return targetDir ? `${targetDir}/${base}` : input.replace(/\.[^.]+$/, `_${marker}.${container}`);
+  };
+
+  // Batch render: one render per file, sequentially. A single file is just a
+  // batch of one. Errors mark the job failed and continue; cancel stops after
+  // the current file; pause freezes the running file.
+  const startBatch = async () => {
+    if (!files.length || rendering) return;
+    const outs = steps.filter((s) => s.enabled && s.stepType === "output");
+    const lastOut = outs.length ? outs[outs.length - 1] : undefined;
     const enabled = steps.filter((s) => s.enabled);
     const interp = enabled.find((s) => s.stepType === "interpolation");
     const up = enabled.find((s) => s.stepType === "upscale");
     const res = enabled.find((s) => s.stepType === "resize");
     const outScale = up ? (up.params?.scale ?? null) : null;
     const outModel = up ? (up.params?.modelId ?? null) : null;
-    const outResize = null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
+
+    const initial: BatchJob[] = files.map((f) => ({
+      input: f,
+      output: desiredPath(f, lastOut),
+      status: "queued",
+      progress: null,
+    }));
+    setJobs(initial);
+    setRendering(true);
+    setPaused(false);
+    setRenderedFile(null);
+
+    const patch = (i: number, p: Partial<BatchJob>) =>
+      setJobs((prev) => prev.map((j, k) => (k === i ? { ...j, ...p } : j)));
+
     try {
-      await render(
-        currentFile,
-        output,
-        outScale,
-        outModel,
-        outResize,
-        outOutputResize,
-        outFps,
-        outFfmpegArgs,
-        ch,
-      );
-      setRenderedFile(output);
-    } catch (e) {
-      const msg = String(e);
-      if (!msg.toLowerCase().includes("cancelled")) setHealth(`render failed: ${e}`);
+      for (let i = 0; i < initial.length; i++) {
+        let output = initial[i].output;
+        if (isTauri()) {
+          try {
+            output = await uniquePath(output); // collision -> _2, _3, …
+          } catch {
+            // keep the intended path if resolution fails
+          }
+        }
+        patch(i, { output, status: "rendering", progress: null });
+        try {
+          if (isTauri()) {
+            const ch = new Channel<RenderProgress>();
+            ch.onmessage = (p) => {
+              patch(i, { progress: p });
+              setProgress(p);
+            };
+            await render(
+              initial[i].input,
+              output,
+              outScale,
+              outModel,
+              null,
+              outOutputResize,
+              outFps,
+              outFfmpegArgs,
+              ch,
+            );
+          } else {
+            await startDemoRender((p) => {
+              patch(i, { progress: p });
+              setProgress(p);
+            });
+          }
+          patch(i, { status: "done" });
+          setRenderedFile(output);
+        } catch (e) {
+          const msg = String(e);
+          if (msg.toLowerCase().includes("cancelled")) {
+            patch(i, { status: "cancelled" });
+            setJobs((prev) => prev.map((j, k) => (k > i ? { ...j, status: "cancelled" as const } : j)));
+            break; // stop the batch
+          }
+          patch(i, { status: "failed", error: msg });
+          if (isTauri()) setHealth(`render failed: ${msg}`);
+          // continue with the next file
+        }
+      }
     } finally {
       setRendering(false);
+      setPaused(false);
+      setProgress(null);
     }
   };
 
@@ -360,7 +392,7 @@ export default function App() {
               rendering={rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
-              onStartRender={startRender}
+              onStartRender={startBatch}
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
@@ -377,8 +409,7 @@ export default function App() {
                   paused={paused}
                   onTogglePause={handleTogglePause}
                   onCancel={handleCancelRender}
-                  progress={progress}
-                  renderedFile={renderedFile}
+                  jobs={jobs}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />

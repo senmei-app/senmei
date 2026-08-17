@@ -1,9 +1,19 @@
 // Processing-stack step model. Order top→bottom = execution order.
 // The persisted shape is the Rust backend's PipelineStep (see bindings.ts).
 
-import type { PipelineStep, StepParams } from "@senmei/bridge";
+import type { PipelineStep, RenderProgress, StepParams } from "@senmei/bridge";
 
 export type { PipelineStep, StepParams } from "@senmei/bridge";
+
+export type BatchStatus = "queued" | "rendering" | "done" | "failed" | "cancelled";
+
+export interface BatchJob {
+  input: string;
+  output: string;
+  status: BatchStatus;
+  progress: RenderProgress | null;
+  error?: string;
+}
 
 export type StepType =
   | "interpolation"

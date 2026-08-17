@@ -71,3 +71,5 @@ export const readFrame = (input: string, positionMs: number | null) =>
 export const cancelRender = () => commands.cancelRender();
 
 export const pauseRender = (paused: boolean) => commands.pauseRender(paused);
+
+export const uniquePath = (path: string) => commands.uniquePath(path);

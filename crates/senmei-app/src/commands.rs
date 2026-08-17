@@ -388,6 +388,38 @@ pub fn pause_render(paused: bool) {
     }
 }
 
+/// Return `path` if free, else `{stem}_2.{ext}`, `{stem}_3.{ext}`, … first
+/// free name, so batch renders never overwrite an existing file.
+#[tauri::command]
+#[specta::specta]
+pub fn unique_path(path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Ok(path);
+    }
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "output".into());
+    let ext = p
+        .extension()
+        .map(|e| e.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let parent = p.parent().unwrap_or_else(|| std::path::Path::new("."));
+    for n in 2..10_000u32 {
+        let name = if ext.is_empty() {
+            format!("{stem}_{n}")
+        } else {
+            format!("{stem}_{n}.{ext}")
+        };
+        let candidate = parent.join(&name);
+        if !candidate.exists() {
+            return Ok(candidate.to_string_lossy().into_owned());
+        }
+    }
+    Err("no free output name found".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,6 +515,20 @@ mod tests {
             stdout.contains("hevc") && stdout.contains("yuv420p10le"),
             "custom args not applied, got {stdout}"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unique_path_numbers_collisions() {
+        let dir = std::env::temp_dir().join("senmei-unique-smoke");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("out.mkv");
+        let b = dir.join("out_2.mkv");
+        std::fs::write(&a, b"x").unwrap();
+        std::fs::write(&b, b"x").unwrap();
+        let free = unique_path(a.to_string_lossy().into_owned()).unwrap();
+        assert_eq!(free, dir.join("out_3.mkv").to_string_lossy().into_owned());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

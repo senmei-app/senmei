@@ -30,6 +30,11 @@ export const commands = {
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
 	/**  Pause/resume the active render (the pipeline waits between frames). */
 	pauseRender: (paused: boolean) => __TAURI_INVOKE<void>("pause_render", { paused }),
+	/**
+	 *  Return `path` if free, else `{stem}_2.{ext}`, `{stem}_3.{ext}`, … first
+	 *  free name, so batch renders never overwrite an existing file.
+	 */
+	uniquePath: (path: string) => __TAURI_INVOKE<string>("unique_path", { path }),
 };
 
 /* Types */
