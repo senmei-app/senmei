@@ -42,12 +42,6 @@ export default function ProjectScreen({
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
             鮮
           </div>
-          <span
-            title={`build ${__BUILD_HASH__}`}
-            className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-          >
-            v{__APP_VERSION__}-{__BUILD_HASH__}
-          </span>
         </div>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
         <WindowControls />
@@ -108,6 +102,13 @@ export default function ProjectScreen({
           {t("project.browse")}
         </Button>
       </div>
+
+      <span
+        title={`build ${__BUILD_HASH__}`}
+        className="fixed bottom-3 right-3 rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+      >
+        v{__APP_VERSION__}-{__BUILD_HASH__}
+      </span>
 
       {confirmPath && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

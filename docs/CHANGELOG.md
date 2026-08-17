@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **UI backlog (2026-08-18)** — About dialog (Help → About: version, engine,
+  license, GitHub link), media-library multi-select (plain click selects one,
+  Ctrl/Cmd+click or the ⧉ toggle adds/removes), and the version badge moved
+  from the top headers to the bottom-right (status bar + project screen).
+  Verified in the running app.
 - **Color metadata (M4, 2026-08-17)** — the Output step gains a Color group
   (primaries / transfer / matrix) that tags the encode with `-color_primaries`,
   `-color_trc` and `-colorspace`. Verified in the app: bt2020 primaries →

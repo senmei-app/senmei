@@ -22,6 +22,7 @@ export default function MenuBar({
   onExportProject,
   onSettings,
   onGithub,
+  onAbout,
   onSelectAll,
   onDeleteSelected,
   onAddAllToQueue,
@@ -35,6 +36,7 @@ export default function MenuBar({
   onExportProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
+  onAbout: () => void;
   onSelectAll: () => void;
   onDeleteSelected: () => void;
   onAddAllToQueue: () => void;
@@ -89,7 +91,7 @@ export default function MenuBar({
       label: t("menu.help"),
       items: [
         { key: "github", label: t("menu.github"), action: onGithub },
-        { key: "about", label: t("menu.about") },
+        { key: "about", label: t("menu.about"), action: onAbout },
       ],
     },
   ];

@@ -13,6 +13,7 @@ export default function TopBar({
   onExportProject,
   onSettings,
   onGithub,
+  onAbout,
   onSelectAll,
   onDeleteSelected,
   onAddAllToQueue,
@@ -30,6 +31,7 @@ export default function TopBar({
   onExportProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
+  onAbout: () => void;
   onSelectAll: () => void;
   onDeleteSelected: () => void;
   onAddAllToQueue: () => void;
@@ -45,12 +47,6 @@ export default function TopBar({
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
           鮮
         </div>
-        <span
-          title={`build ${__BUILD_HASH__}`}
-          className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-        >
-          v{__APP_VERSION__}-{__BUILD_HASH__}
-        </span>
       </div>
 
       <MenuBar
@@ -60,6 +56,7 @@ export default function TopBar({
         onExportProject={onExportProject}
         onSettings={onSettings}
         onGithub={onGithub}
+        onAbout={onAbout}
         onSelectAll={onSelectAll}
         onDeleteSelected={onDeleteSelected}
         onAddAllToQueue={onAddAllToQueue}

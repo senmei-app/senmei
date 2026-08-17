@@ -40,6 +40,7 @@ import Inspector from "./components/Inspector";
 import StatusBar from "./components/StatusBar";
 import ProjectScreen from "./components/ProjectScreen";
 import SettingsPage from "./components/SettingsPage";
+import AboutDialog from "./components/AboutDialog";
 
 const VIDEO_EXTS = ["mp4", "mkv", "mov", "webm", "avi", "m4v"];
 
@@ -52,6 +53,8 @@ export default function App() {
   const [theme, setTheme] = useState<string>("dark");
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [multiSelect, setMultiSelect] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
@@ -357,8 +360,15 @@ export default function App() {
   // Batch render: one render per file, sequentially. A single file is just a
   // batch of one. Errors mark the job failed and continue; cancel stops after
   // the current file; pause freezes the running file.
-  const toggleSelect = (path: string) =>
-    setSelected((prev) => (prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]));
+  // Plain click selects only that file; toggle (multi-select mode or Ctrl/Cmd) adds/removes.
+  const selectFile = (path: string, toggle: boolean) =>
+    setSelected((prev) =>
+      toggle
+        ? prev.includes(path)
+          ? prev.filter((p) => p !== path)
+          : [...prev, path]
+        : [path],
+    );
   const selectAll = () => setSelected(files);
   const deleteSelected = () => {
     setFiles((prev) => prev.filter((f) => !selected.includes(f)));
@@ -514,6 +524,7 @@ export default function App() {
               onExportProject={handleExportProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
+              onAbout={() => setAboutOpen(true)}
               onSelectAll={selectAll}
               onDeleteSelected={deleteSelected}
               onAddAllToQueue={() => {
@@ -538,7 +549,9 @@ export default function App() {
                   onCancel={handleCancelRender}
                   jobs={jobs}
                   selected={selected}
-                  onToggleSelect={toggleSelect}
+                  onSelect={selectFile}
+                  multiSelect={multiSelect}
+                  onMultiSelectChange={setMultiSelect}
                   view={mediaView}
                   onViewChange={setMediaView}
                 />
@@ -571,6 +584,7 @@ export default function App() {
           </div>
         )}
       </div>
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} onGithub={openGithub} />}
     </I18nProvider>
   );
 }

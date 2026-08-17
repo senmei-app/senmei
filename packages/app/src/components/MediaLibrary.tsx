@@ -21,7 +21,9 @@ export default function MediaLibrary({
   onCancel,
   jobs,
   selected,
-  onToggleSelect,
+  onSelect,
+  multiSelect,
+  onMultiSelectChange,
   view,
   onViewChange,
 }: {
@@ -36,7 +38,9 @@ export default function MediaLibrary({
   onCancel: () => void;
   jobs: BatchJob[];
   selected: string[];
-  onToggleSelect: (path: string) => void;
+  onSelect: (path: string, toggle: boolean) => void;
+  multiSelect: boolean;
+  onMultiSelectChange: (v: boolean) => void;
   view: "library" | "queue";
   onViewChange: (v: "library" | "queue") => void;
 }) {
@@ -69,7 +73,20 @@ export default function MediaLibrary({
             {t("media.tab.queue")}
           </button>
         </div>
-        <button className="rounded-md bg-slate-200 p-1 text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">+</button>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => onMultiSelectChange(!multiSelect)}
+            title={t("media.multiSelect")}
+            className={
+              multiSelect
+                ? "rounded-md bg-indigo-600 px-1.5 py-1 text-[11px] leading-none text-white"
+                : "rounded-md bg-slate-200 px-1.5 py-1 text-[11px] leading-none text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            }
+          >
+            ⧉
+          </button>
+          <button className="rounded-md bg-slate-200 px-1.5 py-1 text-[11px] leading-none text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">+</button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -99,7 +116,7 @@ export default function MediaLibrary({
                 return (
                 <div
                   key={path}
-                  onClick={() => onToggleSelect(path)}
+                  onClick={(e) => onSelect(path, multiSelect || e.ctrlKey || e.metaKey)}
                   className={
                     "group flex cursor-pointer items-center space-x-3 rounded-lg border p-2 transition " +
                     (isSel
