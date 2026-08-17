@@ -4,6 +4,9 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Monitor preview opacity (2026-08-18)** — a loaded frame/video now shows at
+  80% opacity; the pre-load placeholder is 70% and greyscaled, consistently in
+  Original / Compare / Result.
 - **Monitor placeholder 80% everywhere (2026-08-18)** — the no-frame
   placeholder now uses the same 80%-translucent background in all three views
   (Original / Compare / Result) so the monitor looks consistent from start.
