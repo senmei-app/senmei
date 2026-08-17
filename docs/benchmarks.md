@@ -1,6 +1,6 @@
 # Benchmarks — Inference Engines on RX 9070
 
-Comparative inference benchmarks behind the engine decision (2026-08-16).
+Comparative inference benchmarks behind the engine decision (final: 2026-08-17).
 Target device = the actual dev machine, not a synthetic proxy.
 
 ## Environment
@@ -147,31 +147,26 @@ The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. It was a
   portable like Vulkan) + libtorch size + first-kernel JIT. End-to-end gain is
   smaller than the model-only number (decode/encode + transfers dominate).
 
-## Decision (2026-08-16, revised 2026-08-17)
+## Decision (2026-08-17, final)
 
-- **torch/ROCm (7.14-built, fp16) is now the fastest engine measured** on RDNA4:
-  ShuffleCugan fp16 1080p→2160p at **41.8 ms / 23.9 FPS** — **3.8× faster than
-  burn-Vulkan fp16 (157.4 ms / 6.4 FPS)**. The 2026-08-16 "not viable" verdict
-  was a ROCm-7.1 + fp32 artifact (incl. the tile OOM/hard-fault). FP8 is not
-  reachable from stock torch on ROCm (CUDA-only path).
-  Portability cost: needs ROCm 7.x + RDNA4 + matching torch (not portable like
-  Vulkan) + libtorch size, so **burn-Vulkan stays the shipped default**;
-  torch-ROCm-7.14 fp16 is a strong optional AMD backend (worth wiring behind
-  the `InferenceEngine` trait) — clamp inputs to 0..1.
-- **ncnn/Vulkan** won on 2026-08-16 (398 ms @1080p) and remains the **shipped
-  engine** via the C++ shim.
-- **2026-08-17 re-benchmark:** the earlier "burn set aside" verdict rested on a
-  toy model on the wrong backend (ROCm). With the **real upcunet + Vulkan +
-  fp16**, burn beats ncnn (302 vs 398 ms @1080p; 136 vs 249 ms @720p), and
-  ShuffleCugan is ~5× faster still. **burn is re-opened as a candidate** —
-  adoption must weigh the heavy build (~800 crates/1.6 GB), the fusion bug, and
-  the f32→f16 load workflow against ncnn's tiny shim + ready-made ports.
-- **candle/ROCm dropped (2026-08-17)** — evaluated the `xmiksay/feat/rocm-backend`
-  candle fork (rocBLAS GEMM + im2col conv). Numerically correct (HIP vs CPU
-  ~1e-5), but f32 convs always materialize the im2col matrix → memory cliff from
-  ~640p (700→1107 ms @640p→720p; multi-GB buffers crash the desktop on
-  shared-display GPUs; SD/FLUX VAE decode OOMs at 1024²), f16 scales linearly
-  yet stays ~6× slower than burn-Vulkan fp16 (290 vs 46 ms @720p ShuffleCugan),
-  and the ShuffleCugan port OOMs even at 64×64 (fork conv bug). Not pursued.
-- Engine = **NCNN/Vulkan via C++ shim** with CPU fallback (unchanged until a
-  maintainer decision on burn). See `docs/PLAN.md` §15.
+- **Shipped engine: burn (`burn-wgpu`) on the Vulkan backend, fp16.** With the
+  real upcunet + Vulkan + fp16, burn beats ncnn (302 vs 398 ms @1080p; 136 vs
+  249 ms @720p) and ShuffleCugan is ~5× faster still (46/103 ms). The earlier
+  "burn set aside" verdict (2026-08-16) rested on a toy model on the wrong
+  backend (ROCm). Weighed costs: heavy build (~800 crates/1.6 GB), a
+  `burn-fusion` f32 crash at 1080p (fp16 path is fine), the f32→f16 weight
+  workflow — all acceptable against one portable backend + clean Rust ports.
+- **torch/ROCm (7.14-built, fp16) is the fastest measured** on RDNA4
+  (ShuffleCugan fp16 1080p→2160p at 41.8 ms / 23.9 FPS — 3.8× faster than
+  burn-Vulkan). Not portable (needs ROCm 7.x + RDNA4 + matching torch) + heavy
+  libtorch → kept as an optional AMD backend behind the `InferenceEngine` trait
+  at most, **not shipped**. Clamp inputs to 0..1 for fp16.
+- **ncnn/Vulkan dropped** — was the 2026-08-16 winner (398 ms @1080p) but is
+  superseded by burn-Vulkan fp16; the C++ shim (`senmei-ncnn`) was removed.
+  ncnn survives only as a **weight format** for the RIFE port (`flownet.bin`).
+- **candle/ROCm dropped** — the `xmiksay/feat/rocm-backend` fork is numerically
+  correct but f32 convs materialize the im2col matrix (memory cliff from ~640p),
+  f16 stays ~6× slower than burn-Vulkan, and the ShuffleCugan port OOMs even at
+  64×64. Not pursued.
+
+See `docs/PLAN.md` for the current engine/roadmap status.

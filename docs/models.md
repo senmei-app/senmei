@@ -30,13 +30,12 @@ download URL (+ sha256 where known).
 
 - **BurnEngine** (Vulkan fp16) implements `InferenceEngine` and dispatches on
   `ModelRef::arch`: **`upcunet2x`** (verified in `rust-sr-bench`), **`upcunet2x-fast`**
-  (ShuffleCugan, verified) and **`realesrgan`** (`RRDBNet`, BSD-3 port).
-  `real-cugan-x2` + the 3× Real-ESRGAN models are `loadable: true`; SCUNet,
-  Real-PLKSr, Anime1080Fixer (license verify) and RIFE (2-input API) are pending.
-- **Interpolation** is a placeholder: `senmei-ml::interpolate` only does linear
-  `blend` + scene-cut detection. RIFE (`rife-4.25`, Apache-2.0) needs a
-  **2-input** infer (frame pair + `t`) — the current `InferenceEngine::infer`
-  is single-tensor and must be extended.
+  (ShuffleCugan, verified), **`realesrgan`** (`RRDBNet`, BSD-3 port) and
+  **`rife46`** (`RifeNet`, generated from the ncnn `flownet` graph, MIT weights).
+  `real-cugan-x2`, the 3× Real-ESRGAN models and `rife-v4.6` are `loadable: true`;
+  SCUNet, Real-PLKSr and Anime1080Fixer (license verify) are pending.
+- **Interpolation** is real (RIFE v4.6): `infer_interp(a, b, t)` runs the
+  flow-based network on Vulkan, verified (symmetric, directionally correct).
 - **Deduplication** is a pipeline/UI step (frame-similarity filter), not an ML
   `ModelKind` — no neural model needed.
 
@@ -56,13 +55,13 @@ download URL (+ sha256 where known).
 | Model | License | Scale | Arch status | Source |
 |---|---|---|---|---|
 | Real-CUGAN up2x no-denoise | Apache-2.0 | 2 | **loadable** (UpCunet2x port, verified) | `bilibili/ailab` · `cugan_up2x-latest-no-denoise.pth` (VSGAN) |
-| ShuffleCugan | unclear (SUDO) | 2 | arch ported (`upcunet2x-fast`), **weights not adopted** | `sudo_shuffle_cugan_9.584.969.pth` (VSGAN) |
+| ShuffleCugan | unclear (SUDO) | 2 | **loadable** (upcunet2x-fast; prototype opt-in) | `sudo_shuffle_cugan_9.584.969.pth` (VSGAN) |
 | Real-ESRGAN animevideo x2 / x4 | BSD-3-Clause | 2 / 4 | **loadable** (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| RIFE v4.6 | MIT | 1 | **loadable** (RifeNet port, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | SCUNet denoise | verify (cszn) | 1 | port pending | `cszn/SCUNet` · `scunet_color_15.pth` |
 | Real-PLKSr DeJPG / DeH264 | verify (Phhofm) | 1 | port pending | `Phhofm/models` · TAS-Models-Host |
 | Anime1080Fixer | verify (Zarxrax) | 1 | port pending | `Zarxrax/Anime1080Fixer` · VSGAN |
-| RIFE 4.25 | Apache-2.0 | 1 | port pending + 2-input API | `hzwer/Practical-RIFE` |
 
 Weights are never committed (`models/*` gitignored); the app downloads them
 (download-on-demand, sha256-verified) and converts to f16 `.bpk`.
@@ -75,8 +74,8 @@ Weights are never committed (`models/*` gitignored); the app downloads them
   only adopt permissive (BSD/MIT/Apache, CC0 ok). Models flagged "verify" need a
   license check before `loadable: true`.
 - **ShuffleCugan** is the fastest SR variant (46/103 ms @720p/1080p in
-  `rust-sr-bench`) but its weights carry no clear license → benchmark-only,
-  excluded from the product until the author clarifies.
+  `rust-sr-bench`) but its weights carry no clear license → flagged
+  "prototype opt-in" in the catalog until the author clarifies.
 - **f16 is the default** (Vulkan): half the memory and 3–6× faster than f32 on
   the reference GPU. `PytorchStore` cannot cast f32→f16 at load, so weights are
   pre-converted to f16 `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).
