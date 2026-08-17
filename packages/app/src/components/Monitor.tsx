@@ -318,7 +318,7 @@ export default function Monitor({
               {frames[file] ? (
                 <img src={frames[file]} alt="original" className="h-full w-full object-contain" />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
                     {file.split("/").pop()}
                   </span>
@@ -336,7 +336,7 @@ export default function Monitor({
                   className={"h-full w-full object-contain" + (demoResult ? " saturate-150 brightness-105" : "")}
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
                     {effRendered.split("/").pop()}
                   </span>

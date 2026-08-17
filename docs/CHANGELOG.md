@@ -4,6 +4,9 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Monitor placeholder 80% everywhere (2026-08-18)** — the no-frame
+  placeholder now uses the same 80%-translucent background in all three views
+  (Original / Compare / Result) so the monitor looks consistent from start.
 - **Sample selector as segmented control (2026-08-18)** — the monitor's sample
   range picker is now a compact segmented control `[10s | 30s | 60s | Full | ▾]`
   instead of a dropdown field: presets are one-click segments, the ▾ opens a
