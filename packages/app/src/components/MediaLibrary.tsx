@@ -74,10 +74,10 @@ export default function MediaLibrary({
 
       <div className="flex-1 overflow-y-auto">
         {view === "library" ? (
-          <>
+          files.length === 0 ? (
             <div
               onClick={onOpen}
-              className="mb-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-200/50 p-4 text-center transition hover:border-indigo-500/50 hover:bg-slate-200 dark:border-slate-700/80 dark:bg-slate-900/40 dark:hover:bg-slate-900/80"
+              className="flex h-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-200/50 p-4 text-center transition hover:border-indigo-500/50 hover:bg-slate-200 dark:border-slate-700/80 dark:bg-slate-900/40 dark:hover:bg-slate-900/80"
             >
               <div className="mb-2 rounded-full bg-indigo-500/10 p-2 text-indigo-500 dark:text-indigo-400">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,7 +92,7 @@ export default function MediaLibrary({
               <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("media.drop")}</p>
               <p className="mt-1 text-[10px] text-slate-500">{t("media.formats")}</p>
             </div>
-
+          ) : (
             <div className="space-y-2">
               {files.map((path) => {
                 const isSel = selected.includes(path);
@@ -134,7 +134,7 @@ export default function MediaLibrary({
                 );
               })}
             </div>
-          </>
+          )
         ) : (
           <div className="space-y-2 p-1">
             {rendering && (

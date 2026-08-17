@@ -652,9 +652,6 @@ export default function Inspector({
                   <div className="space-y-2.5 border-t border-indigo-500/20 p-3 text-xs">{renderParams(s)}</div>
                 )}
               </div>
-              {i < steps.length - 1 && (
-                <div className="my-0.5 flex justify-center text-[10px] text-slate-500">↓</div>
-              )}
             </div>
           );
         })}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { isTauri, Channel } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -137,6 +138,44 @@ export default function App() {
     setTheme(t);
     void saveSettings({ language: lang, theme: t });
   };
+
+  // App-wide video drag & drop (not just onto the drop box). Tauri reports
+  // absolute paths via onDragDropEvent; the browser demo falls back to HTML5
+  // drops (names only).
+  const addDropped = (paths: string[]) => {
+    const videos = paths.filter((p) => VIDEO_EXTS.some((e) => p.toLowerCase().endsWith(`.${e}`)));
+    if (videos.length) setFiles((prev) => [...prev, ...videos]);
+  };
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "drop") addDropped(event.payload.paths);
+      })
+      .then((fn) => (unlisten = fn))
+      .catch(() => {});
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isTauri()) return;
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      const paths = Array.from(e.dataTransfer?.files ?? []).map((f) => `/demo/${f.name}`);
+      addDropped(paths);
+    };
+    const onOver = (e: DragEvent) => e.preventDefault();
+    document.addEventListener("dragover", onOver);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragover", onOver);
+      document.removeEventListener("drop", onDrop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openFiles = async () => {
     if (!isTauri()) {
@@ -482,7 +521,13 @@ export default function App() {
                 <Inspector steps={steps} outputDir={outputDir} onChange={setSteps} />
               </Panel>
             </PanelGroup>
-            <StatusBar health={health} fileCount={files.length} progress={progress} rendering={rendering} />
+            <StatusBar
+              health={health}
+              fileCount={files.length}
+              progress={progress}
+              rendering={rendering}
+              onSettings={() => setSettingsOpen(true)}
+            />
           </div>
         )}
       </div>
