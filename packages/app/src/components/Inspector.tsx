@@ -28,6 +28,10 @@ export default function Inspector({
   const [models, setModels] = useState<ModelMetadata[]>([]);
   const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragIndexRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [folderMenu, setFolderMenu] = useState<string | null>(null);
   const folderMenuRef = useRef<HTMLDivElement>(null);
@@ -115,13 +119,72 @@ export default function Inspector({
     if (s) update(id, { enabled: !s.enabled });
   };
 
-  const moveStep = (id: string, dir: -1 | 1) => {
-    const i = steps.findIndex((s) => s.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= steps.length) return;
-    const next = [...steps];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
+  const dragStartRef = useRef<{ x: number; y: number; index: number } | null>(null);
+  const didDragRef = useRef(false);
+
+  // Pointer-based drag on the whole step header: WebKitGTK handles HTML5 DnD
+  // unreliably and this avoids the huge drag ghost. A small movement threshold
+  // separates a click (expand) from a drag (reorder).
+  useEffect(() => {
+    const cardAt = (x: number, y: number): number | null => {
+      const el = document.elementFromPoint(x, y);
+      const card = el?.closest<HTMLElement>("[data-step-index]");
+      return card ? Number(card.dataset.stepIndex) : null;
+    };
+    const onMove = (e: MouseEvent) => {
+      const start = dragStartRef.current;
+      if (!start) return;
+      if (!dragging) {
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
+        dragIndexRef.current = start.index;
+        setDragIndex(start.index);
+        setDragging(true);
+      } else {
+        const i = cardAt(e.clientX, e.clientY);
+        if (i !== null && i !== overIndex) setOverIndex(i);
+      }
+    };
+    const onUp = (e: MouseEvent) => {
+      if (dragging) {
+        const target = cardAt(e.clientX, e.clientY);
+        const from = dragIndexRef.current;
+        if (from !== null && target !== null && target !== from) {
+          const next = [...steps];
+          const [moved] = next.splice(from, 1);
+          next.splice(target, 0, moved);
+          onChange(next);
+        }
+        didDragRef.current = true; // suppress the header click following a drag
+        setTimeout(() => {
+          didDragRef.current = false;
+        }, 0);
+      }
+      dragStartRef.current = null;
+      dragIndexRef.current = null;
+      setDragIndex(null);
+      setOverIndex(null);
+      setDragging(false);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging, overIndex, steps, onChange]);
+
+  const handleHeaderMouseDown = (i: number) => (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    dragStartRef.current = { x: e.clientX, y: e.clientY, index: i };
+  };
+
+  const handleHeaderClick = (id: string) => () => {
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
+    setExpanded((cur) => (cur === id ? null : id));
   };
 
   const rememberFolder = (folder: string) =>
@@ -480,40 +543,28 @@ export default function Inspector({
           return (
             <div key={s.id}>
               <div
+                data-step-index={i}
                 className={
-                  s.enabled
+                  (s.enabled
                     ? "rounded-xl border border-indigo-500/40 bg-indigo-500/[0.06] dark:bg-indigo-500/10"
-                    : "rounded-xl border border-slate-200 bg-white/60 opacity-60 dark:border-slate-800 dark:bg-slate-950/60"
+                    : "rounded-xl border border-slate-200 bg-white/60 opacity-60 dark:border-slate-800 dark:bg-slate-950/60") +
+                  (dragIndex === i ? " opacity-40" : "") +
+                  (overIndex === i && dragIndex !== null && overIndex !== dragIndex
+                    ? " ring-2 ring-indigo-400"
+                    : "")
                 }
               >
                 <div
                   className="flex cursor-pointer select-none items-center justify-between p-2.5"
-                  onClick={() => setExpanded(isOpen ? null : s.id)}
+                  onMouseDown={handleHeaderMouseDown(i)}
+                  onClick={handleHeaderClick(s.id)}
                 >
                   <div className="flex items-center space-x-1.5 text-left">
-                    <span className="flex flex-col">
-                      <button
-                        title="up"
-                        disabled={i === 0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          moveStep(s.id, -1);
-                        }}
-                        className="px-1 py-px text-[10px] leading-none text-slate-400 hover:text-slate-600 disabled:opacity-20 dark:hover:text-slate-200"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        title="down"
-                        disabled={i === steps.length - 1}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          moveStep(s.id, 1);
-                        }}
-                        className="px-1 py-px text-[10px] leading-none text-slate-400 hover:text-slate-600 disabled:opacity-20 dark:hover:text-slate-200"
-                      >
-                        ▼
-                      </button>
+                    <span
+                      title={t("stack.drag")}
+                      className="cursor-grab select-none text-xs leading-none text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      ≡
                     </span>
                     <span className="text-indigo-500 dark:text-indigo-400">{meta.icon}</span>
                     <div className="flex items-center space-x-1.5">

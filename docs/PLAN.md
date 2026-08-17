@@ -355,6 +355,12 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Stack reorder via drag (2026-08-17)** — the ▲▼ move buttons are replaced by
+  a ≡ drag handle; the whole step header is draggable (pointer-based
+  mousedown/move/up with a 4px click-vs-drag threshold, target hit-test on
+  `data-step-index`). WebKitGTK handles HTML5 DnD unreliably and renders a huge
+  ghost, so this avoids both; a `setTimeout(0)` clears the post-drag click
+  suppression so the next click still expands.
 - **Pause/resume render (2026-08-17)** — the pipeline waits between frames on a
   pause flag (`set_pause`); `pause_render(bool)` command toggles it. The Queue
   tab shows Pause/Resume next to Cancel next to the progress. Regression test
