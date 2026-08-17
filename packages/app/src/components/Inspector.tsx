@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isTauri, Channel } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
 import { demoDownloadModel, demoModels } from "../mock";
 import { useI18n } from "../i18n";
@@ -12,11 +13,15 @@ const segBtn = (active: boolean) =>
     ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
     : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
 
+let demoFolderN = 0;
+
 export default function Inspector({
   steps,
+  outputDir,
   onChange,
 }: {
   steps: PipelineStep[];
+  outputDir?: string | null;
   onChange: (steps: PipelineStep[]) => void;
 }) {
   const { t } = useI18n();
@@ -24,6 +29,9 @@ export default function Inspector({
   const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [folderMenu, setFolderMenu] = useState<string | null>(null);
+  const folderMenuRef = useRef<HTMLDivElement>(null);
+  const [recentFolders, setRecentFolders] = useState<string[]>([]);
 
   // Close the add-step menu on outside click without swallowing the click,
   // so the clicked step still expands below.
@@ -35,6 +43,16 @@ export default function Inspector({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
+
+  // Close the folder quick-select menu on outside click.
+  useEffect(() => {
+    if (!folderMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target as Node)) setFolderMenu(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [folderMenu]);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
 
@@ -104,6 +122,35 @@ export default function Inspector({
     const next = [...steps];
     [next[i], next[j]] = [next[j], next[i]];
     onChange(next);
+  };
+
+  const rememberFolder = (folder: string) =>
+    setRecentFolders((r) => [folder, ...r.filter((x) => x !== folder)].slice(0, 6));
+
+  const pickOutputFolder = async (id: string) => {
+    let dir: string | null = null;
+    if (!isTauri()) {
+      // Browser demo: no native picker; prompt may be blocked (headless), so fall back to a demo path.
+      try {
+        dir = window.prompt(t("output.pick"));
+      } catch {
+        dir = null;
+      }
+      if (!dir) dir = `/demo/output${demoFolderN++ || ""}`;
+    } else {
+      const picked = await open({ directory: true });
+      dir = typeof picked === "string" ? picked : null;
+    }
+    if (!dir) return;
+    updateParams(id, { outputMode: "custom", outputFolder: dir });
+    rememberFolder(dir);
+    setFolderMenu(null);
+  };
+
+  const setFolderMode = (id: string, mode: "input" | "global" | "custom", folder?: string) => {
+    updateParams(id, folder === undefined ? { outputMode: mode } : { outputMode: mode, outputFolder: folder });
+    if (mode === "custom" && folder) rememberFolder(folder);
+    setFolderMenu(null);
   };
 
   const downloadWeights = (modelId: string) => {
@@ -208,17 +255,104 @@ export default function Inspector({
             className={inputCls}
           />,
         );
-      case "output":
+      case "output": {
+        const mode = s.params?.outputMode ?? "input";
         return (
           <>
             {field(
-              t("output.name"),
+              t("output.label"),
               <input
                 type="text"
-                value={s.params?.name ?? ""}
-                onChange={(e) => updateParams(s.id, { name: e.target.value })}
+                value={s.params?.label ?? ""}
+                onChange={(e) => updateParams(s.id, { label: e.target.value })}
                 className={inputCls}
               />,
+            )}
+            {field(
+              t("output.format"),
+              <select
+                value={s.params?.container ?? "mkv"}
+                onChange={(e) => updateParams(s.id, { container: e.target.value })}
+                className={inputCls}
+              >
+                {["mp4", "mkv", "webm", "mov"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              t("output.folder"),
+              <div className="relative flex items-center" ref={folderMenuRef}>
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    mode === "input"
+                      ? t("output.folder.input")
+                      : mode === "global"
+                        ? (outputDir ?? t("output.folder.global"))
+                        : (s.params?.outputFolder || t("output.folder.choose"))
+                  }
+                  title={
+                    mode === "input"
+                      ? t("output.folder.input")
+                      : mode === "global"
+                        ? (outputDir ?? t("output.folder.global"))
+                        : (s.params?.outputFolder || "")
+                  }
+                  onClick={() => pickOutputFolder(s.id)}
+                  className="w-full cursor-pointer truncate rounded-lg border border-slate-300 bg-white py-1.5 pl-3 pr-16 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                />
+                <div className="absolute right-1 flex items-center space-x-1">
+                  <button
+                    title={t("output.folder.recent")}
+                    onClick={() => setFolderMenu(folderMenu === s.id ? null : s.id)}
+                    className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  >
+                    ▾
+                  </button>
+                  <button
+                    title={t("output.folder.browse")}
+                    onClick={() => pickOutputFolder(s.id)}
+                    className="flex h-6 w-7 items-center justify-center rounded-md bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 hover:bg-indigo-500"
+                  >
+                    📂
+                  </button>
+                </div>
+                {folderMenu === s.id && (
+                  <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                    {[
+                      { mode: "input" as const, label: t("output.folder.input") },
+                      { mode: "global" as const, label: t("output.folder.global") },
+                    ].map((o) => (
+                      <button
+                        key={o.mode}
+                        onClick={() => setFolderMode(s.id, o.mode)}
+                        className="block w-full truncate px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                    {recentFolders.length > 0 && <div className="my-1 border-t border-slate-200 dark:border-slate-700" />}
+                    {recentFolders.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setFolderMode(s.id, "custom", f)}
+                        className="block w-full truncate px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        {f}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                    <button
+                      onClick={() => pickOutputFolder(s.id)}
+                      className="block w-full truncate px-3 py-1.5 text-left text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800"
+                    >
+                      {t("output.folder.choose")}
+                    </button>
+                  </div>
+                )}
+              </div>,
             )}
             {field(
               t("output.videoCodec"),
@@ -234,7 +368,55 @@ export default function Inspector({
               </select>,
             )}
             {field(
-              t("enc_audio.codec"),
+              t("output.preset"),
+              <select
+                value={s.params?.preset ?? "medium"}
+                onChange={(e) => updateParams(s.id, { preset: e.target.value })}
+                className={inputCls}
+              >
+                {["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"].map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              t("output.crf"),
+              <input
+                type="number"
+                min={0}
+                max={51}
+                value={s.params?.crf ?? 20}
+                onChange={(e) => updateParams(s.id, { crf: Number(e.target.value) })}
+                className={inputCls}
+              />,
+            )}
+            {field(
+              t("output.pixFmt"),
+              <select
+                value={s.params?.pixFmt ?? "yuv420p"}
+                onChange={(e) => updateParams(s.id, { pixFmt: e.target.value })}
+                className={inputCls}
+              >
+                {["yuv420p", "yuv420p10le", "yuv444p", "yuv444p10le"].map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              t("output.tune"),
+              <select
+                value={s.params?.tune ?? ""}
+                onChange={(e) => updateParams(s.id, { tune: e.target.value })}
+                className={inputCls}
+              >
+                <option value="">—</option>
+                {["film", "animation", "grain", "fastdecode", "zerolatency"].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              t("output.audio"),
               <select
                 value={s.params?.audioCodec ?? "Passthrough"}
                 onChange={(e) => updateParams(s.id, { audioCodec: e.target.value })}
@@ -271,6 +453,7 @@ export default function Inspector({
             )}
           </>
         );
+      }
       default:
         return <div className="text-xs text-slate-500">{t(`tab.${s.stepType}.empty`)}</div>;
     }
@@ -338,9 +521,9 @@ export default function Inspector({
                       <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                         {i + 1}. {t(meta.labelKey)}
                       </span>
-                      {s.stepType === "output" && s.params?.name && (
+                      {s.stepType === "output" && s.params?.label && (
                         <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-indigo-600 dark:bg-slate-800 dark:text-indigo-400">
-                          {s.params.name}
+                          {s.params.label}
                         </span>
                       )}
                     </div>

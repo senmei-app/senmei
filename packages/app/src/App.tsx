@@ -20,7 +20,7 @@ import {
   type RenderProgress,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
-import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
+import { buildEncoderArgs, defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
 import {
   demoProjects,
   demoVideos,
@@ -258,8 +258,19 @@ export default function App() {
       }
       return;
     }
-    const base = currentFile.split("/").pop()?.replace(/\.[^.]+$/, "_senmei.mp4") ?? "output_senmei.mp4";
-    const defaultPath = outputDir ? `${outputDir}/${base}` : currentFile.replace(/\.[^.]+$/, "_senmei.mp4");
+    const outs = steps.filter((s) => s.enabled && s.stepType === "output");
+    const lastOut = outs.length ? outs[outs.length - 1] : undefined;
+    const container = lastOut?.params?.container || "mkv";
+    const outMode = lastOut?.params?.outputMode ?? "input";
+    const customFolder = lastOut?.params?.outputFolder ?? "";
+    const targetDir =
+      outMode === "global" ? outputDir : outMode === "custom" ? customFolder || null : null;
+    const base =
+      currentFile.split("/").pop()?.replace(/\.[^.]+$/, `_senmei.${container}`) ??
+      `output_senmei.${container}`;
+    const defaultPath = targetDir
+      ? `${targetDir}/${base}`
+      : currentFile.replace(/\.[^.]+$/, `_senmei.${container}`);
     const output = await save({
       defaultPath,
       filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
@@ -279,10 +290,7 @@ export default function App() {
     const outResize = null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
-    const outs = enabled.filter((s) => s.stepType === "output");
-    const lastOut = outs.length ? outs[outs.length - 1] : undefined;
-    const outFfmpeg = lastOut?.params?.ffmpegArgs;
-    const outFfmpegArgs = outFfmpeg && outFfmpeg.trim() ? outFfmpeg : null;
+    const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
     try {
       await render(
         currentFile,
@@ -362,7 +370,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
-                <Inspector steps={steps} onChange={setSteps} />
+                <Inspector steps={steps} outputDir={outputDir} onChange={setSteps} />
               </Panel>
             </PanelGroup>
             <StatusBar health={health} fileCount={files.length} progress={progress} rendering={rendering} />

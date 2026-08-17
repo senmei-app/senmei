@@ -355,6 +355,19 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Structured encoder settings + merge (2026-08-17)** — the `output` step
+  gains RVE-style structured fields, all persisted in `StepParams`
+  (`crf`/`preset`/`pix_fmt`/`tune` + existing `videoCodec`/`audioCodec`/
+  `subtitleMode`): Preset select, CRF number, Pixel-format select, Tune select.
+  `buildEncoderArgs()` (frontend) **merges** them with the raw FFmpeg field:
+  the custom field wins for any flag it defines (e.g. `-tune grain`), the
+  dropdown values fill the rest (e.g. `-pix_fmt`); the merged string is passed
+  to `render` as before. The output-step `label` param (renamed from `name`)
+  is empty by default → the badge shows only when a real multi-output label is
+  set. Output-step also gains **Format** (`container`, default `mkv`) used for
+  the save-dialog extension, and **Output folder** mode (`output_mode`:
+  `input`/`global`/`custom` + `output_folder` picker) that sets the save
+  default target.
 - **Custom FFmpeg output options (2026-08-17)** — the `output` step gains a
   **FFmpeg options** textarea (`params.ffmpegArgs`, persisted in `project.json`
   via `StepParams.ffmpeg_args`). `render` accepts `ffmpegArgs: Option<String>`
