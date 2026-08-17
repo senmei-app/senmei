@@ -154,24 +154,40 @@ for lt, name, inputs, outputs, params in layers:
 
 forward = "\n".join(body)
 
-# --- struct fields + new() from shape inference ---
+# --- struct fields + new() + load_from_ncnn from shape inference ---
 fields = []
 new_body = []
+load_body = []
+weighted = []
 for lt, name, inputs, outputs, params in layers:
     if lt == "Convolution":
         in_c = blobs[inputs[0]][0]
         out_c = int(params.get(0))
+        k = int(params.get(1, 3))
         s = int(params.get(3, 1))
+        bias = int(params.get(5, 0)) == 1
         fields.append(f"    {name}: Conv2d<B>,")
         new_body.append(f"        {name}: conv2d({in_c}, {out_c}, {s}, device),")
+        load_body.append(f"        let (w, b) = rd({out_c}, {in_c * out_c * k * k}, {in_c}, {k}, {str(bias).lower()}, false);")
+        load_body.append(f"        self.{name}.weight = Param::from_tensor(w);")
+        load_body.append(f"        self.{name}.bias = b.map(Param::from_tensor);")
+        weighted.append((name, out_c, in_c * out_c * k * k, in_c, k, bias))
     elif lt == "Deconvolution":
         in_c = blobs[inputs[0]][0]
         out_c = int(params.get(0))
+        k = int(params.get(1, 4))
+        bias = int(params.get(5, 0)) == 1
         fields.append(f"    {name}: ConvTranspose2d<B>,")
         new_body.append(f"        {name}: deconv2d({in_c}, {out_c}, device),")
+        load_body.append(f"        let (w, b) = rd({out_c}, {in_c * out_c * k * k}, {in_c}, {k}, {str(bias).lower()}, true);")
+        load_body.append(f"        self.{name}.weight = Param::from_tensor(w);")
+        load_body.append(f"        self.{name}.bias = b.map(Param::from_tensor);")
+        weighted.append((name, out_c, in_c * out_c * k * k, in_c, k, bias))
 
 fields_txt = "\n".join(fields)
 new_txt = "\n".join(new_body)
+load_txt = "\n".join(load_body)
+n_layer = len(weighted)
 
 print(f"""//! RIFE v4.6 (`flownet`) — clean burn port, generated from the ncnn graph.
 //!
@@ -205,7 +221,7 @@ fn deconv2d<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> ConvTr
 
 /// Channel-axis slice [s..e) (ncnn Crop on axis 0).
 fn slice_c<B: Backend>(x: Tensor<B, 4>, s: usize, e: usize) -> Tensor<B, 4> {{
-    let [n, c, h, w] = x.dims();
+    let [n, _c, h, w] = x.dims();
     x.slice([0..n, s..e, 0..h, 0..w])
 }}
 
@@ -232,7 +248,7 @@ fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {{
 /// rife.Warp: backward bilinear warp by a 2-channel flow (align_corners=true,
 /// border padding) — matches `warp.comp`.
 fn warp<B: Backend>(img: Tensor<B, 4>, flow: Tensor<B, 4>) -> Tensor<B, 4> {{
-    let [n, c, h, w] = img.dims();
+    let [n, _c, h, w] = img.dims();
     let fx = flow.clone().slice([0..n, 0..1, 0..h, 0..w]);
     let fy = flow.slice([0..n, 1..2, 0..h, 0..w]);
 
@@ -265,7 +281,44 @@ impl<B: Backend> RifeNet<B> {{
     /// Interpolate frame `in0` -> `in1` at `in2` (timestep in [0,1]).
     pub fn forward(&self, in0: Tensor<B, 4>, in1: Tensor<B, 4>, in2: Tensor<B, 4>) -> Tensor<B, 4> {{
 {forward}        b_out0
-    }}}}
+    }}
+
+    /// Load weights from the rife-v4.6 ncnn `flownet.bin`.
+    ///
+    /// Format (per weighted layer, in .param order):
+    /// `[tag u32 = 0x01306B47][weights wsize x f16][bias out x f32 if bias_term]`
+    pub fn load_from_ncnn(&mut self, bin: &[u8], device: &B::Device) -> Result<(), String> {{
+        use burn::module::Param;
+        use burn::tensor::{{f16, TensorData}};
+        let mut pos = 0usize;
+        let mut rd = |out: usize, wsize: usize, in_c: usize, k: usize, bias: bool, transpose: bool|
+            -> (Tensor<B, 4>, Option<Tensor<B, 1>>) {{
+            pos += 4; // fp16 tag
+            let w: Vec<f32> = (0..wsize)
+                .map(|i| f16::from_bits(u16::from_le_bytes([bin[pos + 2 * i], bin[pos + 2 * i + 1]])).to_f32())
+                .collect();
+            pos += 2 * wsize;
+            let b = if bias {{
+                let bv: Vec<f32> = (0..out)
+                    .map(|i| f32::from_le_bytes([bin[pos + 4 * i], bin[pos + 4 * i + 1], bin[pos + 4 * i + 2], bin[pos + 4 * i + 3]]))
+                    .collect();
+                pos += 4 * out;
+                Some(Tensor::from_data(TensorData::new(bv, [out]), device))
+            }} else {{
+                None
+            }};
+            // ncnn stores deconv weights out-major [out, in, k, k]; burn's
+            // ConvTranspose2d expects [in, out, k, k].
+            let wt = Tensor::from_data(TensorData::new(w, [out, in_c, k, k]), device);
+            let wt = if transpose {{ wt.permute([1, 0, 2, 3]) }} else {{ wt }};
+            (wt, b)
+        }};
+{load_txt}        if pos != bin.len() {{
+            return Err(format!("ncnn bin: consumed {{pos}} of {{}} bytes", bin.len()));
+        }}
+        Ok(())
+    }}
+}}
 
 #[cfg(test)]
 mod tests {{
