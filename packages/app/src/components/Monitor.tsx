@@ -316,9 +316,9 @@ export default function Monitor({
           <div className="flex h-full w-full">
             <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
               {frames[file] ? (
-                <img src={frames[file]} alt="original" className="h-full w-full object-contain" />
+                <img src={frames[file]} alt="original" className="h-full w-full object-contain opacity-80" />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
                     {file.split("/").pop()}
                   </span>
@@ -333,10 +333,10 @@ export default function Monitor({
                 <img
                   src={frames[effRendered]}
                   alt="result"
-                  className={"h-full w-full object-contain" + (demoResult ? " saturate-150 brightness-105" : "")}
+                  className={"h-full w-full object-contain opacity-80" + (demoResult ? " saturate-150 brightness-105" : "")}
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
                     {effRendered.split("/").pop()}
                   </span>
@@ -357,16 +357,16 @@ export default function Monitor({
             onTimeUpdate={onVideoTime}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
-            className="max-h-full max-w-full object-contain"
+            className="max-h-full max-w-full object-contain opacity-80"
           />
         ) : src && frames[src] ? (
           <img
             src={frames[src]}
             alt="preview"
-            className={"max-h-full max-w-full object-contain" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
+            className={"max-h-full max-w-full object-contain opacity-80" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
             <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
               {name ?? t("monitor.placeholder")}
             </span>
