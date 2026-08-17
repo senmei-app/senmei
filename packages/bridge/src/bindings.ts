@@ -5,7 +5,7 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	healthCheck: () => __TAURI_INVOKE<string>("health_check"),
-	render: (input: string, output: string, scale: number | null, modelId: string | null, resize: number | null, outputResize: number | null, fpsMultiplier: number | null, ffmpegArgs: string | null, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, scale, modelId, resize, outputResize, fpsMultiplier, ffmpegArgs, onProgress }),
+	render: (input: string, output: string, scale: number | null, modelId: string | null, resize: number | null, outputResize: number | null, fpsMultiplier: number | null, interpModel: string | null, ffmpegArgs: string | null, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, scale, modelId, resize, outputResize, fpsMultiplier, interpModel, ffmpegArgs, onProgress }),
 	importFolder: (dir: string) => __TAURI_INVOKE<string[]>("import_folder", { dir }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
