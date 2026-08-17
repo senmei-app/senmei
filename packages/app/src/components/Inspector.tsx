@@ -3,137 +3,96 @@ import { isTauri, Channel } from "@tauri-apps/api/core";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
 import { demoDownloadModel, demoModels } from "../mock";
 import { useI18n } from "../i18n";
+import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
 
-type Group = "settings" | "advanced";
-
-function Accordion({
-  id,
-  icon,
-  title,
-  children,
-  placeholder,
-  enabled,
-  onToggle,
-}: {
-  id: string;
-  icon: string;
-  title: string;
-  children?: ReactNode;
-  placeholder?: string;
-  enabled: boolean;
-  onToggle: (id: string, enabled: boolean) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div
-      className={
-        enabled
-          ? "rounded-xl border border-indigo-400/60 bg-indigo-50/60 dark:border-indigo-500/40 dark:bg-indigo-500/10"
-          : "rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/60"
-      }
-    >
-      <div
-        onClick={() => {
-          setOpen((o) => {
-            const next = !o;
-            if (next && !enabled) onToggle(id, true);
-            return next;
-          });
-        }}
-        className="flex cursor-pointer select-none items-center justify-between p-3"
-      >
-        <div className="flex items-center space-x-2 text-left">
-          <span className="text-indigo-500 dark:text-indigo-400">{icon}</span>
-          <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{title}</span>
-        </div>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => onToggle(id, e.target.checked)}
-          className="h-[18px] w-[18px] cursor-pointer accent-indigo-500"
-        />
-      </div>
-      {open && (
-        <div className="border-t border-slate-200/60 p-3 dark:border-slate-800/60">
-          {children ?? <div className="text-xs text-slate-500">{placeholder}</div>}
-        </div>
-      )}
-    </div>
-  );
-}
+const inputCls =
+  "w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
+const segBtn = (active: boolean) =>
+  active
+    ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
+    : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
 
 export default function Inspector({
-  scale,
-  onScaleChange,
-  modelId,
-  onModelChange,
-  resizeFactor,
-  onResizeFactorChange,
-  outputResizeFactor,
-  onOutputResizeFactorChange,
-  fpsMultiplier,
-  onFpsChange,
-  stepsEnabled,
-  onToggleStep,
+  steps,
+  onChange,
 }: {
-  scale: number;
-  onScaleChange: (scale: number) => void;
-  modelId: string | null;
-  onModelChange: (modelId: string | null) => void;
-  resizeFactor: string;
-  onResizeFactorChange: (v: string) => void;
-  outputResizeFactor: string;
-  onOutputResizeFactorChange: (v: string) => void;
-  fpsMultiplier: number | null;
-  onFpsChange: (f: number | null) => void;
-  stepsEnabled: Record<string, boolean>;
-  onToggleStep: (id: string, enabled: boolean) => void;
+  steps: PipelineStep[];
+  onChange: (steps: PipelineStep[]) => void;
 }) {
   const { t } = useI18n();
-  const [group, setGroup] = useState<Group>("settings");
   const [models, setModels] = useState<ModelMetadata[]>([]);
-  const [interpolateModel, setInterpolateModel] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
 
   useEffect(() => {
     if (!isTauri()) {
       setModels(demoModels);
-      const interp = demoModels.find((m) => m.kind === "interpolate");
-      if (interp) setInterpolateModel(interp.id);
-      if (!modelId) {
-        const up = demoModels.find((m) => m.kind === "upscale" && m.loadable);
-        if (up) {
-          onModelChange(up.id);
-          onScaleChange(up.scale ?? 1);
-        }
-      }
       return;
     }
-    listModels()
-      .then((list) => {
-        setModels(list);
-        const interp = list.find((m) => m.kind === "interpolate");
-        if (interp) setInterpolateModel(interp.id);
-        // Default to the first upscale model only when none is persisted yet.
-        if (!modelId) {
-          const up = list.find((m) => m.kind === "upscale" && m.loadable);
-          if (up) {
-            onModelChange(up.id);
-            onScaleChange(up.scale ?? 1);
-          }
-        }
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    listModels().then(setModels).catch(() => {});
   }, []);
+
+  // Fill default models once the catalog loads (only when a step has none yet).
+  useEffect(() => {
+    if (models.length === 0) return;
+    let changed = false;
+    const next = steps.map((s) => {
+      if (s.params?.modelId) return s;
+      if (s.stepType === "upscale") {
+        const m = models.find((x) => x.kind === "upscale" && x.loadable);
+        if (m) {
+          changed = true;
+          return { ...s, params: { ...s.params, modelId: m.id, scale: s.params?.scale ?? m.scale ?? 2 } };
+        }
+      } else if (s.stepType === "interpolation") {
+        const m = models.find((x) => x.kind === "interpolate");
+        if (m) {
+          changed = true;
+          return { ...s, params: { ...s.params, modelId: m.id } };
+        }
+      }
+      return s;
+    });
+    if (changed) onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [models]);
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
-  const selectedUpscaleId = modelId ?? upscaleModels[0]?.id ?? "";
-  const upModel = upscaleModels.find((m) => m.id === selectedUpscaleId);
+
+  const update = (id: string, patch: Partial<PipelineStep>) =>
+    onChange(steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const updateParams = (id: string, params: Partial<PipelineStep["params"]>) =>
+    onChange(steps.map((s) => (s.id === id ? { ...s, params: { ...s.params, ...params } } : s)));
+
+  const addStep = (type: StepType) => {
+    const step = createStep(type);
+    onChange([...steps, step]);
+    setExpanded(step.id);
+    setMenuOpen(false);
+  };
+
+  const removeStep = (id: string) => {
+    const next = steps.filter((s) => s.id !== id);
+    onChange(next);
+    if (expanded === id) setExpanded(next[0]?.id ?? null);
+  };
+
+  const toggleStep = (id: string) => {
+    const s = steps.find((x) => x.id === id);
+    if (s) update(id, { enabled: !s.enabled });
+  };
+
+  const moveStep = (id: string, dir: -1 | 1) => {
+    const i = steps.findIndex((s) => s.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= steps.length) return;
+    const next = [...steps];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
 
   const downloadWeights = (modelId: string) => {
     if (downloading) return;
@@ -152,190 +111,284 @@ export default function Inspector({
       .finally(() => setDownloading(null));
   };
 
-  const step = (id: string) => ({ id, enabled: stepsEnabled[id] !== false, onToggle: onToggleStep });
+  const modelSelect = (models: ModelMetadata[], value: string | null | undefined, onValue: (id: string) => void) => (
+    <select value={value ?? ""} onChange={(e) => onValue(e.target.value)} className={inputCls}>
+      <option value="">—</option>
+      {models.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
+        </option>
+      ))}
+    </select>
+  );
 
-  const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void, propagate: boolean) => (
-    <div className="space-y-1">
-      <select
-        value={value}
-        onChange={(e) => {
-          const id = e.target.value;
-          onValue(id);
-          const m = models.find((x) => x.id === id);
-          if (propagate) {
-            onModelChange(m ? m.id : null);
-            if (m) onScaleChange(m.scale ?? 1);
-          }
-        }}
-        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-      >
-        <option value="">—</option>
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
-          </option>
-        ))}
-      </select>
+  const segButtons = (options: number[], value: number | null | undefined, onValue: (v: number | null) => void) => (
+    <div className="flex space-x-2">
+      {options.map((o) => (
+        <button key={o} onClick={() => onValue(value === o ? null : o)} className={segBtn(value === o)}>
+          {o}x
+        </button>
+      ))}
     </div>
   );
 
-  const factorField = (value: string, onValue: (v: string) => void) => (
+  const field = (label: string, children: ReactNode) => (
     <div>
-      <label className="mb-1 block text-[10px] text-slate-500 dark:text-slate-400">
-        {t("resize.factor")}
-      </label>
-      <input
-        type="number"
-        min={0.1}
-        step={0.1}
-        value={value}
-        placeholder="1.0"
-        onChange={(e) => onValue(e.target.value)}
-        className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-      />
+      <label className="mb-1 block text-[10px] text-slate-500 dark:text-slate-400">{label}</label>
+      {children}
     </div>
   );
+
+  const renderParams = (s: PipelineStep) => {
+    switch (s.stepType) {
+      case "interpolation":
+        return (
+          <>
+            {field(
+              t("fi.model"),
+              modelSelect(interpolateModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+            )}
+            {field(
+              t("fi.fps"),
+              segButtons([2, 3, 4], s.params?.fpsMultiplier, (v) => updateParams(s.id, { fpsMultiplier: v })),
+            )}
+          </>
+        );
+      case "upscale": {
+        const m = upscaleModels.find((x) => x.id === s.params?.modelId);
+        return (
+          <>
+            {field(
+              t("up.model"),
+              modelSelect(upscaleModels, s.params?.modelId, (id) =>
+                updateParams(s.id, {
+                  modelId: id,
+                  scale: s.params?.scale ?? upscaleModels.find((x) => x.id === id)?.scale ?? 2,
+                }),
+              ),
+            )}
+            {m?.loadable && (
+              <button
+                onClick={() => downloadWeights(m.id)}
+                disabled={!!downloading}
+                className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+              >
+                {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+              </button>
+            )}
+            {field(
+              t("up.scale"),
+              segButtons([2, 3, 4], s.params?.scale, (v) => updateParams(s.id, { scale: v ?? 2 })),
+            )}
+          </>
+        );
+      }
+      case "resize":
+        return field(
+          t("resize.factor"),
+          <input
+            type="number"
+            min={0.1}
+            step={0.1}
+            value={s.params?.factor ?? ""}
+            placeholder="1.0"
+            onChange={(e) => updateParams(s.id, { factor: e.target.value })}
+            className={inputCls}
+          />,
+        );
+      case "output":
+        return (
+          <>
+            {field(
+              t("output.name"),
+              <input
+                type="text"
+                value={s.params?.name ?? ""}
+                onChange={(e) => updateParams(s.id, { name: e.target.value })}
+                className={inputCls}
+              />,
+            )}
+            {field(
+              t("output.videoCodec"),
+              <select
+                value={s.params?.videoCodec ?? "H.264"}
+                onChange={(e) => updateParams(s.id, { videoCodec: e.target.value })}
+                className={inputCls}
+              >
+                <option>H.264</option>
+                <option>H.265</option>
+                <option>AV1</option>
+                <option>VP9</option>
+              </select>,
+            )}
+            {field(
+              t("enc_audio.codec"),
+              <select
+                value={s.params?.audioCodec ?? "Passthrough"}
+                onChange={(e) => updateParams(s.id, { audioCodec: e.target.value })}
+                className={inputCls}
+              >
+                <option>Passthrough</option>
+                <option>AAC</option>
+                <option>Opus</option>
+                <option>FLAC</option>
+              </select>,
+            )}
+            {field(
+              t("subtitle.mode"),
+              <select
+                value={s.params?.subtitleMode ?? "None"}
+                onChange={(e) => updateParams(s.id, { subtitleMode: e.target.value })}
+                className={inputCls}
+              >
+                <option>None</option>
+                <option>Copy</option>
+                <option>HardSub</option>
+                <option>SoftSub</option>
+              </select>,
+            )}
+          </>
+        );
+      default:
+        return <div className="text-xs text-slate-500">{t(`tab.${s.stepType}.empty`)}</div>;
+    }
+  };
 
   return (
     <aside className="h-full w-full overflow-y-auto border-l border-slate-200 bg-slate-100/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        {t("inspector.title")}
-      </h2>
-
-      <div className="mb-4 flex gap-1">
-        {(["settings", "advanced"] as Group[]).map((key) => (
-          <button
-            key={key}
-            onClick={() => setGroup(key)}
-            className={
-              group === key
-                ? "flex-1 rounded-md border border-indigo-500/40 bg-indigo-600/30 px-2 py-1.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-300"
-                : "flex-1 rounded-md bg-slate-200 px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-            }
-          >
-            {t(`group.${key}`)}
-          </button>
-        ))}
+      <div className="mb-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {t("stack.title")}
+        </h2>
+        <p className="text-[10px] text-slate-500">{t("stack.subtitle")}</p>
       </div>
 
-      {group === "settings" && (
-        <div className="space-y-3">
-          <Accordion {...step("interpolate")} icon="⚡" title={t("tab.interpolate")}>
-            <div className="space-y-2 text-xs">
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.model")}</label>
-                {modelSelect(interpolateModels, interpolateModel, setInterpolateModel, false)}
-              </div>
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("fi.fps")}</label>
-                <div className="flex space-x-2">
-                  {[2, 3, 4].map((s) => (
+      {steps.length === 0 && (
+        <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700">
+          {t("stack.empty")}
+        </div>
+      )}
+
+      <div className="space-y-1">
+        {steps.map((s, i) => {
+          const meta = STEP_META[s.stepType as StepType];
+          const isOpen = expanded === s.id;
+          return (
+            <div key={s.id}>
+              <div
+                className={
+                  s.enabled
+                    ? "rounded-xl border border-indigo-500/40 bg-indigo-500/[0.06] dark:bg-indigo-500/10"
+                    : "rounded-xl border border-slate-200 bg-white/60 opacity-60 dark:border-slate-800 dark:bg-slate-950/60"
+                }
+              >
+                <div
+                  className="flex cursor-pointer select-none items-center justify-between p-2.5"
+                  onClick={() => setExpanded(isOpen ? null : s.id)}
+                >
+                  <div className="flex items-center space-x-1.5 text-left">
+                    <span className="flex flex-col">
+                      <button
+                        title="up"
+                        disabled={i === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveStep(s.id, -1);
+                        }}
+                        className="px-1 py-px text-[10px] leading-none text-slate-400 hover:text-slate-600 disabled:opacity-20 dark:hover:text-slate-200"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        title="down"
+                        disabled={i === steps.length - 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveStep(s.id, 1);
+                        }}
+                        className="px-1 py-px text-[10px] leading-none text-slate-400 hover:text-slate-600 disabled:opacity-20 dark:hover:text-slate-200"
+                      >
+                        ▼
+                      </button>
+                    </span>
+                    <span className="text-indigo-500 dark:text-indigo-400">{meta.icon}</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                        {i + 1}. {t(meta.labelKey)}
+                      </span>
+                      {s.stepType === "output" && s.params?.name && (
+                        <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-indigo-600 dark:bg-slate-800 dark:text-indigo-400">
+                          {s.params.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={s.enabled}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleStep(s.id)}
+                      className="h-[18px] w-[18px] cursor-pointer accent-indigo-500"
+                    />
                     <button
-                      key={s}
-                      onClick={() => onFpsChange(fpsMultiplier === s ? null : s)}
-                      className={
-                        fpsMultiplier === s
-                          ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
-                          : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-                      }
+                      title="remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeStep(s.id);
+                      }}
+                      className="text-xs font-bold text-slate-500 hover:text-rose-400"
                     >
-                      {s}x
+                      ✕
                     </button>
-                  ))}
+                  </div>
                 </div>
+                {isOpen && (
+                  <div className="space-y-2.5 border-t border-indigo-500/20 p-3 text-xs">{renderParams(s)}</div>
+                )}
               </div>
-            </div>
-          </Accordion>
-
-          <Accordion {...step("decompress")} icon="📦" title={t("tab.decompress")} placeholder={t("tab.decompress.empty")} />
-          <Accordion {...step("denoise")} icon="🧹" title={t("tab.denoise")} placeholder={t("tab.denoise.empty")} />
-          <Accordion {...step("deblur")} icon="✨" title={t("tab.deblur")} placeholder={t("tab.deblur.empty")} />
-
-          <Accordion {...step("upscale")} icon="🔍" title={t("tab.upscale")}>
-            <div className="space-y-2 text-xs">
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
-                {modelSelect(upscaleModels, selectedUpscaleId, () => {}, true)}
-              </div>
-              {upModel?.loadable && (
-                <div>
-                  <button
-                    onClick={() => downloadWeights(upModel.id)}
-                    disabled={!!downloading}
-                    className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-                  >
-                    {downloading === upModel.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-                  </button>
-                </div>
+              {i < steps.length - 1 && (
+                <div className="my-0.5 flex justify-center text-[10px] text-slate-500">↓</div>
               )}
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.scale")}</label>
-                <div className="flex space-x-2">
-                  {[2, 3, 4].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => onScaleChange(s)}
-                      className={
-                        scale === s
-                          ? "flex-1 rounded-md bg-indigo-600 py-1 text-center font-medium text-white"
-                          : "flex-1 rounded-md bg-slate-200 py-1 text-center text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-                      }
-                    >
-                      {s}x
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
-          </Accordion>
+          );
+        })}
+      </div>
 
-          <Accordion {...step("dedup")} icon="📑" title={t("tab.dedup")} placeholder={t("tab.dedup.empty")} />
-          <Accordion {...step("resize")} icon="↔️" title={t("tab.resize")}>
-            {factorField(resizeFactor, onResizeFactorChange)}
-          </Accordion>
-          <Accordion {...step("output_resize")} icon="⤴️" title={t("tab.output_resize")}>
-            {factorField(outputResizeFactor, onOutputResizeFactorChange)}
-          </Accordion>
+      <div className="pt-3">
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex w-full items-center justify-center space-x-2 rounded-xl border border-dashed border-indigo-500/40 bg-indigo-500/5 py-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300"
+          >
+            <span className="text-sm font-bold">+</span>
+            <span>{t("stack.add")}</span>
+          </button>
+          {menuOpen && (
+            <div className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase text-slate-500">{t("stack.addTitle")}</div>
+              {STEP_ORDER.map((type) => {
+                const m = STEP_META[type];
+                return (
+                  <button
+                    key={type}
+                    disabled={!m.implemented}
+                    onClick={() => addStep(type)}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-200 dark:hover:bg-slate-800/80"
+                  >
+                    <span>
+                      {m.icon} {t(m.labelKey)}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{m.implemented ? "…" : "Soon"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {group === "advanced" && (
-        <div className="space-y-3">
-          <Accordion {...step("enc_video")} icon="🎬" title={t("tab.enc_video")} placeholder={t("tab.enc_video.empty")} />
-
-          <Accordion {...step("enc_audio")} icon="🎵" title={t("tab.enc_audio")}>
-            <div className="space-y-2 text-xs">
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("enc_audio.codec")}</label>
-                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                  <option>Passthrough</option>
-                  <option>AAC</option>
-                  <option>Opus</option>
-                  <option>FLAC</option>
-                </select>
-              </div>
-            </div>
-          </Accordion>
-
-          <Accordion {...step("subtitle")} icon="💬" title={t("tab.subtitle")}>
-            <div className="space-y-2 text-xs">
-              <div>
-                <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("subtitle.mode")}</label>
-                <select className="w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                  <option>None</option>
-                  <option>Copy</option>
-                  <option>HardSub</option>
-                  <option>SoftSub</option>
-                </select>
-              </div>
-            </div>
-          </Accordion>
-
-          <Accordion {...step("backend")} icon="⚙️" title={t("tab.backend")} placeholder={t("tab.backend.empty")} />
-        </div>
-      )}
-
-      <button className="mt-3 w-full rounded-xl bg-indigo-600 py-2.5 font-medium text-xs text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition">
+      <button className="mt-4 w-full rounded-xl bg-indigo-600 py-2.5 font-medium text-xs text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition">
         {t("sample.preview")}
       </button>
     </aside>

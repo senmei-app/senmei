@@ -63,6 +63,14 @@ export type ModelMetadata = {
 	loadable?: boolean,
 };
 
+/**  One module in the processing stack. Ordered top→bottom = execution order. */
+export type PipelineStep = {
+	id: string,
+	stepType: string,
+	enabled: boolean,
+	params?: StepParams,
+};
+
 export type ProjectEntry = {
 	name: string,
 	path: string,
@@ -70,9 +78,7 @@ export type ProjectEntry = {
 
 /**  Per-project Inspector settings persisted in `<project>/project.json`. */
 export type ProjectSettings = {
-	stepsEnabled?: { [key in string]: boolean },
-	upscaleModel?: string | null,
-	scale?: number | null,
+	steps?: PipelineStep[],
 	files?: string[],
 	outputDir?: string | null,
 };
@@ -85,6 +91,19 @@ export type RenderProgress = {
 export type Settings = {
 	language: string,
 	theme: string,
+};
+
+/**  Typed params per step type. Only the fields relevant to a step's type are set. */
+export type StepParams = {
+	modelId?: string | null,
+	scale?: number | null,
+	fpsMultiplier?: number | null,
+	factor?: string | null,
+	/**  Label for an output step (e.g. "Final", "Intermediate"). */
+	name?: string | null,
+	videoCodec?: string | null,
+	audioCodec?: string | null,
+	subtitleMode?: string | null,
 };
 
 export type VideoInfo = {

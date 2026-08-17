@@ -25,16 +25,46 @@ pub struct ProjectEntry {
     pub path: String,
 }
 
+/// Typed params per step type. Only the fields relevant to a step's type are set.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StepParams {
+    #[serde(default)]
+    pub model_id: Option<String>,
+    #[serde(default)]
+    pub scale: Option<u32>,
+    #[serde(default)]
+    pub fps_multiplier: Option<u32>,
+    #[serde(default)]
+    pub factor: Option<String>,
+    /// Label for an output step (e.g. "Final", "Intermediate").
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub video_codec: Option<String>,
+    #[serde(default)]
+    pub audio_codec: Option<String>,
+    #[serde(default)]
+    pub subtitle_mode: Option<String>,
+}
+
+/// One module in the processing stack. Ordered top→bottom = execution order.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PipelineStep {
+    pub id: String,
+    pub step_type: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub params: StepParams,
+}
+
 /// Per-project Inspector settings persisted in `<project>/project.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSettings {
     #[serde(default)]
-    pub steps_enabled: std::collections::HashMap<String, bool>,
-    #[serde(default)]
-    pub upscale_model: Option<String>,
-    #[serde(default)]
-    pub scale: Option<u32>,
+    pub steps: Vec<PipelineStep>,
     #[serde(default)]
     pub files: Vec<String>,
     #[serde(default)]
@@ -44,9 +74,7 @@ pub struct ProjectSettings {
 impl Default for ProjectSettings {
     fn default() -> Self {
         Self {
-            steps_enabled: std::collections::HashMap::new(),
-            upscale_model: None,
-            scale: None,
+            steps: Vec::new(),
             files: Vec::new(),
             output_dir: None,
         }
@@ -284,15 +312,24 @@ mod tests {
         with_temp_data_dir("project_settings", || {
             let dir = PathBuf::from(create_project("Settings").unwrap());
             let mut settings = ProjectSettings::default();
-            settings
-                .steps_enabled
-                .insert("upscale".to_string(), true);
-            settings.steps_enabled.insert("resize".to_string(), false);
+            settings.steps.push(PipelineStep {
+                id: "1".into(),
+                step_type: "upscale".into(),
+                enabled: true,
+                params: Default::default(),
+            });
+            settings.steps.push(PipelineStep {
+                id: "2".into(),
+                step_type: "resize".into(),
+                enabled: false,
+                params: Default::default(),
+            });
             save_project_settings(&dir, &settings).unwrap();
 
             let loaded = load_project_settings(&dir);
-            assert_eq!(loaded.steps_enabled.get("upscale"), Some(&true));
-            assert_eq!(loaded.steps_enabled.get("resize"), Some(&false));
+            assert_eq!(loaded.steps.len(), 2);
+            assert!(loaded.steps[0].enabled);
+            assert!(!loaded.steps[1].enabled);
         });
     }
 }
