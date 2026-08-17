@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **RIFE e2e verified (M3, 2026-08-17)** — `infer_interp` now pads the input
+  to multiples of 32 (matching rife-ncnn-vulkan, whose flow estimation runs at
+  1/32 scale) and crops the output back. Non-32 inputs previously hit a `Cat`
+  shape mismatch (e.g. 120 vs 128). New pipeline test
+  `rife_interpolates_real_model_e2e` runs decode → real `flownet.bin`
+  interpolate (Vulkan fp16) → encode: 10 frames @10fps in → 19 frames @20fps
+  out (needs `RUST_MIN_STACK=33554432`).
 - **Docs reorganization (2026-08-17)** — PLAN.md §15 moved to
   `docs/CHANGELOG.md`; PLAN.md's front sections rewritten for the current
   reality (burn-Vulkan fp16 is the engine; ncnn engine removed from the plan,
