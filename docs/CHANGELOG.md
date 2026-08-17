@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Monitor playback + sample dropdown (2026-08-18)** — playback now runs the
+  time indicator 1:1 real-time with at most one frame decode in flight (frames
+  are skipped if the decoder lags, so FFmpeg subprocesses never pile up — this
+  also fixes a performance regression/crash). The sample selector is now a
+  dropdown menu like the Output folder (10s/30s/60s/Full/Custom…), with the
+  custom duration editor supporting `55s`, `10m`, `1m30s`, `1h`. Fixed a bug
+  where picking a preset produced `NaN` (unit strings were parsed with
+  `Number()` → now `parseInt`). Verified: 30s → Out 00:00:30.00, 60s →
+  00:01:00.00, custom 55s → 00:00:55.00, 10m → 00:10:00.00.
 - **Monitor sample bar (2026-08-18)** — removed the redundant "Preview sample
   (15s)" button, promoted "Render Sample" to a filled primary button like
   Start Render, and made the sample range default to 10 s (highlighted preset).
