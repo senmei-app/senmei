@@ -3,6 +3,7 @@ mod interpolate;
 mod pipeline;
 mod step;
 
+pub use frame::{frame_to_tensor, tensor_to_frame};
 pub use interpolate::Interpolator;
 pub use pipeline::{Pipeline, Progress};
 pub use step::{Passthrough, Resize, Step, Upscale};
