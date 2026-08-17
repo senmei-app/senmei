@@ -9,7 +9,6 @@ export default function TopBar({
   onImportFile,
   onImportFolder,
   onStartRender,
-  onCancelRender,
   onCloseProject,
   onSettings,
   onGithub,
@@ -20,7 +19,6 @@ export default function TopBar({
   onImportFile: () => void;
   onImportFolder: () => void;
   onStartRender: () => void;
-  onCancelRender: () => void;
   onCloseProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
@@ -74,15 +72,6 @@ export default function TopBar({
         >
           <span>▶</span>
           <span>{t("render.start")}</span>
-        </button>
-        <button
-          onClick={onCancelRender}
-          disabled={!rendering}
-          title={t("queue.cancel")}
-          className="flex items-center space-x-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-1.5 font-medium text-red-500 transition hover:bg-red-500/20 active:scale-95 disabled:opacity-30 dark:text-red-400"
-        >
-          <span>■</span>
-          <span>{t("queue.cancel")}</span>
         </button>
         <div className="border-l border-slate-200 pl-3 dark:border-slate-800">
           <WindowControls />
