@@ -9,6 +9,7 @@ export default function TopBar({
   onImportFile,
   onImportFolder,
   onStartRender,
+  onCancelRender,
   onCloseProject,
   onSettings,
   onGithub,
@@ -19,6 +20,7 @@ export default function TopBar({
   onImportFile: () => void;
   onImportFolder: () => void;
   onStartRender: () => void;
+  onCancelRender: () => void;
   onCloseProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
@@ -59,14 +61,24 @@ export default function TopBar({
       </div>
 
       <div className="flex items-center space-x-3">
-        <button
-          onClick={onStartRender}
-          disabled={!file || rendering}
-          className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95 disabled:opacity-40"
-        >
-          <span>{rendering ? "…" : "▶"}</span>
-          <span>{rendering ? t("topbar.rendering") : t("render.start")}</span>
-        </button>
+        {rendering ? (
+          <button
+            onClick={onCancelRender}
+            className="flex items-center space-x-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-1.5 font-medium text-red-500 transition hover:bg-red-500/20 active:scale-95 dark:text-red-400"
+          >
+            <span>■</span>
+            <span>{t("queue.cancel")}</span>
+          </button>
+        ) : (
+          <button
+            onClick={onStartRender}
+            disabled={!file}
+            className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95 disabled:opacity-40"
+          >
+            <span>▶</span>
+            <span>{t("render.start")}</span>
+          </button>
+        )}
 
         <div className="border-l border-slate-200 pl-3 dark:border-slate-800">
           <WindowControls />

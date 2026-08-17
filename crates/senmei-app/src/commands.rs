@@ -1,9 +1,15 @@
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::ipc::Channel;
 
 use crate::store;
+
+/// Shared cancellation flag for the active render (set by `cancel_render`).
+static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 #[tauri::command]
 #[specta::specta]
@@ -190,6 +196,12 @@ pub fn create_project(name: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn delete_project(path: String) -> Result<(), String> {
+    store::delete_project(&path)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn remember_project(path: String) -> Result<(), String> {
     store::remember_project(&path)
 }
@@ -296,24 +308,40 @@ pub async fn render(
             steps.push(Box::new(senmei_pipeline::Resize::new(f)));
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        let cancel = CANCEL_RENDER
+            .get_or_init(|| Arc::new(AtomicBool::new(false)))
+            .clone();
+        cancel.store(false, Ordering::Relaxed);
+        pipeline.set_cancel(cancel);
         if let Some(f) = fps_multiplier {
             if f > 1 {
                 pipeline.set_interpolator(senmei_pipeline::Interpolator::new(f));
             }
         }
 
-        pipeline
-            .run(&ffmpeg, &input, &output, |p| {
-                let _ = on_progress.send(RenderProgress {
-                    frames_processed: p.frames_processed,
-                    total_frames: p.total_frames,
-                });
-            })
-            .map(|_| "ok".to_string())
-            .map_err(|e| e.to_string())
+        let run = pipeline.run(&ffmpeg, &input, &output, |p| {
+            let _ = on_progress.send(RenderProgress {
+                frames_processed: p.frames_processed,
+                total_frames: p.total_frames,
+            });
+        });
+        if run.is_err() {
+            // Drop the partial file on abort/error so it cannot be mistaken for a result.
+            let _ = std::fs::remove_file(&output);
+        }
+        run.map(|_| "ok".to_string()).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Abort the active render (the pipeline checks the flag between frames).
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_render() {
+    if let Some(c) = CANCEL_RENDER.get() {
+        c.store(true, Ordering::Relaxed);
+    }
 }
 
 #[cfg(test)]

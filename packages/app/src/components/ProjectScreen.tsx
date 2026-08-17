@@ -10,11 +10,13 @@ export default function ProjectScreen({
   onCreate,
   onOpen,
   onBrowse,
+  onDelete,
 }: {
   projects: ProjectEntry[];
   onCreate: (name: string) => void;
   onOpen: (path: string) => void;
   onBrowse: () => void;
+  onDelete: (path: string) => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
@@ -24,6 +26,10 @@ export default function ProjectScreen({
       onCreate(name.trim());
       setName("");
     }
+  };
+
+  const remove = (path: string) => {
+    if (window.confirm(t("project.deleteConfirm"))) onDelete(path);
   };
 
   return (
@@ -61,13 +67,24 @@ export default function ProjectScreen({
               <p className="text-xs text-slate-500">{t("project.none")}</p>
             ) : (
               projects.map((p) => (
-                <button
+                <div
                   key={p.path}
-                  onClick={() => onOpen(p.path)}
-                  className="truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  className="group flex items-center rounded-lg border border-slate-200 bg-white transition hover:bg-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
                 >
-                  {p.name}
-                </button>
+                  <button
+                    onClick={() => onOpen(p.path)}
+                    className="flex-1 truncate px-3 py-2 text-left text-sm text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+                  >
+                    {p.name}
+                  </button>
+                  <button
+                    onClick={() => remove(p.path)}
+                    title={t("project.delete")}
+                    className="px-2.5 py-2 text-sm text-slate-400 opacity-0 transition hover:text-red-500 group-hover:opacity-100 dark:hover:text-red-400"
+                  >
+                    🗑
+                  </button>
+                </div>
               ))
             )}
           </div>

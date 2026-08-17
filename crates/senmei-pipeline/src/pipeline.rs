@@ -1,4 +1,6 @@
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use senmei_media::{Decoder, Encoder};
 
@@ -13,6 +15,7 @@ pub struct Progress {
 pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
     interpolator: Option<Interpolator>,
+    cancel: Arc<AtomicBool>,
 }
 
 impl Pipeline {
@@ -20,7 +23,13 @@ impl Pipeline {
         Self {
             steps,
             interpolator: None,
+            cancel: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Install a cancellation flag; `run` aborts between frames once it is set.
+    pub fn set_cancel(&mut self, cancel: Arc<AtomicBool>) {
+        self.cancel = cancel;
     }
 
     /// Enable frame interpolation (e.g. 24 → 48 fps) before the step chain.
@@ -71,6 +80,9 @@ impl Pipeline {
         }
 
         while let Some(frame) = decoder.next_frame()? {
+            if self.cancel.load(Ordering::Relaxed) {
+                return Err(Error::cancelled());
+            }
             let mut batch = self.emit(frame)?;
             for step in &mut self.steps {
                 for frame in &mut batch {

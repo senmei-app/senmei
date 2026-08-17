@@ -15,6 +15,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::save_settings,
             commands::list_projects,
             commands::create_project,
+            commands::delete_project,
             commands::remember_project,
             commands::load_project_settings,
             commands::save_project_settings,
@@ -23,7 +24,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_models,
             commands::download_model,
             commands::probe_video,
-            commands::read_frame
+            commands::read_frame,
+            commands::cancel_render
         ])
 }
 

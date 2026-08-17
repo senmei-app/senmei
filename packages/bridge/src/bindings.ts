@@ -11,6 +11,7 @@ export const commands = {
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
 	listProjects: () => __TAURI_INVOKE<ProjectEntry[]>("list_projects"),
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
+	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
 	rememberProject: (path: string) => __TAURI_INVOKE<null>("remember_project", { path }),
 	loadProjectSettings: (path: string) => __TAURI_INVOKE<ProjectSettings>("load_project_settings", { path }),
 	saveProjectSettings: (path: string, settings: ProjectSettings) => __TAURI_INVOKE<null>("save_project_settings", { path, settings }),
@@ -25,6 +26,8 @@ export const commands = {
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
 	/**  Extract one frame at `position_ms` and return it as a base64 JPEG. */
 	readFrame: (input: string, positionMs: number | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs }),
+	/**  Abort the active render (the pipeline checks the flag between frames). */
+	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
 };
 
 /* Types */

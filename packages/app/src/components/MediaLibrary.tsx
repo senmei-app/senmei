@@ -5,17 +5,21 @@ import { useI18n } from "../i18n";
 export default function MediaLibrary({
   files,
   onOpen,
+  onRemoveFile,
   outputDir,
   onPickOutputDir,
   rendering,
+  onCancel,
   progress,
   renderedFile,
 }: {
   files: string[];
   onOpen: () => void;
+  onRemoveFile: (path: string) => void;
   outputDir: string | null;
   onPickOutputDir: () => void;
   rendering: boolean;
+  onCancel: () => void;
   progress: RenderProgress | null;
   renderedFile: string | null;
 }) {
@@ -93,6 +97,15 @@ export default function MediaLibrary({
                     </p>
                     <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">video</div>
                   </div>
+                  <button
+                    onClick={() => onRemoveFile(path)}
+                    title={t("media.remove")}
+                    className="rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100 dark:hover:text-red-400"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeWidth="2" d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>
@@ -101,9 +114,17 @@ export default function MediaLibrary({
           <div className="space-y-2 p-1">
             {rendering && (
               <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-2">
-                <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
-                  {t("queue.rendering")}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                    {t("queue.rendering")}
+                  </p>
+                  <button
+                    onClick={onCancel}
+                    className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500 hover:bg-red-500/20 dark:text-red-400"
+                  >
+                    {t("queue.cancel")}
+                  </button>
+                </div>
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                   <div
                     className="h-full bg-indigo-500 transition-all"

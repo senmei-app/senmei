@@ -355,6 +355,24 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **UX feedback batch (2026-08-17)** — projects are deletable (🗑 on the
+  project screen, `delete_project` command, confirm dialog); videos can be
+  removed from the library (✕ per row); **cancel render** (TopBar ■ + Queue
+  tab) via a shared `AtomicBool` checked between frames — partial output is
+  deleted on abort; Monitor gains a **Compare (side-by-side)** mode for the
+  source/result frames plus an auto-switch to the Result view when a render
+  finishes. Preview extraction now uses the **resolved ffmpeg** (portable
+  fallback) instead of bare `ffmpeg`. Tile size raised 256 → 512 to cut GPU
+  sync overhead (better GPU utilization at 1080p). `dev:release` script added
+  (`cargo tauri dev --release`) — debug builds render 10–50× slower.
+- **Prototype polish (2026-08-17)** — per-project persistence extended: selected
+  model/scale, imported videos and output folder are saved in `project.json`
+  (`ProjectSettings`). **ShuffleCugan** is the default upscaler (converted f16
+  `.bpk`; license flagged "prototype opt-in" pending author clarification).
+  Output folder is pickable (Media Library 📁) and used as the render save
+  default. Queue tab shows the active render + finished output. Monitor gains
+  Original/Result tabs (previews the rendered file) + an in-view render progress
+  overlay. Language switch removed from the top bar (Settings only).
 - **Preview prototype (2026-08-17)** — working Monitor: new `probe_video` +
   `read_frame` commands (`senmei_media::extract_frame`: ffmpeg `-ss pos -i …
   -frames:v 1 -c:v mjpeg -`, base64 JPEG over IPC) drive a canvas `<img>`

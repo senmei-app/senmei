@@ -7,7 +7,8 @@ use crate::{Error, Result};
 
 /// Extract one frame at `pos_secs` as a JPEG (codec-agnostic via ffmpeg).
 pub fn extract_frame(path: &Path, pos_secs: f64) -> Result<Vec<u8>> {
-    let output = Command::new("ffmpeg")
+    let ffmpeg = crate::resolve(Path::new("."));
+    let output = Command::new(ffmpeg)
         .args(["-ss", &format!("{pos_secs:.3}"), "-i"])
         .arg(path)
         .args(["-frames:v", "1", "-f", "image2pipe", "-c:v", "mjpeg", "-"])

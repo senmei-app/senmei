@@ -27,49 +27,68 @@ export default function Monitor({
   progress: RenderProgress | null;
 }) {
   const { t } = useI18n();
-  const [mode, setMode] = useState<"source" | "result">("source");
+  const [mode, setMode] = useState<"source" | "result" | "compare">("source");
   const src = mode === "result" && renderedFile ? renderedFile : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [img, setImg] = useState<string | null>(null);
+  const [frames, setFrames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
   const name = src ? src.split("/").pop() : null;
 
   const loadFrame = (ms: number) => {
-    if (!src || !isTauri()) return;
+    if (!isTauri()) return;
+    const targets: string[] = [];
+    if (mode === "compare") {
+      if (file) targets.push(file);
+      if (renderedFile) targets.push(renderedFile);
+    } else if (src) {
+      targets.push(src);
+    }
+    if (targets.length === 0) return;
     setLoading(true);
-    readFrame(src, ms)
-      .then((b64) => {
-        setImg(`data:image/jpeg;base64,${b64}`);
-        setError(null);
-      })
-      .catch((e) => {
-        console.error("readFrame failed:", e);
-        setImg(null);
-        setError(String(e));
-      })
-      .finally(() => setLoading(false));
+    targets.forEach((p) => {
+      readFrame(p, ms)
+        .then((b64) => {
+          setFrames((prev) => ({ ...prev, [p]: `data:image/jpeg;base64,${b64}` }));
+          setError(null);
+        })
+        .catch((e) => {
+          console.error("readFrame failed:", e);
+          setError(String(e));
+        })
+        .finally(() => setLoading(false));
+    });
   };
+
+  // Auto-switch to the Result view once a render completes.
+  const prevRendered = useRef<string | null>(null);
+  useEffect(() => {
+    if (renderedFile && renderedFile !== prevRendered.current) setMode("result");
+    prevRendered.current = renderedFile;
+  }, [renderedFile]);
 
   useEffect(() => {
     setInfo(null);
     setPosMs(0);
     setPlaying(false);
-    setImg(null);
+    setFrames({});
     setError(null);
-    if (!src || !isTauri()) return;
-    probeVideo(src)
-      .then(setInfo)
-      .catch((e) => {
-        console.error("probeVideo failed:", e);
-        setError(String(e));
-      });
+    if (!isTauri()) return;
+    const probeTarget = src ?? file;
+    if (probeTarget) {
+      probeVideo(probeTarget)
+        .then(setInfo)
+        .catch((e) => {
+          console.error("probeVideo failed:", e);
+          setError(String(e));
+        });
+    }
     loadFrame(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
+  }, [src, file, mode]);
 
   const onScrub = (ms: number) => {
     setPosMs(ms);
@@ -109,8 +128,39 @@ export default function Monitor({
   return (
     <main className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
       <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800">
-        {img ? (
-          <img src={img} alt="preview" className="max-h-full max-w-full object-contain" />
+        {mode === "compare" && file && renderedFile ? (
+          <div className="flex h-full w-full">
+            <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
+              {frames[file] ? (
+                <img src={frames[file]} alt="original" className="h-full w-full object-contain" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                  <span className="truncate px-4 font-mono text-sm text-slate-500">
+                    {file.split("/").pop()}
+                  </span>
+                </div>
+              )}
+              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+                {t("monitor.original")}
+              </span>
+            </div>
+            <div className="relative flex-1 overflow-hidden">
+              {frames[renderedFile] ? (
+                <img src={frames[renderedFile]} alt="result" className="h-full w-full object-contain" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                  <span className="truncate px-4 font-mono text-sm text-slate-500">
+                    {renderedFile.split("/").pop()}
+                  </span>
+                </div>
+              )}
+              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+                {t("monitor.result")}
+              </span>
+            </div>
+          </div>
+        ) : src && frames[src] ? (
+          <img src={frames[src]} alt="preview" className="max-h-full max-w-full object-contain" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
             <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
@@ -125,9 +175,14 @@ export default function Monitor({
             {mode === "source" && info ? ` ${info.width}x${info.height}` : ""}
           </button>
           {renderedFile && (
-            <button onClick={() => setMode("result")} className={tabCls(mode === "result")}>
-              {t("monitor.result")}
-            </button>
+            <>
+              <button onClick={() => setMode("compare")} className={tabCls(mode === "compare")}>
+                {t("monitor.compare")}
+              </button>
+              <button onClick={() => setMode("result")} className={tabCls(mode === "result")}>
+                {t("monitor.result")}
+              </button>
+            </>
           )}
         </div>
 

@@ -182,6 +182,32 @@ pub fn create_project(name: &str) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Delete a project: forget it in `projects.json` and remove its directory.
+/// Refuses paths outside the app's `projects` dir.
+pub fn delete_project(path: &str) -> Result<(), String> {
+    let dir = data_dir().join("projects");
+    let target = PathBuf::from(path);
+    if !target.starts_with(&dir) {
+        return Err("refusing to delete outside projects dir".into());
+    }
+
+    let mut projects: Vec<ProjectEntry> = std::fs::read_to_string(projects_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    projects.retain(|p| p.path != path);
+    if let Some(parent) = projects_path().parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(&projects).map_err(|e| e.to_string())?;
+    std::fs::write(projects_path(), json).map_err(|e| e.to_string())?;
+
+    if target.is_dir() {
+        std::fs::remove_dir_all(&target).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

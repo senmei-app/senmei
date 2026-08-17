@@ -23,4 +23,8 @@ impl Error {
     pub fn new(msg: impl Into<String>) -> Self {
         Self::Message(msg.into())
     }
+
+    pub fn cancelled() -> Self {
+        Self::Message("cancelled".into())
+    }
 }

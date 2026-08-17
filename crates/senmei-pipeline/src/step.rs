@@ -21,7 +21,7 @@ impl Step for Passthrough {
 }
 
 /// Default tile size handed to engines that advertise tiling support.
-const TILE_SIZE: u32 = 256;
+const TILE_SIZE: u32 = 512;
 
 /// Upscale step: runs the input frame through an ML engine, or falls back
 /// to a CPU bilinear scaler when no engine is available.

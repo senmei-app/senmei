@@ -4,7 +4,9 @@ import { isTauri, Channel } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  cancelRender,
   createProject,
+  deleteProject,
   getSettings,
   healthCheck,
   importFolder,
@@ -184,6 +186,20 @@ export default function App() {
     if (typeof dir === "string") setOutputDir(dir);
   };
 
+  const removeFile = (path: string) => {
+    setFiles((prev) => prev.filter((f) => f !== path));
+    if (currentFile === path) setRenderedFile(null);
+  };
+
+  const handleCancelRender = () => {
+    void cancelRender();
+  };
+
+  const handleDeleteProject = async (path: string) => {
+    await deleteProject(path);
+    await reloadProjects();
+  };
+
   const openGithub = () => {
     if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
   };
@@ -221,7 +237,8 @@ export default function App() {
       );
       setRenderedFile(output);
     } catch (e) {
-      setHealth(`render failed: ${e}`);
+      const msg = String(e);
+      if (!msg.toLowerCase().includes("cancelled")) setHealth(`render failed: ${e}`);
     } finally {
       setRendering(false);
     }
@@ -244,6 +261,7 @@ export default function App() {
             onCreate={handleCreateProject}
             onOpen={handleOpenProject}
             onBrowse={browseProject}
+            onDelete={handleDeleteProject}
           />
         ) : (
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
@@ -254,6 +272,7 @@ export default function App() {
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
               onStartRender={startRender}
+              onCancelRender={handleCancelRender}
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
@@ -263,9 +282,11 @@ export default function App() {
                 <MediaLibrary
                   files={files}
                   onOpen={openFiles}
+                  onRemoveFile={removeFile}
                   outputDir={outputDir}
                   onPickOutputDir={pickOutputDir}
                   rendering={rendering}
+                  onCancel={handleCancelRender}
                   progress={progress}
                   renderedFile={renderedFile}
                 />

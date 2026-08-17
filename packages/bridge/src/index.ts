@@ -34,6 +34,7 @@ export const saveSettings = (settings: Settings) => commands.saveSettings(settin
 
 export const listProjects = () => commands.listProjects();
 export const createProject = (name: string) => commands.createProject(name);
+export const deleteProject = (path: string) => commands.deleteProject(path);
 export const rememberProject = (path: string) => commands.rememberProject(path);
 
 export const loadProjectSettings = (path: string) => commands.loadProjectSettings(path);
@@ -52,3 +53,5 @@ export const downloadModel = (modelId: string, onProgress: Channel<DownloadProgr
 export const probeVideo = (input: string) => commands.probeVideo(input);
 export const readFrame = (input: string, positionMs: number | null) =>
   commands.readFrame(input, positionMs);
+
+export const cancelRender = () => commands.cancelRender();

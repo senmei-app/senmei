@@ -4,8 +4,9 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "dev": "cargo tauri dev",
+    "dev:release": "cargo tauri dev --release",
     "ui:dev": "cd packages/app && bun run dev",
     "build": "cd packages/app && bun run build",
-    "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pgrep -f target/debug/senmei | xargs -r kill -9; echo cleaned"
+    "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pgrep -f target/senmei | xargs -r kill -9; echo cleaned"
   }
 }
