@@ -34,6 +34,20 @@ pub trait InferenceEngine: Send + Sync {
         let _ = (input, scale);
         None
     }
+
+    /// Optional two-input frame interpolation (e.g. RIFE): produce the frame at
+    /// time `t` in [0,1] between `a` and `b` (both NCHW). Returns `None` to
+    /// fall back to the CPU blend.
+    fn infer_interp(
+        &mut self,
+        a: &Tensor,
+        b: &Tensor,
+        t: f32,
+        opts: &InferOptions,
+    ) -> Option<Result<Tensor>> {
+        let _ = (a, b, t, opts);
+        None
+    }
 }
 
 /// Run an engine over a full input, tiling when the engine advertises tile support
