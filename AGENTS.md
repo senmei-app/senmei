@@ -10,7 +10,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **UI host:** Tauri 2 + platform webview (webkit2gtk / WebView2 / WKWebView) — no CEF
 - **Frontend:** React + TypeScript + Vite · package manager `bun` · Base UI + Tailwind + lucide-react
 - **Inference:** burn (`burn-wgpu`) on the **Vulkan backend, fp16**, CPU fallback — **no libtorch, no ONNX Runtime, no TorchScript, no candle, no ncnn**
-- **Preview:** 2D canvas fed by FFmpeg-decoded frames (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
+- **Preview:** native `<video>` where the webview can load the file (hardware decode; H.264/AAC), FFmpeg-decoded frame fallback for everything else (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
 - **Media:** FFmpeg as subprocess with `rawvideo` pipe · source: **system FFmpeg preferred, portable download fallback** (BtbN builds, GPL — separate process, not bundled/linked)
 - **Pipeline:** composable `Vec<Step>` (`Upscale` + `Resize`) + a stateful interpolation stage (`Interpolator`) that emits blended intermediates (or duplicates across scene cuts) before the step chain
 - **License:** MIT OR Apache-2.0 · FFmpeg only as **LGPL build**

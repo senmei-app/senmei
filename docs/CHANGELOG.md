@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Native video preview + FFmpeg fallback (2026-08-18)** — the monitor source
+  preview now uses a native `<video>` element (hardware decode, via the Tauri
+  asset protocol + `convertFileSrc`), falling back to the FFmpeg-decoded frame
+  path only when the webview cannot load/play the file (`onError`). Play, scrub
+  and the sample in/out loop are wired to the video element. The asset protocol
+  is enabled in `tauri.conf.json` (scope `**`). Binding decision updated in
+  `AGENTS.md` + `PLAN.md` §1/§3.2. Browser demo unchanged (frames path).
 - **Monitor playback + sample dropdown (2026-08-18)** — playback now runs the
   time indicator 1:1 real-time with at most one frame decode in flight (frames
   are skipped if the decoder lags, so FFmpeg subprocesses never pile up — this
