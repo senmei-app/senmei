@@ -33,27 +33,6 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
     Ok(())
 }
 
-/// Extract every entry of a zip archive, stripping a leading directory prefix.
-#[allow(dead_code)] // used by M7 model download (NCNN release zips)
-pub fn extract_zip(archive: &Path, dest: &Path, strip_prefix: &str) -> Result<()> {
-    let file = fs::File::open(archive).map_err(Error::from)?;
-    let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(Error::from)?;
-        let rel = entry.name().trim_start_matches(strip_prefix).trim_start_matches('/');
-        if rel.is_empty() || entry.is_dir() {
-            continue;
-        }
-        let out = dest.join(rel);
-        if let Some(parent) = out.parent() {
-            fs::create_dir_all(parent).map_err(Error::from)?;
-        }
-        let mut f = fs::File::create(&out).map_err(Error::from)?;
-        std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
-    }
-    Ok(())
-}
-
 /// Pull a single file out of a zip or tar.xz archive by path suffix.
 pub fn extract_binary(archive: &Path, out: &Path, suffix: &str) -> Result<()> {
     let file = fs::File::open(archive).map_err(Error::from)?;

@@ -55,6 +55,66 @@ pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
         .unwrap_or_default()
 }
 
+/// Download a model's weights (`.pth`, sha256-verified when pinned) and
+/// convert them to the app's f16 `.bpk` burnpack.
+#[tauri::command]
+#[specta::specta]
+pub async fn download_model(
+    model_id: String,
+    on_progress: Channel<DownloadProgress>,
+) -> Result<String, String> {
+    let (registry, dir) = load_registry()?;
+    let meta = registry
+        .models()
+        .iter()
+        .find(|m| m.id == model_id)
+        .ok_or_else(|| format!("model not found: {model_id}"))?
+        .clone();
+    if !meta.loadable {
+        return Err(format!("model {model_id} has no loadable arch yet"));
+    }
+    let url = meta
+        .download_url
+        .clone()
+        .ok_or_else(|| format!("model {model_id} has no download_url"))?;
+    let weight = meta
+        .weights
+        .as_ref()
+        .and_then(|w| w.first())
+        .cloned()
+        .ok_or_else(|| format!("model {model_id} has no weights"))?;
+    if !weight.ends_with(".bpk") {
+        return Err(format!("expected f16 burnpack weight, got {weight}"));
+    }
+    // Sources host the f32 `.pth`; download it, convert to the f16 `.bpk`.
+    let pth_name = format!("{}.pth", weight.trim_end_matches(".f16.bpk"));
+    let bpk_path = dir.join(&weight);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut progress = on_progress;
+        let pth = senmei_media::download_to_temp(
+            &url,
+            &dir,
+            &pth_name,
+            meta.sha256.as_deref(),
+            &mut |d, t| {
+                let _ = progress.send(DownloadProgress { downloaded: d, total: t });
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        let num_block = meta
+            .metadata
+            .get("num_block")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(4) as u32;
+        senmei_ml::convert_pth_to_bpk(&meta.arch, &pth, &bpk_path, meta.scale, num_block)
+            .map_err(|e| e.to_string())?;
+        let _ = std::fs::remove_file(&pth);
+        Ok::<String, String>(bpk_path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {

@@ -7,6 +7,7 @@ mod probe;
 mod process;
 
 pub use decoder::Decoder;
+pub use downloader::download_to_temp;
 pub use encoder::Encoder;
 pub use ffmpeg::{download, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;

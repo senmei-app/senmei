@@ -20,7 +20,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::save_project_settings,
             commands::get_ffmpeg_status,
             commands::download_ffmpeg,
-            commands::list_models
+            commands::list_models,
+            commands::download_model
         ])
 }
 
