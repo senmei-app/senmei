@@ -131,6 +131,28 @@ export default function Monitor({
       ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
       : null;
 
+  const renderStart = useRef<number | null>(null);
+  useEffect(() => {
+    renderStart.current = rendering ? (renderStart.current ?? Date.now()) : null;
+  }, [rendering]);
+
+  const fmtEta = (s: number): string => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  };
+
+  const stats = (() => {
+    if (!rendering || !progress || progress.totalFrames <= 0 || renderStart.current === null) {
+      return null;
+    }
+    const elapsed = Math.max(0.001, (Date.now() - renderStart.current) / 1000);
+    const fps = progress.framesProcessed / elapsed;
+    const remaining = fps > 0 ? (progress.totalFrames - progress.framesProcessed) / fps : 0;
+    return { fps, eta: fmtEta(remaining) };
+  })();
+
   const tabCls = (active: boolean) =>
     active
       ? "rounded-md border border-indigo-500/40 bg-indigo-600/40 px-2 py-1 text-[10px] font-mono text-indigo-200 backdrop-blur"
@@ -213,11 +235,16 @@ export default function Monitor({
           </div>
         )}
 
-        {pct !== null && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1.5 font-mono text-xs text-white backdrop-blur">
-            {t("monitor.rendering")} {pct}%
+        {pct !== null && progress && (
+          <div className="absolute bottom-3 left-3 rounded-md bg-black/75 px-3 py-2 font-mono text-[11px] leading-5 text-white backdrop-blur">
+            <div>{t("monitor.status")}: {t("queue.rendering")}</div>
+            <div>{t("monitor.fps")}: {stats ? stats.fps.toFixed(1) : "–"}</div>
+            <div>{t("monitor.eta")}: {stats ? stats.eta : "–"}</div>
             <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-slate-700">
               <div className="h-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="mt-0.5 text-[10px] text-slate-400">
+              {pct}% · {progress.framesProcessed}/{progress.totalFrames}
             </div>
           </div>
         )}
