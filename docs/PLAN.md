@@ -270,15 +270,15 @@ sequenceDiagram
 |---|---|---|---|
 | **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait | ✅ done |
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain | ✅ done |
-| **M2** | **Upscaling** | SPAN/Real-ESRGAN via NCNN, tiling, progress | 🟡 reference bilinear scaler only (ML via NCNN pending M6) |
-| **M3** | **Interpolation** | RIFE via NCNN, scene-change detection, interpolation factor | 🟡 linear blend + scene-cut only (RIFE pending) |
+| **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (shuffle-cugan, e2e verified 1080p→2160p); NCNN plan superseded |
+| **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | 🟡 linear blend + scene-cut only (RIFE pending) |
 | **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 basic settings only |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ⬜ pending |
-| **M6** | **NCNN/Vulkan** | C++ shim + `NcnnEngine` (primary engine, decided 2026-08-16), backend selection | ⬜ pending — **execute first** (`NcnnEngine` is a stub) |
-| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue | ⬜ pending |
+| **M6** | **Engine** | `NcnnEngine` (C++ shim) vs burn; decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**, `senmei-ncnn` on hold, burn-libtorch deferred | ⬜ `NcnnEngine` is a stub, on hold |
+| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue | ⬜ pending — **batch queue is the next big feature** |
 | **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | ⬜ pending |
 
-> **Execution order (2026-08-16):** the NCNN/Vulkan shim (**M6**) is the **critical path** and is executed **first** (right after M0/M1). It unblocks real upscaling (M2) and RIFE (M3); M4/M5 follow. The M-numbers are stable feature labels, not a strict build sequence.
+> **Execution order (2026-08-16):** the NCNN/Vulkan shim (**M6**) was the original critical path. **Revised 2026-08-17:** the engine decision moved to **burn-Vulkan fp16 as default** (M2 real upscale done); `senmei-ncnn`/libtorch are parked. The M-numbers are stable feature labels, not a strict build sequence.
 
 ---
 
