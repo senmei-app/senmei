@@ -355,9 +355,62 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Engine switch v3 (decision, 2026-08-17)** — ncnn removed; inference = **burn
+  (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback. Deleted
+  `crates/senmei-ncnn` (C++ shim) and `NcnnEngine`; dropped the `ncnn` registry
+  field. Replaced `xz2` with `liblzma` in `senmei-media` (resolves the
+  `links="lzma"` conflict with `cubecl-cpu`/`tracel-llvm-bundler`). Added
+  **`BurnEngine`** (feature `senmei-ml/burn`, wired into `senmei-app`): loads f16
+  `.bpk` burnpacks via `BurnpackStore` and runs the clean **`UpCunet2x`** arch
+  (port from `~/github/rust-sr-bench`, verified) on `Vulkan<f16>`. Registry
+  schema: `ncnn` → `weights` + `download_url`/`sha256`; `models/metadata.json`
+  re-catalogued from VSGAN/TAS hosts. Archs ported: **`upcunet2x`**,
+  **`upcunet2x-fast`** (ShuffleCugan) and **`realesrgan`** (RRDBNet, scale 2/4
+  via `Option` conv_up2, `num_block` from metadata) — `real-cugan-x2` + 3×
+  Real-ESRGAN are `loadable`; SCUNet / Real-PLKSr / Anime1080Fixer (license
+  verify) and RIFE (+ 2-input API) still pending. `BurnEngine` dispatches on
+  `ModelRef::arch`. See `docs/models.md` + `docs/benchmarks.md`.
+- **Burn re-benchmark (2026-08-17)** — re-tested burn with the **real** Real-CUGAN
+  upcunet (`up2x-no-denoise.pth` via `burn-store::PytorchStore`) instead of the
+  3-conv toy. All outputs numerically verified against the torch reference.
+  Findings: **burn-ROCm f32** = 1119/2197 ms @720p/1080p and fp16/bf16 are
+  **impossible on RDNA4** (cubecl-hip uses CDNA-only WMMA kernels → `LLVM ERROR`);
+  **burn-Vulkan fp16** runs the real model at **136/302 ms** (720p/1080p) —
+  *faster than ncnn* (249/398 ms) — and the **ShuffleCugan** variant at
+  **46/103 ms**. Vulkan f32 1080p crashes on a `burn-fusion` bug. This **revises
+  the 2026-08-16 "burn set aside" verdict** (it was a toy on the wrong backend);
+  burn is re-opened as a candidate, but adoption must weigh the ~800-crate /
+  1.6 GB build, the fusion bug, and the f32→f16 load workflow. Engine stays
+  **NCNN/Vulkan** until a maintainer decision. Details: `docs/benchmarks.md`;
+  repo: `~/github/rust-sr-bench`.
+- **Candle-ROCm evaluation (2026-08-17)** — tried the `xmiksay/feat/rocm-backend`
+  candle fork (local `~/github/candle`, branch `test/xmiksay-rocm`; rocBLAS GEMM
+  + im2col conv) via a feature-gated `candle` bin in `~/github/rust-sr-bench`.
+  Numerically correct (HIP vs CPU ~1e-5), but f32 convs always materialize the
+  im2col matrix → memory cliff from ~640p (multi-GB buffers crash the desktop on
+  shared-display GPUs; SD/FLUX VAE decode OOMs at 1024²); f16 scales linearly
+  but stays ~6× slower than burn-Vulkan fp16 (290 vs 46 ms @720p ShuffleCugan);
+  the ShuffleCugan port additionally OOMs at any size (fork conv bug).
+  **Not pursued — burn stays the candidate** (Vulkan fp16). Abandoned work
+  remains feature-gated/uncommitted in `rust-sr-bench`.
+- **Weights workflow (2026-08-17)** — `senmei-ml` gains a feature-gated
+  `senmei-ml-convert` bin: loads a torch `.pth` (f32, Vulkan, upcunet key
+  remap) and saves the arch as an f16 `.bpk` burnpack (`HalfPrecisionAdapter`).
+  Proven end-to-end on the real `up2x-no-denoise.pth` (→ 2.5 MB `.bpk`); an
+  ignored GPU test loads the `.bpk` through `BurnEngine` and infers 32×32 →
+  64×64. New `download_model` Tauri command: downloads the `.pth`
+  (`download_to_temp`, sha256-verified when pinned) and converts it to the
+  `.bpk` in-app. Removed dead `extract_zip` from `senmei-media`.
+- **Archs (2026-08-17)** — ported **`UpCunet2xFast`** (ShuffleCugan, from
+  `rust-sr-bench`) and **`RrdbNet`** (Real-ESRGAN, BSD-3 reference) into
+  `senmei-ml::burn`; `BurnEngine` now dispatches on `ModelRef::arch`
+  (`upcunet2x` / `upcunet2x-fast` / `realesrgan`). `RrdbNet` uses burn's
+  `Vec<Rrdb>` (torch `body.0…`) and `Option<Conv2d>` (`conv_up2` only at
+  scale 4). Real-ESRGAN models flipped `loadable`; RRDBNet numerical
+  verification vs torch is the next step (rust-sr-bench harness).
 - **M6 (foundation, 2026-08-17)** — new `crates/senmei-ncnn` C++ shim (bindgen + cc): `build.rs` builds NCNN `20260526` from `third_party/ncnn` (Vulkan + CPU, auto-cloned if missing; dir is gitignored) and exposes a safe Rust `Engine` (load `.param`/`.bin`, planar NCHW infer). `NcnnEngine` in `senmei-ml` is now real (was a stub). Verified with the Real-CUGAN `up2x-no-denoise` model — its upcunet crops a fixed border (`out = 2·h − 72`), which the shim/engine faithfully returns; border-aware tiling is a follow-up. `metadata.json` pins the real asset name `up2x-no-denoise`. Build deps: `cmake`, `g++`, Vulkan.
-- **Inference engine switch v2 (decision, 2026-08-16)** — after benchmarking on the target AMD RX 9070 (RDNA4/`gfx1201`), the engine is **NCNN/Vulkan** via C++ shim (`cxx`/bindgen) with **CPU fallback**. **candle is dropped** (no ROCm backend; per-model Rust ports). **burn set aside** (fusion/JIT immature for SR). Model format is ncnn `.param`/`.bin` (community ports) — **no safetensors graph loading, no conversion, no Python, no Rust arch ports**. The per-model cost is finding a permissively-licensed NCNN port. Evidence in `docs/benchmarks.md`: ncnn 1080p x2 = 398 ms vs torch-ROCm 7153 ms (pathological) + tile OOM/hard-fault on RDNA4. Obsolete vs v1: `CandleEngine`, `.safetensors` loading, "port each arch to Rust" plan. Registry schema: `torch` field → `ncnn` (see §6.4).
-- **NCNN-only code switch (2026-08-16)** — removed the `torch` feature, `tch` dep, `TorchEngine`, and the `torch`/`download_url`/`sha256` `ModelMetadata` fields. `engine_for_model` maps only `.param`/`.bin` → `NcnnEngine`; `Registry::resolve` points at the `.param` (the `.bin` sits alongside). Registry = 7 NCNN models (`rife-4.26`, Real-ESRGAN ×3, Real-CUGAN up2x, SwinIR x2/x4) — `loadable: false` until the C++ shim lands (M6). Dropped the `download_model` command + `senmei_media::download_model`, the `scripts/convert_*.py` pipeline, and local `models/*.pt`. `Backend` = `Cpu | Vulkan`. Bridge bindings regenerated. Exact NCNN asset filenames still need pinning in M7.
+- ~~**Inference engine switch v2 (decision, 2026-08-16)**~~ — **superseded 2026-08-17 (v3: burn/Vulkan)** — after benchmarking on the target AMD RX 9070 (RDNA4/`gfx1201`), the engine was **NCNN/Vulkan** via C++ shim (`cxx`/bindgen) with **CPU fallback**. **candle dropped** (no ROCm backend; per-model Rust ports). **burn set aside** (fusion/JIT immature for SR). Model format was ncnn `.param`/`.bin` (community ports) — **no safetensors graph loading, no conversion, no Python, no Rust arch ports**. The per-model cost is finding a permissively-licensed NCNN port. Evidence in `docs/benchmarks.md`: ncnn 1080p x2 = 398 ms vs torch-ROCm 7153 ms (pathological) + tile OOM/hard-fault on RDNA4. Obsolete vs v1: `CandleEngine`, `.safetensors` loading, "port each arch to Rust" plan. Registry schema: `torch` field → `ncnn` (see §6.4).
+- ~~**NCNN-only code switch (2026-08-16)**~~ — **superseded 2026-08-17 (v3)** — removed the `torch` feature, `tch` dep, `TorchEngine`, and the `torch`/`download_url`/`sha256` `ModelMetadata` fields. `engine_for_model` mapped only `.param`/`.bin` → `NcnnEngine`; `Registry::resolve` pointed at the `.param` (the `.bin` sat alongside). Registry = 7 NCNN models (`rife-4.26`, Real-ESRGAN ×3, Real-CUGAN up2x, SwinIR x2/x4) — `loadable: false` until the C++ shim lands (M6). Dropped the `download_model` command + `senmei_media::download_model`, the `scripts/convert_*.py` pipeline, and local `models/*.pt`. `Backend` = `Cpu | Vulkan`. Bridge bindings regenerated. Exact NCNN asset filenames still need pinning in M7.
 - **Download-on-demand (decision, 2026-08-16)** — model weights are **not bundled or redistributed**. The app downloads `.param`/`.bin` from a pinned upstream URL on first use (M7). Keeps the runtime small and sidesteps redistribution-license questions for models whose ports lack a clear license; `metadata.json` records license + source for transparency.
 - **Libtorch downloader/UI cleanup (TODO, 2026-08-16)** — the libtorch provisioning path still exists (`senmei-media/src/libtorch.rs`, `get_libtorch_status`/`download_libtorch`, `useLibtorch`, SettingsPage inference section, i18n strings) and contradicts the engine switch. Remove it in a follow-up; the Settings inference section should later show the NCNN backend instead.
 - ~~**Inference engine switch (decision, 2026-08-16)**~~ — **superseded by v2** (candle dropped after benchmarks; engine = NCNN/Vulkan) — libtorch/`tch`/TorchScript is **dropped**. `senmei-ml` moves to **candle** (CPU/CUDA/Metal) + **NCNN/Vulkan** (no ONNX, no TorchScript). Models are **downloaded** as `.safetensors` from pinned HF repos (Koharu-style `model_repository!` pattern, repo + commit SHA) — **no conversion, no Python**. Each architecture is **ported to Rust** (`candle-nn`) once; that is the main per-model cost. Consequence: the ROCm/AMD-Linux accelerated path is dropped (AMD → NCNN/Vulkan). Obsolete: the `torch` feature, `tch` dep, `TorchEngine`, `scripts/convert_*.py`, and the existing `.pt` files (models re-fetched as `.safetensors`).

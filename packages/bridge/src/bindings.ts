@@ -17,6 +17,11 @@ export const commands = {
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
+	/**
+	 *  Download a model's weights (`.pth`, sha256-verified when pinned) and
+	 *  convert them to the app's f16 `.bpk` burnpack.
+	 */
+	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 };
 
 /* Types */
@@ -40,13 +45,15 @@ export type ModelMetadata = {
 	kind: ModelKind,
 	scale?: number,
 	arch: string,
-	ncnn?: string[] | null,
+	/**  Weight files (e.g. `.pth`, `.bpk`), first entry is the primary. */
+	weights?: string[] | null,
 	license?: string | null,
 	source_url?: string | null,
-	/**
-	 *  Whether the engine can load these weights yet (the ncnn shim is not
-	 *  wired until M6, so all models are not loadable for now).
-	 */
+	/**  Direct download URL for the primary weight file (download-on-demand). */
+	download_url?: string | null,
+	/**  SHA-256 of the primary weight file, verified on download. */
+	sha256?: string | null,
+	/**  Whether the engine can load these weights yet. */
 	loadable?: boolean,
 };
 

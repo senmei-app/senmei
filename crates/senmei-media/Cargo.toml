@@ -15,5 +15,5 @@ specta = { version = "2.0.0-rc.25", features = ["derive"] }
 tar = "0.4"
 thiserror = "2"
 ureq = "2"
-xz2 = "0.1"
+liblzma = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }

@@ -1,85 +1,82 @@
 # Model Adoption Notes
 
 Research & adoption matrix for ML models. Companion to `PLAN.md` §14 (licensing
-policy) and `models/metadata.json` (registry). Last verified: 2026-08-16.
+policy) and `models/metadata.json` (registry). Last verified: 2026-08-17.
 
 Adoption rule (from `AGENTS.md`/`PLAN.md`): only permissive weights
-(BSD/MIT/Apache), never AGPL-derived (RVE/TAS off-limits). Each adopted model
-gets a `metadata.json` entry with license + source + pinned HF repo/commit.
+(BSD/MIT/Apache), never AGPL-derived (RVE/TAS off-limits). Weights and arch are
+separate licenses: a clean arch re-implementation does not relicense the
+weights. Each adopted model gets a `metadata.json` entry with license + source +
+download URL (+ sha256 where known).
 
-## Model flow (2026-08-16, v2)
+## Model flow (2026-08-17, v3)
 
-- Inference stack: **NCNN/Vulkan** via C++ shim (`cxx`/bindgen), CPU fallback.
-  No libtorch, no ONNX, no TorchScript, **no candle**.
-- Models are **downloaded** as ncnn `.param`/`.bin` (community ports) from pinned
-  repos (repo + commit SHA) — **no conversion, no Python, no Rust arch ports**.
-- The per-model cost is finding a **permissively-licensed NCNN port**; the Rust
-  side only shells out through the shim.
-- candle/burn were evaluated and **dropped** (candle: no ROCm backend; burn:
-  fusion/JIT immature for SR). `.safetensors`/`.pth`/`.pt` and the
-  `scripts/convert_*.py` pipeline are obsolete. Evidence: `docs/benchmarks.md`.
+- Inference stack: **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU
+  fallback. No libtorch, no ONNX Runtime, no TorchScript, **no candle, no ncnn**.
+- Every architecture is a **clean Rust re-implementation** in burn (from the spec
+  or a permissively-licensed reference), never translated from AGPL/unclear
+  code. Weights are loaded as `.pth` (via `burn-store`) and converted once to
+  f16 `.bpk` burnpacks; the engine (`BurnEngine`) consumes the `.bpk`.
+- Weights workflow: `senmei-ml-convert <arch> <model.pth> <out.bpk>` converts
+  f32 `.pth` → f16 `.bpk` (maintainer step, proven on the real up2x weights);
+  in-app, the `download_model` command downloads the `.pth` (sha256-verified
+  when pinned) and converts it automatically.
+- The per-model cost is: (a) the burn arch port, (b) a permissive-weight license
+  check, (c) the one-time `.pth → f16 .bpk` conversion.
+- Engine decision (2026-08-17): **burn** beats ncnn (302 vs 398 ms @1080p up2x;
+  ShuffleCugan 46/103 ms) — see `docs/benchmarks.md`.
 
 ## Engine / integration status
 
+- **BurnEngine** (Vulkan fp16) implements `InferenceEngine` and dispatches on
+  `ModelRef::arch`: **`upcunet2x`** (verified in `rust-sr-bench`), **`upcunet2x-fast`**
+  (ShuffleCugan, verified) and **`realesrgan`** (`RRDBNet`, BSD-3 port).
+  `real-cugan-x2` + the 3× Real-ESRGAN models are `loadable: true`; SCUNet,
+  Real-PLKSr, Anime1080Fixer (license verify) and RIFE (2-input API) are pending.
 - **Interpolation** is a placeholder: `senmei-ml::interpolate` only does linear
-  `blend` + scene-cut detection (duplicate frames). RIFE planned
-  (`rife-4.26`, MIT, `hzwer/Practical-RIFE`) but requires a **2-input** infer
-  (frame pair + `t`) — the current `InferenceEngine::infer(input, opts)` is
-  single-tensor and must be extended.
-- **NcnnEngine** (Vulkan + CPU) is the **single engine** (decision 2026-08-16);
-  it is a stub — wiring the C++ shim is the M6 work item.
+  `blend` + scene-cut detection. RIFE (`rife-4.25`, Apache-2.0) needs a
+  **2-input** infer (frame pair + `t`) — the current `InferenceEngine::infer`
+  is single-tensor and must be extended.
 - **Deduplication** is a pipeline/UI step (frame-similarity filter), not an ML
   `ModelKind` — no neural model needed.
 
-## NCNN port availability
+## Model sources
 
-Adoption depends on a permissively-licensed **NCNN port** (`.param`/`.bin`), not
-on spandrel coverage. `nihui/ncnn-assets` and the `*-ncnn-vulkan` releases
-(Real-ESRGAN, Real-CUGAN, RIFE, SPAN, …) cover the core tasks; any other model
-needs a per-checkpoint license check before adoption.
+- **`styler00dollar/VSGAN-tensorrt-docker`** `models` release tag — hosts many
+  `.pth`/`.onnx` checkpoints (Real-CUGAN, Real-ESRGAN, SCUNet, ShuffleCugan,
+  GMFSS, waifu2x, …) with direct release download URLs.
+- **`NevermindNilas/TAS-Models-Host`** `main` release — hosts the models
+  TheAnimeScripter uses (`.pth` + ONNX). TAS itself is AGPL — never copy its
+  arch code; only its model *host* URLs may be referenced.
+- TheAnimeScripter's model list (upscale/interpolate/restore) is used as an
+  *inspiration* for what to adopt, not as a source of arch code or licensing.
 
-## Upscaler candidates
+## Adopted (burn)
 
-| Model | License | NCNN port | Character | Verdict |
+| Model | License | Scale | Arch status | Source |
 |---|---|---|---|---|
-| **SPAN** (`hongyuanyu/SPAN`) | Apache-2.0 | ✓ (community) | Lightweight real-time SR; NTIRE 2023 ESR 1st, CVPR-W 2024 oral | **Adopt** (default upscaler) |
-| **SAFMN** (`sunny2109/SAFMN`) | Apache-2.0 | ✓ (+`SAFMNBCIE`) | Lightweight real-time SR (ICCV 2023); Real x2/x4 + BCIE variants | **Adopt** (upscale + decompress) |
-| **RGT** (`zhengchen1999/RGT`) | Apache-2.0 | △ (port needed) | PSNR-oriented transformer (ICLR 2024); ~13M params, ~251 GFLOPs @x4 | Skip — heavy, smooth output |
-| **DRCT** (`ming053l/DRCT`) | MIT | △ (port needed) | PSNR-oriented transformer (CVPR 2024 NTIRE); DRCT-L 27.6M; also Real-DRCT-GAN | Skip — heavy; only Real-DRCT-GAN interesting |
-| **SeemoRe** (`eduardzamfir/seemoredetails`) | **conflict** | — | Efficient MoE real-world SR (ICML 2024) | **Exclude** — GitHub shows Apache-2.0 but README states CC BY-NC-SA 4.0 research-only |
+| Real-CUGAN up2x no-denoise | Apache-2.0 | 2 | **loadable** (UpCunet2x port, verified) | `bilibili/ailab` · `cugan_up2x-latest-no-denoise.pth` (VSGAN) |
+| ShuffleCugan | unclear (SUDO) | 2 | arch ported (`upcunet2x-fast`), **weights not adopted** | `sudo_shuffle_cugan_9.584.969.pth` (VSGAN) |
+| Real-ESRGAN animevideo x2 / x4 | BSD-3-Clause | 2 / 4 | **loadable** (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| SCUNet denoise | verify (cszn) | 1 | port pending | `cszn/SCUNet` · `scunet_color_15.pth` |
+| Real-PLKSr DeJPG / DeH264 | verify (Phhofm) | 1 | port pending | `Phhofm/models` · TAS-Models-Host |
+| Anime1080Fixer | verify (Zarxrax) | 1 | port pending | `Zarxrax/Anime1080Fixer` · VSGAN |
+| RIFE 4.25 | Apache-2.0 | 1 | port pending + 2-input API | `hzwer/Practical-RIFE` |
 
-## Adopted (NCNN `.param`/`.bin`)
-
-| Model | License | Scale | Source |
-|---|---|---|---|
-| Real-ESRGAN x4plus / x4plus-anime / x2plus | BSD-3-Clause | 4 / 4 / 2 | `xinntao/Real-ESRGAN` · NCNN port |
-| Real-CUGAN up2x (no-denoise) | MIT | 2 | bilibili/ailab · `nihui/realcugan-ncnn-vulkan` (verified: 1080p x2 in 398 ms) |
-| SwinIR x2 / x4 | Apache-2.0 | 2 / 4 | `JingyunLiang/SwinIR` · NCNN port |
-| RIFE 4.26 | MIT | 1 | `hzwer/Practical-RIFE` · NCNN port (pending) |
-
-Weights are never committed (`models/*.param`/`*.bin` gitignored); the C++ shim
-loads them from `models/`.
+Weights are never committed (`models/*` gitignored); the app downloads them
+(download-on-demand, sha256-verified) and converts to f16 `.bpk`.
 
 ## Notes
 
-- **SPAN variants**: "SPAN" is an overloaded name — unrelated nets exist
-  (e.g. Spatial Pyramid Attention Network for manipulation localization). Pin to
-  `hongyuanyu/SPAN` + its NCNN port. Multiple checkpoints share the arch (scales
-  x2/x3/x4); each checkpoint gets its own `metadata.json` entry. Distinct
-  sub-variants: **SPAN-F** (2025, lighter config) and **SwiftSRGAN** (separate
-  GAN-based real-world SR,
-  `Koushik0901/Swift-SRGAN`, **CC0-1.0**).
 - **License is per artifact, not per arch**: each checkpoint carries its own
   license (code license ≠ weight license; community fine-tunes are sometimes
   non-commercial). Record the weight license per model in `metadata.json` and
-  only adopt permissive (BSD/MIT/Apache, CC0 ok).
-- **SPAN**: `PLAN.md` §14 previously excluded it ("no license"). Outdated — the
-  repo now ships `LICENSE.txt` (Apache-2.0) and README confirms it.
-- **SeemoRe**: license conflict (Apache-2.0 badge vs. CC BY-NC-SA 4.0 README
-  clause, "academic research use only"). Re-evaluate only after the authors
-  clarify.
-- **SAFMN** also covers the decompress task via the `SAFMN_BCIE` checkpoint
-  (blind compressed-image enhancement, v0.1.1 release).
-- PSNR-oriented models (RGT/DRCT) are benchmark-optimized: they produce smooth
-  reconstruction, not the "enhancement" look, and are too slow per frame for a
-  video enhancer.
+  only adopt permissive (BSD/MIT/Apache, CC0 ok). Models flagged "verify" need a
+  license check before `loadable: true`.
+- **ShuffleCugan** is the fastest SR variant (46/103 ms @720p/1080p in
+  `rust-sr-bench`) but its weights carry no clear license → benchmark-only,
+  excluded from the product until the author clarifies.
+- **f16 is the default** (Vulkan): half the memory and 3–6× faster than f32 on
+  the reference GPU. `PytorchStore` cannot cast f32→f16 at load, so weights are
+  pre-converted to f16 `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).

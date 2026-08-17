@@ -33,21 +33,61 @@ Target device = the actual dev machine, not a synthetic proxy.
 | burn-ROCm (smoke) | 3× Conv2d 32ch 256×256 | 57.11 ms | JIT artifact |
 | burn-ROCm (smoke) | same, 512×512 | 2.19 ms | proves ROCm launches on RDNA4; not SR-representative |
 
+### Burn re-benchmark (2026-08-17)
+
+The original burn-ROCm rows were a 3-conv toy. Re-tested with the **real
+Real-CUGAN `upcunet_v3`** (up2x-no-denoise `.pth`) and the **ShuffleCugan**
+alternative (`sudo_shuffle_cugan`), weights loaded via `burn-store::PytorchStore`
+(key remap `conv.0`/`conv.2` → `conv`/`conv2`), outputs numerically verified
+against the torch reference (f32 max diff ~6e-6; fp16 max diff ~1.7e-2).
+Setup: `burn` 0.21.0, `burn-rocm`, `burn-wgpu` (Vulkan via RADV).
+
+| Engine | Model | Dtype | 720p x2 | 1080p x2 | Notes |
+|---|---|---|---|---|---|
+| burn-ROCm | up2x | f32 | 1119 ms | 2197 ms | linear scaling; no torch-style 1080p collapse |
+| burn-ROCm | any | fp16/bf16 | — | — | LLVM `Cannot select: %llvm.amdgcn.wmma.f32.16x16x16.{f16,bf16}` — WMMA is CDNA-only, absent on RDNA4 |
+| burn-Vulkan | up2x | f32 | 966 ms | crash | 1080p f32: burn-fusion bug `Ordering is bigger than operations` |
+| burn-Vulkan | up2x | fp16 | **136 ms** | **302 ms** | **beats ncnn** (249 / 398 ms) |
+| burn-Vulkan | ShuffleCugan | f32 | 313 ms | — | |
+| burn-Vulkan | ShuffleCugan | fp16 | **46 ms** | **103 ms** | **~5× faster than ncnn**; pixel-unshuffle input ⇒ UNet runs at half resolution |
+
 ## Read honestly
 
 - ncnn rows include PNG encode/decode + auto-tiling overhead; torch rows use
   direct tensor I/O — the real ncnn gap vs torch is smaller than the table
   suggests, but at 1080p ncnn is still ~an order of magnitude faster.
 - bf16 on ROCm is slower than fp16 (verified); fp16 is the default.
-- burn-ROCm is a 3-conv toy, not an SR model — it only proves the backend runs
-  on RDNA4.
+- burn-ROCm (2026-08-16 rows) is a 3-conv toy — not SR-representative.
+- **2026-08-17:** burn's real SR numbers come from the **Vulkan backend, not
+  ROCm**. `burn-rocm`'s fp16/bf16 matmul uses CDNA-only WMMA kernels → hard
+  `LLVM ERROR` on RDNA4 (`gfx1201`); even a bare 256×256 matmul fails. ROCm f32
+  works but is slow.
+- burn-Vulkan fp16 runs the real upcunet at 136/302 ms — **faster than ncnn's
+  249/398 ms** on the same GPU (ncnn rows include PNG overhead; burn is pure
+  inference). The ShuffleCugan variant is ~5× faster still (46/103 ms) because
+  the heavy UNet processes half-resolution tensors.
+- Practical burn caveats: ~800 crates / 1.6 GB `target/`; `PytorchStore` cannot
+  cast f32→f16 at load (pre-convert weights, or use `SafetensorsStore`/
+  `BurnpackStore` + `HalfPrecisionAdapter`); a `burn-fusion` bug crashes Vulkan
+  f32 at 1080p.
 
-## Decision (2026-08-16)
+## Decision (2026-08-16, revised 2026-08-17)
 
 - **torch/ROCm is not viable on RDNA4 for SR** (1080p perf + tile OOM/hard fault).
-- **ncnn/Vulkan wins** — proven 398 ms @1080p x2, ready-made community ports,
-  BSD-3, CPU fallback included.
-- **candle dropped** (no ROCm backend; per-model Rust ports).
-- **burn** set aside (fusion/JIT immature for SR; no reason to finish the port
-  against ncnn's ready-made models).
-- Engine = **NCNN/Vulkan via C++ shim** with CPU fallback. See `docs/PLAN.md` §15.
+- **ncnn/Vulkan** won on 2026-08-16 (398 ms @1080p) and remains the **shipped
+  engine** via the C++ shim.
+- **2026-08-17 re-benchmark:** the earlier "burn set aside" verdict rested on a
+  toy model on the wrong backend (ROCm). With the **real upcunet + Vulkan +
+  fp16**, burn beats ncnn (302 vs 398 ms @1080p; 136 vs 249 ms @720p), and
+  ShuffleCugan is ~5× faster still. **burn is re-opened as a candidate** —
+  adoption must weigh the heavy build (~800 crates/1.6 GB), the fusion bug, and
+  the f32→f16 load workflow against ncnn's tiny shim + ready-made ports.
+- **candle/ROCm dropped (2026-08-17)** — evaluated the `xmiksay/feat/rocm-backend`
+  candle fork (rocBLAS GEMM + im2col conv). Numerically correct (HIP vs CPU
+  ~1e-5), but f32 convs always materialize the im2col matrix → memory cliff from
+  ~640p (700→1107 ms @640p→720p; multi-GB buffers crash the desktop on
+  shared-display GPUs; SD/FLUX VAE decode OOMs at 1024²), f16 scales linearly
+  yet stays ~6× slower than burn-Vulkan fp16 (290 vs 46 ms @720p ShuffleCugan),
+  and the ShuffleCugan port OOMs even at 64×64 (fork conv bug). Not pursued.
+- Engine = **NCNN/Vulkan via C++ shim** with CPU fallback (unchanged until a
+  maintainer decision on burn). See `docs/PLAN.md` §15.

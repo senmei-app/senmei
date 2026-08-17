@@ -71,7 +71,7 @@ pub fn extract_binary(archive: &Path, out: &Path, suffix: &str) -> Result<()> {
             Err(Error::Command("binary not found in archive".into()))
         }
         _ => {
-            let xz = xz2::read::XzDecoder::new(file);
+            let xz = liblzma::read::XzDecoder::new(file);
             let mut ar = tar::Archive::new(xz);
             for entry in ar.entries().map_err(Error::from)? {
                 let mut entry = entry.map_err(Error::from)?;

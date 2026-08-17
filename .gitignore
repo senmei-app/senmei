@@ -8,4 +8,5 @@ dist/
 crates/senmei/gen/
 models/*.param
 models/*.bin
-third_party/ncnn/
+models/*.pth
+models/*.bpk

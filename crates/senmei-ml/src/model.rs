@@ -21,14 +21,20 @@ pub struct ModelMetadata {
     #[serde(default)]
     pub scale: u32,
     pub arch: String,
+    /// Weight files (e.g. `.pth`, `.bpk`), first entry is the primary.
     #[serde(default)]
-    pub ncnn: Option<Vec<String>>,
+    pub weights: Option<Vec<String>>,
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]
     pub source_url: Option<String>,
-    /// Whether the engine can load these weights yet (the ncnn shim is not
-    /// wired until M6, so all models are not loadable for now).
+    /// Direct download URL for the primary weight file (download-on-demand).
+    #[serde(default)]
+    pub download_url: Option<String>,
+    /// SHA-256 of the primary weight file, verified on download.
+    #[serde(default)]
+    pub sha256: Option<String>,
+    /// Whether the engine can load these weights yet.
     #[serde(default = "default_true")]
     pub loadable: bool,
     #[serde(default)]
@@ -43,6 +49,10 @@ fn default_true() -> bool {
 #[derive(Debug, Clone)]
 pub struct ModelRef {
     pub id: String,
+    pub arch: String,
+    pub scale: u32,
+    /// RRDB blocks for the `realesrgan` arch family.
+    pub num_block: u32,
     pub path: PathBuf,
 }
 
@@ -83,18 +93,18 @@ impl Registry {
         &self.models
     }
 
-    /// Resolve a model by id to a `ModelRef` pointing at its ncnn `.param`
-    /// file; the `.bin` sits next to it under the same base name.
+    /// Resolve a model by id to a `ModelRef` pointing at its primary weight
+    /// file (e.g. the `.bpk`); carries the arch/config the engine needs.
     pub fn resolve(&self, id: &str, dir: &Path) -> Option<ModelRef> {
-        self.models
-            .iter()
-            .find(|m| m.id == id)
-            .and_then(|m| m.ncnn.as_ref())
-            .and_then(|f| f.first())
-            .map(|f| ModelRef {
+        self.models.iter().find(|m| m.id == id).and_then(|m| {
+            m.weights.as_ref().and_then(|f| f.first()).map(|f| ModelRef {
                 id: id.to_string(),
+                arch: m.arch.clone(),
+                scale: m.scale,
+                num_block: m.metadata.get("num_block").and_then(|v| v.as_u64()).unwrap_or(4) as u32,
                 path: dir.join(f),
             })
+        })
     }
 }
 
@@ -131,34 +141,41 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 7);
-        assert_eq!(registry.models()[0].id, "rife-4.26");
-        assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
-        let ncnn = registry.models()[0].ncnn.as_deref().unwrap();
-        assert_eq!(ncnn[0], "rife-4.26.param");
-        assert_eq!(ncnn[1], "rife-4.26.bin");
-        assert_eq!(registry.models()[1].id, "realesrgan-x4plus");
-        assert!(matches!(registry.models()[1].kind, ModelKind::Upscale));
-        assert_eq!(registry.models()[1].scale, 4);
-        assert_eq!(registry.models()[2].id, "realesrgan-x4plus-anime");
-        assert_eq!(registry.models()[3].id, "realesrgan-x2plus");
-        assert_eq!(registry.models()[3].scale, 2);
-        assert_eq!(registry.models()[4].id, "real-cugan-x2");
-        assert_eq!(registry.models()[4].scale, 2);
-        assert_eq!(registry.models()[5].id, "swinir-x2");
-        assert_eq!(registry.models()[6].id, "swinir-x4");
-        assert_eq!(registry.models()[6].scale, 4);
+        assert_eq!(registry.models().len(), 10);
+        assert_eq!(registry.models()[0].id, "real-cugan-x2");
+        assert!(matches!(registry.models()[0].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[0].scale, 2);
+        assert!(registry.models()[0].loadable);
+        let weights = registry.models()[0].weights.as_deref().unwrap();
+        assert_eq!(weights[0], "up2x-no-denoise.pth.f16.bpk");
+        assert_eq!(registry.models()[1].id, "shuffle-cugan");
+        assert!(!registry.models()[1].loadable);
+        assert_eq!(registry.models()[2].id, "realesrgan-animevideo-x2");
+        assert_eq!(registry.models()[3].id, "realesrgan-animevideo-x4");
+        assert_eq!(registry.models()[4].id, "realesrgan-x4plus-anime");
+        assert_eq!(registry.models()[4].scale, 4);
+        assert!(matches!(registry.models()[5].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[6].id, "real-plksr-deh264");
+        assert_eq!(registry.models()[6].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[7].id, "real-plksr-dejpg");
+        assert_eq!(registry.models()[8].id, "anime1080fixer");
+        assert_eq!(registry.models()[9].id, "rife-4.25");
+        assert!(matches!(registry.models()[9].kind, ModelKind::Interpolate));
     }
 
     #[test]
     fn registry_resolves_model_ref() {
         let json = r#"[
-            {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "ncnn": ["span.param", "span.bin"]}
+            {"id": "span", "kind": "upscale", "scale": 4, "arch": "realesrgan",
+             "weights": ["span.pth"], "metadata": {"num_block": 6}}
         ]"#;
         let registry = Registry::from_json(json).unwrap();
         let mref = registry.resolve("span", Path::new("/models")).unwrap();
         assert_eq!(mref.id, "span");
-        assert_eq!(mref.path, Path::new("/models/span.param"));
+        assert_eq!(mref.arch, "realesrgan");
+        assert_eq!(mref.scale, 4);
+        assert_eq!(mref.num_block, 6);
+        assert_eq!(mref.path, Path::new("/models/span.pth"));
         assert!(registry.resolve("missing", Path::new("/models")).is_none());
     }
 }

@@ -4,11 +4,24 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Inference for Senmei: engine trait, ncnn engine, and model registry."
+description = "Inference for Senmei: engine trait, burn engine, and model registry."
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-senmei-ncnn = { path = "../senmei-ncnn" }
 specta = { version = "2.0.0-rc.25", features = ["serde_json", "derive"] }
 thiserror = "2"
+
+# burn inference (Vulkan fp16) behind the `burn` feature.
+burn = { version = "=0.21.0", optional = true }
+burn-store = { version = "=0.21.0", optional = true }
+burn-wgpu = { version = "=0.21.0", features = ["vulkan"], optional = true }
+
+[features]
+default = []
+burn = ["dep:burn", "dep:burn-store", "dep:burn-wgpu"]
+
+[[bin]]
+name = "senmei-ml-convert"
+path = "src/bin/convert.rs"
+required-features = ["burn"]

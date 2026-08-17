@@ -10,8 +10,8 @@
 
 | Layer | Choice |
 |---|---|
-| UI | Tauri 2 + CEF · React + TypeScript + Vite · bun |
-| Inference | libtorch (`tch`) · NCNN/Vulkan |
+| UI | Tauri 2 + platform webview · React + TypeScript + Vite · bun |
+| Inference | burn (`burn-wgpu`) · Vulkan fp16 |
 | Media | FFmpeg (subprocess, `rawvideo` pipe) |
 | License | MIT OR Apache-2.0 · FFmpeg as LGPL build |
 

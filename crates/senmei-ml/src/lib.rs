@@ -5,7 +5,12 @@ mod resize;
 mod tensor;
 mod tiling;
 
-pub use engine::{engine_for_model, infer_tiled, Backend, EngineCaps, InferOptions, InferenceEngine, NcnnEngine};
+#[cfg(feature = "burn")]
+mod burn;
+
+pub use engine::{engine_for_model, infer_tiled, Backend, EngineCaps, InferOptions, InferenceEngine};
+#[cfg(feature = "burn")]
+pub use burn::{BurnEngine, convert_pth_to_bpk};
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
