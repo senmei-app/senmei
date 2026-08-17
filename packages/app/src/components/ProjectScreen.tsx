@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Button } from "@senmei/ui";
-import { isTauri } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
 import type { ProjectEntry } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 import FfmpegIndicator from "./FfmpegIndicator";
@@ -22,6 +20,7 @@ export default function ProjectScreen({
 }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
+  const [confirmPath, setConfirmPath] = useState<string | null>(null);
 
   const create = () => {
     if (name.trim()) {
@@ -30,16 +29,26 @@ export default function ProjectScreen({
     }
   };
 
-  const remove = async (path: string) => {
-    const ok = isTauri()
-      ? await ask(t("project.deleteConfirm"), { title: t("project.delete"), kind: "warning" })
-      : window.confirm(t("project.deleteConfirm"));
-    if (ok) onDelete(path);
+  const remove = (path: string) => setConfirmPath(path);
+  const doDelete = () => {
+    if (confirmPath) onDelete(confirmPath);
+    setConfirmPath(null);
   };
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 select-none antialiased dark:bg-slate-950 dark:text-slate-200">
-      <header className="flex h-12 w-full items-center justify-between px-4">
+      <header className="flex h-12 w-full items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
+        <div data-tauri-drag-region className="flex items-center space-x-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
+            鮮
+          </div>
+          <span
+            title={`build ${__BUILD_HASH__}`}
+            className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+          >
+            v{__APP_VERSION__}-{__BUILD_HASH__}
+          </span>
+        </div>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
         <WindowControls />
       </header>
@@ -99,6 +108,27 @@ export default function ProjectScreen({
           {t("project.browse")}
         </Button>
       </div>
+
+      {confirmPath && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-80 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t("project.delete")}</h2>
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">{t("project.deleteConfirm")}</p>
+            <p className="mt-1 truncate font-mono text-[10px] text-slate-400">{confirmPath}</p>
+            <div className="mt-4 flex justify-end space-x-2">
+              <Button variant="secondary" onClick={() => setConfirmPath(null)}>
+                {t("queue.cancel")}
+              </Button>
+              <Button
+                onClick={doDelete}
+                className="bg-rose-600 hover:bg-rose-500 shadow-rose-600/30"
+              >
+                {t("project.delete")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
