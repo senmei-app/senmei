@@ -7,6 +7,7 @@
 //! conversion). The arch is chosen from `ModelRef::arch`.
 
 mod realesrgan;
+mod rife;
 mod upcunet;
 mod warp;
 
