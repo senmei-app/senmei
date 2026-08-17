@@ -1,18 +1,23 @@
-//! Real-GPU benchmark for the selected upscaler (ShuffleCugan) at 1080p.
+//! Real-GPU benchmark for the selected upscaler at 1080p.
 //! Run with: cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture
+//! Model selectable via BENCH_MODEL (default: shuffle-cugan).
 
 use std::time::Instant;
 
 use senmei_ml::InferOptions;
 
 #[test]
-#[ignore = "benchmark: requires Vulkan + ShuffleCugan bpk + ffmpeg"]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
 fn bench_shufflecugan_1080p_fullframe() {
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "shuffle-cugan".to_string());
     let models_dir = std::path::PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../models"
     ));
-    let bpk = models_dir.join("sudo_shuffle_cugan_9.584.969.pth.f16.bpk");
+    let mut registry = senmei_ml::Registry::new();
+    registry.load_dir(&models_dir).unwrap();
+    let mref = registry.resolve(&model_id, &models_dir).expect("model in registry");
+    let bpk = models_dir.join(mref.path);
     assert!(bpk.exists(), "missing {bpk:?}");
 
     let dir = std::env::temp_dir().join("senmei-bench-1080p");
@@ -75,7 +80,7 @@ fn bench_shufflecugan_1080p_fullframe() {
     let ms_infer = t_infer * 1000.0 / n;
     let ms_out = t_out * 1000.0 / n;
     let total_ms = ms_in + ms_infer + ms_out;
-    println!("\n==== ShuffleCugan 1080p -> 2160p full-frame ====");
+    println!("\n==== {model_id} 1080p -> 2160p full-frame ====");
     println!("frames: {total} | convert-in {ms_in:.1} ms | infer {ms_infer:.1} ms | convert-out {ms_out:.1} ms");
     println!("total {total_ms:.1} ms/frame | {:.1} FPS", 1000.0 / total_ms);
     println!("=================================================");
