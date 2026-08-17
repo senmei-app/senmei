@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
 import { demoDownloadModel, demoModels } from "../mock";
@@ -23,6 +23,18 @@ export default function Inspector({
   const [models, setModels] = useState<ModelMetadata[]>([]);
   const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the add-step menu on outside click without swallowing the click,
+  // so the clicked step still expands below.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
 
@@ -356,30 +368,28 @@ export default function Inspector({
       </div>
 
       <div className="pt-3">
-        <div className="relative">
-          <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex w-full items-center justify-center space-x-2 rounded-xl border border-dashed border-indigo-500/40 bg-indigo-500/5 py-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300"
-          >
-            <span className="text-sm font-bold">+</span>
-            <span>{t("stack.add")}</span>
-          </button>
-          {menuOpen && (
-            <div className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-1.5 text-xs shadow-2xl dark:border-slate-800 dark:bg-slate-950">
-              <div className="px-2 py-1 text-[10px] font-semibold uppercase text-slate-500">{t("stack.addTitle")}</div>
-              {STEP_ORDER.map((type) => {
+        <div ref={menuRef} className="relative z-20">
+          {!menuOpen ? (
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="flex w-full items-center justify-center space-x-2 rounded-xl border border-dashed border-slate-300 bg-slate-200/50 py-2.5 text-xs font-medium text-slate-600 transition hover:border-indigo-500/50 hover:bg-slate-200 dark:border-slate-700/80 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:bg-slate-900/80"
+            >
+              <span className="text-sm font-bold">+</span>
+              <span>{t("stack.add")}</span>
+            </button>
+          ) : (
+            <div className="w-full rounded-xl border border-dashed border-slate-300 bg-slate-200/50 p-1.5 dark:border-slate-700/80 dark:bg-slate-900/40">
+              {STEP_ORDER.filter((type) => STEP_META[type].implemented).map((type) => {
                 const m = STEP_META[type];
                 return (
                   <button
                     key={type}
-                    disabled={!m.implemented}
                     onClick={() => addStep(type)}
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-200 dark:hover:bg-slate-800/80"
+                    className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
                   >
                     <span>
                       {m.icon} {t(m.labelKey)}
                     </span>
-                    <span className="text-[10px] text-slate-500">{m.implemented ? "…" : "Soon"}</span>
                   </button>
                 );
               })}
@@ -388,9 +398,6 @@ export default function Inspector({
         </div>
       </div>
 
-      <button className="mt-4 w-full rounded-xl bg-indigo-600 py-2.5 font-medium text-xs text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition">
-        {t("sample.preview")}
-      </button>
     </aside>
   );
 }
