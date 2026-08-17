@@ -21,19 +21,27 @@ export default function Monitor({
   renderedFile,
   rendering,
   progress,
+  sampleInMs = 0,
+  sampleOutMs = 0,
+  onSampleChange,
+  onRenderSample,
 }: {
   file?: string;
   renderedFile: string | null;
   rendering: boolean;
   progress: RenderProgress | null;
+  sampleInMs?: number;
+  sampleOutMs?: number;
+  onSampleChange?: (inMs: number, outMs: number) => void;
+  onRenderSample?: () => void;
 }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<"source" | "result" | "compare">("source");
   const src = mode === "result" && renderedFile ? renderedFile : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
-  const [inMs, setInMs] = useState(0);
-  const [outMs, setOutMs] = useState(0);
+  const inMs = sampleInMs;
+  const outMs = sampleOutMs;
   const [playing, setPlaying] = useState(false);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -95,8 +103,7 @@ export default function Monitor({
       probeVideo(probeTarget)
         .then((i) => {
           setInfo(i);
-          setInMs(0);
-          setOutMs((i.duration ?? 0) * 1000);
+          onSampleChange?.(0, (i.duration ?? 0) * 1000);
         })
         .catch((e) => {
           console.error("probeVideo failed:", e);
@@ -141,13 +148,11 @@ export default function Monitor({
     if (!info) return;
     const durMs = (info.duration ?? 0) * 1000;
     const start = Math.min(posMs, durMs);
-    setInMs(start);
-    setOutMs(Math.min(start + sec * 1000, durMs));
+    onSampleChange?.(start, Math.min(start + sec * 1000, durMs));
   };
   const setFullRange = () => {
     if (!info) return;
-    setInMs(0);
-    setOutMs((info.duration ?? 0) * 1000);
+    onSampleChange?.(0, (info.duration ?? 0) * 1000);
   };
   const pct =
     rendering && progress && progress.totalFrames > 0
@@ -323,6 +328,15 @@ export default function Monitor({
           >
             {t("sample.full")}
           </button>
+          {onRenderSample && (
+            <button
+              onClick={onRenderSample}
+              disabled={!info || outMs <= inMs}
+              className="rounded-lg border border-indigo-500/50 bg-indigo-600/15 px-2 py-1 font-mono text-[10px] font-medium text-indigo-500 hover:bg-indigo-600/25 disabled:opacity-40 dark:text-indigo-300"
+            >
+              {t("sample.render")}
+            </button>
+          )}
         </div>
         <div className="relative">
           <input

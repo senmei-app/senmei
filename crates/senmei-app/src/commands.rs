@@ -260,6 +260,9 @@ pub struct RenderConfig {
     pub fps_multiplier: Option<u32>,
     pub interp_model: Option<String>,
     pub ffmpeg_args: Option<String>,
+    /// Render only a time range (start ms, end ms; None end = to the end).
+    pub start_ms: Option<u64>,
+    pub end_ms: Option<u64>,
 }
 
 fn models_dir() -> PathBuf {
@@ -345,6 +348,8 @@ pub async fn render(
             fps_multiplier,
             interp_model,
             ffmpeg_args,
+            start_ms,
+            end_ms,
         } = config;
         let ffmpeg = senmei_media::resolve(&store::data_dir());
         let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
@@ -390,6 +395,9 @@ pub async fn render(
             steps.push(Box::new(senmei_pipeline::Resize::new(f)));
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        if start_ms.is_some() || end_ms.is_some() {
+            pipeline.set_range(start_ms.unwrap_or(0), end_ms);
+        }
         if let Some(args) = ffmpeg_args.as_deref() {
             if !args.trim().is_empty() {
                 pipeline.set_encoder_args(split_ffmpeg_args(args));

@@ -109,6 +109,9 @@ export type RenderConfig = {
 	fpsMultiplier?: number | null,
 	interpModel?: string | null,
 	ffmpegArgs?: string | null,
+	/**  Render only a time range (start ms, end ms; None end = to the end). */
+	startMs?: number | null,
+	endMs?: number | null,
 };
 
 export type RenderProgress = {

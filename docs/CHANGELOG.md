@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Render only the sample range (M5, 2026-08-17)** — the render command and
+  pipeline accept `startMs`/`endMs`: the decoder seeks with fast `-ss` and caps
+  the frame count, the encoder seeks the audio input so it stays in sync, and
+  progress totals reflect the range. The Monitor's sample window now drives a
+  "Render Sample" button. Test `render_only_time_range`: 200..700 ms of a 10
+  fps clip yields exactly 5 frames.
 - **Sample preview range (M5, 2026-08-17)** — the Monitor timeline gains an
   in/out sample range: 10s/15s/30s/60s/Full presets set the window from the
   current position, playback loops inside it, the selected range is highlighted
