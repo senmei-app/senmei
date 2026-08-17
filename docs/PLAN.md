@@ -355,6 +355,15 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **RIFE v4.6 burn port (M3, 2026-08-17, generated)** — `tools/rife_gen_burn.py`
+  translates the ncnn `flownet.param` (215 layers, MIT) into a straight-line
+  burn network (`senmei_ml::burn::rife::RifeNet`): 40 Conv2d + 4
+  ConvTranspose2d + op helpers (warp = `grid_sample`, bilinear interp,
+  pixel-shuffle, channel crop, binary ops), with per-output use-counting for
+  burn's move semantics. It **compiles and runs end-to-end on Vulkan**,
+  preserving `[1,3,H,W]` with finite values (ignored structural test; needs a
+  larger thread stack). Weight loading from the ncnn `.bin`, engine wiring
+  (`infer_interp`) and numerical verification are still pending.
 - **grid_sample foundation (M3, 2026-08-17)** — new `senmei_ml::burn::grid_sample`
   (bilinear warp, `align_corners=True`, border padding) matching torch
   semantics; each corner is sampled with a single gather over a flattened
