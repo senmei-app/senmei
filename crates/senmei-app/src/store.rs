@@ -67,6 +67,9 @@ pub struct StepParams {
     pub pix_fmt: Option<String>,
     #[serde(default)]
     pub tune: Option<String>,
+    /// Encoder quality profile (sets crf + preset as a bundle).
+    #[serde(default)]
+    pub quality: Option<String>,
     /// Output container/extension (e.g. "mp4", "mkv", "webm").
     #[serde(default)]
     pub container: Option<String>,

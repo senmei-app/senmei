@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
 import { demoDownloadModel, demoModels } from "../mock";
 import { useI18n } from "../i18n";
-import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
+import { QUALITY_PRESETS, STEP_META, STEP_ORDER, buildEncoderArgs, createStep, qualityKey, type PipelineStep, type StepType } from "../steps";
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white p-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
@@ -360,6 +360,13 @@ export default function Inspector({
         );
       case "output": {
         const mode = s.params?.outputMode ?? "input";
+        const quality = qualityKey(s.params);
+        const previewArgs = buildEncoderArgs(s.params, s.params?.ffmpegArgs ?? "");
+        const applyQuality = (q: string) => {
+          const prof = QUALITY_PRESETS[q];
+          if (prof) updateParams(s.id, { quality: q, crf: prof.crf, preset: prof.preset });
+          else updateParams(s.id, { quality: "Custom" });
+        };
         return (
           <>
             {field(
@@ -458,6 +465,16 @@ export default function Inspector({
               </div>,
             )}
             {field(
+              t("output.quality"),
+              <select value={quality} onChange={(e) => applyQuality(e.target.value)} className={inputCls}>
+                {[...Object.keys(QUALITY_PRESETS), "Custom"].map((q) => (
+                  <option key={q} value={q}>
+                    {q}
+                  </option>
+                ))}
+              </select>,
+            )}
+            {field(
               t("output.videoCodec"),
               <select
                 value={s.params?.videoCodec ?? "H.264"}
@@ -553,6 +570,12 @@ export default function Inspector({
                 onChange={(e) => updateParams(s.id, { ffmpegArgs: e.target.value })}
                 className={`${inputCls} font-mono text-[10px]`}
               />,
+            )}
+            {field(
+              t("output.preview"),
+              <pre className="whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[9px] leading-4 text-slate-600 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-400">
+                {`ffmpeg -y -i input.mp4 ${previewArgs || "(defaults)"} output.${s.params?.container ?? "mkv"}`}
+              </pre>,
             )}
           </>
         );
