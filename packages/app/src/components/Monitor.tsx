@@ -37,7 +37,11 @@ export default function Monitor({
 }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<"source" | "result" | "compare">("source");
-  const src = mode === "result" && renderedFile ? renderedFile : (file ?? null);
+  // Demo mode has no real render output; simulate one per video so Compare /
+  // Result are usable in the browser without running a fake render.
+  const demoResult = !isTauri() && file ? file.replace(/\.[^.]+$/, ".senmei.mp4") : null;
+  const effRendered = renderedFile ?? demoResult;
+  const src = mode === "result" && effRendered ? effRendered : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
   const inMs = sampleInMs;
@@ -189,7 +193,7 @@ export default function Monitor({
   return (
     <main className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
       <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800">
-        {mode === "compare" && file && renderedFile ? (
+        {mode === "compare" && file && effRendered ? (
           <div className="flex h-full w-full">
             <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
               {frames[file] ? (
@@ -206,12 +210,16 @@ export default function Monitor({
               </span>
             </div>
             <div className="relative flex-1 overflow-hidden">
-              {frames[renderedFile] ? (
-                <img src={frames[renderedFile]} alt="result" className="h-full w-full object-contain" />
+              {frames[effRendered] ? (
+                <img
+                  src={frames[effRendered]}
+                  alt="result"
+                  className={"h-full w-full object-contain" + (demoResult ? " saturate-150 brightness-105" : "")}
+                />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
-                    {renderedFile.split("/").pop()}
+                    {effRendered.split("/").pop()}
                   </span>
                 </div>
               )}
@@ -221,7 +229,11 @@ export default function Monitor({
             </div>
           </div>
         ) : src && frames[src] ? (
-          <img src={frames[src]} alt="preview" className="max-h-full max-w-full object-contain" />
+          <img
+            src={frames[src]}
+            alt="preview"
+            className={"max-h-full max-w-full object-contain" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-200/80 dark:bg-slate-900/80">
             <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
@@ -237,14 +249,14 @@ export default function Monitor({
           </button>
           <button
             onClick={() => setMode("compare")}
-            disabled={!renderedFile}
+            disabled={!effRendered}
             className={tabCls(mode === "compare")}
           >
             {t("monitor.compare")}
           </button>
           <button
             onClick={() => setMode("result")}
-            disabled={!renderedFile}
+            disabled={!effRendered}
             className={tabCls(mode === "result")}
           >
             {t("monitor.result")}
