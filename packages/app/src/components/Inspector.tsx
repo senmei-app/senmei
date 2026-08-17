@@ -246,12 +246,11 @@ export default function Inspector({
         return field(
           t("resize.factor"),
           <input
-            type="number"
-            min={0.1}
-            step={0.1}
+            type="text"
+            inputMode="decimal"
             value={s.params?.factor ?? ""}
             placeholder="1.0"
-            onChange={(e) => updateParams(s.id, { factor: e.target.value })}
+            onChange={(e) => updateParams(s.id, { factor: e.target.value.replace(",", ".") })}
             className={inputCls}
           />,
         );
