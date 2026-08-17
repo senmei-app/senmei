@@ -85,6 +85,9 @@ const DEFAULTS: Record<StepType, StepParams> = {
     pixFmt: "yuv420p",
     tune: "",
     quality: "Medium",
+    colorPrimaries: "",
+    colorTransfer: "",
+    colorMatrix: "",
   },
 };
 
@@ -155,6 +158,9 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   if (params?.preset) structured.push("-preset", params.preset);
   if (params?.pixFmt) structured.push("-pix_fmt", params.pixFmt);
   if (params?.tune) structured.push("-tune", params.tune);
+  if (params?.colorPrimaries) structured.push("-color_primaries", params.colorPrimaries);
+  if (params?.colorTransfer) structured.push("-color_trc", params.colorTransfer);
+  if (params?.colorMatrix) structured.push("-colorspace", params.colorMatrix);
   const ac = params?.audioCodec;
   if (ac === "None") structured.push("-an");
   else if (ac && AUDIO_MAP[ac]) structured.push("-c:a", AUDIO_MAP[ac]);

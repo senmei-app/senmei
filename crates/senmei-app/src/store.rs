@@ -70,6 +70,13 @@ pub struct StepParams {
     /// Encoder quality profile (sets crf + preset as a bundle).
     #[serde(default)]
     pub quality: Option<String>,
+    /// Output color metadata tags (primaries / transfer / matrix, e.g. bt2020).
+    #[serde(default)]
+    pub color_primaries: Option<String>,
+    #[serde(default)]
+    pub color_transfer: Option<String>,
+    #[serde(default)]
+    pub color_matrix: Option<String>,
     /// Output container/extension (e.g. "mp4", "mkv", "webm").
     #[serde(default)]
     pub container: Option<String>,
