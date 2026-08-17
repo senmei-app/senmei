@@ -52,6 +52,8 @@ export default function App() {
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [jobs, setJobs] = useState<BatchJob[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [mediaView, setMediaView] = useState<"library" | "queue">("library");
   const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -281,8 +283,38 @@ export default function App() {
   // Batch render: one render per file, sequentially. A single file is just a
   // batch of one. Errors mark the job failed and continue; cancel stops after
   // the current file; pause freezes the running file.
-  const startBatch = async () => {
-    if (!files.length || rendering) return;
+  const toggleSelect = (path: string) =>
+    setSelected((prev) => (prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]));
+  const selectAll = () => setSelected(files);
+  const deleteSelected = () => {
+    setFiles((prev) => prev.filter((f) => !selected.includes(f)));
+    setSelected([]);
+  };
+
+  // Hotkeys: Ctrl/Cmd+A select all, Delete removes selected, Ctrl/Cmd+R renders.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        selectAll();
+      } else if (e.key === "Delete") {
+        e.preventDefault();
+        deleteSelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        void startBatch();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, selected]);
+
+  const startBatch = async (onlySelected = false) => {
+    const inputs = onlySelected ? files.filter((f) => selected.includes(f)) : files;
+    if (!inputs.length || rendering) return;
     const outs = steps.filter((s) => s.enabled && s.stepType === "output");
     const lastOut = outs.length ? outs[outs.length - 1] : undefined;
     const enabled = steps.filter((s) => s.enabled);
@@ -295,7 +327,7 @@ export default function App() {
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
 
-    const initial: BatchJob[] = files.map((f) => ({
+    const initial: BatchJob[] = inputs.map((f) => ({
       input: f,
       output: desiredPath(f, lastOut),
       status: "queued",
@@ -396,6 +428,15 @@ export default function App() {
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
+              onSelectAll={selectAll}
+              onDeleteSelected={deleteSelected}
+              onAddAllToQueue={() => {
+                selectAll();
+                setMediaView("queue");
+              }}
+              onAddSelectedToQueue={() => setMediaView("queue")}
+              onProcessSelected={() => startBatch(true)}
+              onProcessAll={() => startBatch(false)}
             />
             <PanelGroup direction="horizontal" className="flex flex-1 overflow-hidden">
               <Panel defaultSize={20} minSize={14}>
@@ -410,6 +451,10 @@ export default function App() {
                   onTogglePause={handleTogglePause}
                   onCancel={handleCancelRender}
                   jobs={jobs}
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                  view={mediaView}
+                  onViewChange={setMediaView}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />

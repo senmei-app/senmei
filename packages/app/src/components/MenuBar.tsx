@@ -21,12 +21,24 @@ export default function MenuBar({
   onCloseProject,
   onSettings,
   onGithub,
+  onSelectAll,
+  onDeleteSelected,
+  onAddAllToQueue,
+  onAddSelectedToQueue,
+  onProcessSelected,
+  onProcessAll,
 }: {
   onImportFile: () => void;
   onImportFolder: () => void;
   onCloseProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
+  onSelectAll: () => void;
+  onDeleteSelected: () => void;
+  onAddAllToQueue: () => void;
+  onAddSelectedToQueue: () => void;
+  onProcessSelected: () => void;
+  onProcessAll: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
@@ -53,8 +65,20 @@ export default function MenuBar({
       key: "edit",
       label: t("menu.edit"),
       items: [
-        { key: "undo", label: t("menu.undo") },
-        { key: "redo", label: t("menu.redo") },
+        { key: "select-all", label: t("menu.selectAll"), action: onSelectAll },
+        { key: "delete-selected", label: t("menu.deleteSelected"), action: onDeleteSelected },
+      ],
+    },
+    {
+      key: "process",
+      label: t("menu.process"),
+      items: [
+        { key: "add-all", label: t("menu.addAllQueue"), action: onAddAllToQueue },
+        { key: "add-selected", label: t("menu.addSelectedQueue"), action: onAddSelectedToQueue },
+        { key: "sep1", separator: true },
+        { key: "process-selected", label: t("menu.processSelected"), action: onProcessSelected },
+        { key: "process-queue", label: t("menu.processQueue"), action: onProcessAll },
+        { key: "process-all", label: t("menu.processAll"), action: onProcessAll },
       ],
     },
     {
