@@ -159,8 +159,10 @@ mod tests {
         assert_eq!(registry.models()[6].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(registry.models()[7].id, "real-plksr-dejpg");
         assert_eq!(registry.models()[8].id, "anime1080fixer");
-        assert_eq!(registry.models()[9].id, "rife-4.25");
+        assert_eq!(registry.models()[9].id, "rife-v4.6");
         assert!(matches!(registry.models()[9].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[9].arch, "rife46");
+        assert!(registry.models()[9].loadable);
     }
 
     #[test]

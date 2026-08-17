@@ -21,6 +21,7 @@ use burn_wgpu::{Vulkan, WgpuDevice};
 use std::path::Path;
 
 use realesrgan::RrdbNet;
+use rife::RifeNet;
 use upcunet::{UpCunet2x, UpCunet2xFast};
 
 pub struct BurnEngine {
@@ -33,6 +34,7 @@ enum Model {
     UpCunet2x(UpCunet2x<Vulkan<f16>>),
     UpCunet2xFast(UpCunet2xFast<Vulkan<f16>>),
     RrdbNet(RrdbNet<Vulkan<f16>>),
+    RifeNet(RifeNet<Vulkan<f16>>),
 }
 
 impl Model {
@@ -41,6 +43,19 @@ impl Model {
             Model::UpCunet2x(m) => m.forward(x),
             Model::UpCunet2xFast(m) => m.forward(x),
             Model::RrdbNet(m) => m.forward(x),
+            Model::RifeNet(_) => panic!("RifeNet has no single-input forward"),
+        }
+    }
+
+    fn interp(
+        &self,
+        a: BurnTensor<Vulkan<f16>, 4>,
+        b: BurnTensor<Vulkan<f16>, 4>,
+        t: BurnTensor<Vulkan<f16>, 4>,
+    ) -> BurnTensor<Vulkan<f16>, 4> {
+        match self {
+            Model::RifeNet(m) => m.forward(a, b, t),
+            _ => panic!("model has no frame interpolation"),
         }
     }
 }
@@ -52,6 +67,14 @@ impl BurnEngine {
             device: WgpuDevice::DiscreteGpu(0),
             scale: 1,
         }
+    }
+
+    /// RIFE loads from the raw ncnn `flownet.bin` (fp16 weights), not a burnpack.
+    fn load_rife(&self, path: &Path) -> Result<Model> {
+        let bytes = std::fs::read(path).map_err(|e| Error::new(e.to_string()))?;
+        let mut m = RifeNet::new(&self.device);
+        m.load_from_ncnn(&bytes, &self.device).map_err(Error::new)?;
+        Ok(Model::RifeNet(m))
     }
 
     fn load_arch(&self, model: &ModelRef, store: &mut BurnpackStore) -> Result<Model> {
@@ -86,8 +109,13 @@ impl InferenceEngine for BurnEngine {
     }
 
     fn load(&mut self, model: &ModelRef) -> Result<()> {
-        let mut store = BurnpackStore::from_file(&model.path);
-        self.model = Some(self.load_arch(model, &mut store)?);
+        self.model = Some(match model.arch.as_str() {
+            "rife425" | "rife46" => self.load_rife(&model.path)?,
+            _ => {
+                let mut store = BurnpackStore::from_file(&model.path);
+                self.load_arch(model, &mut store)?
+            }
+        });
         self.scale = model.scale;
         Ok(())
     }
@@ -115,6 +143,39 @@ impl InferenceEngine for BurnEngine {
             .to_vec()
             .map_err(|e| Error::new(e.to_string()))?;
         Ok(Tensor::new(vec![n, c, oh, ow], data))
+    }
+
+    fn infer_interp(
+        &mut self,
+        a: &Tensor,
+        b: &Tensor,
+        t: f32,
+        _opts: &InferOptions,
+    ) -> Option<Result<Tensor>> {
+        let model = match self.model.as_ref() {
+            Some(m) => m,
+            None => return Some(Err(Error::new("model not loaded"))),
+        };
+        if !matches!(model, Model::RifeNet(_)) {
+            return None; // not an interpolation model → caller falls back
+        }
+        let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
+        let a_t = BurnTensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(a.data.clone(), [n, c, h, w]).convert::<f16>(),
+            &self.device,
+        );
+        let b_t = BurnTensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(b.data.clone(), [n, c, h, w]).convert::<f16>(),
+            &self.device,
+        );
+        // ncnn broadcasts the scalar timestep over the spatial grid.
+        let t_t = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], &self.device) * t;
+        let out = model.interp(a_t, b_t, t_t);
+        let data = match out.into_data().convert::<f32>().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
+        Some(Ok(Tensor::new(vec![n, c, h, w], data)))
     }
 
     /// Fused output path: keeps everything on the GPU — transposes NCHW→NHWC,
@@ -219,6 +280,71 @@ mod tests {
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
         assert!(out.data.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    #[ignore = "requires Vulkan + models/flownet.bin; needs RUST_MIN_STACK=33554432"]
+    fn rife_loads_weights_and_interpolates() {
+        let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+        let bin = dir.join("flownet.bin");
+        if !bin.exists() {
+            eprintln!("missing flownet.bin, skipping");
+            return;
+        }
+        let mut registry = crate::model::Registry::new();
+        registry.load_dir(&dir).unwrap();
+        let mref = registry.resolve("rife-v4.6", &dir).unwrap();
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let h = 64;
+        let w = 64;
+        // Two gradient frames with a clean 8px horizontal shift (content moves
+        // right, edges clamp) so optical flow is unambiguous.
+        let mut a = vec![0f32; 3 * h * w];
+        let mut b = vec![0f32; 3 * h * w];
+        for y in 0..h {
+            for x in 0..w {
+                for c in 0..3 {
+                    a[(c * h + y) * w + x] = x as f32 / (w - 1) as f32;
+                    b[(c * h + y) * w + x] = ((x as i32 - 8).max(0) as f32) / (w - 1) as f32;
+                }
+            }
+        }
+        let a = Tensor::new(vec![1, 3, h, w], a);
+        let b = Tensor::new(vec![1, 3, h, w], b);
+        let opts = InferOptions { half: true, tile_size: None };
+        let mid = engine
+            .infer_interp(&a, &b, 0.5, &opts)
+            .expect("engine should handle RIFE")
+            .unwrap();
+        assert_eq!(mid.shape, vec![1, 3, h, w]);
+        assert!(mid.data.iter().all(|v| v.is_finite()));
+
+        // The reference short-circuits t=0/t=1 (copies the input), so exact
+        // endpoints aren't a network property. What must hold is that the
+        // result is flow-based (not the linear blend) and consistent.
+        let blend = crate::interpolate::blend(&a, &b, 0.5);
+        let diff = mean_abs_diff(&mid.data, &blend.data);
+        assert!(diff > 0.002, "output matches the linear blend, engine not used: {diff}");
+
+        // Symmetry: interpolating (a,b) at t must equal interpolating (b,a) at
+        // 1-t — the same in-between frame. Any swapped/negated flow wiring
+        // breaks this badly.
+        let t1 = engine.infer_interp(&a, &b, 0.25, &opts).unwrap().unwrap();
+        let t2 = engine.infer_interp(&b, &a, 0.75, &opts).unwrap().unwrap();
+        let sym = mean_abs_diff(&t1.data, &t2.data);
+        assert!(sym < 0.02, "interp is not symmetric: {sym}");
+
+        // Directionality: t=0.05 stays near a, t=0.95 near b (fp16, so loose).
+        let lo = engine.infer_interp(&a, &b, 0.05, &opts).unwrap().unwrap();
+        let hi = engine.infer_interp(&a, &b, 0.95, &opts).unwrap().unwrap();
+        assert!(mean_abs_diff(&lo.data, &a.data) < mean_abs_diff(&lo.data, &b.data), "t=0.05 drifted to b");
+        assert!(mean_abs_diff(&hi.data, &b.data) < mean_abs_diff(&hi.data, &a.data), "t=0.95 drifted to a");
+    }
+
+    fn mean_abs_diff(x: &[f32], y: &[f32]) -> f32 {
+        x.iter().zip(y).map(|(a, b)| (a - b).abs()).sum::<f32>() / x.len() as f32
     }
 
     #[test]

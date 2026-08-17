@@ -30,7 +30,7 @@ fn deconv2d<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> ConvTr
 
 /// Channel-axis slice [s..e) (ncnn Crop on axis 0).
 fn slice_c<B: Backend>(x: Tensor<B, 4>, s: usize, e: usize) -> Tensor<B, 4> {
-    let [n, c, h, w] = x.dims();
+    let [n, _c, h, w] = x.dims();
     x.slice([0..n, s..e, 0..h, 0..w])
 }
 
@@ -57,7 +57,7 @@ fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
 /// rife.Warp: backward bilinear warp by a 2-channel flow (align_corners=true,
 /// border padding) — matches `warp.comp`.
 fn warp<B: Backend>(img: Tensor<B, 4>, flow: Tensor<B, 4>) -> Tensor<B, 4> {
-    let [n, c, h, w] = img.dims();
+    let [n, _c, h, w] = img.dims();
     let fx = flow.clone().slice([0..n, 0..1, 0..h, 0..w]);
     let fy = flow.slice([0..n, 1..2, 0..h, 0..w]);
 
@@ -451,7 +451,175 @@ impl<B: Backend> RifeNet<B> {
         let b_340 = warp(b_2, b_339);
         let b_341 = b_340 * b_334;
         let b_out0 = b_341 + b_338;        b_out0
-    }}
+    }
+
+    /// Load weights from the rife-v4.6 ncnn `flownet.bin`.
+    ///
+    /// Format (per weighted layer, in .param order):
+    /// `[tag u32 = 0x01306B47][weights wsize x f16][bias out x f32 if bias_term]`
+    pub fn load_from_ncnn(&mut self, bin: &[u8], device: &B::Device) -> Result<(), String> {
+        use burn::module::Param;
+        use burn::tensor::{f16, TensorData};
+        let mut pos = 0usize;
+        let mut rd = |out: usize, wsize: usize, in_c: usize, k: usize, bias: bool, transpose: bool|
+            -> (Tensor<B, 4>, Option<Tensor<B, 1>>) {
+            pos += 4; // fp16 tag
+            let w: Vec<f32> = (0..wsize)
+                .map(|i| f16::from_bits(u16::from_le_bytes([bin[pos + 2 * i], bin[pos + 2 * i + 1]])).to_f32())
+                .collect();
+            pos += 2 * wsize;
+            let b = if bias {
+                let bv: Vec<f32> = (0..out)
+                    .map(|i| f32::from_le_bytes([bin[pos + 4 * i], bin[pos + 4 * i + 1], bin[pos + 4 * i + 2], bin[pos + 4 * i + 3]]))
+                    .collect();
+                pos += 4 * out;
+                Some(Tensor::from_data(TensorData::new(bv, [out]), device))
+            } else {
+                None
+            };
+            // ncnn stores deconv weights out-major [out, in, k, k]; burn's
+            // ConvTranspose2d expects [in, out, k, k].
+            let wt = Tensor::from_data(TensorData::new(w, [out, in_c, k, k]), device);
+            let wt = if transpose { wt.permute([1, 0, 2, 3]) } else { wt };
+            (wt, b)
+        };
+        let (w, b) = rd(96, 6048, 7, 3, true, false);
+        self.convrelu_0.weight = Param::from_tensor(w);
+        self.convrelu_0.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 165888, 96, 3, true, false);
+        self.convrelu_1.weight = Param::from_tensor(w);
+        self.convrelu_1.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_22.weight = Param::from_tensor(w);
+        self.conv_22.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_23.weight = Param::from_tensor(w);
+        self.conv_23.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_24.weight = Param::from_tensor(w);
+        self.conv_24.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_25.weight = Param::from_tensor(w);
+        self.conv_25.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_26.weight = Param::from_tensor(w);
+        self.conv_26.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_27.weight = Param::from_tensor(w);
+        self.conv_27.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_28.weight = Param::from_tensor(w);
+        self.conv_28.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(192, 331776, 192, 3, true, false);
+        self.conv_29.weight = Param::from_tensor(w);
+        self.conv_29.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(24, 73728, 192, 4, true, true);
+        self.deconv_60.weight = Param::from_tensor(w);
+        self.deconv_60.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 6912, 12, 3, true, false);
+        self.convrelu_2.weight = Param::from_tensor(w);
+        self.convrelu_2.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 73728, 64, 3, true, false);
+        self.convrelu_3.weight = Param::from_tensor(w);
+        self.convrelu_3.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_32.weight = Param::from_tensor(w);
+        self.conv_32.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_33.weight = Param::from_tensor(w);
+        self.conv_33.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_34.weight = Param::from_tensor(w);
+        self.conv_34.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_35.weight = Param::from_tensor(w);
+        self.conv_35.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_36.weight = Param::from_tensor(w);
+        self.conv_36.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_37.weight = Param::from_tensor(w);
+        self.conv_37.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_38.weight = Param::from_tensor(w);
+        self.conv_38.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(128, 147456, 128, 3, true, false);
+        self.conv_39.weight = Param::from_tensor(w);
+        self.conv_39.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(24, 49152, 128, 4, true, true);
+        self.deconv_61.weight = Param::from_tensor(w);
+        self.deconv_61.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(48, 5184, 12, 3, true, false);
+        self.convrelu_4.weight = Param::from_tensor(w);
+        self.convrelu_4.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 41472, 48, 3, true, false);
+        self.convrelu_5.weight = Param::from_tensor(w);
+        self.convrelu_5.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_42.weight = Param::from_tensor(w);
+        self.conv_42.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_43.weight = Param::from_tensor(w);
+        self.conv_43.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_44.weight = Param::from_tensor(w);
+        self.conv_44.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_45.weight = Param::from_tensor(w);
+        self.conv_45.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_46.weight = Param::from_tensor(w);
+        self.conv_46.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_47.weight = Param::from_tensor(w);
+        self.conv_47.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_48.weight = Param::from_tensor(w);
+        self.conv_48.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(96, 82944, 96, 3, true, false);
+        self.conv_49.weight = Param::from_tensor(w);
+        self.conv_49.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(24, 36864, 96, 4, true, true);
+        self.deconv_62.weight = Param::from_tensor(w);
+        self.deconv_62.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(32, 3456, 12, 3, true, false);
+        self.convrelu_6.weight = Param::from_tensor(w);
+        self.convrelu_6.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 18432, 32, 3, true, false);
+        self.convrelu_7.weight = Param::from_tensor(w);
+        self.convrelu_7.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_52.weight = Param::from_tensor(w);
+        self.conv_52.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_53.weight = Param::from_tensor(w);
+        self.conv_53.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_54.weight = Param::from_tensor(w);
+        self.conv_54.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_55.weight = Param::from_tensor(w);
+        self.conv_55.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_56.weight = Param::from_tensor(w);
+        self.conv_56.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_57.weight = Param::from_tensor(w);
+        self.conv_57.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_58.weight = Param::from_tensor(w);
+        self.conv_58.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(64, 36864, 64, 3, true, false);
+        self.conv_59.weight = Param::from_tensor(w);
+        self.conv_59.bias = b.map(Param::from_tensor);
+        let (w, b) = rd(24, 24576, 64, 4, true, true);
+        self.deconv_63.weight = Param::from_tensor(w);
+        self.deconv_63.bias = b.map(Param::from_tensor);        if pos != bin.len() {
+            return Err(format!("ncnn bin: consumed {pos} of {} bytes", bin.len()));
+        }
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
