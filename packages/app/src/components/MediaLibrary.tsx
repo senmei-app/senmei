@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useI18n } from "../i18n";
 import type { BatchJob, BatchStatus } from "../steps";
 
@@ -21,6 +20,10 @@ export default function MediaLibrary({
   onTogglePause,
   onCancel,
   jobs,
+  selected,
+  onToggleSelect,
+  view,
+  onViewChange,
 }: {
   files: string[];
   onOpen: () => void;
@@ -32,9 +35,12 @@ export default function MediaLibrary({
   onTogglePause: () => void;
   onCancel: () => void;
   jobs: BatchJob[];
+  selected: string[];
+  onToggleSelect: (path: string) => void;
+  view: "library" | "queue";
+  onViewChange: (v: "library" | "queue") => void;
 }) {
   const { t } = useI18n();
-  const [view, setView] = useState<"library" | "queue">("library");
 
   const doneCount = jobs.filter((j) => j.status !== "queued" && j.status !== "rendering").length;
 
@@ -43,7 +49,7 @@ export default function MediaLibrary({
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex gap-1">
           <button
-            onClick={() => setView("library")}
+            onClick={() => onViewChange("library")}
             className={
               view === "library"
                 ? "rounded-md border border-indigo-500/40 bg-indigo-600/30 px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-300"
@@ -53,7 +59,7 @@ export default function MediaLibrary({
             {t("media.tab.library")}
           </button>
           <button
-            onClick={() => setView("queue")}
+            onClick={() => onViewChange("queue")}
             className={
               view === "queue"
                 ? "rounded-md border border-indigo-500/40 bg-indigo-600/30 px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-300"
@@ -88,10 +94,18 @@ export default function MediaLibrary({
             </div>
 
             <div className="space-y-2">
-              {files.map((path) => (
+              {files.map((path) => {
+                const isSel = selected.includes(path);
+                return (
                 <div
                   key={path}
-                  className="group flex cursor-pointer items-center space-x-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2 transition"
+                  onClick={() => onToggleSelect(path)}
+                  className={
+                    "group flex cursor-pointer items-center space-x-3 rounded-lg border p-2 transition " +
+                    (isSel
+                      ? "border-indigo-500 bg-indigo-500/20 ring-1 ring-indigo-400"
+                      : "border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/15")
+                  }
                 >
                   <div className="relative h-10 w-14 shrink-0 overflow-hidden rounded bg-slate-300 dark:bg-slate-800">
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-200/60 text-[9px] text-slate-500 dark:bg-slate-700/50 dark:text-slate-300">
@@ -105,7 +119,10 @@ export default function MediaLibrary({
                     <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">video</div>
                   </div>
                   <button
-                    onClick={() => onRemoveFile(path)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveFile(path);
+                    }}
                     title={t("media.remove")}
                     className="rounded-md p-1 text-slate-300 transition hover:bg-red-500/10 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
                   >
@@ -114,7 +131,8 @@ export default function MediaLibrary({
                     </svg>
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : (

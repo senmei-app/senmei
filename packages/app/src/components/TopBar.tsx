@@ -12,6 +12,12 @@ export default function TopBar({
   onCloseProject,
   onSettings,
   onGithub,
+  onSelectAll,
+  onDeleteSelected,
+  onAddAllToQueue,
+  onAddSelectedToQueue,
+  onProcessSelected,
+  onProcessAll,
 }: {
   file?: string;
   projectName?: string;
@@ -22,6 +28,12 @@ export default function TopBar({
   onCloseProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
+  onSelectAll: () => void;
+  onDeleteSelected: () => void;
+  onAddAllToQueue: () => void;
+  onAddSelectedToQueue: () => void;
+  onProcessSelected: () => void;
+  onProcessAll: () => void;
 }) {
   const { t } = useI18n();
 
@@ -46,6 +58,12 @@ export default function TopBar({
         onCloseProject={onCloseProject}
         onSettings={onSettings}
         onGithub={onGithub}
+        onSelectAll={onSelectAll}
+        onDeleteSelected={onDeleteSelected}
+        onAddAllToQueue={onAddAllToQueue}
+        onAddSelectedToQueue={onAddSelectedToQueue}
+        onProcessSelected={onProcessSelected}
+        onProcessAll={onProcessAll}
       />
 
       <div data-tauri-drag-region className="flex-1 self-stretch" />
