@@ -4,6 +4,9 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Monitor sample bar (2026-08-18)** — removed the redundant "Preview sample
+  (15s)" button, promoted "Render Sample" to a filled primary button like
+  Start Render, and made the sample range default to 10 s (highlighted preset).
 - **Demo Compare/Result (2026-08-18)** — the browser demo now simulates a
   rendered output per video, so the Compare and Result tabs work immediately
   (previously they stayed disabled until a fake render finished). The simulated
