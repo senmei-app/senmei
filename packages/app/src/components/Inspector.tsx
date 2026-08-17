@@ -570,6 +570,15 @@ export default function Inspector({
                     <div className="flex items-center space-x-1.5">
                       <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                         {i + 1}. {t(meta.labelKey)}
+                        {s.stepType === "upscale" &&
+                          (() => {
+                            const m = models.find((x) => x.id === s.params?.modelId);
+                            const sc = s.params?.scale;
+                            return m && sc ? ` · ${m.id} ×${sc}` : "";
+                          })()}
+                        {s.stepType === "interpolation" && s.params?.fpsMultiplier
+                          ? ` ×${s.params.fpsMultiplier}`
+                          : ""}
                       </span>
                       {s.stepType === "output" && s.params?.label && (
                         <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-indigo-600 dark:bg-slate-800 dark:text-indigo-400">
