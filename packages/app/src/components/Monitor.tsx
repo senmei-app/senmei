@@ -129,8 +129,8 @@ export default function Monitor({
     return Promise.all(
       targets.map(({ path, ms: t }) =>
         readFrame(path, t)
-          .then((b64) => {
-            setFrames((prev) => ({ ...prev, [path]: `data:image/png;base64,${b64}` }));
+          .then((filePath) => {
+            setFrames((prev) => ({ ...prev, [path]: convertFileSrc(filePath) }));
             setError(null);
           })
           .catch((e) => {
