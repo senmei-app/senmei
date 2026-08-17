@@ -355,6 +355,14 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **RIFE plumbing (M3, 2026-08-17, phase 1)** — `InferenceEngine` gains a
+  2-input `infer_interp(a, b, t, opts)` (default `None` → CPU fallback). The
+  pipeline `Interpolator` gets `with_engine` and routes each intermediate
+  through the engine when present, else falls back to linear blend / scene-cut
+  duplication. The `render` command accepts `interp_model`; the Interpolate
+  step's Model dropdown now lists **rife-4.25** (Apache-2.0) from the catalog
+  and auto-selects it. The RIFE burn arch port + weight conversion (Phase 2)
+  is still pending — until then a selected model degrades to the blend.
 - **Output filename includes model & scale (2026-08-17)** — rendered files are
   named `{stem}_{label|senmei}_{model}_x{scale}.{ext}` (e.g.
   `Folge 7_senmei_shuffle-cugan_x2.mkv`), so the applied processing is visible
