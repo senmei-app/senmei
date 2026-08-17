@@ -32,6 +32,8 @@ export default function Monitor({
   const src = mode === "result" && renderedFile ? renderedFile : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
+  const [inMs, setInMs] = useState(0);
+  const [outMs, setOutMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -91,7 +93,11 @@ export default function Monitor({
     const probeTarget = src ?? file;
     if (probeTarget) {
       probeVideo(probeTarget)
-        .then(setInfo)
+        .then((i) => {
+          setInfo(i);
+          setInMs(0);
+          setOutMs((i.duration ?? 0) * 1000);
+        })
         .catch((e) => {
           console.error("probeVideo failed:", e);
           setError(String(e));
@@ -109,24 +115,40 @@ export default function Monitor({
 
   useEffect(() => {
     if (!playing || !info || (info.duration ?? 0) <= 0) return;
-    const durMs = (info.duration ?? 0) * 1000;
+    const endMs = Math.max(inMs, Math.min(outMs || (info.duration ?? 0) * 1000, (info.duration ?? 0) * 1000));
     const id = window.setInterval(() => {
       setPosMs((p) => {
         const next = p + FRAME_STEP_MS;
-        if (next >= durMs) {
-          setPlaying(false);
-          loadFrame(durMs);
-          return durMs;
+        if (next >= endMs) {
+          setPosMs(inMs); // loop the sample within in..out
+          loadFrame(inMs);
+          return inMs;
         }
         loadFrame(next);
         return next;
       });
     }, FRAME_STEP_MS + 80);
     return () => window.clearInterval(id);
-  }, [playing, info]);
+  }, [playing, info, inMs, outMs]);
 
   const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
   const scrubPct = maxMs > 0 ? Math.min(100, (posMs / maxMs) * 100) : 0;
+  const inPct = maxMs > 0 ? Math.min(100, (inMs / maxMs) * 100) : 0;
+  const outPct = maxMs > 0 ? Math.min(100, ((outMs || maxMs) / maxMs) * 100) : 100;
+
+  // Sample-range presets relative to the current position.
+  const applySample = (sec: number) => {
+    if (!info) return;
+    const durMs = (info.duration ?? 0) * 1000;
+    const start = Math.min(posMs, durMs);
+    setInMs(start);
+    setOutMs(Math.min(start + sec * 1000, durMs));
+  };
+  const setFullRange = () => {
+    if (!info) return;
+    setInMs(0);
+    setOutMs((info.duration ?? 0) * 1000);
+  };
   const pct =
     rendering && progress && progress.totalFrames > 0
       ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
@@ -273,17 +295,64 @@ export default function Monitor({
             {t("sample.preview")}
           </button>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={maxMs}
-          step={50}
-          value={Math.min(posMs, maxMs)}
-          onChange={(e) => onScrub(Number(e.target.value))}
-          disabled={!info}
-          className="scrubber w-full cursor-ew-resize"
-          style={{ "--scrub-pct": `${scrubPct}%` } as CSSProperties}
-        />
+        <div className="mb-2 flex items-center space-x-1">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
+          {[10, 15, 30, 60].map((s) => {
+            const active = info && Math.round((outMs - inMs) / 1000) === s;
+            return (
+              <button
+                key={s}
+                onClick={() => applySample(s)}
+                disabled={!info}
+                title={`${s}s sample from current position`}
+                className={
+                  "rounded-lg border px-2 py-1 font-mono text-[10px] disabled:opacity-40 " +
+                  (active
+                    ? "border-indigo-500/60 bg-indigo-600/20 text-indigo-500 dark:text-indigo-300"
+                    : "border-slate-200 text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-400")
+                }
+              >
+                {s}s
+              </button>
+            );
+          })}
+          <button
+            onClick={setFullRange}
+            disabled={!info}
+            className="rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
+          >
+            {t("sample.full")}
+          </button>
+        </div>
+        <div className="relative">
+          <input
+            type="range"
+            min={0}
+            max={maxMs}
+            step={50}
+            value={Math.min(posMs, maxMs)}
+            onChange={(e) => onScrub(Number(e.target.value))}
+            disabled={!info}
+            className="scrubber relative z-10 w-full cursor-ew-resize"
+            style={{ "--scrub-pct": `${scrubPct}%` } as CSSProperties}
+          />
+          {info && (
+            <div
+              className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-500/25 dark:bg-indigo-500/30"
+              style={{ left: `${inPct}%`, width: `${Math.max(0, outPct - inPct)}%` }}
+            />
+          )}
+        </div>
+        {info && (
+          <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-500">
+            <span>
+              {t("timeline.in")} {fmt(inMs)}
+            </span>
+            <span>
+              {t("timeline.out")} {fmt(outMs || (info.duration ?? 0) * 1000)}
+            </span>
+          </div>
+        )}
       </div>
     </main>
   );

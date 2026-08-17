@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Sample preview range (M5, 2026-08-17)** — the Monitor timeline gains an
+  in/out sample range: 10s/15s/30s/60s/Full presets set the window from the
+  current position, playback loops inside it, the selected range is highlighted
+  on the slider and In/Out markers shown below. Verified in the running app
+  (10s preset sets Out 00:00:10.00).
 - **RIFE e2e verified (M3, 2026-08-17)** — `infer_interp` now pads the input
   to multiples of 32 (matching rife-ncnn-vulkan, whose flow estimation runs at
   1/32 scale) and crops the output back. Non-32 inputs previously hit a `Cat`
