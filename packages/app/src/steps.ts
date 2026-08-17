@@ -34,6 +34,26 @@ export const STEP_META: Record<StepType, { icon: string; labelKey: string; imple
   output: { icon: "📦", labelKey: "tab.output", implemented: true },
 };
 
+/** Encoder quality profiles (RVE-style): each sets crf + preset as a bundle. */
+export const QUALITY_PRESETS: Record<string, { crf: number; preset: string }> = {
+  Lossless: { crf: 0, preset: "slow" },
+  "Very High": { crf: 12, preset: "slow" },
+  High: { crf: 16, preset: "medium" },
+  Medium: { crf: 20, preset: "medium" },
+  Low: { crf: 24, preset: "fast" },
+};
+
+export function qualityKey(params: StepParams | undefined): string {
+  const crf = params?.crf ?? 20;
+  const preset = params?.preset ?? "medium";
+  return (
+    Object.keys(QUALITY_PRESETS).find((k) => {
+      const p = QUALITY_PRESETS[k];
+      return p.crf === crf && p.preset === preset;
+    }) ?? "Custom"
+  );
+}
+
 export const STEP_ORDER: StepType[] = [
   "interpolation",
   "upscale",
@@ -64,6 +84,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     preset: "medium",
     pixFmt: "yuv420p",
     tune: "",
+    quality: "Medium",
   },
 };
 

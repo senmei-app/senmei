@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **FFmpeg quality profiles + command preview (M4, 2026-08-17)** — the Output
+  step gains a Quality dropdown (Lossless / Very High / High / Medium / Low)
+  that sets crf + preset as a bundle ("Custom" when they diverge), persisted as
+  `StepParams.quality`, and a live command preview showing the merged ffmpeg
+  args. Verified in the app: Lossless → crf 0 / preset slow, preview updates.
 - **Render only the sample range (M5, 2026-08-17)** — the render command and
   pipeline accept `startMs`/`endMs`: the decoder seeks with fast `-ss` and caps
   the frame count, the encoder seeks the audio input so it stays in sync, and
