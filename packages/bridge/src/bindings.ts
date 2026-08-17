@@ -100,12 +100,25 @@ export type StepParams = {
 	fpsMultiplier?: number | null,
 	factor?: string | null,
 	/**  Label for an output step (e.g. "Final", "Intermediate"). */
-	name?: string | null,
+	label?: string | null,
 	videoCodec?: string | null,
 	audioCodec?: string | null,
 	subtitleMode?: string | null,
-	/**  Raw extra ffmpeg arguments for the output encode (e.g. `-c:v libx265 -crf 18`). */
+	/**
+	 *  Raw extra ffmpeg arguments for the output encode (e.g. `-c:v libx265 -crf 18`).
+	 *  Takes precedence per-flag over the structured fields below.
+	 */
 	ffmpegArgs?: string | null,
+	crf?: number | null,
+	preset?: string | null,
+	pixFmt?: string | null,
+	tune?: string | null,
+	/**  Output container/extension (e.g. "mp4", "mkv", "webm"). */
+	container?: string | null,
+	/**  Output folder mode: "input" | "global" | "custom". */
+	outputMode?: string | null,
+	/**  Custom output folder (when output_mode == "custom"). */
+	outputFolder?: string | null,
 };
 
 export type VideoInfo = {

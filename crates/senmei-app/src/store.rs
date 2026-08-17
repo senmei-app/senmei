@@ -39,7 +39,7 @@ pub struct StepParams {
     pub factor: Option<String>,
     /// Label for an output step (e.g. "Final", "Intermediate").
     #[serde(default)]
-    pub name: Option<String>,
+    pub label: Option<String>,
     #[serde(default)]
     pub video_codec: Option<String>,
     #[serde(default)]
@@ -47,8 +47,26 @@ pub struct StepParams {
     #[serde(default)]
     pub subtitle_mode: Option<String>,
     /// Raw extra ffmpeg arguments for the output encode (e.g. `-c:v libx265 -crf 18`).
+    /// Takes precedence per-flag over the structured fields below.
     #[serde(default)]
     pub ffmpeg_args: Option<String>,
+    #[serde(default)]
+    pub crf: Option<u32>,
+    #[serde(default)]
+    pub preset: Option<String>,
+    #[serde(default)]
+    pub pix_fmt: Option<String>,
+    #[serde(default)]
+    pub tune: Option<String>,
+    /// Output container/extension (e.g. "mp4", "mkv", "webm").
+    #[serde(default)]
+    pub container: Option<String>,
+    /// Output folder mode: "input" | "global" | "custom".
+    #[serde(default)]
+    pub output_mode: Option<String>,
+    /// Custom output folder (when output_mode == "custom").
+    #[serde(default)]
+    pub output_folder: Option<String>,
 }
 
 /// One module in the processing stack. Ordered top→bottom = execution order.
