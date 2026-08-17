@@ -355,6 +355,13 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **grid_sample foundation (M3, 2026-08-17)** — new `senmei_ml::burn::grid_sample`
+  (bilinear warp, `align_corners=True`, border padding) matching torch
+  semantics; each corner is sampled with a single gather over a flattened
+  spatial axis (`y*W + x`) because two chained H/W dim gathers re-pair the
+  per-pixel indices wrongly. Verified against a CPU reference over in-range
+  and out-of-range grid coords (ignored Vulkan test). This is the sampling op
+  RIFE's IFNet/FusionNet warps need.
 - **RIFE plumbing (M3, 2026-08-17, phase 1)** — `InferenceEngine` gains a
   2-input `infer_interp(a, b, t, opts)` (default `None` → CPU fallback). The
   pipeline `Interpolator` gets `with_engine` and routes each intermediate
