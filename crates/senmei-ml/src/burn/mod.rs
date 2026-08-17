@@ -168,9 +168,29 @@ impl InferenceEngine for BurnEngine {
             TensorData::new(b.data.clone(), [n, c, h, w]).convert::<f16>(),
             &self.device,
         );
-        // ncnn broadcasts the scalar timestep over the spatial grid.
-        let t_t = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], &self.device) * t;
+        // RIFE's internal flow estimation runs at 1/32 scale, so the reference
+        // (rife-ncnn-vulkan) pads the input to multiples of 32. Do the same and
+        // crop the output back to the original dims.
+        let pad_h = (h + 31) / 32 * 32;
+        let pad_w = (w + 31) / 32 * 32;
+        let pad = |x: BurnTensor<Vulkan<f16>, 4>| {
+            let mut x = x;
+            if pad_h > h {
+                let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, c, pad_h - h, w], &self.device);
+                x = BurnTensor::cat(vec![x, z], 2);
+            }
+            if pad_w > w {
+                let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, c, pad_h, pad_w - w], &self.device);
+                x = BurnTensor::cat(vec![x, z], 3);
+            }
+            x
+        };
+        let a_t = pad(a_t);
+        let b_t = pad(b_t);
+        // ncnn broadcasts the scalar timestep over the (padded) spatial grid.
+        let t_t = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, pad_h, pad_w], &self.device) * t;
         let out = model.interp(a_t, b_t, t_t);
+        let out = out.slice([0..n, 0..c, 0..h, 0..w]);
         let data = match out.into_data().convert::<f32>().to_vec() {
             Ok(v) => v,
             Err(e) => return Some(Err(Error::new(e.to_string()))),

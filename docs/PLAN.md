@@ -354,7 +354,7 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Short status. The full implementation log lives in [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top).
 
-- **Interpolation (M3):** RIFE v4.6 wired end-to-end — clean burn port of the ncnn `flownet` (215 layers), weights loaded from `flownet.bin` (MIT), verified on Vulkan (flow-based, symmetric, directionally correct).
+- **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end — clean burn port of the ncnn `flownet` (215 layers), weights from `flownet.bin` (MIT), input padded to 32-multiples (like the ncnn reference), full pipeline test: 10 fps → 19 frames @ 20 fps on Vulkan.
 - **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
 - **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.

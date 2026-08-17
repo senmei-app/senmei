@@ -13,6 +13,8 @@
 - [x] Pfeile zwischen den Stacks entfernen
 - [x] Videoname mittig (`project / video`), keine Box
 - [x] Settings-Button unten links (Statusleiste)
+- about page fehlt
+- hotkeys noch offen sollen wir am schluss machen
 
 ## Docs
 - [x] ncnn-Engine komplett aus Todos/Plan entfernen (burn ist Default)
@@ -20,3 +22,5 @@
 - [x] PLAN.md aktualisiert/redesignet
 - [ ] models.md übersichtlicher
 - [ ] benchmarks.md übersichtlicher
+
+## Project website wenn release fertig
