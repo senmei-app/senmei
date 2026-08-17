@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Keep render position after rendering (2026-08-18)** — the monitor no
+  longer jumps to position 0 after a render. The position is only reset when a
+  new file loads; view switches preserve it, and the result view clamps to the
+  sample in-point so it shows the rendered moment. The sample range is no
+  longer reset on view switches either, and the result frame is read at
+  `ms − inMs` (its timeline starts at inMs). Verified: render of a 30–90s sample
+  ends in the Result view at 00:00:30 with In/Out preserved.
 - **Slider sample-range highlight (2026-08-18)** — the timeline slider's track
   is now transparent with drawn underlays: a slate base, an indigo played fill
   up to the current position, and the sample window as a strong indigo bar with

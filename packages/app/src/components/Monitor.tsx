@@ -113,6 +113,8 @@ export default function Monitor({
       const source = Math.max(ms, inMs);
       if (file) targets.push({ path: file, ms: source });
       if (effRendered) targets.push({ path: effRendered, ms: Math.max(0, source - inMs) });
+    } else if (mode === "result" && effRendered) {
+      targets.push({ path: effRendered, ms: Math.max(0, ms - inMs) });
     } else if (src) {
       targets.push({ path: src, ms });
     }
@@ -162,9 +164,16 @@ export default function Monitor({
     prevRendered.current = renderedFile;
   }, [renderedFile]);
 
+  // A new video starts at 0; switching views keeps the position. The result
+  // view clamps to the sample in-point so it shows the rendered moment instead
+  // of jumping to 0, and the sample range is only (re)initialised per file.
+  const prevFile = useRef<string | null>(null);
   useEffect(() => {
+    const fileChanged = file !== prevFile.current;
+    prevFile.current = file ?? null;
+    const next = fileChanged ? 0 : mode === "result" ? Math.max(posMs, inMs) : posMs;
     setInfo(null);
-    setPosMs(0);
+    setPosMs(next);
     setPlaying(false);
     setFrames({});
     setError(null);
@@ -173,9 +182,9 @@ export default function Monitor({
       const probeTarget = src ?? file;
       if (probeTarget) {
         setInfo(demoProbe());
-        onSampleChange?.(0, 10000);
+        if (fileChanged) onSampleChange?.(0, 10000);
       }
-      loadFrame(0);
+      loadFrame(next);
       return;
     }
     const probeTarget = src ?? file;
@@ -183,14 +192,14 @@ export default function Monitor({
       probeVideo(probeTarget)
         .then((i) => {
           setInfo(i);
-          onSampleChange?.(0, Math.min(10000, (i.duration ?? 0) * 1000));
+          if (fileChanged) onSampleChange?.(0, Math.min(10000, (i.duration ?? 0) * 1000));
         })
         .catch((e) => {
           console.error("probeVideo failed:", e);
           setError(String(e));
         });
     }
-    loadFrame(0);
+    loadFrame(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, file, mode]);
 
