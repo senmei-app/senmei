@@ -355,6 +355,15 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Custom FFmpeg output options (2026-08-17)** — the `output` step gains a
+  **FFmpeg options** textarea (`params.ffmpegArgs`, persisted in `project.json`
+  via `StepParams.ffmpeg_args`). `render` accepts `ffmpegArgs: Option<String>`
+  (shell-like tokenizer with quote support), `Pipeline::set_encoder_args`
+  threads them into `Encoder::open`, which appends them **after** the built-in
+  x264 defaults so user codec/filter args override them. Verified end-to-end by
+  the app smoke test: `-c:v libx265 -crf 18 -preset ultrafast -pix_fmt
+  yuv420p10le` → ffprobe confirms HEVC + 10-bit output. Default output stays
+  x264 `veryfast` (overridable via `SENMEI_X264_PRESET`).
 - **Pipeline-stack Inspector (2026-08-17)** — Inspector's flat accordion list is
   replaced by a **dynamic layer stack** (order top→bottom = execution order):
   add steps via a "+ Add step" menu, remove (✕), enable/disable (checkbox),

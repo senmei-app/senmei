@@ -16,6 +16,7 @@ pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
     interpolator: Option<Interpolator>,
     cancel: Arc<AtomicBool>,
+    encoder_args: Vec<String>,
 }
 
 impl Pipeline {
@@ -24,7 +25,13 @@ impl Pipeline {
             steps,
             interpolator: None,
             cancel: Arc::new(AtomicBool::new(false)),
+            encoder_args: Vec::new(),
         }
+    }
+
+    /// Extra ffmpeg arguments appended to the output encode command.
+    pub fn set_encoder_args(&mut self, args: Vec<String>) {
+        self.encoder_args = args;
     }
 
     /// Install a cancellation flag; `run` aborts between frames once it is set.
@@ -69,7 +76,7 @@ impl Pipeline {
         let (raw_tx, raw_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
         let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
-        let encoder = Encoder::open(ffmpeg, output, w, h, fps)?;
+        let encoder = Encoder::open(ffmpeg, output, w, h, fps, &self.encoder_args)?;
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
