@@ -240,6 +240,42 @@ pub fn create_project(name: &str) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Duplicate a project under a new name (same settings, new folder).
+pub fn save_project_as(src: &str, name: &str) -> Result<String, String> {
+    let safe: String = name
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let safe = safe.trim();
+    if safe.is_empty() {
+        return Err("project name is empty".into());
+    }
+    let new_path = data_dir().join("projects").join(safe);
+    if new_path.exists() {
+        return Err(format!("project '{safe}' already exists"));
+    }
+    std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())?;
+    let settings = load_project_settings(&PathBuf::from(src));
+    save_project_settings(&new_path, &settings)?;
+    remember_project(&new_path.to_string_lossy())?;
+    Ok(new_path.to_string_lossy().into_owned())
+}
+
+/// Export the project settings (`project.json`) to a user-chosen destination.
+pub fn export_project(src: &str, dest: &str) -> Result<(), String> {
+    let src_path = PathBuf::from(src).join("project.json");
+    let json = std::fs::read_to_string(&src_path)
+        .map_err(|e| format!("no project.json in {src}: {e}"))?;
+    std::fs::write(dest, json).map_err(|e| e.to_string())
+}
+
 /// Delete a project: forget it in `projects.json` and remove its directory.
 /// Refuses paths outside the app's `projects` dir.
 pub fn delete_project(path: &str) -> Result<(), String> {

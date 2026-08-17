@@ -36,6 +36,8 @@ export const listProjects = () => commands.listProjects();
 export const createProject = (name: string) => commands.createProject(name);
 export const deleteProject = (path: string) => commands.deleteProject(path);
 export const rememberProject = (path: string) => commands.rememberProject(path);
+export const saveProjectAs = (src: string, name: string) => commands.saveProjectAs(src, name);
+export const exportProject = (src: string, dest: string) => commands.exportProject(src, dest);
 
 export const loadProjectSettings = (path: string) => commands.loadProjectSettings(path);
 export const saveProjectSettings = (path: string, settings: ProjectSettings) =>
