@@ -265,17 +265,23 @@ export default function App() {
     const customFolder = lastOut?.params?.outputFolder ?? "";
     const targetDir =
       outMode === "global" ? outputDir : outMode === "custom" ? customFolder || null : null;
+    const label = lastOut?.params?.label?.trim();
+    const marker = label || "senmei";
     const base =
-      currentFile.split("/").pop()?.replace(/\.[^.]+$/, `_senmei.${container}`) ??
-      `output_senmei.${container}`;
-    const defaultPath = targetDir
-      ? `${targetDir}/${base}`
-      : currentFile.replace(/\.[^.]+$/, `_senmei.${container}`);
-    const output = await save({
-      defaultPath,
-      filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
-    });
-    if (typeof output !== "string") return;
+      currentFile.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}.${container}`) ??
+      `output_${marker}.${container}`;
+    let output: string;
+    if (targetDir) {
+      // Folder mode configured: render straight into it, no save dialog.
+      output = `${targetDir}/${base}`;
+    } else {
+      const picked = await save({
+        defaultPath: currentFile.replace(/\.[^.]+$/, `_${marker}.${container}`),
+        filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
+      });
+      if (typeof picked !== "string") return;
+      output = picked;
+    }
     setRendering(true);
     setProgress(null);
     setRenderedFile(null);
@@ -340,7 +346,6 @@ export default function App() {
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
               onStartRender={startRender}
-              onCancelRender={handleCancelRender}
               onCloseProject={closeProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}

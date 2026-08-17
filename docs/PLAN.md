@@ -355,6 +355,16 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Output naming/flow (2026-08-17)** — the rendered filename includes the
+  Output-step `label` when set (`{stem}_{label}.{ext}`, else `{stem}_senmei.{ext}`);
+  when a folder mode is configured (Global/Custom) the render writes straight
+  into that folder — no save dialog. Dialog only remains for "Same as input".
+- **TopBar cleanup (2026-08-17)** — the redundant Cancel button is gone from
+  the topbar; Cancel already lives next to the render progress in the media
+  library.
+- **Resize factor decimal (2026-08-17)** — the factor field is a text input
+  (`inputMode=decimal`) that normalizes a comma to a dot, since `type=number`
+  silently drops the comma before `onChange`.
 - **Version badge with build hash (2026-08-17)** — the TopBar shows
   `v0.1.0-<short-hash>`; Vite injects `__APP_VERSION__`/`__BUILD_HASH__`
   (last commit) via `define`, so every build identifies its exact source.
