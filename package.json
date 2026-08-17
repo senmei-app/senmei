@@ -7,6 +7,6 @@
     "dev:release": "cargo tauri dev --release",
     "ui:dev": "cd packages/app && bun run dev",
     "build": "cd packages/app && bun run build",
-    "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pgrep -f target/senmei | xargs -r kill -9; echo cleaned"
+    "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pgrep -f target/senmei | xargs -r kill -9; rm -rf $HOME/.local/share/app.senmei.desktop/WebKitCache $HOME/.local/share/app.senmei.desktop/CacheStorage $HOME/.local/share/app.senmei.desktop/hsts-storage.sqlite $HOME/.local/share/app.senmei.desktop/storage $HOME/.local/share/app.senmei.desktop/mediakeys; echo cleaned"
   }
 }
