@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Fix asset protocol scope (2026-08-18)** — the `assetProtocol` scope was
+  `["**"]`, which matches almost nothing: Tauri enables `require_literal_separator`
+  for the scope (so `**` behaves like `*`) and requires a literal leading dot to
+  match hidden dirs like `~/.local`. Now `["$DATA/**", "$HOME/**"]`, which covers
+  the preview temp frames (app data dir) and the user's videos under home.
+  Fixes `asset protocol not configured to allow the path` in the monitor.
 - **Monitor frames via asset protocol, not data: URIs (2026-08-18)** —
   `read_frame` now writes the extracted frame to a temp PNG in the app data dir
   and returns its path; the monitor loads it with `convertFileSrc`. Large
