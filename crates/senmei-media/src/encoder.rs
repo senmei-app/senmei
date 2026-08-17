@@ -21,8 +21,11 @@ fn x264_preset() -> &'static str {
 impl Encoder {
     /// `extra_args` are appended after the defaults (before the output path), so
     /// user-supplied codec/filter options override the built-in x264 defaults.
+    /// `input` is a second ffmpeg input whose audio is mapped (`-map 1:a:0?`,
+    /// optional) so the output keeps the source sound unless `-an` is passed.
     pub fn open(
         ffmpeg: &Path,
+        input: &Path,
         path: &Path,
         width: u32,
         height: u32,
@@ -35,6 +38,9 @@ impl Encoder {
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"])
+            .arg("-i")
+            .arg(input)
+            .args(["-map", "0:v:0", "-map", "1:a:0?"])
             .args(["-c:v", "libx264", "-preset", x264_preset(), "-pix_fmt", "yuv420p"])
             .args(extra_args)
             .arg(path)
