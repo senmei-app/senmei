@@ -433,7 +433,7 @@ export default function Monitor({
               <span className="text-slate-400">▾</span>
             </button>
             {sampleMenu && (
-              <div className="absolute right-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+              <div className="absolute left-0 bottom-full z-30 mb-1 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
                 <div className="grid grid-cols-2 gap-0.5">
                   {[
                     { v: "10s", label: "10s" },

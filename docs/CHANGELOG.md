@@ -15,7 +15,9 @@
   00:01:00.00, custom 55s → 00:00:55.00, 10m → 00:10:00.00. The sample panel
   now carries `relative z-10` so its upward-opening dropdown paints above the
   positioned preview area, and the menu is a compact 2-column grid (~89 px tall)
-  so it no longer covers the preview.
+  so it no longer covers the preview. The menu is left-aligned (`left-0`) so it
+  grows into the free space to the right instead of clipping at the panel's left
+  edge.
 - **Monitor sample bar (2026-08-18)** — removed the redundant "Preview sample
   (15s)" button, promoted "Render Sample" to a filled primary button like
   Start Render, and made the sample range default to 10 s (highlighted preset).
