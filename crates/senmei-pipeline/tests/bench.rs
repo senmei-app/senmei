@@ -5,6 +5,7 @@
 use std::time::Instant;
 
 use senmei_ml::InferOptions;
+use senmei_pipeline::Step;
 
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
@@ -84,6 +85,20 @@ fn bench_shufflecugan_1080p_fullframe() {
     println!("frames: {total} | convert-in {ms_in:.1} ms | infer {ms_infer:.1} ms | convert-out {ms_out:.1} ms");
     println!("total {total_ms:.1} ms/frame | {:.1} FPS", 1000.0 / total_ms);
     println!("=================================================");
+
+    // Real render step: now uses the fused f16->RGB8 path (no f32 tensor).
+    let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+    step.process(&mut frames[0]).unwrap(); // warm-up
+    let s0 = Instant::now();
+    for f in &mut frames {
+        step.process(f).unwrap();
+    }
+    let s_el = s0.elapsed().as_secs_f64() / total as f64;
+    println!(
+        "step (fused RGB8): {:.1} ms/frame | {:.1} FPS",
+        s_el * 1000.0,
+        1.0 / s_el
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -24,6 +24,7 @@ use upcunet::{UpCunet2x, UpCunet2xFast};
 pub struct BurnEngine {
     model: Option<Model>,
     device: WgpuDevice,
+    scale: u32,
 }
 
 enum Model {
@@ -44,7 +45,11 @@ impl Model {
 
 impl BurnEngine {
     pub fn new() -> Self {
-        Self { model: None, device: WgpuDevice::DiscreteGpu(0) }
+        Self {
+            model: None,
+            device: WgpuDevice::DiscreteGpu(0),
+            scale: 1,
+        }
     }
 
     fn load_arch(&self, model: &ModelRef, store: &mut BurnpackStore) -> Result<Model> {
@@ -81,6 +86,7 @@ impl InferenceEngine for BurnEngine {
     fn load(&mut self, model: &ModelRef) -> Result<()> {
         let mut store = BurnpackStore::from_file(&model.path);
         self.model = Some(self.load_arch(model, &mut store)?);
+        self.scale = model.scale;
         Ok(())
     }
 
@@ -107,6 +113,39 @@ impl InferenceEngine for BurnEngine {
             .to_vec()
             .map_err(|e| Error::new(e.to_string()))?;
         Ok(Tensor::new(vec![n, c, oh, ow], data))
+    }
+
+    /// Fused output path: keeps everything on the GPU — transposes NCHW→NHWC,
+    /// scales to 0..255 and casts to U8 on-device, then downloads the packed
+    /// RGB bytes once (24.8 MB instead of a ~100 MB f32 round-trip).
+    /// Only used when the requested scale matches the model.
+    fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
+        if self.scale != scale {
+            return None;
+        }
+        let model = self.model.as_ref()?;
+        if input.shape.len() != 4 {
+            return Some(Err(Error::new("expected NCHW input")));
+        }
+        let n = input.shape[0];
+        let c = input.shape[1];
+        let h = input.shape[2];
+        let w = input.shape[3];
+
+        let data = TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>();
+        let x = BurnTensor::<Vulkan<f16>, 4>::from_data(data, &self.device);
+        let out = model.forward(x);
+        let [_, _, oh, ow] = out.dims();
+
+        // NCHW -> NHWC, then round to 0..255 and cast to U8 on the GPU.
+        let nhwc = out.permute([0, 2, 3, 1]);
+        let rgb_f = (nhwc * 255.0) + 0.5;
+        let rgb_u8 = rgb_f.cast(burn::tensor::IntDType::U8);
+        let bytes: Vec<u8> = match rgb_u8.into_data().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
+        Some(Ok((bytes, ow as u32, oh as u32)))
     }
 }
 
@@ -176,5 +215,20 @@ mod tests {
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
         assert!(out.data.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn tensor_data_f16_to_vec_is_available() {
+        // Exercises the CPU-side API we need for a fused f16->RGB8 output path
+        // (no GPU involved): f16 TensorData must hand back raw f16 values.
+        let data = burn::tensor::TensorData::new(
+            vec![0.5f32, 1.0, 0.0, 0.25],
+            [4],
+        )
+        .convert::<f16>();
+        let v: Vec<f16> = data.to_vec().unwrap();
+        assert_eq!(v.len(), 4);
+        assert_eq!(v[0].to_f32(), 0.5);
+        assert_eq!(v[2].to_f32(), 0.0);
     }
 }

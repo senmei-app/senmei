@@ -26,6 +26,14 @@ pub trait InferenceEngine: Send + Sync {
     fn capabilities(&self) -> EngineCaps;
     fn load(&mut self, model: &ModelRef) -> Result<()>;
     fn infer(&mut self, input: &Tensor, opts: &InferOptions) -> Result<Tensor>;
+
+    /// Optional fused path: infer and hand back packed RGB8 bytes directly
+    /// (bypassing the CPU f32 intermediate). Returns `None` to fall back to
+    /// `infer` + `tensor_to_frame`. `scale` is the requested upscale factor.
+    fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
+        let _ = (input, scale);
+        None
+    }
 }
 
 /// Run an engine over a full input, tiling when the engine advertises tile support

@@ -82,7 +82,8 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 |---|---|---|---|---|---|
 | before (sequential) | 3.7 ms | 158 ms | 35.7 ms | 197 ms | 5.1 |
 | after (optimized) | 1.9 ms | 157 ms | 9.7 ms | 168 ms | 5.9 |
-| full threaded pipeline + x264 veryfast | — | — | — | — | **5.1** |
+| **fused GPU RGB8 step** | 1.9 ms | 157 ms | — (on GPU) | **157 ms** | **6.4** |
+| full threaded pipeline + x264 veryfast + GPU RGB8 | — | — | — | — | **6.5** |
 
 - The 4K `tensor_to_frame` (35.7 → 9.7 ms) was the biggest CPU win: replaced
   `round().clamp()` per element with a saturating `(x*255+0.5) as u8`
@@ -90,12 +91,19 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 - `Pipeline::run` now runs decode/encode on threads so CPU I/O hides behind the
   GPU inference; the encode thread uses x264 `-preset veryfast` (was default
   medium — that had become the bottleneck at 2160p: 4.7 FPS).
-- **Model inference (157 ms) is the hard floor** on burn/Vulkan/RDNA4: ~6 FPS
-  pure, ~5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified
+- **GPU-side RGB conversion (`infer_rgb8`, the PyTorch way):** after the model
+  forward, the output is transposed NCHW→NHWC, scaled to 0..255 and cast to U8
+  **on the GPU** (`permute` + `cast(IntDType::U8)`), then only the packed RGB
+  bytes (24.8 MB) cross the PCIe bus. This removes the ~100 MB f32 download +
+  the CPU interleave pass entirely → 168 → 157 ms, end-to-end **5.1 → 6.5 FPS**.
+  (A naive CPU f16→u8 loop was much slower — `f16::to_f32()` doesn't
+  autovectorize; the GPU cast is the right call.)
+- **Model inference (157 ms) is the hard floor** on burn/Vulkan/RDNA4: ~6.4 FPS
+  pure, ~6.5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified
   via rocm-smi); no throttling. Closing the gap to TensorRT-class speed (36 FPS)
-  needs hand-tuned kernels / GPU-side color conversion — not a config change.
-- Real-CUGAN up2x and ShuffleCugan both measure identically (158 ms) — the
-  per-frame transfer cost dominates, not the weights.
+  needs hand-tuned kernels — not a config change.
+- Real-CUGAN up2x and ShuffleCugan both measure identically — the per-frame
+  transfer cost dominates, not the weights.
 
 ## Decision (2026-08-16, revised 2026-08-17)
 

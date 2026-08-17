@@ -43,6 +43,14 @@ impl Step for Upscale {
 
     fn process(&mut self, frame: &mut Frame) -> crate::Result<()> {
         let input = frame_to_tensor(frame);
+        // Fused GPU output path (f16 -> RGB8 directly) when the engine supports it.
+        if let Some(engine) = self.engine.as_mut() {
+            if let Some(res) = engine.infer_rgb8(&input, self.scale) {
+                let (bytes, w, h) = res.map_err(|e| crate::Error::new(e.to_string()))?;
+                *frame = Frame { width: w, height: h, data: bytes };
+                return Ok(());
+            }
+        }
         let out = match self.engine.as_mut() {
             Some(engine) => {
                 let opts = InferOptions { half: false, tile_size: Some(TILE_SIZE) };
