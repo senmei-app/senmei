@@ -40,8 +40,11 @@ def parse_param(path):
 
 
 def parse_shape(v):
-    # "1,2" -> [1,2] ; "0" or missing -> None (keep/unspecified)
-    return [int(x) for x in v.split(",")] if v else None
+    # ncnn Mat param: "N,v1,...,vN" -> [v1,...,vN] ; "0" or missing -> [].
+    if not v:
+        return []
+    parts = [int(x) for x in v.split(",")]
+    return parts[1:]  # drop the leading count
 
 
 def conv_out(h, w, k, s, p, d=1):
@@ -90,11 +93,20 @@ def infer_shapes(layers, H, W):
         elif t == "Split" or t == "ReLU" or t == "Sigmoid" or t == "Reorg":
             outs = [inp[0]] * len(L["outputs"]) if inp and inp[0] else []
         elif t == "Crop":
+            # numpy-style slice (dims=3): axis 0 = channels, 1 = height, 2 = width.
             ci, h, w = inp[0]
-            c0 = parse_shape(p.get(-23309)); h0 = parse_shape(p.get(-23310)); w0 = parse_shape(p.get(-23311))
-            co = (c0 or [ci])[0]
-            ho = (h0 or [h])[0]
-            wo = (w0 or [w])[0]
+            starts = parse_shape(p.get(-23309)) or []
+            ends = parse_shape(p.get(-23310)) or []
+            axes = parse_shape(p.get(-23311)) or []
+            co, ho, wo = ci, h, w
+            dims = [ci, h, w]
+            for axis, s, e in zip(axes, starts, ends):
+                if axis == 0:
+                    co = (e if e else ci) - (s if s else 0)
+                elif axis == 1:
+                    ho = (e if e else h) - (s if s else 0)
+                else:
+                    wo = (e if e else w) - (s if s else 0)
             outs = [(co, ho, wo)]
         else:
             outs = [inp[0]] * len(L["outputs"]) if inp and inp[0] else []
