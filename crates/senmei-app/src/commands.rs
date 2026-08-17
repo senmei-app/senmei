@@ -210,8 +210,14 @@ pub fn remember_project(path: String) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_project_as(src: String, name: String) -> Result<String, String> {
-    store::save_project_as(&src, &name)
+pub fn export_project(src: String, dest: String) -> Result<(), String> {
+    store::export_project(&src, &dest)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_project(file: String) -> Result<String, String> {
+    store::open_project(&file)
 }
 
 #[tauri::command]

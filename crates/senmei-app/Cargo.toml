@@ -8,6 +8,10 @@ description = "Tauri application shell for Senmei: commands, state, and IPC."
 
 [dependencies]
 base64 = "0.22"
+# tar.xz like senmei-media: reuse the liblzma already in the graph (a zip dep
+# would pull xz2 and conflict on the native `lzma` link).
+tar = "0.4"
+liblzma = "0.4"
 senmei-media = { path = "../senmei-media", version = "0.1.0" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.0", features = ["burn"] }
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.0" }

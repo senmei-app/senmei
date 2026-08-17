@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -240,9 +240,46 @@ pub fn create_project(name: &str) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// Duplicate a project under a new name (same settings, new folder).
-pub fn save_project_as(src: &str, name: &str) -> Result<String, String> {
-    let safe: String = name
+/// Export a project folder as a `.tar.xz` (project.json + any other files in
+/// the project dir), using the same tar + liblzma path as the FFmpeg download.
+pub fn export_project(src: &str, dest: &str) -> Result<(), String> {
+    let src_dir = PathBuf::from(src);
+    if !src_dir.is_dir() {
+        return Err(format!("not a project folder: {src}"));
+    }
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&src_dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .collect();
+    files.sort();
+
+    let file = std::fs::File::create(dest).map_err(|e| e.to_string())?;
+    let xz = liblzma::write::XzEncoder::new(file, 6);
+    let mut tar = tar::Builder::new(xz);
+    for path in files {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        tar.append_path_with_name(&path, &name).map_err(|e| e.to_string())?;
+    }
+    let xz = tar.into_inner().map_err(|e| e.to_string())?;
+    xz.finish().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Import a project `.tar.xz` into the app's project storage and return the
+/// new project dir. The project name comes from the archive filename; a
+/// colliding name gets a `_2`, `_3`, … suffix.
+pub fn open_project(archive: &str) -> Result<String, String> {
+    let stem = PathBuf::from(archive)
+        .file_stem()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "project".into());
+    let stem = stem.strip_suffix(".tar").unwrap_or(&stem).to_string();
+    let safe: String = stem
         .trim()
         .chars()
         .map(|c| {
@@ -253,19 +290,30 @@ pub fn save_project_as(src: &str, name: &str) -> Result<String, String> {
             }
         })
         .collect();
-    let safe = safe.trim();
-    if safe.is_empty() {
-        return Err("project name is empty".into());
+    let safe = if safe.trim().is_empty() { "project" } else { safe.trim() };
+
+    let base = data_dir().join("projects").join(safe);
+    let target = unique_dir(&base);
+    std::fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    let xz = liblzma::read::XzDecoder::new(file);
+    let mut ar = tar::Archive::new(xz);
+    ar.unpack(&target).map_err(|e| e.to_string())?;
+    remember_project(&target.to_string_lossy())?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
+fn unique_dir(base: &Path) -> PathBuf {
+    if !base.exists() {
+        return base.to_path_buf();
     }
-    let new_path = data_dir().join("projects").join(safe);
-    if new_path.exists() {
-        return Err(format!("project '{safe}' already exists"));
+    for n in 2.. {
+        let candidate = PathBuf::from(format!("{} {n}", base.to_string_lossy()));
+        if !candidate.exists() {
+            return candidate;
+        }
     }
-    std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())?;
-    let settings = load_project_settings(&PathBuf::from(src));
-    save_project_settings(&new_path, &settings)?;
-    remember_project(&new_path.to_string_lossy())?;
-    Ok(new_path.to_string_lossy().into_owned())
+    unreachable!()
 }
 
 /// Delete a project: forget it in `projects.json` and remove its directory.
@@ -362,6 +410,27 @@ mod tests {
             let err = delete_project(&outside.to_string_lossy()).unwrap_err();
             assert!(err.contains("refusing"), "unexpected error: {err}");
             let _ = std::fs::remove_dir_all(&outside);
+        });
+    }
+
+    #[test]
+    fn export_open_project_roundtrip() {
+        with_temp_data_dir("export_open", || {
+            let dir = PathBuf::from(create_project("RoundTrip").unwrap());
+            let mut settings = ProjectSettings::default();
+            settings.files = vec!["/videos/a.mp4".into(), "/videos/b.mp4".into()];
+            save_project_settings(&dir, &settings).unwrap();
+
+            let archive = std::env::temp_dir().join("senmei-roundtrip.tar.xz");
+            let _ = std::fs::remove_file(&archive);
+            export_project(&dir.to_string_lossy(), &archive.to_string_lossy()).unwrap();
+            assert!(archive.exists() && archive.metadata().unwrap().len() > 0);
+
+            let imported = PathBuf::from(open_project(&archive.to_string_lossy()).unwrap());
+            assert_ne!(imported, dir); // imported into a fresh project dir
+            let loaded = load_project_settings(&imported);
+            assert_eq!(loaded.files, settings.files);
+            let _ = std::fs::remove_file(&archive);
         });
     }
 

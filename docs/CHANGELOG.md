@@ -10,11 +10,12 @@
   it survives only as a weight format for RIFE). `models.md` and
   `benchmarks.md` cleaned up (consistent RIFE v4.6 status, single clear engine
   verdict).
-- **Project save-as (2026-08-17)** — the File menu gains "Save Project As…"
-  (duplicates the project folder + settings under a new name). An earlier
-  "Export Project…" (writing `project.json` to an arbitrary path) was dropped —
-  Open Project only opens project *folders*, so the standalone JSON couldn't be
-  re-imported; Save As is the single coherent action.
+- **Project export/open (2026-08-17)** — File → "Export Project…" writes the
+  project as a **`.tar.xz`** archive (tar + liblzma, same path as the FFmpeg
+  download — no zip crate, which would clash on the native `lzma` link). The
+  project screen's "Open Project…" button (was "Open other folder…") imports a
+  `.tar.xz` back into the app storage and opens it. "Save Project As" was
+  dropped — export/open round-trips instead.
 - **UI polish (2026-08-17)** — the media-library drop box now only shows when
   no video is loaded (and fills the whole panel height); videos can be added
   by dragging them anywhere in the window (Tauri `onDragDropEvent` with full
