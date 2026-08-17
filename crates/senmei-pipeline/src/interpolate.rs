@@ -1,5 +1,6 @@
 use senmei_media::Frame;
 use senmei_ml as ml;
+use senmei_ml::{InferenceEngine, InferOptions};
 
 use crate::frame::{frame_to_tensor, tensor_to_frame};
 use crate::Result;
@@ -8,11 +9,16 @@ use crate::Result;
 /// frames are treated as a scene cut.
 const SCENE_CUT_THRESHOLD: f32 = 0.25;
 
+/// Interpolation runs at native resolution without tiling.
+const INTERP_OPTS: InferOptions = InferOptions { half: true, tile_size: None };
+
 /// Stateful frame interpolator: emits `factor - 1` intermediates between
-/// consecutive frames (linear blend, or duplicates across scene cuts).
+/// consecutive frames. With an engine it uses `infer_interp` (e.g. RIFE);
+/// without one it falls back to a linear blend, or duplicates across scene cuts.
 pub struct Interpolator {
     factor: u32,
     prev: Option<Frame>,
+    engine: Option<Box<dyn InferenceEngine>>,
 }
 
 impl Interpolator {
@@ -20,6 +26,15 @@ impl Interpolator {
         Self {
             factor: factor.max(2),
             prev: None,
+            engine: None,
+        }
+    }
+
+    pub fn with_engine(factor: u32, engine: Box<dyn InferenceEngine>) -> Self {
+        Self {
+            factor: factor.max(2),
+            prev: None,
+            engine: Some(engine),
         }
     }
 
@@ -35,16 +50,22 @@ impl Interpolator {
             let a = frame_to_tensor(&prev);
             let b = frame_to_tensor(&frame);
             let n = self.factor - 1;
-            if ml::is_scene_cut(&a, &b, SCENE_CUT_THRESHOLD) {
-                for _ in 0..n {
-                    out.push(prev.clone());
-                }
-            } else {
-                for k in 1..=n {
-                    let t = k as f32 / (n + 1) as f32;
-                    let blended = ml::blend(&a, &b, t);
-                    out.push(tensor_to_frame(&blended, frame.width, frame.height));
-                }
+            let cut = ml::is_scene_cut(&a, &b, SCENE_CUT_THRESHOLD);
+            for k in 1..=n {
+                let t = k as f32 / (n + 1) as f32;
+                let mid = match self.engine.as_mut() {
+                    Some(engine) => match engine.infer_interp(&a, &b, t, &INTERP_OPTS) {
+                        Some(res) => {
+                            let out = res.map_err(|e| crate::Error::new(e.to_string()))?;
+                            tensor_to_frame(&out, frame.width, frame.height)
+                        }
+                        None if cut => prev.clone(),
+                        None => tensor_to_frame(&ml::blend(&a, &b, t), frame.width, frame.height),
+                    },
+                    None if cut => prev.clone(),
+                    None => tensor_to_frame(&ml::blend(&a, &b, t), frame.width, frame.height),
+                };
+                out.push(mid);
             }
         }
         self.prev = Some(frame.clone());
