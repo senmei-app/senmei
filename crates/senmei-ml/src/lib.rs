@@ -15,7 +15,7 @@ pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
 pub use tensor::Tensor;
-pub use tiling::{stitch, tile};
+pub use tiling::{crop, pad_to, stitch, tile, uniform_tile};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
