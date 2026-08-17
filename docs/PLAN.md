@@ -277,7 +277,7 @@ sequenceDiagram
 | **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (shuffle-cugan, e2e verified 1080p→2160p); NCNN plan superseded |
 | **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | � RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
 | **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 basic settings only |
-| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ⬜ pending |
+| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | 🟡 live monitor + compare + timeline in/out sample presets done |
 | **M6** | **Engine** | decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**; no C++/ncnn shim | ✅ burn default, ncnn engine dropped |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks done; more models/backends pending |
 | **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | ⬜ pending |
@@ -355,6 +355,11 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 > Short status. The full implementation log lives in [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top).
 
 - **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end — clean burn port of the ncnn `flownet` (215 layers), weights from `flownet.bin` (MIT), input padded to 32-multiples (like the ncnn reference), full pipeline test: 10 fps → 19 frames @ 20 fps on Vulkan.
+- **Sample preview (M5, 2026-08-17):** the Monitor timeline gains an in/out
+  sample range with 10s/15s/30s/60s/Full presets; playback loops inside the
+  range and the selected window is highlighted on the slider with In/Out
+  markers. (Live monitor, source/compare/result tabs and the scrubber were
+  already in place.)
 - **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
 - **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.
