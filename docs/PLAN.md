@@ -355,6 +355,19 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Selection + Edit/Process menus + hotkeys (2026-08-17)** — library rows
+  are selectable (ring highlight; click toggles). Ctrl/Cmd+A selects all,
+  Delete removes the selection, Ctrl/Cmd+R starts the batch render. The
+  menubar gains **Edit** (Select All Videos, Delete Selected) and **Process**
+  (Add All / Add Selected to Queue, Process Selected / Queue / All); Process
+  Selected renders only the chosen files, Add to Queue switches the media
+  panel to the Queue tab.
+- **Header & project-screen polish (2026-08-17)** — the app header drops the
+  "Senmei" wordmark (logo + version badge suffice) and gains a gear Settings
+  button (like Koharu). The project screen header now matches the main app
+  (鮮 logo + version badge) and deleting a project uses an in-app themed
+  confirm modal instead of `ask()`/`window.confirm`. Step titles in the stack
+  show their model & scale ("2. Upscale · shuffle-cugan ×2", "1. Interpolate ×2").
 - **Fix: neon color artifacts on hard edges (2026-08-17)** — the GPU output
   path (`infer_rgb8`) cast to U8 **without clamping**, so model values >1.0 at
   hard edges (burnt-in subtitles) wrapped (e.g. 275 → 19 → magenta/cyan).
