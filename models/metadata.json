@@ -1,5 +1,17 @@
 [
   {
+    "id": "shuffle-cugan",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "upcunet2x-fast",
+    "weights": ["sudo_shuffle_cugan_9.584.969.pth.f16.bpk"],
+    "license": "unclear (SUDO) - prototype opt-in",
+    "source_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/tag/models",
+    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/sudo_shuffle_cugan_9.584.969.pth",
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "fastest variant (46/103 ms @720p/1080p); license unclear - maintainer opted in for the prototype" }
+  },
+  {
     "id": "real-cugan-x2",
     "kind": "upscale",
     "scale": 2,
@@ -10,18 +22,6 @@
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_up2x-latest-no-denoise.pth",
     "loadable": true,
     "metadata": { "input_range": "0..1", "half": true, "note": "clean re-impl (upcunet_v3, MIT reference); f16 burnpack via convert-f16" }
-  },
-  {
-    "id": "shuffle-cugan",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "upcunet2x-fast",
-    "weights": ["sudo_shuffle_cugan_9.584.969.pth.f16.bpk"],
-    "license": "unclear (SUDO) - benchmark only",
-    "source_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/tag/models",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/sudo_shuffle_cugan_9.584.969.pth",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "fastest variant (46/103 ms @720p/1080p in rust-sr-bench); weights not adopted pending license" }
   },
   {
     "id": "realesrgan-animevideo-x2",

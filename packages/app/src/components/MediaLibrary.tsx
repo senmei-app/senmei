@@ -1,15 +1,31 @@
 import { useState } from "react";
+import type { RenderProgress } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 
 export default function MediaLibrary({
   files,
   onOpen,
+  outputDir,
+  onPickOutputDir,
+  rendering,
+  progress,
+  renderedFile,
 }: {
   files: string[];
   onOpen: () => void;
+  outputDir: string | null;
+  onPickOutputDir: () => void;
+  rendering: boolean;
+  progress: RenderProgress | null;
+  renderedFile: string | null;
 }) {
   const { t } = useI18n();
   const [view, setView] = useState<"library" | "queue">("library");
+
+  const pct =
+    rendering && progress && progress.totalFrames > 0
+      ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
+      : null;
 
   return (
     <aside className="flex h-full flex-col border-r border-slate-200 bg-slate-100/70 p-3 dark:border-slate-800/80 dark:bg-slate-900/30">
@@ -82,8 +98,40 @@ export default function MediaLibrary({
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">
-            {t("queue.empty")}
+          <div className="space-y-2 p-1">
+            {rendering && (
+              <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-2">
+                <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                  {t("queue.rendering")}
+                </p>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full bg-indigo-500 transition-all"
+                    style={{ width: `${pct ?? 0}%` }}
+                  />
+                </div>
+                {progress && (
+                  <p className="mt-1 font-mono text-[10px] text-slate-500">
+                    {progress.framesProcessed} / {progress.totalFrames}
+                  </p>
+                )}
+              </div>
+            )}
+            {renderedFile && (
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2">
+                <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-300">
+                  {t("queue.done")}
+                </p>
+                <p className="mt-0.5 truncate font-mono text-[10px] text-slate-500">
+                  {renderedFile.split("/").pop()}
+                </p>
+              </div>
+            )}
+            {!rendering && !renderedFile && (
+              <div className="flex h-32 items-center justify-center text-xs text-slate-500">
+                {t("queue.empty")}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -91,10 +139,19 @@ export default function MediaLibrary({
       <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800/80">
         <label className="mb-1 block text-[10px] text-slate-500 dark:text-slate-400">{t("tab.output")}</label>
         <div className="flex items-center space-x-2">
-          <div className="flex-1 truncate rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
-            {t("output.path")}
+          <div
+            title={outputDir ?? undefined}
+            className="flex-1 truncate rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+          >
+            {outputDir ?? t("output.path")}
           </div>
-          <button className="rounded-md bg-slate-200 p-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">📁</button>
+          <button
+            onClick={onPickOutputDir}
+            className="rounded-md bg-slate-200 p-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            title={t("output.pick")}
+          >
+            📁
+          </button>
         </div>
       </div>
     </aside>

@@ -23,7 +23,7 @@ export default function TopBar({
   onSettings: () => void;
   onGithub: () => void;
 }) {
-  const { lang, setLang, t } = useI18n();
+  const { t } = useI18n();
 
   return (
     <header className="relative z-50 flex h-12 w-full items-center gap-4 border-b border-slate-200 bg-white/90 px-4 text-xs backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
@@ -67,22 +67,6 @@ export default function TopBar({
           <span>{rendering ? "…" : "▶"}</span>
           <span>{rendering ? t("topbar.rendering") : t("render.start")}</span>
         </button>
-
-        <div className="flex items-center space-x-1 text-[10px] font-medium">
-          <button
-            onClick={() => setLang("en")}
-            className={lang === "en" ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500 hover:text-slate-900 dark:text-slate-500 dark:hover:text-slate-300 transition"}
-          >
-            EN
-          </button>
-          <span className="text-slate-400 dark:text-slate-600">/</span>
-          <button
-            onClick={() => setLang("de")}
-            className={lang === "de" ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500 hover:text-slate-900 dark:text-slate-500 dark:hover:text-slate-300 transition"}
-          >
-            DE
-          </button>
-        </div>
 
         <div className="border-l border-slate-200 pl-3 dark:border-slate-800">
           <WindowControls />

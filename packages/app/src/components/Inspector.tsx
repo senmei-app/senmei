@@ -66,6 +66,7 @@ function Accordion({
 export default function Inspector({
   scale,
   onScaleChange,
+  modelId,
   onModelChange,
   resizeFactor,
   onResizeFactorChange,
@@ -78,6 +79,7 @@ export default function Inspector({
 }: {
   scale: number;
   onScaleChange: (scale: number) => void;
+  modelId: string | null;
   onModelChange: (modelId: string | null) => void;
   resizeFactor: string;
   onResizeFactorChange: (v: string) => void;
@@ -92,7 +94,6 @@ export default function Inspector({
   const [group, setGroup] = useState<Group>("settings");
   const [models, setModels] = useState<ModelMetadata[]>([]);
   const [interpolateModel, setInterpolateModel] = useState("");
-  const [upscaleModel, setUpscaleModel] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
 
@@ -103,19 +104,23 @@ export default function Inspector({
         setModels(list);
         const interp = list.find((m) => m.kind === "interpolate");
         if (interp) setInterpolateModel(interp.id);
-        const up = list.find((m) => m.kind === "upscale");
-        if (up) {
-          setUpscaleModel(up.id);
-          onModelChange(up.id);
-          onScaleChange(up.scale ?? 1);
+        // Default to the first upscale model only when none is persisted yet.
+        if (!modelId) {
+          const up = list.find((m) => m.kind === "upscale" && m.loadable);
+          if (up) {
+            onModelChange(up.id);
+            onScaleChange(up.scale ?? 1);
+          }
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
-  const upModel = upscaleModels.find((m) => m.id === upscaleModel);
+  const selectedUpscaleId = modelId ?? upscaleModels[0]?.id ?? "";
+  const upModel = upscaleModels.find((m) => m.id === selectedUpscaleId);
 
   const downloadWeights = (modelId: string) => {
     if (!isTauri() || downloading) return;
@@ -231,7 +236,7 @@ export default function Inspector({
             <div className="space-y-2 text-xs">
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
-                {modelSelect(upscaleModels, upscaleModel, setUpscaleModel, true)}
+                {modelSelect(upscaleModels, selectedUpscaleId, () => {}, true)}
               </div>
               {upModel?.loadable && (
                 <div>

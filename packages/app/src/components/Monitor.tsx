@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { probeVideo, readFrame, type VideoInfo } from "@senmei/bridge";
+import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 
 const FRAME_STEP_MS = 250;
@@ -15,8 +15,20 @@ function fmt(ms: number): string {
   return `${pad(h)}:${pad(m)}:${pad(sec)}.${pad(cs)}`;
 }
 
-export default function Monitor({ file }: { file?: string }) {
+export default function Monitor({
+  file,
+  renderedFile,
+  rendering,
+  progress,
+}: {
+  file?: string;
+  renderedFile: string | null;
+  rendering: boolean;
+  progress: RenderProgress | null;
+}) {
   const { t } = useI18n();
+  const [mode, setMode] = useState<"source" | "result">("source");
+  const src = mode === "result" && renderedFile ? renderedFile : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -24,12 +36,12 @@ export default function Monitor({ file }: { file?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
-  const name = file ? file.split("/").pop() : null;
+  const name = src ? src.split("/").pop() : null;
 
   const loadFrame = (ms: number) => {
-    if (!file || !isTauri()) return;
+    if (!src || !isTauri()) return;
     setLoading(true);
-    readFrame(file, ms)
+    readFrame(src, ms)
       .then((b64) => {
         setImg(`data:image/jpeg;base64,${b64}`);
         setError(null);
@@ -48,8 +60,8 @@ export default function Monitor({ file }: { file?: string }) {
     setPlaying(false);
     setImg(null);
     setError(null);
-    if (!file || !isTauri()) return;
-    probeVideo(file)
+    if (!src || !isTauri()) return;
+    probeVideo(src)
       .then(setInfo)
       .catch((e) => {
         console.error("probeVideo failed:", e);
@@ -57,7 +69,7 @@ export default function Monitor({ file }: { file?: string }) {
       });
     loadFrame(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [src]);
 
   const onScrub = (ms: number) => {
     setPosMs(ms);
@@ -84,6 +96,15 @@ export default function Monitor({ file }: { file?: string }) {
   }, [playing, info]);
 
   const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
+  const pct =
+    rendering && progress && progress.totalFrames > 0
+      ? Math.round((progress.framesProcessed / progress.totalFrames) * 100)
+      : null;
+
+  const tabCls = (active: boolean) =>
+    active
+      ? "rounded-md border border-indigo-500/40 bg-indigo-600/40 px-2 py-1 text-[10px] font-mono text-indigo-200 backdrop-blur"
+      : "rounded-md bg-black/50 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur hover:bg-black/60";
 
   return (
     <main className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
@@ -97,22 +118,39 @@ export default function Monitor({ file }: { file?: string }) {
             </span>
           </div>
         )}
-        {error && (
-          <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[10px] text-white backdrop-blur">
-            {error}
-          </div>
-        )}
+
+        <div className="absolute top-3 left-3 flex space-x-2">
+          <button onClick={() => setMode("source")} className={tabCls(mode === "source")}>
+            {t("monitor.original")}
+            {mode === "source" && info ? ` ${info.width}x${info.height}` : ""}
+          </button>
+          {renderedFile && (
+            <button onClick={() => setMode("result")} className={tabCls(mode === "result")}>
+              {t("monitor.result")}
+            </button>
+          )}
+        </div>
+
         {loading && (
           <div className="absolute top-3 right-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur">
             …
           </div>
         )}
-        <div className="absolute top-3 left-3 flex space-x-2">
-          <span className="rounded-md bg-black/60 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur">
-            {t("monitor.original")}
-            {info ? ` ${info.width}x${info.height}` : ""}
-          </span>
-        </div>
+
+        {error && (
+          <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[10px] text-white backdrop-blur">
+            {error}
+          </div>
+        )}
+
+        {pct !== null && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-black/70 px-3 py-1.5 font-mono text-xs text-white backdrop-blur">
+            {t("monitor.rendering")} {pct}%
+            <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-slate-700">
+              <div className="h-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40">

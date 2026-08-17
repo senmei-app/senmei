@@ -68,6 +68,10 @@ export type ProjectEntry = {
 /**  Per-project Inspector settings persisted in `<project>/project.json`. */
 export type ProjectSettings = {
 	stepsEnabled?: { [key in string]: boolean },
+	upscaleModel?: string | null,
+	scale?: number | null,
+	files?: string[],
+	outputDir?: string | null,
 };
 
 export type RenderProgress = {

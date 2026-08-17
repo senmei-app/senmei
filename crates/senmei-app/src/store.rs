@@ -31,12 +31,24 @@ pub struct ProjectEntry {
 pub struct ProjectSettings {
     #[serde(default)]
     pub steps_enabled: std::collections::HashMap<String, bool>,
+    #[serde(default)]
+    pub upscale_model: Option<String>,
+    #[serde(default)]
+    pub scale: Option<u32>,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub output_dir: Option<String>,
 }
 
 impl Default for ProjectSettings {
     fn default() -> Self {
         Self {
             steps_enabled: std::collections::HashMap::new(),
+            upscale_model: None,
+            scale: None,
+            files: Vec::new(),
+            output_dir: None,
         }
     }
 }

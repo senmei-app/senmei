@@ -46,6 +46,8 @@ export default function App() {
   const [fpsMultiplier, setFpsMultiplier] = useState<number | null>(null);
   const [stepsEnabled, setStepsEnabled] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
+  const [outputDir, setOutputDir] = useState<string | null>(null);
+  const [renderedFile, setRenderedFile] = useState<string | null>(null);
 
   const currentFile = files[0];
 
@@ -96,6 +98,11 @@ export default function App() {
     loadProjectSettings(projectDir)
       .then((s: ProjectSettings) => {
         setStepsEnabled(s.stepsEnabled ?? {});
+        if (s.upscaleModel) setModelId(s.upscaleModel);
+        if (s.scale) setScale(s.scale);
+        if (s.files && s.files.length > 0) setFiles(s.files);
+        if (s.outputDir) setOutputDir(s.outputDir);
+        setRenderedFile(null);
         setHydrated(true);
       })
       .catch(() => setHydrated(true));
@@ -103,8 +110,14 @@ export default function App() {
 
   useEffect(() => {
     if (!projectDir || !isTauri() || !hydrated) return;
-    void saveProjectSettings(projectDir, { stepsEnabled }).catch(() => {});
-  }, [projectDir, hydrated, stepsEnabled]);
+    void saveProjectSettings(projectDir, {
+      stepsEnabled,
+      upscaleModel: modelId,
+      scale,
+      files,
+      outputDir,
+    }).catch(() => {});
+  }, [projectDir, hydrated, stepsEnabled, modelId, scale, files, outputDir]);
 
   const changeTheme = (t: string) => {
     setTheme(t);
@@ -135,11 +148,15 @@ export default function App() {
     const dir = await createProject(name);
     setProjectDir(dir);
     setFiles([]);
+    setRenderedFile(null);
+    setOutputDir(null);
   };
 
   const handleOpenProject = (path: string) => {
     setProjectDir(path);
     setFiles([]);
+    setRenderedFile(null);
+    setOutputDir(null);
   };
 
   const browseProject = async () => {
@@ -148,13 +165,23 @@ export default function App() {
     if (typeof dir === "string") {
       setProjectDir(dir);
       setFiles([]);
+      setRenderedFile(null);
+      setOutputDir(null);
     }
   };
 
   const closeProject = () => {
     setProjectDir(null);
     setFiles([]);
+    setRenderedFile(null);
+    setOutputDir(null);
     void reloadProjects();
+  };
+
+  const pickOutputDir = async () => {
+    if (!isTauri()) return;
+    const dir = await open({ directory: true, title: "Output folder" });
+    if (typeof dir === "string") setOutputDir(dir);
   };
 
   const openGithub = () => {
@@ -163,13 +190,16 @@ export default function App() {
 
   const startRender = async () => {
     if (!isTauri() || !currentFile || rendering) return;
+    const base = currentFile.split("/").pop()?.replace(/\.[^.]+$/, "_senmei.mp4") ?? "output_senmei.mp4";
+    const defaultPath = outputDir ? `${outputDir}/${base}` : currentFile.replace(/\.[^.]+$/, "_senmei.mp4");
     const output = await save({
-      defaultPath: currentFile.replace(/\.[^.]+$/, "_senmei.mp4"),
+      defaultPath,
       filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm"] }],
     });
     if (typeof output !== "string") return;
     setRendering(true);
     setProgress(null);
+    setRenderedFile(null);
     const ch = new Channel<RenderProgress>();
     ch.onmessage = setProgress;
     const enabled = (id: string) => stepsEnabled[id] !== false;
@@ -189,6 +219,7 @@ export default function App() {
         outFps,
         ch,
       );
+      setRenderedFile(output);
     } catch (e) {
       setHealth(`render failed: ${e}`);
     } finally {
@@ -229,15 +260,29 @@ export default function App() {
             />
             <PanelGroup direction="horizontal" className="flex flex-1 overflow-hidden">
               <Panel defaultSize={20} minSize={14}>
-                <MediaLibrary files={files} onOpen={openFiles} />
+                <MediaLibrary
+                  files={files}
+                  onOpen={openFiles}
+                  outputDir={outputDir}
+                  onPickOutputDir={pickOutputDir}
+                  rendering={rendering}
+                  progress={progress}
+                  renderedFile={renderedFile}
+                />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={55} minSize={35}>
-                <Monitor file={currentFile} />
+                <Monitor
+                  file={currentFile}
+                  renderedFile={renderedFile}
+                  rendering={rendering}
+                  progress={progress}
+                />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
                 <Inspector
+                  modelId={modelId}
                   scale={scale}
                   onScaleChange={setScale}
                   onModelChange={setModelId}
