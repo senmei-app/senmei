@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   cancelRender,
@@ -10,13 +10,14 @@ import {
   uniquePath,
   createProject,
   deleteProject,
+  exportProject,
   getSettings,
   healthCheck,
   importFolder,
   listProjects,
   loadProjectSettings,
+  openProject,
   render,
-  saveProjectAs,
   saveProjectSettings,
   saveSettings,
   type ProjectEntry,
@@ -228,17 +229,27 @@ export default function App() {
     if (!isTauri()) setFiles([...demoVideos]);
   };
 
+  // Open an exported project archive (.tar.xz); import it into the app
+  // storage and switch to it.
   const browseProject = async () => {
     if (!isTauri()) {
       handleOpenProject("/demo/quanzhi-fashi");
       return;
     }
-    const dir = await open({ directory: true, title: "Open project folder" });
-    if (typeof dir === "string") {
+    const file = await open({
+      multiple: false,
+      title: "Open project",
+      filters: [{ name: "Senmei project", extensions: ["tar.xz", "xz"] }],
+    });
+    if (typeof file !== "string") return;
+    try {
+      const dir = await openProject(file);
       setProjectDir(dir);
       setFiles([]);
       setRenderedFile(null);
       setOutputDir(null);
+    } catch (e) {
+      setHealth(`open project failed: ${e}`);
     }
   };
 
@@ -250,16 +261,23 @@ export default function App() {
     void reloadProjects();
   };
 
-  const handleSaveProjectAs = async () => {
+  const handleExportProject = async () => {
     if (!projectDir) return;
+    if (!isTauri()) {
+      setHealth("export not available in the browser demo");
+      return;
+    }
     const base = projectDir.split("/").pop() ?? "project";
-    const name = window.prompt("Save project as", base);
-    if (!name?.trim() || name.trim() === base) return;
+    const dest = await save({
+      defaultPath: `${base}.tar.xz`,
+      filters: [{ name: "Senmei project", extensions: ["tar.xz"] }],
+    });
+    if (!dest) return;
     try {
-      const dir = await saveProjectAs(projectDir, name.trim());
-      setProjectDir(dir);
+      await exportProject(projectDir, dest);
+      setHealth(`project exported to ${dest}`);
     } catch (e) {
-      setHealth(`save as failed: ${e}`);
+      setHealth(`export failed: ${e}`);
     }
   };
 
@@ -490,7 +508,7 @@ export default function App() {
               onImportFolder={importFolderFiles}
               onStartRender={() => startBatch()}
               onCloseProject={closeProject}
-              onSaveProjectAs={handleSaveProjectAs}
+              onExportProject={handleExportProject}
               onSettings={() => setSettingsOpen(true)}
               onGithub={openGithub}
               onSelectAll={selectAll}

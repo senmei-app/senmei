@@ -10,7 +10,7 @@ export default function TopBar({
   onImportFolder,
   onStartRender,
   onCloseProject,
-  onSaveProjectAs,
+  onExportProject,
   onSettings,
   onGithub,
   onSelectAll,
@@ -27,7 +27,7 @@ export default function TopBar({
   onImportFolder: () => void;
   onStartRender: () => void;
   onCloseProject: () => void;
-  onSaveProjectAs: () => void;
+  onExportProject: () => void;
   onSettings: () => void;
   onGithub: () => void;
   onSelectAll: () => void;
@@ -57,7 +57,7 @@ export default function TopBar({
         onImportFile={onImportFile}
         onImportFolder={onImportFolder}
         onCloseProject={onCloseProject}
-        onSaveProjectAs={onSaveProjectAs}
+        onExportProject={onExportProject}
         onSettings={onSettings}
         onGithub={onGithub}
         onSelectAll={onSelectAll}

@@ -7586,6 +7586,7 @@ name = "senmei-app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "liblzma",
  "log",
  "senmei-media",
  "senmei-ml",
@@ -7594,6 +7595,7 @@ dependencies = [
  "serde_json",
  "specta",
  "specta-typescript",
+ "tar",
  "tauri",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
