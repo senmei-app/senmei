@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Preview uses the pipeline's ffmpeg (2026-08-18)** — `extract_frame` no
+  longer resolves ffmpeg from the current directory; the `read_frame` command
+  resolves the same binary the pipeline uses (app data dir / bundled) and passes
+  it in. Fixes frame read-back of rendered output failing with an ffmpeg error
+  when system ffmpeg is missing or differs.
 - **Keep render position after rendering (2026-08-18)** — the monitor no
   longer jumps to position 0 after a render. The position is only reset when a
   new file loads; view switches preserve it, and the result view clamps to the
