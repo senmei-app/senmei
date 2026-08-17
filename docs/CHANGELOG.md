@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Fix monitor frame read-back of HEVC/x265 renders (2026-08-18)** —
+  `extract_frame` now passes `-strict unofficial` to the mjpeg `image2pipe`
+  encode. The mjpeg encoder refuses limited-range (tv) YUV from libx265/HEVC
+  renders without it ("Non full-range YUV is non-standard"), which made the
+  result/compare preview fail right after rendering with an ffmpeg error.
 - **Preview uses the pipeline's ffmpeg (2026-08-18)** — `extract_frame` no
   longer resolves ffmpeg from the current directory; the `read_frame` command
   resolves the same binary the pipeline uses (app data dir / bundled) and passes
