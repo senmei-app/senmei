@@ -11,3 +11,7 @@ log = "0.4"
 senmei-media = { path = "../senmei-media", version = "0.1.0" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.0" }
 thiserror = "2"
+
+[dev-dependencies]
+# Burn feature only for the integration tests (real-model upscale).
+senmei-ml = { path = "../senmei-ml", features = ["burn"] }

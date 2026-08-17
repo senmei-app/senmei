@@ -172,15 +172,21 @@ export default function App() {
     setProgress(null);
     const ch = new Channel<RenderProgress>();
     ch.onmessage = setProgress;
+    const enabled = (id: string) => stepsEnabled[id] !== false;
+    const outScale = enabled("upscale") ? scale : null;
+    const outModel = enabled("upscale") ? modelId : null;
+    const outResize = enabled("resize") ? toFactor(resizeFactor) : null;
+    const outOutputResize = enabled("output_resize") ? toFactor(outputResizeFactor) : null;
+    const outFps = enabled("interpolate") ? fpsMultiplier : null;
     try {
       await render(
         currentFile,
         output,
-        scale,
-        modelId,
-        toFactor(resizeFactor),
-        toFactor(outputResizeFactor),
-        fpsMultiplier,
+        outScale,
+        outModel,
+        outResize,
+        outOutputResize,
+        outFps,
         ch,
       );
     } catch (e) {

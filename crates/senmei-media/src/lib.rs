@@ -3,6 +3,7 @@ mod downloader;
 mod encoder;
 mod ffmpeg;
 mod frame;
+mod preview;
 mod probe;
 mod process;
 
@@ -11,6 +12,7 @@ pub use downloader::download_to_temp;
 pub use encoder::Encoder;
 pub use ffmpeg::{download, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
+pub use preview::extract_frame;
 pub use probe::{probe, VideoInfo};
 
 pub type Result<T> = std::result::Result<T, Error>;

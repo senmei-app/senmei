@@ -10,6 +10,7 @@ export type {
   DownloadProgress,
   ModelMetadata,
   ModelKind,
+  VideoInfo,
   FfmpegInfo as FfmpegStatus,
 } from "./bindings";
 
@@ -44,3 +45,10 @@ export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>
   commands.downloadFfmpeg(onProgress);
 
 export const listModels = () => commands.listModels();
+
+export const downloadModel = (modelId: string, onProgress: Channel<DownloadProgress>) =>
+  commands.downloadModel(modelId, onProgress);
+
+export const probeVideo = (input: string) => commands.probeVideo(input);
+export const readFrame = (input: string, positionMs: number | null) =>
+  commands.readFrame(input, positionMs);

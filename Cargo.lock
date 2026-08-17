@@ -7585,6 +7585,7 @@ dependencies = [
 name = "senmei-app"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "log",
  "senmei-media",
  "senmei-ml",

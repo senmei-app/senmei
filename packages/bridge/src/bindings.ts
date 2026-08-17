@@ -22,6 +22,9 @@ export const commands = {
 	 *  convert them to the app's f16 `.bpk` burnpack.
 	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
+	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
+	/**  Extract one frame at `position_ms` and return it as a base64 JPEG. */
+	readFrame: (input: string, positionMs: number | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs }),
 };
 
 /* Types */
@@ -75,5 +78,12 @@ export type RenderProgress = {
 export type Settings = {
 	language: string,
 	theme: string,
+};
+
+export type VideoInfo = {
+	width: number,
+	height: number,
+	fps: number | null,
+	duration: number | null,
 };
 

@@ -355,6 +355,15 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Preview prototype (2026-08-17)** — working Monitor: new `probe_video` +
+  `read_frame` commands (`senmei_media::extract_frame`: ffmpeg `-ss pos -i …
+  -frames:v 1 -c:v mjpeg -`, base64 JPEG over IPC) drive a canvas `<img>`
+  preview with a **timeline scrubber** (debounced seek) + play/pause. Inspector
+  gains a **Download weights** button (`download_model` now reachable from the
+  UI). Render now honors `stepsEnabled` (default-on; toggling a step off
+  disables it). End-to-end proof: ignored pipeline test
+  `burn_engine_upscales_real_model` runs decode → real `real-cugan-x2` burn
+  Vulkan fp16 (tiled) → encode → 320×240.
 - **Engine switch v3 (decision, 2026-08-17)** — ncnn removed; inference = **burn
   (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback. Deleted
   `crates/senmei-ncnn` (C++ shim) and `NcnnEngine`; dropped the `ncnn` registry

@@ -1,11 +1,11 @@
 use std::path::Path;
 use std::process::Command;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct VideoInfo {
     pub width: u32,
     pub height: u32,

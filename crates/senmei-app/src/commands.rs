@@ -90,7 +90,7 @@ pub async fn download_model(
     let pth_name = format!("{}.pth", weight.trim_end_matches(".f16.bpk"));
     let bpk_path = dir.join(&weight);
     tauri::async_runtime::spawn_blocking(move || {
-        let mut progress = on_progress;
+        let progress = on_progress;
         let pth = senmei_media::download_to_temp(
             &url,
             &dir,
@@ -113,6 +113,22 @@ pub async fn download_model(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
+    senmei_media::probe(std::path::Path::new(&input)).map_err(|e| e.to_string())
+}
+
+/// Extract one frame at `position_ms` and return it as a base64 JPEG.
+#[tauri::command]
+#[specta::specta]
+pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
+    use base64::Engine;
+    let jpeg = senmei_media::extract_frame(std::path::Path::new(&input), position_ms / 1000.0)
+        .map_err(|e| e.to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(jpeg))
 }
 
 #[tauri::command]

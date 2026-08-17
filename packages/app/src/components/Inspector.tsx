@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { isTauri } from "@tauri-apps/api/core";
-import { listModels, type ModelMetadata } from "@senmei/bridge";
+import { isTauri, Channel } from "@tauri-apps/api/core";
+import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 
 type Group = "settings" | "advanced";
@@ -93,6 +93,8 @@ export default function Inspector({
   const [models, setModels] = useState<ModelMetadata[]>([]);
   const [interpolateModel, setInterpolateModel] = useState("");
   const [upscaleModel, setUpscaleModel] = useState("");
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [dlPct, setDlPct] = useState(0);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -113,8 +115,20 @@ export default function Inspector({
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
+  const upModel = upscaleModels.find((m) => m.id === upscaleModel);
 
-  const step = (id: string) => ({ id, enabled: !!stepsEnabled[id], onToggle: onToggleStep });
+  const downloadWeights = (modelId: string) => {
+    if (!isTauri() || downloading) return;
+    setDownloading(modelId);
+    setDlPct(0);
+    const ch = new Channel<DownloadProgress>();
+    ch.onmessage = (p) => setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0);
+    downloadModel(modelId, ch)
+      .catch((e) => console.error(e))
+      .finally(() => setDownloading(null));
+  };
+
+  const step = (id: string) => ({ id, enabled: stepsEnabled[id] !== false, onToggle: onToggleStep });
 
   const modelSelect = (models: ModelMetadata[], value: string, onValue: (id: string) => void, propagate: boolean) => (
     <div className="space-y-1">
@@ -219,6 +233,17 @@ export default function Inspector({
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.model")}</label>
                 {modelSelect(upscaleModels, upscaleModel, setUpscaleModel, true)}
               </div>
+              {upModel?.loadable && (
+                <div>
+                  <button
+                    onClick={() => downloadWeights(upModel.id)}
+                    disabled={!!downloading}
+                    className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+                  >
+                    {downloading === upModel.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-1">{t("up.scale")}</label>
                 <div className="flex space-x-2">
