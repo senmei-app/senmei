@@ -5,7 +5,7 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	healthCheck: () => __TAURI_INVOKE<string>("health_check"),
-	render: (input: string, output: string, scale: number | null, modelId: string | null, resize: number | null, outputResize: number | null, fpsMultiplier: number | null, interpModel: string | null, ffmpegArgs: string | null, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, scale, modelId, resize, outputResize, fpsMultiplier, interpModel, ffmpegArgs, onProgress }),
+	render: (input: string, output: string, config: RenderConfig, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, config, onProgress }),
 	importFolder: (dir: string) => __TAURI_INVOKE<string[]>("import_folder", { dir }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
@@ -51,6 +51,13 @@ export type FfmpegInfo = {
 	decoders: string[],
 };
 
+/**  Optional reference filter steps (denoise/deblur/dedup) for a render. */
+export type FilterParams = {
+	denoiseRadius?: number | null,
+	deblurAmount?: number | null,
+	dedupThreshold?: number | null,
+};
+
 export type ModelKind = "interpolate" | "upscale" | "denoise" | "decompress" | "deblur";
 
 export type ModelMetadata = {
@@ -90,6 +97,18 @@ export type ProjectSettings = {
 	outputDir?: string | null,
 };
 
+/**  All render knobs in one struct (specta caps command arity at 10 args). */
+export type RenderConfig = {
+	scale?: number | null,
+	modelId?: string | null,
+	resize?: number | null,
+	filter?: FilterParams | null,
+	outputResize?: number | null,
+	fpsMultiplier?: number | null,
+	interpModel?: string | null,
+	ffmpegArgs?: string | null,
+};
+
 export type RenderProgress = {
 	framesProcessed: number,
 	totalFrames: number,
@@ -105,6 +124,12 @@ export type StepParams = {
 	modelId?: string | null,
 	scale?: number | null,
 	fpsMultiplier?: number | null,
+	/**  Denoise box-blur radius (denoise step). */
+	radius?: number | null,
+	/**  Deblur unsharp-mask amount (deblur step). */
+	amount?: number | null,
+	/**  Dedup mean-pixel-diff threshold in [0,1] (deduplication step). */
+	threshold?: number | null,
 	factor?: string | null,
 	/**  Label for an output step (e.g. "Final", "Intermediate"). */
 	label?: string | null,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 
 use crate::store;
@@ -227,6 +227,29 @@ pub struct RenderProgress {
     pub total_frames: u64,
 }
 
+/// Optional reference filter steps (denoise/deblur/dedup) for a render.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FilterParams {
+    pub denoise_radius: Option<u32>,
+    pub deblur_amount: Option<f32>,
+    pub dedup_threshold: Option<f32>,
+}
+
+/// All render knobs in one struct (specta caps command arity at 10 args).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RenderConfig {
+    pub scale: Option<u32>,
+    pub model_id: Option<String>,
+    pub resize: Option<f32>,
+    pub filter: Option<FilterParams>,
+    pub output_resize: Option<f32>,
+    pub fps_multiplier: Option<u32>,
+    pub interp_model: Option<String>,
+    pub ffmpeg_args: Option<String>,
+}
+
 fn models_dir() -> PathBuf {
     // Anchor to the repo checkout: cargo tauri dev runs the binary from the
     // crate dir, so CWD-relative paths can miss models/ at the repo root.
@@ -291,22 +314,26 @@ fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine
 pub async fn render(
     input: String,
     output: String,
-    scale: Option<u32>,
-    model_id: Option<String>,
-    resize: Option<f32>,
-    output_resize: Option<f32>,
-    fps_multiplier: Option<u32>,
-    interp_model: Option<String>,
-    ffmpeg_args: Option<String>,
+    config: RenderConfig,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
     log::info!(
-        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?}, interp_model {interp_model:?}, ffmpeg {ffmpeg_args:?})"
+        "render start: {input} -> {output} (config {config:?})"
     );
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let RenderConfig {
+            scale,
+            model_id,
+            resize,
+            filter,
+            output_resize,
+            fps_multiplier,
+            interp_model,
+            ffmpeg_args,
+        } = config;
         let ffmpeg = senmei_media::resolve(&store::data_dir());
         let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];
@@ -328,6 +355,23 @@ pub async fn render(
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
+            }
+        }
+        if let Some(f) = filter {
+            if let Some(r) = f.denoise_radius {
+                if r > 0 {
+                    steps.push(Box::new(senmei_pipeline::Denoise::new(r)));
+                }
+            }
+            if let Some(a) = f.deblur_amount {
+                if a > 0.0 {
+                    steps.push(Box::new(senmei_pipeline::Deblur::new(a)));
+                }
+            }
+            if let Some(t) = f.dedup_threshold {
+                if t > 0.0 {
+                    steps.push(Box::new(senmei_pipeline::Dedup::new(t)));
+                }
             }
         }
         if let Some(f) = output_resize {

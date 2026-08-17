@@ -5,7 +5,8 @@ use crate::frame::{frame_to_tensor, tensor_to_frame};
 
 pub trait Step: Send {
     fn name(&self) -> &'static str;
-    fn process(&mut self, frame: &mut Frame) -> crate::Result<()>;
+    /// Transform a frame; return `false` to drop it from the output (dedup).
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool>;
 }
 
 pub struct Passthrough;
@@ -15,9 +16,144 @@ impl Step for Passthrough {
         "passthrough"
     }
 
-    fn process(&mut self, _frame: &mut Frame) -> crate::Result<()> {
-        Ok(())
+    fn process(&mut self, _frame: &mut Frame) -> crate::Result<bool> {
+        Ok(true)
     }
+}
+
+/// Reference denoise: box blur of the luma-ish planar RGB. A cheap, tunable
+/// stand-in until a real denoiser model is ported.
+pub struct Denoise {
+    radius: u32,
+}
+
+impl Denoise {
+    pub fn new(radius: u32) -> Self {
+        Self { radius: radius.max(1) }
+    }
+}
+
+impl Step for Denoise {
+    fn name(&self) -> &'static str {
+        "denoise"
+    }
+
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        let r = self.radius as usize;
+        let h = frame.height as usize;
+        let w = frame.width as usize;
+        let mut out = frame.data.clone();
+        for c in 0..3 {
+            let src = &frame.data[c * w * h..(c + 1) * w * h];
+            let dst = &mut out[c * w * h..(c + 1) * w * h];
+            for y in 0..h {
+                for x in 0..w {
+                    let mut sum = 0u32;
+                    let mut n = 0u32;
+                    for dy in y.saturating_sub(r)..=(y + r).min(h - 1) {
+                        for dx in x.saturating_sub(r)..=(x + r).min(w - 1) {
+                            sum += src[dy * w + dx] as u32;
+                            n += 1;
+                        }
+                    }
+                    dst[y * w + x] = (sum / n.max(1)) as u8;
+                }
+            }
+        }
+        frame.data = out;
+        Ok(true)
+    }
+}
+
+/// Reference deblur: unsharp mask (sharpen), `amount` scales the high-pass.
+pub struct Deblur {
+    amount: f32,
+}
+
+impl Deblur {
+    pub fn new(amount: f32) -> Self {
+        Self { amount: amount.clamp(0.0, 2.0) }
+    }
+}
+
+impl Step for Deblur {
+    fn name(&self) -> &'static str {
+        "deblur"
+    }
+
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        if self.amount <= 0.0 {
+            return Ok(true);
+        }
+        let h = frame.height as usize;
+        let w = frame.width as usize;
+        let blur = {
+            // 3x3 box blur as the low-pass for the sharpening.
+            let mut b = vec![0u8; 3 * w * h];
+            for c in 0..3 {
+                let src = &frame.data[c * w * h..(c + 1) * w * h];
+                let dst = &mut b[c * w * h..(c + 1) * w * h];
+                for y in 0..h {
+                    for x in 0..w {
+                        let mut sum = 0u32;
+                        let mut n = 0u32;
+                        for dy in y.saturating_sub(1)..=(y + 1).min(h - 1) {
+                            for dx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
+                                sum += src[dy * w + dx] as u32;
+                                n += 1;
+                            }
+                        }
+                        dst[y * w + x] = (sum / n.max(1)) as u8;
+                    }
+                }
+            }
+            b
+        };
+        let a = self.amount;
+        for i in 0..frame.data.len() {
+            let v = frame.data[i] as f32;
+            let l = blur[i] as f32;
+            frame.data[i] = (v + a * (v - l)).clamp(0.0, 255.0) as u8;
+        }
+        Ok(true)
+    }
+}
+
+/// Drop consecutive frames that are near-duplicates of the previous one
+/// (mean pixel diff below `threshold` in [0,1]).
+pub struct Dedup {
+    threshold: f32,
+    prev: Option<Frame>,
+}
+
+impl Dedup {
+    pub fn new(threshold: f32) -> Self {
+        Self { threshold: threshold.clamp(0.0, 1.0), prev: None }
+    }
+}
+
+impl Step for Dedup {
+    fn name(&self) -> &'static str {
+        "dedup"
+    }
+
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        let dup = self.prev.as_ref().is_some_and(|prev| {
+            prev.width == frame.width
+                && prev.height == frame.height
+                && mean_abs_diff(&prev.data, &frame.data) < self.threshold
+        });
+        if dup {
+            return Ok(false);
+        }
+        self.prev = Some(frame.clone());
+        Ok(true)
+    }
+}
+
+fn mean_abs_diff(a: &[u8], b: &[u8]) -> f32 {
+    let n = a.len().max(1);
+    a.iter().zip(b).map(|(x, y)| (x.abs_diff(*y) as u32) as f32).sum::<f32>() / (n as f32 * 255.0)
 }
 
 /// Default tile size handed to engines that advertise tiling support.
@@ -41,14 +177,14 @@ impl Step for Upscale {
         "upscale"
     }
 
-    fn process(&mut self, frame: &mut Frame) -> crate::Result<()> {
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
         let input = frame_to_tensor(frame);
         // Fused GPU output path (f16 -> RGB8 directly) when the engine supports it.
         if let Some(engine) = self.engine.as_mut() {
             if let Some(res) = engine.infer_rgb8(&input, self.scale) {
                 let (bytes, w, h) = res.map_err(|e| crate::Error::new(e.to_string()))?;
                 *frame = Frame { width: w, height: h, data: bytes };
-                return Ok(());
+                return Ok(true);
             }
         }
         let out = match self.engine.as_mut() {
@@ -71,7 +207,7 @@ impl Step for Upscale {
         let new_w = out.shape[3] as u32;
         let new_h = out.shape[2] as u32;
         *frame = tensor_to_frame(&out, new_w, new_h);
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -91,10 +227,11 @@ impl Step for Resize {
         "resize"
     }
 
-    fn process(&mut self, frame: &mut Frame) -> crate::Result<()> {
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
         let nw = ((frame.width as f32) * self.factor).round().max(1.0) as u32;
         let nh = ((frame.height as f32) * self.factor).round().max(1.0) as u32;
-        resize_frame(frame, nw, nh)
+        resize_frame(frame, nw, nh)?;
+        Ok(true)
     }
 }
 
@@ -269,5 +406,57 @@ mod tests {
         step.process(&mut frame).unwrap();
         assert_eq!((frame.width, frame.height), (8, 8)); // 4x engine output forced back to 2x
         assert_eq!(frame.data.len(), 3 * 8 * 8);
+    }
+
+    #[test]
+    fn denoise_smooths_noise() {
+        let mut frame = Frame {
+            width: 8,
+            height: 8,
+            data: vec![100u8; 3 * 8 * 8],
+        };
+        frame.data[0] = 255; // salt noise in the top-left pixel
+        Denoise::new(1).process(&mut frame).unwrap();
+        // The isolated bright pixel is pulled toward the surrounding value.
+        assert!(frame.data[0] < 255 && frame.data[0] > 100);
+        assert_eq!((frame.width, frame.height), (8, 8));
+    }
+
+    #[test]
+    fn deblur_sharpens_edge() {
+        // A vertical hard edge; unsharp masking must increase the contrast at it.
+        let mut frame = Frame {
+            width: 8,
+            height: 1,
+            data: vec![0u8; 3 * 8],
+        };
+        for x in 4..8 {
+            for c in 0..3 {
+                frame.data[c * 8 + x] = 200;
+            }
+        }
+        Deblur::new(0.5).process(&mut frame).unwrap();
+        // The bright edge pixel is pushed past its original value (overshoot).
+        assert!(frame.data[4] > 200);
+    }
+
+    #[test]
+    fn dedup_drops_only_near_duplicates() {
+        let mut step = Dedup::new(0.02);
+        let a = Frame { width: 2, height: 2, data: vec![10u8; 12] };
+        let b = Frame { width: 2, height: 2, data: vec![11u8; 12] }; // near-dup
+        let c = Frame { width: 2, height: 2, data: vec![200u8; 12] }; // cut
+        let d = Frame { width: 2, height: 2, data: vec![100u8; 12] }; // new cut
+
+        let mut f = a.clone();
+        assert!(step.process(&mut f).unwrap()); // first frame kept
+        let mut f = b.clone();
+        assert!(!step.process(&mut f).unwrap()); // near-dup dropped
+        let mut f = c.clone();
+        assert!(step.process(&mut f).unwrap()); // cut kept
+        let mut f = c.clone();
+        assert!(!step.process(&mut f).unwrap()); // identical to prev dropped
+        let mut f = d.clone();
+        assert!(step.process(&mut f).unwrap()); // new frame kept
     }
 }

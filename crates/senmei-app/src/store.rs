@@ -35,6 +35,15 @@ pub struct StepParams {
     pub scale: Option<u32>,
     #[serde(default)]
     pub fps_multiplier: Option<u32>,
+    /// Denoise box-blur radius (denoise step).
+    #[serde(default)]
+    pub radius: Option<u32>,
+    /// Deblur unsharp-mask amount (deblur step).
+    #[serde(default)]
+    pub amount: Option<f32>,
+    /// Dedup mean-pixel-diff threshold in [0,1] (deduplication step).
+    #[serde(default)]
+    pub threshold: Option<f32>,
     #[serde(default)]
     pub factor: Option<String>,
     /// Label for an output step (e.g. "Final", "Intermediate").

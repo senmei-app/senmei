@@ -71,9 +71,7 @@ impl Pipeline {
         };
         let mut first_batch = self.emit(first)?;
         for step in &mut self.steps {
-            for frame in &mut first_batch {
-                step.process(frame)?;
-            }
+            first_batch = run_step(step.as_mut(), first_batch)?;
         }
         let (w, h) = (first_batch[0].width, first_batch[0].height);
 
@@ -140,15 +138,14 @@ impl Pipeline {
                     };
                     let mut failed = false;
                     for step in &mut self.steps {
-                        for frame in &mut batch {
-                            if let Err(e) = step.process(frame) {
+                        let next = std::mem::take(&mut batch);
+                        match run_step(step.as_mut(), next) {
+                            Ok(kept) => batch = kept,
+                            Err(e) => {
                                 main_err = Some(e);
                                 failed = true;
                                 break;
                             }
-                        }
-                        if failed {
-                            break;
                         }
                     }
                     if failed {
@@ -157,7 +154,6 @@ impl Pipeline {
                     for frame in batch {
                         if out_tx.send(frame).is_err() {
                             main_err = Some(Error::new("encode channel closed"));
-                            failed = true;
                             break;
                         }
                     }
@@ -186,5 +182,16 @@ impl Pipeline {
             None => Ok(vec![frame]),
         }
     }
+}
+
+/// Run a batch through one step, keeping only frames the step doesn't drop.
+fn run_step(step: &mut dyn Step, batch: Vec<senmei_media::Frame>) -> Result<Vec<senmei_media::Frame>> {
+    let mut kept = Vec::with_capacity(batch.len());
+    for mut frame in batch {
+        if step.process(&mut frame)? {
+            kept.push(frame);
+        }
+    }
+    Ok(kept)
 }
 

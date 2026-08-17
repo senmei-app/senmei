@@ -355,6 +355,15 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Reference filter stacks (M7, 2026-08-17)** — the previously disabled
+  `denoise`, `deblur` and `deduplication` steps are now implemented with CPU
+  references: box-blur denoise (radius), unsharp-mask deblur (amount), and a
+  stateful dedup that drops frames below a mean-pixel-diff threshold.
+  `Step::process` now returns `Result<bool>` (false = drop the frame), so the
+  pipeline `run_step` can skip frames. The `render` command takes a bundled
+  `RenderConfig` (specta caps command arity at 10 args — all knobs moved into
+  one struct) with an optional `filter: FilterParams`. Also fixed the long-
+  standing `value assigned to failed is never read` warning in pipeline.rs.
 - **RIFE v4.6 engine wired (M3, 2026-08-17)** — `RifeNet::load_from_ncnn` parses
   the ncnn `flownet.bin` (per layer `[tag u32][weights f16][bias f32]`) and
   assigns params directly (conv weights `[out,in,k,k]`, deconv transposed to

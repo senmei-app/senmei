@@ -6,7 +6,7 @@ mod step;
 pub use frame::{frame_to_tensor, tensor_to_frame};
 pub use interpolate::Interpolator;
 pub use pipeline::{Pipeline, Progress};
-pub use step::{Passthrough, Resize, Step, Upscale};
+pub use step::{Deblur, Dedup, Denoise, Passthrough, Resize, Step, Upscale};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
