@@ -22,6 +22,7 @@ export default function Monitor({ file }: { file?: string }) {
   const [playing, setPlaying] = useState(false);
   const [img, setImg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
   const name = file ? file.split("/").pop() : null;
 
@@ -29,8 +30,15 @@ export default function Monitor({ file }: { file?: string }) {
     if (!file || !isTauri()) return;
     setLoading(true);
     readFrame(file, ms)
-      .then((b64) => setImg(`data:image/jpeg;base64,${b64}`))
-      .catch(() => setImg(null))
+      .then((b64) => {
+        setImg(`data:image/jpeg;base64,${b64}`);
+        setError(null);
+      })
+      .catch((e) => {
+        console.error("readFrame failed:", e);
+        setImg(null);
+        setError(String(e));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -39,10 +47,14 @@ export default function Monitor({ file }: { file?: string }) {
     setPosMs(0);
     setPlaying(false);
     setImg(null);
+    setError(null);
     if (!file || !isTauri()) return;
     probeVideo(file)
       .then(setInfo)
-      .catch(() => setInfo(null));
+      .catch((e) => {
+        console.error("probeVideo failed:", e);
+        setError(String(e));
+      });
     loadFrame(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
@@ -83,6 +95,11 @@ export default function Monitor({ file }: { file?: string }) {
             <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
               {name ?? t("monitor.placeholder")}
             </span>
+          </div>
+        )}
+        {error && (
+          <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[10px] text-white backdrop-blur">
+            {error}
           </div>
         )}
         {loading && (

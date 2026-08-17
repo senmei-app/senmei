@@ -118,7 +118,11 @@ pub async fn download_model(
 #[tauri::command]
 #[specta::specta]
 pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
-    senmei_media::probe(std::path::Path::new(&input)).map_err(|e| e.to_string())
+    log::info!("probe_video: {input}");
+    senmei_media::probe(std::path::Path::new(&input)).map_err(|e| {
+        log::warn!("probe_video failed: {e}");
+        e.to_string()
+    })
 }
 
 /// Extract one frame at `position_ms` and return it as a base64 JPEG.
@@ -126,8 +130,12 @@ pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
 #[specta::specta]
 pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
     use base64::Engine;
+    log::info!("read_frame: {input} @ {position_ms:.0}ms");
     let jpeg = senmei_media::extract_frame(std::path::Path::new(&input), position_ms / 1000.0)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log::warn!("read_frame failed: {e}");
+            e.to_string()
+        })?;
     Ok(base64::engine::general_purpose::STANDARD.encode(jpeg))
 }
 
@@ -306,4 +314,37 @@ pub async fn render(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preview_commands_produce_jpeg_and_info() {
+        let dir = std::env::temp_dir().join("senmei-cmd-smoke");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("input.mp4");
+        let ok = std::process::Command::new("ffmpeg")
+            .args([
+                "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
+                "-pix_fmt", "yuv420p",
+            ])
+            .arg(&input)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "ffmpeg input generation failed");
+
+        let info = probe_video(input.to_string_lossy().into_owned()).expect("probe_video failed");
+        assert_eq!((info.width, info.height), (160, 120));
+        assert!(info.duration > 0.0);
+
+        let b64 = read_frame(input.to_string_lossy().into_owned(), 500.0).expect("read_frame failed");
+        use base64::Engine;
+        let jpeg = base64::engine::general_purpose::STANDARD.decode(&b64).unwrap();
+        assert!(jpeg.starts_with(&[0xFF, 0xD8]), "not a JPEG");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
