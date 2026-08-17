@@ -19,7 +19,16 @@ fn x264_preset() -> &'static str {
 }
 
 impl Encoder {
-    pub fn open(ffmpeg: &Path, path: &Path, width: u32, height: u32, fps: f64) -> Result<Self> {
+    /// `extra_args` are appended after the defaults (before the output path), so
+    /// user-supplied codec/filter options override the built-in x264 defaults.
+    pub fn open(
+        ffmpeg: &Path,
+        path: &Path,
+        width: u32,
+        height: u32,
+        fps: f64,
+        extra_args: &[String],
+    ) -> Result<Self> {
         let mut child = Command::new(ffmpeg)
             .arg("-y")
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
@@ -27,6 +36,7 @@ impl Encoder {
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"])
             .args(["-c:v", "libx264", "-preset", x264_preset(), "-pix_fmt", "yuv420p"])
+            .args(extra_args)
             .arg(path)
             .stdin(Stdio::piped())
             .stderr(Stdio::null())

@@ -41,7 +41,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
   deblur: {},
   deduplication: {},
   resize: { factor: "" },
-  output: { name: "Output", videoCodec: "H.264", audioCodec: "Passthrough", subtitleMode: "None" },
+  output: { name: "Output", videoCodec: "H.264", audioCodec: "Passthrough", subtitleMode: "None", ffmpegArgs: "" },
 };
 
 function newId(): string {

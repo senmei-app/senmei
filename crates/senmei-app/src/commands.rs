@@ -244,6 +244,28 @@ fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
     Ok((registry, dir))
 }
 
+/// Split a shell-style arg string into tokens (respects double quotes).
+fn split_ffmpeg_args(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = false;
+    for c in s.chars() {
+        match c {
+            '"' => in_quote = !in_quote,
+            ' ' | '\t' if !in_quote => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            _ => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
 fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
     let (registry, dir) = load_registry()?;
     let meta = registry
@@ -272,10 +294,11 @@ pub async fn render(
     resize: Option<f32>,
     output_resize: Option<f32>,
     fps_multiplier: Option<u32>,
+    ffmpeg_args: Option<String>,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
     log::info!(
-        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?})"
+        "render start: {input} -> {output} (scale {scale:?}, model {model_id:?}, resize {resize:?}, output_resize {output_resize:?}, fps {fps_multiplier:?}, ffmpeg {ffmpeg_args:?})"
     );
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
@@ -308,6 +331,11 @@ pub async fn render(
             steps.push(Box::new(senmei_pipeline::Resize::new(f)));
         }
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        if let Some(args) = ffmpeg_args.as_deref() {
+            if !args.trim().is_empty() {
+                pipeline.set_encoder_args(split_ffmpeg_args(args));
+            }
+        }
         let cancel = CANCEL_RENDER
             .get_or_init(|| Arc::new(AtomicBool::new(false)))
             .clone();
@@ -408,6 +436,17 @@ mod tests {
             vec![Box::new(senmei_pipeline::Passthrough)];
         steps.push(Box::new(senmei_pipeline::Upscale::new(2, Some(engine))));
         let mut pipeline = senmei_pipeline::Pipeline::new(steps);
+        // Custom ffmpeg args must override the default x264 encoder.
+        pipeline.set_encoder_args(vec![
+            "-c:v".into(),
+            "libx265".into(),
+            "-crf".into(),
+            "18".into(),
+            "-preset".into(),
+            "ultrafast".into(),
+            "-pix_fmt".into(),
+            "yuv420p10le".into(),
+        ]);
         pipeline
             .run(&ffmpeg, &input, &output, |_| {})
             .expect("render failed");
@@ -415,6 +454,35 @@ mod tests {
         let info = probe_video(output.to_string_lossy().into_owned()).expect("probe output");
         assert_eq!((info.width, info.height), (3840, 2160));
         assert!(output.exists());
+        let ffprobe = std::process::Command::new("ffprobe")
+            .args([
+                "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name,pix_fmt", "-of", "csv=p=0",
+            ])
+            .arg(&output)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&ffprobe.stdout);
+        assert!(
+            stdout.contains("hevc") && stdout.contains("yuv420p10le"),
+            "custom args not applied, got {stdout}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn split_ffmpeg_args_handles_quotes() {
+        let args = split_ffmpeg_args("-vf \"scale=1920:1080,yadif=mode=0\" -c:v libx265 -crf 18");
+        assert_eq!(
+            args,
+            vec![
+                "-vf",
+                "scale=1920:1080,yadif=mode=0",
+                "-c:v",
+                "libx265",
+                "-crf",
+                "18"
+            ]
+        );
     }
 }

@@ -46,6 +46,9 @@ pub struct StepParams {
     pub audio_codec: Option<String>,
     #[serde(default)]
     pub subtitle_mode: Option<String>,
+    /// Raw extra ffmpeg arguments for the output encode (e.g. `-c:v libx265 -crf 18`).
+    #[serde(default)]
+    pub ffmpeg_args: Option<String>,
 }
 
 /// One module in the processing stack. Ordered top→bottom = execution order.

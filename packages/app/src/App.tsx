@@ -279,6 +279,10 @@ export default function App() {
     const outResize = null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
+    const outs = enabled.filter((s) => s.stepType === "output");
+    const lastOut = outs.length ? outs[outs.length - 1] : undefined;
+    const outFfmpeg = lastOut?.params?.ffmpegArgs;
+    const outFfmpegArgs = outFfmpeg && outFfmpeg.trim() ? outFfmpeg : null;
     try {
       await render(
         currentFile,
@@ -288,6 +292,7 @@ export default function App() {
         outResize,
         outOutputResize,
         outFps,
+        outFfmpegArgs,
         ch,
       );
       setRenderedFile(output);

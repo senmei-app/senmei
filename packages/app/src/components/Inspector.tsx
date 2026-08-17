@@ -259,6 +259,16 @@ export default function Inspector({
                 <option>SoftSub</option>
               </select>,
             )}
+            {field(
+              t("output.ffmpeg"),
+              <textarea
+                value={s.params?.ffmpegArgs ?? ""}
+                rows={2}
+                placeholder="-c:v libx265 -crf 18 -preset medium -pix_fmt yuv420p10le"
+                onChange={(e) => updateParams(s.id, { ffmpegArgs: e.target.value })}
+                className={`${inputCls} font-mono text-[10px]`}
+              />,
+            )}
           </>
         );
       default:

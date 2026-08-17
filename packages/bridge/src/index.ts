@@ -26,8 +26,20 @@ export const render = (
   resize: number | null,
   outputResize: number | null,
   fpsMultiplier: number | null,
+  ffmpegArgs: string | null,
   onProgress: Channel<RenderProgress>,
-) => commands.render(input, output, scale, modelId, resize, outputResize, fpsMultiplier, onProgress);
+) =>
+  commands.render(
+    input,
+    output,
+    scale,
+    modelId,
+    resize,
+    outputResize,
+    fpsMultiplier,
+    ffmpegArgs,
+    onProgress,
+  );
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 
