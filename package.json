@@ -5,8 +5,8 @@
   "scripts": {
     "predev": "bun run dev:clean",
     "predev:release": "bun run dev:clean",
-    "dev": "GDK_BACKEND=x11 cargo tauri dev",
-    "dev:release": "GDK_BACKEND=x11 cargo tauri dev --release",
+    "dev": "cargo tauri dev",
+    "dev:release": "cargo tauri dev --release",
     "ui:dev": "cd packages/app && bun run dev",
     "build": "cd packages/app && bun run build",
     "dev:clean": "lsof -ti:1420 | xargs -r kill -9; pkill -x senmei; rm -rf $HOME/.local/share/app.senmei.desktop/WebKitCache $HOME/.local/share/app.senmei.desktop/CacheStorage $HOME/.local/share/app.senmei.desktop/hsts-storage.sqlite $HOME/.local/share/app.senmei.desktop/storage $HOME/.local/share/app.senmei.desktop/mediakeys; echo cleaned"
