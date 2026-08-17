@@ -133,21 +133,39 @@ pub fn probe_video(input: String) -> Result<senmei_media::VideoInfo, String> {
     })
 }
 
-/// Extract one frame at `position_ms` and return it as a base64 JPEG.
+/// Extract one frame at `position_ms` as a PNG file and return its path. The
+/// frame is written into the app data dir so the webview loads it through the
+/// asset protocol (`convertFileSrc`); large `data:` URIs can fail in WebKitGTK.
 #[tauri::command]
 #[specta::specta]
 pub fn read_frame(input: String, position_ms: f64) -> Result<String, String> {
-    use base64::Engine;
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
     // Resolve the same ffmpeg the pipeline uses (data dir / bundled), so the
     // rendered output read-back works even when system ffmpeg is missing.
     let ffmpeg = senmei_media::resolve(&store::data_dir());
-    let jpeg = senmei_media::extract_frame(&ffmpeg, std::path::Path::new(&input), position_ms / 1000.0)
+    let png = senmei_media::extract_frame(&ffmpeg, std::path::Path::new(&input), position_ms / 1000.0)
         .map_err(|e| {
             log::warn!("read_frame failed: {e}");
             e.to_string()
         })?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(jpeg))
+
+    let dir = store::data_dir().join("preview");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // Best-effort cap on leftover preview frames.
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        let mut old: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+        old.sort();
+        for p in old.iter().take(old.len().saturating_sub(30)) {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let path = dir.join(format!("frame_{millis}.png"));
+    std::fs::write(&path, &png).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -506,7 +524,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn preview_commands_produce_jpeg_and_info() {
+    fn preview_commands_produce_png_and_info() {
         let dir = std::env::temp_dir().join("senmei-cmd-smoke");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -526,10 +544,9 @@ mod tests {
         assert_eq!((info.width, info.height), (160, 120));
         assert!(info.duration > 0.0);
 
-        let b64 = read_frame(input.to_string_lossy().into_owned(), 500.0).expect("read_frame failed");
-        use base64::Engine;
-        let jpeg = base64::engine::general_purpose::STANDARD.decode(&b64).unwrap();
-        assert!(jpeg.starts_with(&[0xFF, 0xD8]), "not a JPEG");
+        let file = read_frame(input.to_string_lossy().into_owned(), 500.0).expect("read_frame failed");
+        let png = std::fs::read(&file).unwrap();
+        assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

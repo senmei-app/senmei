@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Monitor frames via asset protocol, not data: URIs (2026-08-18)** —
+  `read_frame` now writes the extracted frame to a temp PNG in the app data dir
+  and returns its path; the monitor loads it with `convertFileSrc`. Large
+  frames as `data:` URIs could fail to render in WebKitGTK (broken image icon),
+  while the asset protocol already works (native video). Old preview frames are
+  capped at 30.
 - **Preview frames as PNG instead of mjpeg (2026-08-18)** — `extract_frame`
   encodes the preview frame to PNG. The mjpeg encoder refuses limited-range
   (tv) YUV from libx265/HEVC renders ("Non full-range YUV is non-standard")
