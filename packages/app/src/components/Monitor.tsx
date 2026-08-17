@@ -98,7 +98,10 @@ export default function Monitor({
     setError(null);
     if (!isTauri()) {
       const probeTarget = src ?? file;
-      if (probeTarget) setInfo(demoProbe());
+      if (probeTarget) {
+        setInfo(demoProbe());
+        onSampleChange?.(0, 10000);
+      }
       loadFrame(0);
       return;
     }
@@ -107,7 +110,7 @@ export default function Monitor({
       probeVideo(probeTarget)
         .then((i) => {
           setInfo(i);
-          onSampleChange?.(0, (i.duration ?? 0) * 1000);
+          onSampleChange?.(0, Math.min(10000, (i.duration ?? 0) * 1000));
         })
         .catch((e) => {
           console.error("probeVideo failed:", e);
@@ -291,7 +294,7 @@ export default function Monitor({
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-center">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setPlaying((p) => !p)}
@@ -304,13 +307,6 @@ export default function Monitor({
               {fmt(posMs)} / {info ? fmt((info.duration ?? 0) * 1000) : "00:00:00.00"}
             </span>
           </div>
-          <button
-            onClick={() => onScrub(0)}
-            disabled={!info}
-            className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-[10px] text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
-          >
-            {t("sample.preview")}
-          </button>
         </div>
         <div className="mb-2 flex items-center space-x-1">
           <span className="text-[10px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
@@ -344,7 +340,7 @@ export default function Monitor({
             <button
               onClick={onRenderSample}
               disabled={!info || outMs <= inMs}
-              className="rounded-lg border border-indigo-500/50 bg-indigo-600/15 px-2 py-1 font-mono text-[10px] font-medium text-indigo-500 hover:bg-indigo-600/25 disabled:opacity-40 dark:text-indigo-300"
+              className="rounded-lg bg-indigo-600 px-3 py-1 font-mono text-[10px] font-medium text-white shadow-md shadow-indigo-600/30 transition hover:bg-indigo-500 active:scale-95 disabled:opacity-40"
             >
               {t("sample.render")}
             </button>
