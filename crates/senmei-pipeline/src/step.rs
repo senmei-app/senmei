@@ -124,15 +124,24 @@ impl Step for Deblur {
 }
 
 /// Drop consecutive frames that are near-duplicates of the previous one
-/// (mean pixel diff below `threshold` in [0,1]).
+/// (mean pixel diff below `threshold` in [0,1]). Never drops more than
+/// `max_consecutive` in a row, so a static scene keeps a usable frame rate
+/// instead of collapsing to a single frame.
 pub struct Dedup {
     threshold: f32,
     prev: Option<Frame>,
+    max_consecutive: usize,
+    consecutive: usize,
 }
 
 impl Dedup {
     pub fn new(threshold: f32) -> Self {
-        Self { threshold: threshold.clamp(0.0, 1.0), prev: None }
+        Self {
+            threshold: threshold.clamp(0.0, 1.0),
+            prev: None,
+            max_consecutive: 5,
+            consecutive: 0,
+        }
     }
 }
 
@@ -147,9 +156,11 @@ impl Step for Dedup {
                 && prev.height == frame.height
                 && mean_abs_diff(&prev.data, &frame.data) < self.threshold
         });
-        if dup {
+        if dup && self.consecutive < self.max_consecutive {
+            self.consecutive += 1;
             return Ok(false);
         }
+        self.consecutive = 0;
         self.prev = Some(frame.clone());
         Ok(true)
     }
@@ -501,5 +512,20 @@ mod tests {
         assert!(!step.process(&mut f).unwrap()); // identical to prev dropped
         let mut f = d.clone();
         assert!(step.process(&mut f).unwrap()); // new frame kept
+    }
+
+    #[test]
+    fn dedup_never_collapses_static_run() {
+        // 40 identical frames: dedup must still emit a frame every
+        // `max_consecutive + 1` instead of collapsing to one.
+        let mut step = Dedup::new(0.02);
+        let mut kept = 0;
+        for _ in 0..40 {
+            let mut f = Frame { width: 2, height: 2, data: vec![10u8; 12] };
+            if step.process(&mut f).unwrap() {
+                kept += 1;
+            }
+        }
+        assert_eq!(kept, 7); // frame 0 + force-kept every 6th
     }
 }

@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: Dedup kollabiert statisches Material nicht mehr (2026-08-18)** —
+  Dedup droppte unbegrenzt aufeinanderfolgende Duplikate; bei statischem/
+  nahezu statischem Material blieb nur ein Frame übrig („Render Sample“ mit
+  nur Dedup ergab ~0,05 s). Jetzt max. 5 aufeinanderfolgende Drops, danach
+  wird ein Frame erzwungen (statische 3 s → ~0,5 s statt 0,05 s). Test
+  `dedup_never_collapses_static_run`.
+
 - **perf: GPU-Stitching im tiled-fused RGB8-Pfad (2026-08-18)** — statt jedes
   512px-Tile als u8 zurückzulesen und auf der CPU zu stitchen, akkumuliert
   `infer_rgb8` die Tiles jetzt auf der GPU in einem f16-Canvas
