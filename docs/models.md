@@ -60,6 +60,10 @@ Weights are never committed (`models/*` gitignored); the app downloads them
 - **`styler00dollar/VSGAN-tensorrt-docker`** `models` release tag — hosts many
   `.pth`/`.onnx` checkpoints (Real-CUGAN, Real-ESRGAN, SCUNet, …) with direct
   release download URLs.
+- **`pavlichenko/ifrnet_vimeo` + `pavlichenko/ifrnet_gopro`** (Hugging Face) —
+  offizielle IFRNet-Weights (Vimeo90K / GoPro, je 19.9 MB, **MIT**), Re-Upload
+  der Dropbox-Links aus dem Original-Repo `ltkong218/IFRNet`; direkte
+  `resolve/main/<file>.pth`-URLs.
 - **`NevermindNilas/TAS-Models-Host`** `main` release — hosts the models
   TheAnimeScripter uses (`.pth` + ONNX). TAS itself is AGPL — never copy its
   arch code; only its model *host* URLs may be referenced.
@@ -88,7 +92,7 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
 |---|---|---|---|
 | Interpolation | RIFE v4.6 Varianten (Lite/Fast/Max/S, Anime-Finetunes) | MIT ok | **adoptieren** (Arch vorhanden) |
 | Interpolation | GMFSS_Fortuna („union", Anime) | MIT (Repo verifiziert) · GDrive verify | **adoptieren** |
-| Interpolation | IFRNet | MIT Code · Weights verify · Repo-URL verify | **adoptieren** (leicht, konv) |
+| Interpolation | IFRNet (Vimeo90K / GoPro) | MIT (HF-Reuploads, direkte URLs) | **adoptieren** (leicht, konv) |
 | Interpolation | EMA-VFI | MIT Code · Weights verify | nur falls (Cross-Frame-Attention) |
 | Interpolation | AnimeInterp | MIT Code · Weights verify | nur falls |
 | Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |
