@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: keyboard shortcuts (2026-08-18)** — Ctrl/Cmd+O imports a file, +A
+  selects all, +E exports the project, +R renders, Delete removes the
+  selection, Space toggles monitor play/pause. Shortcut hints are shown in the
+  menu bar; hotkeys are active only in the workspace (not the start screen).
+  Also fixes a latent `menu.children` reference in the MenuBar import submenu.
+
 - **ui: meaningful dedup controls (2026-08-18)** — the deduplication step now
   has mode presets (Off / Standard / Aggressive), a threshold slider with a
   live percent readout, and a one-line explanation instead of a bare slider.

@@ -399,26 +399,34 @@ export default function App() {
     setSelected([]);
   };
 
-  // Hotkeys: Ctrl/Cmd+A select all, Delete removes selected, Ctrl/Cmd+R renders.
+  // Hotkeys: Ctrl/Cmd+A select all, Delete removes selected, Ctrl/Cmd+R renders,
+  // Ctrl/Cmd+O imports a file, Ctrl/Cmd+E exports the project.
   useEffect(() => {
+    if (!projectDir) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
         e.preventDefault();
         selectAll();
-      } else if (e.key === "Delete") {
+      } else if (e.key === "Delete" && target?.tagName !== "BUTTON") {
         e.preventDefault();
         deleteSelected();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
         e.preventDefault();
         void startBatch();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        void openFiles();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        void handleExportProject();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, selected]);
+  }, [files, selected, projectDir]);
 
   // Batch render: one render per file, sequentially. A single file is just a
   // batch of one. Errors mark the job failed and continue; cancel stops after
