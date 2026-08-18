@@ -45,7 +45,16 @@ impl Encoder {
         }
         cmd.arg("-i")
             .arg(input)
+            // Keep the pipe video's 0-based PTS: without this the muxer re-bases
+            // the output to the seeked-and-copied audio and shifts the video by
+            // the audio's start offset (e.g. 0.67 s), breaking the monitor's
+            // `source - inMs` frame mapping in compare/result.
+            .arg("-copyts")
             .args(["-map", "0:v:0", "-map", "1:a:0?"])
+            // Stop at the shortest stream: without this the copied source audio
+            // runs past a ranged render and the container reports the audio's
+            // (much longer) duration, breaking seeks near the video end.
+            .args(["-shortest"])
             .args(["-c:v", "libx264", "-preset", x264_preset(), "-pix_fmt", "yuv420p"])
             .args(extra_args)
             .arg(path)
