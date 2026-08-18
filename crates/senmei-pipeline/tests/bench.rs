@@ -34,7 +34,7 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
     let ok = std::process::Command::new("ffmpeg")
         .args([
             "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1920x1080:rate=24",
-            "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p", "-c:v", "mpeg4",
         ])
         .arg(&input)
         .status()
@@ -133,7 +133,7 @@ fn bench_pipeline_full_render() {
     let ok = std::process::Command::new("ffmpeg")
         .args([
             "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1920x1080:rate=24",
-            "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p", "-c:v", "mpeg4",
         ])
         .arg(&input)
         .status()
@@ -159,7 +159,7 @@ fn bench_pipeline_full_render() {
     let elapsed = start.elapsed().as_secs_f64();
     let n = frames.load(std::sync::atomic::Ordering::Relaxed);
     println!(
-        "full pipeline ({model_id} 1080p->2160p, threaded + x264): {n} frames in {elapsed:.1}s -> {:.1} FPS",
+        "full pipeline ({model_id} 1080p->2160p, threaded + encode): {n} frames in {elapsed:.1}s -> {:.1} FPS",
         n as f64 / elapsed
     );
 
