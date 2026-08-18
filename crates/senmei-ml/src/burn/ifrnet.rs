@@ -145,7 +145,7 @@ impl<B: Backend> ResBlock<B> {
         let out3 = self.c3.forward(out2);
         let q = out3.split_with_sizes(vec![main, side], 1);
         let out4 = Tensor::cat(vec![q[0].clone(), self.c4.forward(q[1].clone())], 1);
-        self.pl.forward(out4 + x)
+        self.pl.forward(self.c5.forward(out4) + x)
     }
 }
 
@@ -353,12 +353,8 @@ mod tests {
     /// writes `a.bin`/`b.bin`/`ref.bin` as f32 little-endian). Loads the real
     /// f16 burnpack, runs the same pair, and asserts a small mean abs error.
     ///
-    /// NOTE: currently FAILS on the fused `Vulkan<f16>` backend (mae ~0.16) —
-    /// burn-fusion computes wrong results for the ResBlock side-channel pattern
-    /// (split/cat) when compiled as a standalone function stream; inline it is
-    /// correct (verified ~0.0001). See docs/burn-bugs.md Bug 4.
     #[test]
-    #[ignore = "KNOWN FAILURE: burn-fusion bug (docs/burn-bugs.md Bug 4); needs Vulkan + models/IFRNet_Vimeo90K.pth.f16.bpk + torch ref bins (tools/ifrnet_verify.py); needs RUST_MIN_STACK=33554432"]
+    #[ignore = "needs Vulkan + models/IFRNet_Vimeo90K.pth.f16.bpk + torch ref bins"]
     fn ifrnet_matches_torch_reference() {
         let device = WgpuDevice::DiscreteGpu(0);
         let dir = std::env::var("SENMEI_IFRNET_VERIFY_DIR")

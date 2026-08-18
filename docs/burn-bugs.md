@@ -177,38 +177,6 @@ in `rebuild_tensor_impl`.
 
 ---
 
-## Bug 6 — burn-fusion: split/cat side-channel graph computes wrong results when compiled as a standalone function stream
-
-**Symptom.** The IFRNet `ResBlock` ("side channels": `out[:,-side:] ← conv2(...)`
-via channel `split`/`slice` + `cat`, interleaved with full-width convs) gives a
-wrong output (mae 0.0525 vs torch on the decoder-4 ResBlock) whenever the
-sequence runs through a **function call** (`ResBlock::forward`, or an inline
-closure). The byte-identical op sequence executed **inline** in the test's main
-flow is correct (mae ~0.0001). Deterministic across runs and processes; affects
-every channel-slicing variant tried: `slice_assign`, `split_with_sizes`+`cat`,
-`slice`+`cat`, `slice(...)*1.0`, and a mask-multiply rewrite with padded
-full-width convs + `burn::tensor::module::conv2d` (mask version mae 0.098).
-
-**Reproducer.** `crates/senmei-ml/src/burn/ifrnet.rs` test
-`ifrnet_resblock_isolated` (removed after diagnosis): fresh `IfrNet<Vulkan<f16>>`
-loaded from `IFRNet_Vimeo90K.pth.f16.bpk`; feeding `d4_cb0.bin` through
-`decoder4.cb1.forward(...)` gives mae 0.0525 vs the torch `rb_s5.bin` reference,
-while the same steps written inline give 0.00003. Encoder (plain conv+prelu
-chains) is correct through methods, so the trigger is the channel-split/`cat`
-graph, not function calls in general.
-
-**Root cause (suspected).** The fused kernel compiled for the standalone
-ResBlock stream reads the channel-sliced view with a wrong base offset / stride
-(or an autotune cache collision for that fused graph); inline, the ops fuse into
-a different stream with different surrounding tensors and stay correct. Not
-pursued further — matches the repo's other broken-autotune/fusion findings
-(Bugs 1–3) on RADV.
-
-**Workaround / status.** None found that keeps the fused `Vulkan<f16>` backend
-correct. IFRNet stays `loadable: false` ("arch port verified vs torch when
-unfused; blocked by burn-fusion Bug 6"). Options: (a) file upstream with the
-minimal repro, (b) run IFRNet on a non-fused backend (not viable repo-wide:
-Bug 2), (c) revisit after a burn/cubecl update.
 
 ---
 

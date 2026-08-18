@@ -18,7 +18,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Real-ESRGAN animevideo x2/x4 | upscale | BSD-3-Clause | 2/4 | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
-| IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | arch port torch-verified; blocked by burn-fusion Bug 6 | HF `pavlichenko/ifrnet_*` |
+| IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
 | Real-PLKSr DeJPG / DeH264 | decompress | verify (Phhofm) | 1 | loadable, download gated | `Phhofm/models` · TAS host |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
