@@ -4,26 +4,26 @@
     "kind": "upscale",
     "scale": 2,
     "arch": "fallin-cugan",
-    "weights": ["2x_Fallin_soft_renarchi_fp16.onnx"],
+    "weights": ["2x_Fallin_soft_renarchi_fp16.f16.bpk"],
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_soft_renarchi_fp16.onnx",
     "sha256": "17a4c0c6af5a187389f52a9bd026553a8819f148b70dea1a242d1517a352dfec",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); ONNX-only — arch via burn-onnx codegen pending" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); UpCunet2x_fast arch (pad 38) + ONNX initializer import via built-in parser" }
   },
   {
     "id": "fallin-strong",
     "kind": "upscale",
     "scale": 2,
     "arch": "fallin-cugan",
-    "weights": ["2x_Fallin_strong_renarchi_fp16.onnx"],
+    "weights": ["2x_Fallin_strong_renarchi_fp16.f16.bpk"],
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_strong_renarchi_fp16.onnx",
     "sha256": "f3d636e298a22fd54ad66571e74f6c91afc6cc7929799d224dc6ebb864c128df",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; ONNX-only — arch via burn-onnx codegen pending" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; UpCunet2x_fast arch (pad 38) + ONNX initializer import" }
   },
   {
     "id": "4x-alchemy",

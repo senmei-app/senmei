@@ -65,8 +65,8 @@ download URL (+ sha256 where known).
 | Model | License | Scale | Arch status | Source |
 |---|---|---|---|---|
 | Real-CUGAN up2x no-denoise | Apache-2.0 | 2 | **loadable** (UpCunet2x port, verified) | `bilibili/ailab` · `cugan_up2x-latest-no-denoise.pth` (VSGAN) |
-| Fallin Soft | CC-BY-4.0 | 2 | port pending (CUGAN, ONNX-only; burn-onnx codegen) | `renarchi/Re-SISR` · `2x_Fallin_soft_renarchi_fp16.onnx` |
-| Fallin Strong | CC-BY-4.0 | 2 | port pending (CUGAN, ONNX-only; oversharpened sibling) | `renarchi/Re-SISR` · `2x_Fallin_strong_renarchi_fp16.onnx` |
+| Fallin Soft | CC-BY-4.0 | 2 | **loadable** (UpCunet2x_fast, pad 38; ONNX initializer import) | `renarchi/Re-SISR` · `2x_Fallin_soft_renarchi_fp16.onnx` |
+| Fallin Strong | CC-BY-4.0 | 2 | **loadable** (UpCunet2x_fast, pad 38; oversharpened sibling) | `renarchi/Re-SISR` · `2x_Fallin_strong_renarchi_fp16.onnx` |
 | 4x_Alchemy | CC-BY-4.0 | 4 | port pending (RealPLKSR_Dysample, `.pth`) | `renarchi/Re-SISR` · `4x_Alchemy.pth` |
 | Real-ESRGAN animevideo x2 / x4 | BSD-3-Clause | 2 / 4 | **loadable** (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
@@ -106,3 +106,8 @@ commitment.
 - **f16 is the default** (Vulkan): half the memory and 3–6× faster than f32 on
   the reference GPU. `PytorchStore` cannot cast f32→f16 at load, so weights are
   pre-converted to f16 `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).
+- **ONNX-only sources (Fallin) load without ONNX Runtime (2026-08-18)** — a
+  built-in protobuf reader (`senmei_ml::onnx`) extracts the `initializer`
+  tensors (the ONNX is only a weight container; the arch is the existing
+  `UpCunet2x_fast`), then the `.pth`/`.onnx` → `.bpk` converter produces the
+  burnpack. `download_model` detects `.onnx` sources automatically.
