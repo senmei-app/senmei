@@ -2,27 +2,17 @@ use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::Result;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Backend {
-    Cpu,
-    Vulkan,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct EngineCaps {
-    pub backend: Backend,
-    pub half: bool,
     pub tiles: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct InferOptions {
-    pub half: bool,
     pub tile_size: Option<u32>,
 }
 
 pub trait InferenceEngine: Send + Sync {
-    fn name(&self) -> &'static str;
     fn capabilities(&self) -> EngineCaps;
     fn load(&mut self, model: &ModelRef) -> Result<()>;
     fn infer(&mut self, input: &Tensor, opts: &InferOptions) -> Result<Tensor>;
@@ -169,11 +159,8 @@ mod tests {
     struct IdentityEngine;
 
     impl InferenceEngine for IdentityEngine {
-        fn name(&self) -> &'static str {
-            "identity-test"
-        }
         fn capabilities(&self) -> EngineCaps {
-            EngineCaps { backend: Backend::Cpu, half: false, tiles: true }
+            EngineCaps { tiles: true }
         }
         fn load(&mut self, _m: &ModelRef) -> Result<()> {
             Ok(())
@@ -188,11 +175,8 @@ mod tests {
     }
 
     impl InferenceEngine for ScaleEngine {
-        fn name(&self) -> &'static str {
-            "scale-test"
-        }
         fn capabilities(&self) -> EngineCaps {
-            EngineCaps { backend: Backend::Cpu, half: false, tiles: true }
+            EngineCaps { tiles: true }
         }
         fn load(&mut self, _m: &ModelRef) -> Result<()> {
             Ok(())
@@ -207,11 +191,8 @@ mod tests {
     struct NoTilesEngine;
 
     impl InferenceEngine for NoTilesEngine {
-        fn name(&self) -> &'static str {
-            "notiles-test"
-        }
         fn capabilities(&self) -> EngineCaps {
-            EngineCaps { backend: Backend::Cpu, half: false, tiles: false }
+            EngineCaps { tiles: false }
         }
         fn load(&mut self, _m: &ModelRef) -> Result<()> {
             Ok(())
@@ -226,11 +207,8 @@ mod tests {
     }
 
     impl InferenceEngine for CountingEngine {
-        fn name(&self) -> &'static str {
-            "counting-test"
-        }
         fn capabilities(&self) -> EngineCaps {
-            EngineCaps { backend: Backend::Cpu, half: false, tiles: true }
+            EngineCaps { tiles: true }
         }
         fn load(&mut self, _m: &ModelRef) -> Result<()> {
             Ok(())
@@ -245,7 +223,7 @@ mod tests {
     fn tiled_identity_reconstructs() {
         let t = input(16, 16);
         let mut engine = IdentityEngine;
-        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let opts = InferOptions { tile_size: Some(8) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.shape, t.shape);
         assert_eq!(out.data, t.data);
@@ -255,7 +233,7 @@ mod tests {
     fn tiled_scaled_dims() {
         let t = input(16, 16);
         let mut engine = ScaleEngine { factor: 2 };
-        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let opts = InferOptions { tile_size: Some(8) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.shape, vec![1, 3, 32, 32]);
         assert!(out.data.iter().all(|v| v.is_finite()));
@@ -265,7 +243,7 @@ mod tests {
     fn small_input_skips_tiling() {
         let t = input(8, 8);
         let mut engine = ScaleEngine { factor: 2 };
-        let opts = InferOptions { half: false, tile_size: Some(16) };
+        let opts = InferOptions { tile_size: Some(16) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.shape, vec![1, 3, 16, 16]);
     }
@@ -274,7 +252,7 @@ mod tests {
     fn engine_without_tiling_goes_whole() {
         let t = input(16, 16);
         let mut engine = NoTilesEngine;
-        let opts = InferOptions { half: false, tile_size: Some(8) };
+        let opts = InferOptions { tile_size: Some(8) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.data, t.data);
     }
@@ -284,7 +262,7 @@ mod tests {
         // 720p > tile size but ≤ full-HD threshold → exactly one engine call.
         let t = input(720, 1280);
         let mut engine = CountingEngine { calls: 0 };
-        let opts = InferOptions { half: false, tile_size: Some(512) };
+        let opts = InferOptions { tile_size: Some(512) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(engine.calls, 1);
         assert_eq!(out.shape, t.shape);
@@ -296,7 +274,7 @@ mod tests {
         // chunks of 4 (15 tiles → 4 engine calls instead of 15).
         let t = input(1080, 2048);
         let mut engine = CountingEngine { calls: 0 };
-        let opts = InferOptions { half: false, tile_size: Some(512) };
+        let opts = InferOptions { tile_size: Some(512) };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert!(engine.calls < 8, "expected few batched calls, got {}", engine.calls);
         assert_eq!(out.shape, vec![1, 3, 1080, 2048]);

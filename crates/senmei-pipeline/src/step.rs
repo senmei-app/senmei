@@ -189,7 +189,7 @@ impl Step for Upscale {
         }
         let out = match self.engine.as_mut() {
             Some(engine) => {
-                let opts = InferOptions { half: false, tile_size: Some(TILE_SIZE) };
+                let opts = InferOptions { tile_size: Some(TILE_SIZE) };
                 senmei_ml::infer_tiled(engine.as_mut(), &input, &opts)
                     .map_err(|e| crate::Error::new(e.to_string()))?
             }
@@ -375,15 +375,8 @@ mod tests {
     struct QuadEngine;
 
     impl senmei_ml::InferenceEngine for QuadEngine {
-        fn name(&self) -> &'static str {
-            "quad-test"
-        }
         fn capabilities(&self) -> senmei_ml::EngineCaps {
-            senmei_ml::EngineCaps {
-                backend: senmei_ml::Backend::Cpu,
-                half: false,
-                tiles: false,
-            }
+            senmei_ml::EngineCaps { tiles: false }
         }
         fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
             Ok(())
