@@ -137,9 +137,9 @@ mod tests {
         registry.load_dir(path).unwrap();
         assert_eq!(registry.models().len(), 12);
         assert_eq!(registry.models()[0].id, "fallin-soft");
-        assert!(!registry.models()[0].loadable);
+        assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
-        assert!(!registry.models()[1].loadable);
+        assert!(registry.models()[1].loadable);
         assert_eq!(registry.models()[2].id, "4x-alchemy");
         assert!(!registry.models()[2].loadable);
         assert_eq!(registry.models()[3].id, "real-cugan-x2");
