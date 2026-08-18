@@ -6,6 +6,7 @@
 //! converted format (see `rust-sr-bench`'s `convert-f16` for the one-time
 //! conversion). The arch is chosen from `ModelRef::arch`.
 
+mod drunet;
 mod ifrnet;
 mod real_plksr;
 mod realesrgan;
@@ -26,6 +27,7 @@ use burn_store::{
 use burn_wgpu::{Vulkan, WgpuDevice};
 use std::path::Path;
 
+use drunet::Drunet;
 use ifrnet::IfrNet;
 use real_plksr::RealPlk;
 use realesrgan::RrdbNet;
@@ -44,6 +46,7 @@ enum Model {
     RrdbNet(RrdbNet<Vulkan<f16>>),
     RifeNet(RifeNet<Vulkan<f16>>),
     IfrNet(IfrNet<Vulkan<f16>>),
+    Drunet(Drunet<Vulkan<f16>>),
     RealPlk(RealPlk<Vulkan<f16>>),
 }
 
@@ -54,6 +57,7 @@ impl Model {
             Model::UpCunet2xFast(m) => m.forward(x),
             Model::RrdbNet(m) => m.forward(x),
             Model::RealPlk(m) => m.forward(x),
+            Model::Drunet(m) => m.forward(x),
             Model::RifeNet(_) | Model::IfrNet(_) => panic!("no single-input forward"),
         }
     }
@@ -113,6 +117,11 @@ impl BurnEngine {
                 let mut m = IfrNet::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::IfrNet(m))
+            }
+            "drunet" => {
+                let mut m = Drunet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Drunet(m))
             }
             "real-plksr" => {
                 let mut m = RealPlk::new(model.scale as usize, &self.device);
@@ -356,6 +365,27 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"decoder(\d)\.convblock\.1\.prelu\.", "decoder$1.cb1.pl.")
                 .with_key_remapping(r"decoder(\d)\.convblock\.2\.", "decoder$1.cb2.");
             let mut m = IfrNet::<Vulkan>::new(&device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "drunet" => {
+            // Torch Sequential ResBlock keys (m_down1.0.res.0/.res.2, the
+            // index-4 stride-conv m_down1.4, and the index-0 deconv m_up3.0)
+            // are mapped onto the burn field paths (b0.c1/b0.c2, down, up)
+            // with capture-group rules.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^module\.", "")
+                .with_key_remapping(r"m_down(\d)\.(\d)\.res\.0\.", "m_down$1.b$2.c1.")
+                .with_key_remapping(r"m_down(\d)\.(\d)\.res\.2\.", "m_down$1.b$2.c2.")
+                .with_key_remapping(r"m_down(\d)\.4\.", "m_down$1.down.")
+                .with_key_remapping(r"m_body\.(\d)\.res\.0\.", "m_body.b$1.c1.")
+                .with_key_remapping(r"m_body\.(\d)\.res\.2\.", "m_body.b$1.c2.")
+                .with_key_remapping(r"m_up(\d)\.(\d)\.res\.0\.", "m_up$1.b$2.c1.")
+                .with_key_remapping(r"m_up(\d)\.(\d)\.res\.2\.", "m_up$1.b$2.c2.")
+                .with_key_remapping(r"m_up(\d)\.0\.", "m_up$1.up.");
+            let mut m = Drunet::<Vulkan>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)

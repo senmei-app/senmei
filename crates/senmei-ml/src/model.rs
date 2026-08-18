@@ -164,7 +164,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 14);
+        assert_eq!(registry.models().len(), 15);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -184,16 +184,21 @@ mod tests {
         assert_eq!(registry.models()[8].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(registry.models()[9].id, "real-plksr-dejpg");
         assert_eq!(registry.models()[10].id, "anime1080fixer");
-        assert_eq!(registry.models()[11].id, "rife-v4.6");
-        assert!(matches!(registry.models()[11].kind, ModelKind::Interpolate));
-        assert_eq!(registry.models()[11].arch, "rife46");
+        assert_eq!(registry.models()[11].id, "drunet-color");
+        assert!(matches!(registry.models()[11].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[11].arch, "drunet");
         assert!(registry.models()[11].loadable);
-        assert_eq!(registry.models()[12].id, "ifrnet-vimeo90k");
-        assert_eq!(registry.models()[13].id, "ifrnet-gopro");
+        assert_eq!(registry.models()[11].license.as_deref(), Some("MIT"));
+        assert_eq!(registry.models()[12].id, "rife-v4.6");
         assert!(matches!(registry.models()[12].kind, ModelKind::Interpolate));
-        assert_eq!(registry.models()[12].arch, "ifrnet");
-        assert!(!registry.models()[12].loadable);
-        assert_eq!(registry.models()[12].license.as_deref(), Some("MIT"));
+        assert_eq!(registry.models()[12].arch, "rife46");
+        assert!(registry.models()[12].loadable);
+        assert_eq!(registry.models()[13].id, "ifrnet-vimeo90k");
+        assert_eq!(registry.models()[14].id, "ifrnet-gopro");
+        assert!(matches!(registry.models()[13].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[13].arch, "ifrnet");
+        assert!(registry.models()[13].loadable);
+        assert_eq!(registry.models()[13].license.as_deref(), Some("MIT"));
     }
 
     #[test]
