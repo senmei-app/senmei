@@ -36,6 +36,22 @@ impl Decoder {
             .arg(path)
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
 
+        // ffmpeg autorotates by default (DisplayMatrix), which would silently
+        // change the output size away from the probed one. Disable that and
+        // apply the rotation explicitly so the decoded frames always match
+        // `probe`'s display dimensions. The filter per rotation is verified
+        // byte-identical against ffmpeg's own autorotation.
+        if info.rotation != 0 {
+            cmd.arg("-noautorotate");
+            let vf = match info.rotation {
+                90 => "transpose=2", // 90° counterclockwise
+                180 => "hflip,vflip",
+                270 => "transpose=1", // 270° cw = 90° clockwise
+                _ => unreachable!(),
+            };
+            cmd.args(["-vf", vf]);
+        }
+
         let mut child = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
