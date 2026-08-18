@@ -28,6 +28,7 @@ import {
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
 import { buildEncoderArgs, defaultSteps, normalizeSteps, type BatchJob, type PipelineStep } from "./steps";
+import { defaultHotkey, comboFromEvent, resolveHotkeys } from "./hotkeys";
 import {
   demoProjects,
   demoVideos,
@@ -68,6 +69,7 @@ export default function App() {
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
   const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
   const [fullscreenSignal, setFullscreenSignal] = useState(0);
+  const [hotkeyOverrides, setHotkeyOverrides] = useState<Record<string, string>>({});
 
   const currentFile = files[0];
 
@@ -98,6 +100,7 @@ export default function App() {
         .then((s) => {
           setLang((s.language as Lang) || "en");
           setTheme(s.theme || "dark");
+          setHotkeyOverrides(s.hotkeys ?? {});
         })
         .catch(() => {});
     }
@@ -145,6 +148,17 @@ export default function App() {
   const changeTheme = (t: string) => {
     setTheme(t);
     void saveSettings({ language: lang, theme: t });
+  };
+
+  // Persist a hotkey override; resetting to the default drops the entry.
+  const changeHotkey = (id: string, combo: string) => {
+    setHotkeyOverrides((prev) => {
+      const next = { ...prev };
+      if (combo === defaultHotkey(id)) delete next[id];
+      else next[id] = combo;
+      void saveSettings({ language: lang, theme, hotkeys: Object.keys(next).length ? next : null });
+      return next;
+    });
   };
 
   // App-wide video drag & drop (not just onto the drop box). Tauri reports
@@ -400,34 +414,44 @@ export default function App() {
     setSelected([]);
   };
 
-  // Hotkeys: Ctrl/Cmd+A select all, Delete removes selected, Ctrl/Cmd+R renders,
-  // Ctrl/Cmd+O imports a file, Ctrl/Cmd+E exports the project.
+  // Hotkeys (configurable in Settings). Ctrl/Cmd are interchangeable.
   useEffect(() => {
     if (!projectDir) return;
+    const hotkeys = resolveHotkeys(hotkeyOverrides);
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
-        e.preventDefault();
-        selectAll();
-      } else if (e.key === "Delete" && target?.tagName !== "BUTTON") {
-        e.preventDefault();
-        deleteSelected();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
-        e.preventDefault();
-        void startBatch();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
-        e.preventDefault();
-        void openFiles();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        void handleExportProject();
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      switch (combo) {
+        case hotkeys.selectAll:
+          e.preventDefault();
+          selectAll();
+          break;
+        case hotkeys.deleteSelected:
+          if (target?.tagName !== "BUTTON") {
+            e.preventDefault();
+            deleteSelected();
+          }
+          break;
+        case hotkeys.render:
+          e.preventDefault();
+          void startBatch();
+          break;
+        case hotkeys.openFile:
+          e.preventDefault();
+          void openFiles();
+          break;
+        case hotkeys.exportProject:
+          e.preventDefault();
+          void handleExportProject();
+          break;
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, selected, projectDir]);
+  }, [files, selected, projectDir, hotkeyOverrides]);
 
   // Batch render: one render per file, sequentially. A single file is just a
   // batch of one. Errors mark the job failed and continue; cancel stops after
@@ -543,8 +567,10 @@ export default function App() {
           <SettingsPage
             language={lang}
             theme={theme}
+            hotkeys={resolveHotkeys(hotkeyOverrides)}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
+            onHotkeyChange={changeHotkey}
             onBack={() => setSettingsOpen(false)}
           />
         ) : !projectDir ? (
@@ -614,6 +640,7 @@ export default function App() {
                   onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
                   onRenderSample={() => currentFile && void startBatch(false, sampleRange, [currentFile])}
                   toggleFullscreenSignal={fullscreenSignal}
+                  togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />

@@ -125,6 +125,11 @@ export type RenderProgress = {
 export type Settings = {
 	language: string,
 	theme: string,
+	/**
+	 *  Action-id → key-combo overrides (e.g. `render: "Ctrl+Shift+R"`);
+	 *  absent entries use the app defaults.
+	 */
+	hotkeys?: { [key in string]: string } | null,
 };
 
 /**  Typed params per step type. Only the fields relevant to a step's type are set. */
