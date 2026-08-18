@@ -10,7 +10,7 @@ use crate::Result;
 const SCENE_CUT_THRESHOLD: f32 = 0.25;
 
 /// Interpolation runs at native resolution without tiling.
-const INTERP_OPTS: InferOptions = InferOptions { half: true, tile_size: None };
+const INTERP_OPTS: InferOptions = InferOptions { tile_size: None };
 
 /// Stateful frame interpolator: emits `factor - 1` intermediates between
 /// consecutive frames. With an engine it uses `infer_interp` (e.g. RIFE);

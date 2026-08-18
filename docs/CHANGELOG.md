@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Inference engine trait simplified (2026-08-18)** — removed the never-read
+  `Backend` enum, `EngineCaps.backend`/`half`, `InferOptions.half`, and
+  `InferenceEngine::name()`; capabilities/options now carry only what the
+  tiling path consumes (`tiles`, `tile_size`).
+
 - **Model registry: drop SUDO shuffle-cugan, add Fallin + 4x_Alchemy (2026-08-18)** —
   removed `shuffle-cugan` (unclear/SUDO weights). Added `fallin-soft` /
   `fallin-strong` (2× CUGAN retrain, CC-BY-4.0, ONNX-only, sha256-pinned) and

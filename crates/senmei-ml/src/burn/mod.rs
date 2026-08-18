@@ -11,7 +11,7 @@ mod rife;
 mod upcunet;
 mod warp;
 
-use crate::engine::{Backend, EngineCaps, InferOptions, InferenceEngine};
+use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
@@ -100,12 +100,8 @@ impl BurnEngine {
 }
 
 impl InferenceEngine for BurnEngine {
-    fn name(&self) -> &'static str {
-        "burn-vulkan"
-    }
-
     fn capabilities(&self) -> EngineCaps {
-        EngineCaps { backend: Backend::Vulkan, half: true, tiles: true }
+        EngineCaps { tiles: true }
     }
 
     fn load(&mut self, model: &ModelRef) -> Result<()> {
@@ -296,7 +292,7 @@ mod tests {
         engine.load(&mref).unwrap();
         let input = Tensor::new(vec![1, 3, 32, 32], vec![0.5f32; 3 * 32 * 32]);
         let out = engine
-            .infer(&input, &InferOptions { half: true, tile_size: None })
+            .infer(&input, &InferOptions { tile_size: None })
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
         assert!(out.data.iter().all(|v| v.is_finite()));
@@ -333,7 +329,7 @@ mod tests {
         }
         let a = Tensor::new(vec![1, 3, h, w], a);
         let b = Tensor::new(vec![1, 3, h, w], b);
-        let opts = InferOptions { half: true, tile_size: None };
+        let opts = InferOptions { tile_size: None };
         let mid = engine
             .infer_interp(&a, &b, 0.5, &opts)
             .expect("engine should handle RIFE")

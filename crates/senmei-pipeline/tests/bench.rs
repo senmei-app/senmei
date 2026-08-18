@@ -43,7 +43,7 @@ fn bench_upscaler_1080p_fullframe() {
     engine.load(&mref).unwrap();
 
     let ffmpeg = senmei_media::resolve(&dir);
-    let mut dec = senmei_media::Decoder::open(&ffmpeg, &input).unwrap();
+    let mut dec = senmei_media::Decoder::open_with_range(&ffmpeg, &input, 0, None).unwrap();
     let mut frames = Vec::new();
     while let Some(f) = dec.next_frame().unwrap() {
         frames.push(f);
@@ -51,7 +51,7 @@ fn bench_upscaler_1080p_fullframe() {
     let total = frames.len();
     assert!(total > 0, "no frames decoded");
 
-    let opts = InferOptions { half: false, tile_size: Some(512) };
+    let opts = InferOptions { tile_size: Some(512) };
     let mut t_in = 0f64;
     let mut t_infer = 0f64;
     let mut t_out = 0f64;
