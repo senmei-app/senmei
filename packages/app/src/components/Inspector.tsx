@@ -345,19 +345,52 @@ export default function Inspector({
             className="w-full accent-indigo-500"
           />,
         );
-      case "deduplication":
-        return field(
-          t("dedup.threshold"),
-          <input
-            type="range"
-            min={0}
-            max={0.05}
-            step={0.002}
-            value={s.params?.threshold ?? 0.02}
-            onChange={(e) => updateParams(s.id, { threshold: Number(e.target.value) })}
-            className="w-full accent-indigo-500"
-          />,
+      case "deduplication": {
+        const threshold = s.params?.threshold ?? 0.02;
+        const presets = [
+          { label: t("dedup.off"), v: 0 },
+          { label: t("dedup.standard"), v: 0.02 },
+          { label: t("dedup.aggressive"), v: 0.04 },
+        ];
+        return (
+          <>
+            {field(
+              t("dedup.mode"),
+              <div className="flex space-x-2">
+                {presets.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => updateParams(s.id, { threshold: p.v })}
+                    className={segBtn(threshold === p.v)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>,
+            )}
+            {field(
+              t("dedup.threshold"),
+              <div>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.05}
+                  step={0.002}
+                  value={threshold}
+                  onChange={(e) => updateParams(s.id, { threshold: Number(e.target.value) })}
+                  className="w-full accent-indigo-500"
+                />
+                <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>0%</span>
+                  <span>{(threshold * 100).toFixed(1)}%</span>
+                  <span>5%</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{t("dedup.hint")}</p>
+              </div>,
+            )}
+          </>
         );
+      }
       case "output": {
         const mode = s.params?.outputMode ?? "input";
         const quality = qualityKey(s.params);
