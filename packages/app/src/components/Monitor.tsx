@@ -4,8 +4,6 @@ import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@sen
 import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
 
-const FRAME_STEP_MS = 100;
-
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);
@@ -39,6 +37,13 @@ function fmtDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// Round a time to the nearest frame boundary (whole ms) so a rendered sample
+// starts on the exact source frame that contains it (keeps compare in lockstep).
+function snapFrame(ms: number, fps: number): number {
+  const frameMs = fps > 0 ? 1000 / fps : 0;
+  return frameMs > 0 ? Math.round(Math.round(ms / frameMs) * frameMs) : Math.round(ms);
+}
+
 export default function Monitor({
   file,
   renderedFile,
@@ -46,6 +51,7 @@ export default function Monitor({
   progress,
   sampleInMs = 0,
   sampleOutMs = 0,
+  projectDir,
   onSampleChange,
   onRenderSample,
 }: {
@@ -55,11 +61,15 @@ export default function Monitor({
   progress: RenderProgress | null;
   sampleInMs?: number;
   sampleOutMs?: number;
+  projectDir?: string | null;
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
 }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<"source" | "result" | "compare">("source");
+  // Source shows the whole source timeline; result/compare show only the
+  // sample window (the rendered result spans exactly in..out).
+  const tlSource = mode === "source";
   // Demo mode has no real render output; simulate one per video so Compare /
   // Result are usable in the browser without running a fake render.
   const demoResult = !isTauri() && file ? file.replace(/\.[^.]+$/, ".senmei.mp4") : null;
@@ -89,6 +99,7 @@ export default function Monitor({
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
     setPosMs(v.currentTime * 1000);
+    if (v.paused) return; // don't loop while scrubbing
     const endSec = outMs / 1000;
     if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
   };
@@ -128,18 +139,27 @@ export default function Monitor({
     setLoading(true);
     return Promise.all(
       targets.map(({ path, ms: t }) =>
-        readFrame(path, t)
-          .then((filePath) => {
-            setFrames((prev) => ({ ...prev, [path]: convertFileSrc(filePath) }));
-            setError(null);
-          })
+        readFrame(path, t, projectDir ?? null)
+          .then((filePath) => ({ path, filePath }))
           .catch((e) => {
             console.error("readFrame failed:", e);
             setError(String(e));
+            return null;
           }),
       ),
     )
-      .then(() => undefined)
+      .then((results) => {
+        // Update every side together so compare never shows one ahead of the
+        // other (the result decode is slower than the source decode).
+        const updates: Record<string, string> = {};
+        for (const r of results) {
+          if (r) updates[r.path] = convertFileSrc(r.filePath);
+        }
+        if (Object.keys(updates).length) {
+          setFrames((prev) => ({ ...prev, ...updates }));
+          setError(null);
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -171,7 +191,8 @@ export default function Monitor({
   useEffect(() => {
     const fileChanged = file !== prevFile.current;
     prevFile.current = file ?? null;
-    const next = fileChanged ? 0 : mode === "result" ? Math.max(posMs, inMs) : posMs;
+    const next =
+      fileChanged ? 0 : mode === "result" || mode === "compare" ? Math.max(posMs, inMs) : posMs;
     setInfo(null);
     setPosMs(next);
     setPlaying(false);
@@ -179,7 +200,7 @@ export default function Monitor({
     setError(null);
     setNativeFailed(false);
     if (!isTauri()) {
-      const probeTarget = src ?? file;
+      const probeTarget = file;
       if (probeTarget) {
         setInfo(demoProbe());
         if (fileChanged) onSampleChange?.(0, 10000);
@@ -187,12 +208,12 @@ export default function Monitor({
       loadFrame(next);
       return;
     }
-    const probeTarget = src ?? file;
+    const probeTarget = file;
     if (probeTarget) {
       probeVideo(probeTarget)
         .then((i) => {
           setInfo(i);
-          if (fileChanged) onSampleChange?.(0, Math.min(10000, (i.duration ?? 0) * 1000));
+          if (fileChanged) onSampleChange?.(0, snapFrame(Math.min(10000, (i.duration ?? 0) * 1000), i.fps ?? 0));
         })
         .catch((e) => {
           console.error("probeVideo failed:", e);
@@ -205,6 +226,13 @@ export default function Monitor({
 
   const onScrub = (ms: number) => {
     setPosMs(ms);
+    // A scrub outside the sample window repositions the window to start at the
+    // playhead, so "Render Sample" clips from where you're looking.
+    if (ms < inMs || ms >= outMs) {
+      const dur = outMs > inMs ? outMs - inMs : 10000;
+      const fps = info?.fps ?? 0;
+      onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
+    }
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -214,12 +242,14 @@ export default function Monitor({
   };
 
   // Playback advances the time indicator 1:1 with wall clock. At most one
-  // decode is in flight: frames load only on FRAME_STEP_MS boundaries and are
-  // skipped if the decoder can't keep up, so requests never pile up.
+  // decode is in flight: frames load on source-frame boundaries (no fixed
+  // 100ms) and are skipped if the decoder can't keep up, so requests never
+  // pile up and playback runs at the source rate (~24-30 fps).
   useEffect(() => {
     if (!playing || nativeSrc || !info || (info.duration ?? 0) <= 0) return;
     const durMs = (info.duration ?? 0) * 1000;
     const endMs = Math.max(inMs, Math.min(outMs || durMs, durMs));
+    const stepMs = info.fps && info.fps > 0 ? Math.max(33, Math.round(1000 / info.fps)) : 100;
     let last = performance.now();
     let busy = false;
     const id = window.setInterval(() => {
@@ -242,7 +272,7 @@ export default function Monitor({
       }
       posRef.current = next;
       setPosMs(next);
-      if (!busy && Math.floor(next / FRAME_STEP_MS) !== Math.floor(prev / FRAME_STEP_MS)) {
+      if (!busy && Math.floor(next / stepMs) !== Math.floor(prev / stepMs)) {
         busy = true;
         loadFrame(next).finally(() => {
           busy = false;
@@ -253,21 +283,29 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, nativeSrc, info, inMs, outMs]);
 
-  const maxMs = info ? Math.max(1, (info.duration ?? 0) * 1000) : 1;
-  const scrubPct = maxMs > 0 ? Math.min(100, (posMs / maxMs) * 100) : 0;
-  const inPct = maxMs > 0 ? Math.min(100, (inMs / maxMs) * 100) : 0;
-  const outPct = maxMs > 0 ? Math.min(100, ((outMs || maxMs) / maxMs) * 100) : 100;
+  const tlMin = tlSource ? 0 : inMs;
+  const tlMax = tlSource
+    ? info
+      ? Math.max(1, (info.duration ?? 0) * 1000)
+      : 1
+    : Math.max(inMs + 1, outMs);
+  const tlSpan = tlMax - tlMin;
+  const tlPos = posMs;
+  const scrubPct = tlSpan > 0 ? Math.min(100, Math.max(0, ((posMs - tlMin) / tlSpan) * 100)) : 0;
+  const inPct = tlSource ? Math.min(100, Math.max(0, ((inMs - tlMin) / tlSpan) * 100)) : 0;
+  const outPct = tlSource ? Math.min(100, Math.max(0, ((outMs || tlMax) / tlSpan) * 100)) : 100;
 
   // Sample-range presets relative to the current position.
   const applySample = (sec: number) => {
     if (!info) return;
     const durMs = (info.duration ?? 0) * 1000;
-    const start = Math.min(posMs, durMs);
-    onSampleChange?.(start, Math.min(start + sec * 1000, durMs));
+    const fps = info.fps ?? 0;
+    const start = snapFrame(Math.min(posMs, durMs), fps);
+    onSampleChange?.(start, snapFrame(Math.min(start + sec * 1000, durMs), fps));
   };
   const setFullRange = () => {
     if (!info) return;
-    onSampleChange?.(0, (info.duration ?? 0) * 1000);
+    onSampleChange?.(0, snapFrame((info.duration ?? 0) * 1000, info.fps ?? 0));
   };
 
   const presetOf = (): string => {
@@ -286,8 +324,9 @@ export default function Monitor({
     const ms = parseDuration(customVal);
     if (ms === null) return;
     const durMs = (info.duration ?? 0) * 1000;
-    const start = Math.min(posMs, durMs);
-    onSampleChange?.(start, Math.min(start + ms, durMs));
+    const fps = info.fps ?? 0;
+    const start = snapFrame(Math.min(posMs, durMs), fps);
+    onSampleChange?.(start, snapFrame(Math.min(start + ms, durMs), fps));
     setSampleMenu(false);
   };
   const pct =
@@ -445,7 +484,7 @@ export default function Monitor({
               {playing ? "⏸" : "▶"}
             </button>
             <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
-              {fmt(posMs)} / {info ? fmt((info.duration ?? 0) * 1000) : "00:00:00.00"}
+              {fmt(tlPos)} / {fmt(tlMax)}
             </span>
           </div>
         </div>
@@ -557,10 +596,10 @@ export default function Monitor({
           )}
           <input
             type="range"
-            min={0}
-            max={maxMs}
+            min={tlMin}
+            max={tlMax}
             step={50}
-            value={Math.min(posMs, maxMs)}
+            value={Math.min(Math.max(tlPos, tlMin), tlMax)}
             onChange={(e) => onScrub(Number(e.target.value))}
             disabled={!info}
             className="scrubber relative z-10 w-full cursor-ew-resize"
@@ -572,7 +611,7 @@ export default function Monitor({
               {t("timeline.in")} {fmt(inMs)}
             </span>
             <span>
-              {t("timeline.out")} {fmt(outMs || (info.duration ?? 0) * 1000)}
+              {t("timeline.out")} {fmt(outMs || tlMax)}
             </span>
           </div>
         )}
