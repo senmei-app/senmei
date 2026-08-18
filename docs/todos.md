@@ -81,6 +81,5 @@
 
 ## after release
 - [ ] Project website
-- [ ] Make tile size configurable (backlog, requirements open)
 - [x] Follow-up: burn feature request „load ONNX initializer" filed (`tracel-ai/burn-onnx#456`), replace own parser later
 

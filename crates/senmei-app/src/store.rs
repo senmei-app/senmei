@@ -12,6 +12,9 @@ pub struct Settings {
     /// absent entries use the app defaults.
     #[serde(default)]
     pub hotkeys: Option<HashMap<String, String>>,
+    /// Fused RGB8 tile size in px; `None` = engine default (640).
+    #[serde(default)]
+    pub tile_size: Option<u32>,
 }
 
 impl Default for Settings {
@@ -20,6 +23,7 @@ impl Default for Settings {
             language: "en".into(),
             theme: "dark".into(),
             hotkeys: None,
+            tile_size: None,
         }
     }
 }
@@ -389,11 +393,13 @@ mod tests {
                 language: "de".into(),
                 theme: "light".into(),
                 hotkeys: Some(HashMap::from([("render".into(), "Ctrl+Shift+R".into())])),
+                tile_size: Some(512),
             };
             save_settings(&settings).unwrap();
             let loaded = load_settings();
             assert_eq!(loaded.language, "de");
             assert_eq!(loaded.theme, "light");
+            assert_eq!(loaded.tile_size, Some(512));
             assert_eq!(
                 loaded.hotkeys.as_ref().and_then(|h| h.get("render")),
                 Some(&"Ctrl+Shift+R".to_string())

@@ -141,6 +141,8 @@ export type Settings = {
 	 *  absent entries use the app defaults.
 	 */
 	hotkeys?: { [key in string]: string } | null,
+	/**  Fused RGB8 tile size in px; `None` = engine default (640). */
+	tileSize?: number | null,
 };
 
 /**  Typed params per step type. Only the fields relevant to a step's type are set. */

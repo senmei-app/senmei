@@ -193,10 +193,7 @@ impl InferenceEngine for BurnEngine {
         let c = input.shape[1];
         let h = input.shape[2];
         let w = input.shape[3];
-        let tile = std::env::var("SENMEI_TILE")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(640);
+        let tile = crate::current_tile_size();
         let overlap = tile / 4;
         let step = tile - overlap;
         let num_y = (h.saturating_sub(tile)).div_ceil(step) + 1;
