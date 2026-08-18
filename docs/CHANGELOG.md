@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Persistent preview decode + PNG frames (2026-08-18)** — `senmei-media` keeps
+  one long-lived ffmpeg decode stream per file (`PreviewCache`), so the monitor
+  reads the next frame from the pipe instead of spawning ffmpeg per frame.
+  `encode_png` replaces the mjpeg round-trip (range-safe on every FFmpeg build).
+
 - **Fix runtime asset scope (2026-08-18)** — `probe_video` and `read_frame` now
   also extend the asset-protocol scope at runtime via `app.state::<Scopes>()`
   `allow_file`, so arbitrary video paths (e.g. outside `$HOME`) and freshly
