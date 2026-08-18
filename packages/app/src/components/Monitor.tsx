@@ -4,6 +4,7 @@ import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@sen
 import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
+import { basename } from "../paths";
 
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -118,7 +119,7 @@ export default function Monitor({
   const debounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
-  const name = src ? src.split("/").pop() : null;
+  const name = src ? basename(src) : null;
 
   // Native <video> for the source preview; fall back to FFmpeg-decoded frames
   // only when the webview cannot load/play the file.
@@ -429,7 +430,7 @@ export default function Monitor({
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
-                    {file.split("/").pop()}
+                    {basename(file)}
                   </span>
                 </div>
               )}
@@ -447,7 +448,7 @@ export default function Monitor({
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
                   <span className="truncate px-4 font-mono text-sm text-slate-500">
-                    {effRendered.split("/").pop()}
+                    {basename(effRendered)}
                   </span>
                 </div>
               )}

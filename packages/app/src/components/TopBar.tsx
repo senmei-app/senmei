@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import MenuBar from "./MenuBar";
 import WindowControls from "./WindowControls";
+import { basename } from "../paths";
 
 export default function TopBar({
   file,
@@ -75,7 +76,7 @@ export default function TopBar({
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 max-w-[400px] truncate text-sm font-medium text-slate-600 dark:text-slate-300"
         title={file ?? undefined}
       >
-        {projectName ? `${projectName} / ${file ? file.split("/").pop() : t("topbar.noFile")}` : (file ? file.split("/").pop() : "")}
+        {projectName ? `${projectName} / ${file ? basename(file) : t("topbar.noFile")}` : (file ? basename(file) : "")}
       </div>
 
       <div className="flex items-center space-x-2">

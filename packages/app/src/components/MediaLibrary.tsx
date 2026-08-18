@@ -1,4 +1,5 @@
 import { useI18n } from "../i18n";
+import { basename } from "../paths";
 import type { BatchJob, BatchStatus } from "../steps";
 
 const STATUS_ICON: Record<BatchStatus, { icon: string; color: string; labelKey: string }> = {
@@ -131,7 +132,7 @@ export default function MediaLibrary({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-slate-900 dark:text-slate-100">
-                      {path.split("/").pop()}
+                      {basename(path)}
                     </p>
                     <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">video</div>
                   </div>
@@ -191,7 +192,7 @@ export default function MediaLibrary({
                     <div key={j.input} className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
                       <div className="flex items-center justify-between space-x-2">
                         <p className="min-w-0 truncate text-[11px] font-medium text-slate-800 dark:text-slate-200">
-                          {j.input.split("/").pop()}
+                          {basename(j.input)}
                         </p>
                         <span title={t(meta.labelKey)} className={`shrink-0 ${meta.color}`}>
                           {meta.icon}
@@ -211,7 +212,7 @@ export default function MediaLibrary({
                       )}
                       {j.status === "done" && (
                         <p className="mt-0.5 truncate font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
-                          {j.output.split("/").pop()}
+                          {basename(j.output)}
                         </p>
                       )}
                       {j.status === "failed" && j.error && (
