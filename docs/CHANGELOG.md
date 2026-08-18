@@ -4,6 +4,17 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Fallin loadable: UpCunet2x_fast hand-port + built-in ONNX reader (2026-08-18)** —
+  `fallin-soft` / `fallin-strong` are the existing `UpCunet2x_fast` arch (same
+  38px reflect pad, verified numerically against the ONNX) — no codegen needed.
+  The ONNX file is only a weight container: a new dependency-free protobuf
+  reader (`senmei_ml::onnx`) extracts the initializers, and
+  `convert_onnx_to_bpk` feeds them into the module (torch `.conv.0`/`.conv.2`
+  key remap) to build the f16 `.bpk`. `download_model` and
+  `senmei-ml-convert` accept `.onnx` sources automatically. Both models are
+  now `loadable: true`; engine output matches the ONNX reference within fp16
+  tolerance.
+
 - **senmei-app: drop dead IPC + unused deps (2026-08-18)** — removed the
   frontend-unused `remember_project` command (the internal
   `store::remember_project` stays for `export_project`) and the unused

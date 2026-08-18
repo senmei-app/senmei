@@ -15,8 +15,12 @@ use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
+use burn::module::ParamId;
+use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor as BurnTensor, TensorData, f16};
-use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot, PytorchStore};
+use burn_store::{
+    BurnpackStore, HalfPrecisionAdapter, KeyRemapper, ModuleSnapshot, PytorchStore, TensorSnapshot,
+};
 use burn_wgpu::{Vulkan, WgpuDevice};
 use std::path::Path;
 
@@ -84,7 +88,9 @@ impl BurnEngine {
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::UpCunet2x(m))
             }
-            "upcunet2x-fast" => {
+            "upcunet2x-fast" | "fallin-cugan" => {
+                // Fallin (renarchi CUGAN retrain) is an `UpCunet2x_fast` with
+                // the same 38px reflect pad — only the weights differ.
                 let mut m = UpCunet2xFast::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::UpCunet2xFast(m))
@@ -244,7 +250,7 @@ pub fn convert_pth_to_bpk(
     let mut save =
         BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
     match arch {
-        "upcunet2x" | "upcunet2x-fast" => {
+        "upcunet2x" | "upcunet2x-fast" | "fallin-cugan" => {
             let mut store = PytorchStore::from_file(pth_path)
                 .with_key_remapping(r"\.conv\.0\.", ".conv.")
                 .with_key_remapping(r"\.conv\.2\.", ".conv2.");
@@ -255,6 +261,7 @@ pub fn convert_pth_to_bpk(
                     m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
                 }
                 _ => {
+                    // upcunet2x-fast and fallin-cugan share the module layout.
                     let mut m = UpCunet2xFast::<Vulkan>::new(&device);
                     m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
                     m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
@@ -270,6 +277,118 @@ pub fn convert_pth_to_bpk(
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }
     Ok(())
+}
+
+/// One-time ONNX → f16 `.bpk` conversion (maintainer + `download_model`).
+///
+/// Reads only the `initializer` tensors via the built-in protobuf reader (no
+/// ONNX Runtime); the names already match the module state dict apart from the
+/// torch `.conv.0` / `.conv.2` quirk, which is remapped here. Weights are
+/// decoded to f32 and saved through `HalfPrecisionAdapter` like the `.pth` path.
+pub fn convert_onnx_to_bpk(
+    arch: &str,
+    onnx_path: &Path,
+    bpk_path: &Path,
+    scale: u32,
+    num_block: u32,
+) -> Result<()> {
+    let bytes = std::fs::read(onnx_path)?;
+    let tensors = crate::onnx::read_initializers(&bytes).map_err(Error::new)?;
+    let mut snapshots = Vec::with_capacity(tensors.len());
+    for t in tensors {
+        let shape: Vec<usize> = t.dims.iter().map(|&d| d as usize).collect();
+        let data = onnx_data_to_f32(&t)?;
+        let mut s = TensorSnapshot::from_data(
+            TensorData::new(data, shape),
+            t.name.split('.').map(str::to_string).collect(),
+            Vec::new(),
+            ParamId::new(),
+        );
+        s.container_stack = None;
+        s.tensor_id = None;
+        snapshots.push(s);
+    }
+    let remapper = KeyRemapper::from_patterns(vec![
+        (r"\.conv\.0\.", ".conv."),
+        (r"\.conv\.2\.", ".conv2."),
+    ])
+    .map_err(|e| Error::new(e.to_string()))?;
+    let (snapshots, _) = remapper.remap(snapshots);
+
+    let device = WgpuDevice::DiscreteGpu(0);
+    let mut save =
+        BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
+    match arch {
+        "upcunet2x" => {
+            let mut m = UpCunet2x::<Vulkan>::new(&device);
+            apply_and_save(&mut m, snapshots, &mut save)?;
+        }
+        "upcunet2x-fast" | "fallin-cugan" => {
+            let mut m = UpCunet2xFast::<Vulkan>::new(&device);
+            apply_and_save(&mut m, snapshots, &mut save)?;
+        }
+        "realesrgan" => {
+            let mut m = RrdbNet::<Vulkan>::new(scale as usize, num_block as usize, &device);
+            apply_and_save(&mut m, snapshots, &mut save)?;
+        }
+        other => return Err(Error::new(format!("unsupported arch: {other}"))),
+    }
+    Ok(())
+}
+
+fn apply_and_save<B, M>(m: &mut M, snapshots: Vec<TensorSnapshot>, save: &mut BurnpackStore) -> Result<()>
+where
+    B: Backend,
+    M: ModuleSnapshot<B>,
+{
+    let result = m.apply(snapshots, None, None, true);
+    if !result.missing.is_empty() {
+        return Err(Error::new(format!("missing tensors:\n{result}")));
+    }
+    m.save_into(save).map_err(|e| Error::new(e.to_string()))?;
+    Ok(())
+}
+
+fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
+    let n = t.dims.iter().map(|&d| d as usize).product::<usize>();
+    let mut out = Vec::with_capacity(n);
+    match t.dtype {
+        1 => {
+            for c in t.data.chunks_exact(4) {
+                out.push(f32::from_le_bytes([c[0], c[1], c[2], c[3]]));
+            }
+        }
+        10 => {
+            for c in t.data.chunks_exact(2) {
+                out.push(f16::from_bits(u16::from_le_bytes([c[0], c[1]])).to_f32());
+            }
+        }
+        11 => {
+            for c in t.data.chunks_exact(8) {
+                out.push(f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32);
+            }
+        }
+        6 => {
+            for c in t.data.chunks_exact(4) {
+                out.push(i32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f32);
+            }
+        }
+        7 => {
+            for c in t.data.chunks_exact(8) {
+                out.push(i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32);
+            }
+        }
+        other => {
+            return Err(Error::new(format!(
+                "unsupported ONNX dtype {other} for {}",
+                t.name
+            )))
+        }
+    }
+    if out.len() != n {
+        return Err(Error::new(format!("data length mismatch for {}", t.name)));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -296,6 +415,46 @@ mod tests {
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
         assert!(out.data.iter().all(|v| v.is_finite()));
+    }
+
+    /// End-to-end Fallin check: engine output must match the ONNX reference
+    /// (onnx2torch) on a deterministic 256x256 input. Dumps the raw f32 output
+    /// to /tmp/fallin/rust_out.bin for comparison against ref256.npy.
+    #[test]
+    #[ignore = "requires Vulkan + a converted Fallin .bpk (senmei-ml-convert)"]
+    fn fallin_inference_matches_onnx_reference() {
+        let bpk = std::path::Path::new("/tmp/fallin/fallin_soft.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "fallin-soft".into(),
+            arch: "fallin-cugan".into(),
+            scale: 2,
+            num_block: 4,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+        let h = 256;
+        let w = 256;
+        let n = 1 * 3 * h * w;
+        let data: Vec<f32> = (0..n)
+            .map(|i| ((i as u64 * 2654435761) % 10000) as f32 / 10000.0)
+            .collect();
+        let input = Tensor::new(vec![1, 3, h, w], data);
+        let out = engine
+            .infer(&input, &InferOptions { tile_size: None })
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, h * 2, w * 2]);
+        assert!(out.data.iter().all(|v| v.is_finite()));
+        let mut bytes = Vec::with_capacity(out.data.len() * 4);
+        for v in &out.data {
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+        std::fs::write("/tmp/fallin/rust_out.bin", bytes).unwrap();
+        eprintln!("wrote /tmp/fallin/rust_out.bin");
     }
 
     #[test]

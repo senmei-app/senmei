@@ -106,23 +106,32 @@ pub async fn download_model(
     if !weight.ends_with(".bpk") {
         return Err(format!("expected f16 burnpack weight, got {weight}"));
     }
-    let pth_name = format!("{}.pth", weight.trim_end_matches(".f16.bpk"));
     let bpk_path = dir.join(&weight);
+    let onnx = std::path::Path::new(&url)
+        .extension()
+        .and_then(|e| e.to_str())
+        == Some("onnx");
     tauri::async_runtime::spawn_blocking(move || {
         let progress = on_progress;
-        let pth = senmei_media::download_to_temp(
+        let base = weight.trim_end_matches(".f16.bpk");
+        let source = senmei_media::download_to_temp(
             &url,
             &dir,
-            &pth_name,
+            &format!("{base}.{}", if onnx { "onnx" } else { "pth" }),
             meta.sha256.as_deref(),
             &mut |d, t| {
                 let _ = progress.send(DownloadProgress { downloaded: d, total: t });
             },
         )
         .map_err(|e| e.to_string())?;
-        senmei_ml::convert_pth_to_bpk(&meta.arch, &pth, &bpk_path, meta.scale, num_block)
-            .map_err(|e| e.to_string())?;
-        let _ = std::fs::remove_file(&pth);
+        if onnx {
+            senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, num_block)
+                .map_err(|e| e.to_string())?;
+        } else {
+            senmei_ml::convert_pth_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, num_block)
+                .map_err(|e| e.to_string())?;
+        }
+        let _ = std::fs::remove_file(&source);
         Ok::<String, String>(bpk_path.to_string_lossy().into_owned())
     })
     .await
