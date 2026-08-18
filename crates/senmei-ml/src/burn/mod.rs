@@ -200,9 +200,12 @@ impl InferenceEngine for BurnEngine {
         Some(Ok(Tensor::new(vec![n, c, h, w], data)))
     }
 
-    /// Fused output path: keeps everything on the GPU — transposes NCHW→NHWC,
-    /// scales to 0..255 and casts to U8 on-device, then downloads the packed
-    /// RGB bytes once (24.8 MB instead of a ~100 MB f32 round-trip).
+    /// Output path that hands back packed RGB8 bytes: the model runs on the
+    /// GPU (autotuned, f16); the NCHW→NHWC permute + clamp + scale-to-255 also
+    /// run on the GPU. Only the final u8 cast happens on the CPU. The readback
+    /// must be f32 (as in `infer`): an f16 or u8 `to_vec()` accumulates a
+    /// burn-fusion 0.21 + cubecl-autotune stream-ordering panic
+    /// ("Ordering is bigger than operations") on every model once repeated.
     /// Only used when the requested scale matches the model.
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         if self.scale != scale {
@@ -221,17 +224,21 @@ impl InferenceEngine for BurnEngine {
         let x = BurnTensor::<Vulkan<f16>, 4>::from_data(data, &self.device);
         let out = model.forward(x);
         let [_, _, oh, ow] = out.dims();
-
-        // NCHW -> NHWC, clamp to 0..1, then round to 0..255 and cast to U8 on
-        // the GPU. Without the clamp, out-of-range values (>1.0 at hard edges,
-        // e.g. burnt-in subtitles) wrap on the U8 cast -> neon color artifacts.
-        let nhwc = out.permute([0, 2, 3, 1]);
-        let rgb_f = (nhwc.clamp(0.0, 1.0) * 255.0) + 0.5;
-        let rgb_u8 = rgb_f.cast(burn::tensor::IntDType::U8);
-        let bytes: Vec<u8> = match rgb_u8.into_data().to_vec() {
+        // NHWC + clamp + scale on the GPU; only the u8 cast stays on the CPU.
+        // Without the clamp, out-of-range values (>1.0 at hard edges, e.g.
+        // burnt-in subtitles) would wrap on the u8 cast -> neon artifacts.
+        let out = out.permute([0, 2, 3, 1]).clamp(0.0, 1.0) * 255.0;
+        // f32 readback (same as `infer`) — an f16 `to_vec()` accumulates a
+        // burn-fusion ordering panic over repeated calls in the pipeline bench.
+        let data: Vec<f32> = match out.into_data().convert::<f32>().to_vec() {
             Ok(v) => v,
             Err(e) => return Some(Err(Error::new(e.to_string()))),
         };
+
+        let mut bytes = Vec::with_capacity(n * 3 * oh * ow);
+        for v in data {
+            bytes.push((v + 0.5) as u8);
+        }
         Some(Ok((bytes, ow as u32, oh as u32)))
     }
 }
@@ -455,6 +462,71 @@ mod tests {
         }
         std::fs::write("/tmp/fallin/rust_out.bin", bytes).unwrap();
         eprintln!("wrote /tmp/fallin/rust_out.bin");
+    }
+
+    /// Regression for the burn-fusion 0.21 "Ordering is bigger than
+    /// operations" panic: repeated fused `infer_rgb8` calls (bench-style,
+    /// fresh tensors per call) must not panic. The f32 readback in
+    /// `infer_rgb8` is what keeps this safe — an f16 `to_vec()` accumulates
+    /// the ordering bug over ~48 calls.
+    #[test]
+    #[ignore = "requires Vulkan + a converted Fallin .bpk (senmei-ml-convert)"]
+    fn repeated_infer_rgb8_does_not_panic() {
+        let bpk = std::path::Path::new("/tmp/fallin/fallin_soft.f16.bpk");
+        assert!(bpk.exists(), "missing bpk; convert first");
+        let mref = ModelRef {
+            id: "fallin-soft".into(),
+            arch: "fallin-cugan".into(),
+            scale: 2,
+            num_block: 4,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+        // Same iteration counts as the pipeline bench: 47 timing-loop infers,
+        // then the fused step loop.
+        let (h, w) = (1080, 1920);
+        let opts = InferOptions { tile_size: Some(512) };
+        for _ in 0..47 {
+            let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+            crate::infer_tiled(&mut engine, &input, &opts).unwrap();
+        }
+        for _ in 0..48 {
+            let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+            engine.infer_rgb8(&input, 2).unwrap().unwrap();
+        }
+    }
+
+    /// The fused RGB8 path must produce the same packed rgb24 bytes as the
+    /// reference (`infer` + NCHW→rgb24 interleave).
+    #[test]
+    #[ignore = "requires Vulkan + a converted Fallin .bpk (senmei-ml-convert)"]
+    fn infer_rgb8_matches_infer_reference() {
+        let bpk = std::path::Path::new("/tmp/fallin/fallin_soft.f16.bpk");
+        assert!(bpk.exists(), "missing bpk; convert first");
+        let mref = ModelRef {
+            id: "fallin-soft".into(),
+            arch: "fallin-cugan".into(),
+            scale: 2,
+            num_block: 4,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+        let (h, w) = (64, 64);
+        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+        let out = engine.infer(&input, &InferOptions { tile_size: None }).unwrap();
+        let (_, _, oh, ow) = (out.shape[0], out.shape[1], out.shape[2], out.shape[3]);
+        let hw = oh * ow;
+        let mut ref_bytes = Vec::with_capacity(3 * hw);
+        for p in 0..hw {
+            ref_bytes.push((out.data[p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+            ref_bytes.push((out.data[hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+            ref_bytes.push((out.data[2 * hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+        }
+        let (bytes, rw, rh) = engine.infer_rgb8(&input, 2).unwrap().unwrap();
+        assert_eq!((rw, rh), (ow as u32, oh as u32));
+        assert_eq!(bytes, ref_bytes);
     }
 
     #[test]

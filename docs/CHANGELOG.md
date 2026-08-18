@@ -4,6 +4,17 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: burn-fusion ordering panic in the fused RGB8 render path (2026-08-18)** —
+  `infer_rgb8` read back the RGB8 output as u8, which (like any non-f32
+  `to_vec()`) deterministically panics after ~48 frames with "Ordering is
+  bigger than operations" (burn-fusion 0.21 + cubecl-autotune), on every model.
+  The permute + clamp + scale now still run on the GPU, but the readback is f32
+  and the trivial u8 cast happens on the CPU — byte-identical to the reference,
+  full autotune speed retained. Added two guarded tests:
+  `repeated_infer_rgb8_does_not_panic` and `infer_rgb8_matches_infer_reference`.
+  Benched at 1080p→2160p: real-cugan-x2 2.6 FPS / 14.6 GB, fallin-soft 5.7 FPS
+  / 8.1 GB, fallin-strong 5.7 FPS / 8.1 GB (fused step).
+
 - **Fallin loadable: UpCunet2x_fast hand-port + built-in ONNX reader (2026-08-18)** —
   `fallin-soft` / `fallin-strong` are the existing `UpCunet2x_fast` arch (same
   38px reflect pad, verified numerically against the ONNX) — no codegen needed.
