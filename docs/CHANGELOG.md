@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **perf: GPU-Stitching im tiled-fused RGB8-Pfad (2026-08-18)** — statt jedes
+  512px-Tile als u8 zurückzulesen und auf der CPU zu stitchen, akkumuliert
+  `infer_rgb8` die Tiles jetzt auf der GPU in einem f16-Canvas
+  (`slice_assign`-Overlap-Averaging) und liest einmal ein packed Frame zurück —
+  ein Readback statt 15 plus CPU-Stitch. `bench_upscale_step` (1080p→2160p,
+  fallin-soft): 329 → **234.7 ms / 4.3 FPS**. Der dadurch tote CPU-Stitch
+  `stitch_rgb24` wurde entfernt. Korrektheit + 48-Frame-Reliability via
+  `infer_rgb8_tiled_is_reliable_and_correct`.
+
 - **fix: CPU-Steps verarbeiten packed `rgb24` statt planar (2026-08-18)** —
   `Denoise`/`Deblur`/`Resize` sliceten `Frame.data` als planare RGB-Ebenen,
   aber Decoder/Encoder arbeiten mit packed `rgb24`. Dadurch mischte der

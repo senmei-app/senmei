@@ -157,10 +157,10 @@ impl InferenceEngine for BurnEngine {
     }
 
     /// Fused RGB8 path: hands back packed rgb24 bytes. The model runs on the
-    /// GPU (autotuned, f16) in 512px tiles; per tile the NCHW→NHWC permute +
-    /// clamp + scale + u8 cast all run on the GPU, so only the packed u8 bytes
-    /// cross to the CPU (small per tile — avoids the full-frame OOM, see
-    /// docs/burn-bugs.md Bug 3). Tiles are stitched with overlap averaging.
+    /// GPU (autotuned, f16) in 512px tiles (avoids the full-frame im2col OOM,
+    /// see docs/burn-bugs.md Bug 3). Tiles are accumulated into one f16 canvas
+    /// on the GPU (overlap averaging) and read back as a single packed frame —
+    /// one readback instead of one u8 readback per tile plus a CPU stitch.
     /// Only used when the requested scale matches the model.
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         if self.scale != scale {
@@ -184,39 +184,34 @@ impl InferenceEngine for BurnEngine {
         let tiles = crate::uniform_tile(&padded, tile, step);
         let device = &self.device;
 
-        let mut out_tiles = Vec::with_capacity(tiles.len());
+        let scale_f = self.scale as f32;
+        let out_h = (ph as f32 * scale_f).round() as usize;
+        let out_w = (pw as f32 * scale_f).round() as usize;
+        // Accumulate tiles into one f16 canvas (overlap averaging) on the GPU.
+        let mut acc = BurnTensor::<Vulkan<f16>, 4>::zeros([1, c, out_h, out_w], device);
+        let mut cov = BurnTensor::<Vulkan<f16>, 4>::zeros([1, 1, out_h, out_w], device);
         for (x, y, t) in &tiles {
             let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<f16>();
             let xt = BurnTensor::<Vulkan<f16>, 4>::from_data(data, device);
             let out = model.forward(xt);
             let [_, _, oh, ow] = out.dims();
-            // NHWC + clamp + scale + u8 cast on the GPU. Without the clamp,
-            // out-of-range values (>1.0 at hard edges, e.g. burnt-in subtitles)
-            // would wrap on the u8 cast -> neon artifacts.
-            let out = out.permute([0, 2, 3, 1]).clamp(0.0, 1.0) * 255.0;
-            let out = out.cast(burn::tensor::IntDType::U8);
-            let bytes: Vec<u8> = match out.into_data().to_vec() {
-                Ok(v) => v,
-                Err(e) => return Some(Err(Error::new(e.to_string()))),
-            };
-            out_tiles.push((*x, *y, bytes, oh, ow));
+            let sx = (*x as f32 * scale_f).round() as usize;
+            let sy = (*y as f32 * scale_f).round() as usize;
+            // Clamp before accumulating: out-of-range values (>1.0 at hard
+            // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
+            let out = out.clamp(0.0, 1.0);
+            acc = acc.slice_assign([0..1, 0..c, sy..sy + oh, sx..sx + ow], out);
+            let ones = BurnTensor::<Vulkan<f16>, 4>::ones([1, 1, oh, ow], device);
+            cov = cov.slice_assign([0..1, 0..1, sy..sy + oh, sx..sx + ow], ones);
         }
-
-        let scale_f = out_tiles[0].3 as f32 / tile as f32;
-        let out_h = (ph as f32 * scale_f).round() as usize;
-        let out_w = (pw as f32 * scale_f).round() as usize;
-        let scaled: Vec<(usize, usize, Vec<u8>, usize, usize)> = out_tiles
-            .into_iter()
-            .map(|(x, y, b, oh, ow)| {
-                let sx = (x as f32 * scale_f).round() as usize;
-                let sy = (y as f32 * scale_f).round() as usize;
-                (sx, sy, b, oh, ow)
-            })
-            .collect();
-        let stitched = crate::stitch_rgb24(&scaled, out_h, out_w);
+        let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
+        let bytes: Vec<u8> = match avg.cast(burn::tensor::IntDType::U8).into_data().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
         let out_h_t = (h as f32 * scale_f).round() as usize;
         let out_w_t = (w as f32 * scale_f).round() as usize;
-        let cropped = crate::crop_rgb24(&stitched, out_w, out_h_t, out_w_t);
+        let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);
         Some(Ok((cropped, out_w_t as u32, out_h_t as u32)))
     }
 

@@ -72,13 +72,16 @@ cubecl-autotune's async tuning.
 kept, only the message got more verbose (adds `ordering len`, `operations
 len`, `num_executed`, `optimization len`). No fix upstream.
 
-**Impact on Senmei.** Fixed: `infer_rgb8` now tiles internally (512px,
-overlap-stitched u8) so no full-frame matmul reaches autotune — structurally
-immune to the OOM. The `senmei-pipeline` bench isolates the two measurements
+**Impact on Senmei.** Fixed: `infer_rgb8` now tiles internally (512px) so no
+full-frame matmul reaches autotune — structurally immune to the OOM. Tiles are
+accumulated into one f16 canvas on the GPU (`slice_assign` overlap averaging)
+and read back as a single packed frame, so the earlier per-tile u8 readback +
+CPU stitch cost is gone: `bench_upscale_step` (fallin-soft) 329 → **234.7 ms /
+4.3 FPS**. The `senmei-pipeline` bench isolates the two measurements
 (`bench_upscaler_1080p_fullframe` = tiled infer, `bench_upscale_step` = fused
-step, fresh engine each). Cost: tiling re-computes ~2× pixels (overlap), so the
-step is ~329 ms / 3.0 FPS (fallin-soft) vs 227 ms for the full-frame CPU-convert
-path — overlap / GPU-stitch tuning is tracked in docs/todos.md.
+step, fresh engine each). Tiling still re-computes ~2× pixels (overlap) — the
+remaining gap to the full-frame CPU-convert path (227 ms) is overlap re-compute,
+not readback.
 
 **Suggested upstream issue.** Title: `burn-fusion: intermittent "Ordering is
 bigger than operations" panic with autotune enabled (stale ordering vs drained

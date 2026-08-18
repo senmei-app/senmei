@@ -82,20 +82,26 @@ Bug 1+3). **Fix:** tile `infer_rgb8` (512px) so no full-frame matmul reaches
 autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
 autotune also works but is ~5× slower.
 
-### Tile size — 512px stays (2026-08-18)
+### Tile size & GPU stitch (2026-08-18)
 
-The 512px tiled-fused path (329 ms / 3.0 FPS fallin-soft) is ~2× slower than the
-pre-tiling full-frame fused path (176 ms) — that drop is the price of avoiding
-the autotune OOM (Bug 3). Tried **1024px tiles** (6 tiles @1080p vs 15 @512,
-fewer u8 readbacks + less stitch work): **regression to 762 ms / 1.3 FPS** — the
-larger per-tile matmul is pathologically slower on this backend. Conclusion:
-512px is the sweet spot; no dynamic/`per-settings` tile size needed.
+The 512px tiled-fused path (329 ms / 3.0 FPS fallin-soft) was ~2× slower than
+the pre-tiling full-frame fused path (176 ms) — that drop was the price of
+avoiding the autotune OOM (Bug 3). Tried **1024px tiles** (6 tiles @1080p vs 15
+@512, fewer u8 readbacks + less stitch work): **regression to 762 ms / 1.3 FPS**
+— the larger per-tile matmul is pathologically slower on this backend.
+
+**GPU stitch (2026-08-18):** instead of reading each 512px tile's u8 bytes back
+and stitching on the CPU, tiles are accumulated into one f16 canvas on the GPU
+(`slice_assign` overlap averaging) and read back as a single packed frame — one
+readback instead of 15 plus a CPU stitch. `bench_upscale_step` (fallin-soft):
+329 → **234.7 ms / 4.3 FPS**. 512px stays; no dynamic/`per-settings` tile size
+needed.
 
 ## Fallin vs real-cugan (2026-08-18)
 
 `bench.rs`, 1080p→2160p x2, Vulkan fp16, autotune + fusion on. Fused step =
 `Upscale` + `infer_rgb8`. **Table = earlier full-frame fused step**; the current
-tiled-fused step measures ~329 ms / 3.0 FPS (fallin-soft), full threaded
+tiled-fused step measures ~235 ms / 4.3 FPS (fallin-soft), full threaded
 pipeline 2.8 FPS.
 
 | Model | infer | total | FPS | fused step | step FPS | VRAM peak |
