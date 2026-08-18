@@ -10,3 +10,4 @@ models/*.param
 models/*.bin
 models/*.pth
 models/*.bpk
+models/*.onnx

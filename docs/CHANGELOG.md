@@ -4,6 +4,20 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: tiled-fused RGB8 render path (reliable GPU conversion) (2026-08-18)** —
+  the full-frame fused `infer_rgb8` OOM'd burn/cubecl autotune on the large
+  full-frame matmul (m=1024, n=4M, f16) and then cascaded into "Ordering is
+  bigger than operations" panics (docs/burn-bugs.md Bug 1+3). `infer_rgb8` now
+  tiles internally (512px, overlap): per tile the GPU runs forward + NHWC
+  permute + clamp + scale + u8 cast, so only packed u8 bytes cross back, and
+  tiles are stitched with overlap averaging (`stitch_rgb24`/`crop_rgb24`).
+  Structurally immune to the OOM. `Upscale` prefers `infer_rgb8`, falls back
+  to `infer_tiled`. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`
+  (correctness within fp16 tolerance + 48-frame reliability). Benched
+  (1080p→2160p, fallin-soft): step 329 ms / 3.0 FPS, full threaded pipeline
+  2.8 FPS. Supersedes the f32-readback-only attempt (ed1b27e). Overlap / GPU
+  stitch tuning tracked in docs/todos.md.
+
 - **fix: burn-fusion ordering panic in the fused RGB8 render path (2026-08-18)** —
   `infer_rgb8` read back the RGB8 output as u8, which (like any non-f32
   `to_vec()`) deterministically panics after ~48 frames with "Ordering is

@@ -179,7 +179,8 @@ impl Step for Upscale {
 
     fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
         let input = frame_to_tensor(frame);
-        // Fused GPU output path (f16 -> RGB8 directly) when the engine supports it.
+        // Fused tiled RGB8 output path (GPU conversion) when the engine
+        // supports it; otherwise fall back to infer_tiled + tensor_to_frame.
         if let Some(engine) = self.engine.as_mut() {
             if let Some(res) = engine.infer_rgb8(&input, self.scale) {
                 let (bytes, w, h) = res.map_err(|e| crate::Error::new(e.to_string()))?;

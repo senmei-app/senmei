@@ -147,6 +147,70 @@ impl InferenceEngine for BurnEngine {
         Ok(Tensor::new(vec![n, c, oh, ow], data))
     }
 
+    /// Fused RGB8 path: hands back packed rgb24 bytes. The model runs on the
+    /// GPU (autotuned, f16) in 512px tiles; per tile the NCHW→NHWC permute +
+    /// clamp + scale + u8 cast all run on the GPU, so only the packed u8 bytes
+    /// cross to the CPU (small per tile — avoids the full-frame OOM, see
+    /// docs/burn-bugs.md Bug 3). Tiles are stitched with overlap averaging.
+    /// Only used when the requested scale matches the model.
+    fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
+        if self.scale != scale {
+            return None;
+        }
+        let model = self.model.as_ref()?;
+        if input.shape.len() != 4 {
+            return Some(Err(Error::new("expected NCHW input")));
+        }
+        let c = input.shape[1];
+        let h = input.shape[2];
+        let w = input.shape[3];
+        let tile = 512usize;
+        let overlap = tile / 4;
+        let step = tile - overlap;
+        let num_y = (h.saturating_sub(tile)).div_ceil(step) + 1;
+        let num_x = (w.saturating_sub(tile)).div_ceil(step) + 1;
+        let ph = (num_y - 1) * step + tile;
+        let pw = (num_x - 1) * step + tile;
+        let padded = crate::pad_to(input, ph, pw);
+        let tiles = crate::uniform_tile(&padded, tile, step);
+        let device = &self.device;
+
+        let mut out_tiles = Vec::with_capacity(tiles.len());
+        for (x, y, t) in &tiles {
+            let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<f16>();
+            let xt = BurnTensor::<Vulkan<f16>, 4>::from_data(data, device);
+            let out = model.forward(xt);
+            let [_, _, oh, ow] = out.dims();
+            // NHWC + clamp + scale + u8 cast on the GPU. Without the clamp,
+            // out-of-range values (>1.0 at hard edges, e.g. burnt-in subtitles)
+            // would wrap on the u8 cast -> neon artifacts.
+            let out = out.permute([0, 2, 3, 1]).clamp(0.0, 1.0) * 255.0;
+            let out = out.cast(burn::tensor::IntDType::U8);
+            let bytes: Vec<u8> = match out.into_data().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Some(Err(Error::new(e.to_string()))),
+            };
+            out_tiles.push((*x, *y, bytes, oh, ow));
+        }
+
+        let scale_f = out_tiles[0].3 as f32 / tile as f32;
+        let out_h = (ph as f32 * scale_f).round() as usize;
+        let out_w = (pw as f32 * scale_f).round() as usize;
+        let scaled: Vec<(usize, usize, Vec<u8>, usize, usize)> = out_tiles
+            .into_iter()
+            .map(|(x, y, b, oh, ow)| {
+                let sx = (x as f32 * scale_f).round() as usize;
+                let sy = (y as f32 * scale_f).round() as usize;
+                (sx, sy, b, oh, ow)
+            })
+            .collect();
+        let stitched = crate::stitch_rgb24(&scaled, out_h, out_w);
+        let out_h_t = (h as f32 * scale_f).round() as usize;
+        let out_w_t = (w as f32 * scale_f).round() as usize;
+        let cropped = crate::crop_rgb24(&stitched, out_w, out_h_t, out_w_t);
+        Some(Ok((cropped, out_w_t as u32, out_h_t as u32)))
+    }
+
     fn infer_interp(
         &mut self,
         a: &Tensor,
@@ -200,47 +264,6 @@ impl InferenceEngine for BurnEngine {
         Some(Ok(Tensor::new(vec![n, c, h, w], data)))
     }
 
-    /// Output path that hands back packed RGB8 bytes: the model runs on the
-    /// GPU (autotuned, f16); the NCHW→NHWC permute + clamp + scale-to-255 also
-    /// run on the GPU. Only the final u8 cast happens on the CPU. The readback
-    /// must be f32 (as in `infer`): an f16 or u8 `to_vec()` accumulates a
-    /// burn-fusion 0.21 + cubecl-autotune stream-ordering panic
-    /// ("Ordering is bigger than operations") on every model once repeated.
-    /// Only used when the requested scale matches the model.
-    fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
-        if self.scale != scale {
-            return None;
-        }
-        let model = self.model.as_ref()?;
-        if input.shape.len() != 4 {
-            return Some(Err(Error::new("expected NCHW input")));
-        }
-        let n = input.shape[0];
-        let c = input.shape[1];
-        let h = input.shape[2];
-        let w = input.shape[3];
-
-        let data = TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>();
-        let x = BurnTensor::<Vulkan<f16>, 4>::from_data(data, &self.device);
-        let out = model.forward(x);
-        let [_, _, oh, ow] = out.dims();
-        // NHWC + clamp + scale on the GPU; only the u8 cast stays on the CPU.
-        // Without the clamp, out-of-range values (>1.0 at hard edges, e.g.
-        // burnt-in subtitles) would wrap on the u8 cast -> neon artifacts.
-        let out = out.permute([0, 2, 3, 1]).clamp(0.0, 1.0) * 255.0;
-        // f32 readback (same as `infer`) — an f16 `to_vec()` accumulates a
-        // burn-fusion ordering panic over repeated calls in the pipeline bench.
-        let data: Vec<f32> = match out.into_data().convert::<f32>().to_vec() {
-            Ok(v) => v,
-            Err(e) => return Some(Err(Error::new(e.to_string()))),
-        };
-
-        let mut bytes = Vec::with_capacity(n * 3 * oh * ow);
-        for v in data {
-            bytes.push((v + 0.5) as u8);
-        }
-        Some(Ok((bytes, ow as u32, oh as u32)))
-    }
 }
 
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
@@ -464,71 +487,6 @@ mod tests {
         eprintln!("wrote /tmp/fallin/rust_out.bin");
     }
 
-    /// Regression for the burn-fusion 0.21 "Ordering is bigger than
-    /// operations" panic: repeated fused `infer_rgb8` calls (bench-style,
-    /// fresh tensors per call) must not panic. The f32 readback in
-    /// `infer_rgb8` is what keeps this safe — an f16 `to_vec()` accumulates
-    /// the ordering bug over ~48 calls.
-    #[test]
-    #[ignore = "requires Vulkan + a converted Fallin .bpk (senmei-ml-convert)"]
-    fn repeated_infer_rgb8_does_not_panic() {
-        let bpk = std::path::Path::new("/tmp/fallin/fallin_soft.f16.bpk");
-        assert!(bpk.exists(), "missing bpk; convert first");
-        let mref = ModelRef {
-            id: "fallin-soft".into(),
-            arch: "fallin-cugan".into(),
-            scale: 2,
-            num_block: 4,
-            path: bpk.to_path_buf(),
-        };
-        let mut engine = BurnEngine::new();
-        engine.load(&mref).unwrap();
-        // Same iteration counts as the pipeline bench: 47 timing-loop infers,
-        // then the fused step loop.
-        let (h, w) = (1080, 1920);
-        let opts = InferOptions { tile_size: Some(512) };
-        for _ in 0..47 {
-            let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
-            crate::infer_tiled(&mut engine, &input, &opts).unwrap();
-        }
-        for _ in 0..48 {
-            let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
-            engine.infer_rgb8(&input, 2).unwrap().unwrap();
-        }
-    }
-
-    /// The fused RGB8 path must produce the same packed rgb24 bytes as the
-    /// reference (`infer` + NCHW→rgb24 interleave).
-    #[test]
-    #[ignore = "requires Vulkan + a converted Fallin .bpk (senmei-ml-convert)"]
-    fn infer_rgb8_matches_infer_reference() {
-        let bpk = std::path::Path::new("/tmp/fallin/fallin_soft.f16.bpk");
-        assert!(bpk.exists(), "missing bpk; convert first");
-        let mref = ModelRef {
-            id: "fallin-soft".into(),
-            arch: "fallin-cugan".into(),
-            scale: 2,
-            num_block: 4,
-            path: bpk.to_path_buf(),
-        };
-        let mut engine = BurnEngine::new();
-        engine.load(&mref).unwrap();
-        let (h, w) = (64, 64);
-        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
-        let out = engine.infer(&input, &InferOptions { tile_size: None }).unwrap();
-        let (_, _, oh, ow) = (out.shape[0], out.shape[1], out.shape[2], out.shape[3]);
-        let hw = oh * ow;
-        let mut ref_bytes = Vec::with_capacity(3 * hw);
-        for p in 0..hw {
-            ref_bytes.push((out.data[p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
-            ref_bytes.push((out.data[hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
-            ref_bytes.push((out.data[2 * hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
-        }
-        let (bytes, rw, rh) = engine.infer_rgb8(&input, 2).unwrap().unwrap();
-        assert_eq!((rw, rh), (ow as u32, oh as u32));
-        assert_eq!(bytes, ref_bytes);
-    }
-
     #[test]
     #[ignore = "requires Vulkan + models/flownet.bin; needs RUST_MIN_STACK=33554432"]
     fn rife_loads_weights_and_interpolates() {
@@ -607,5 +565,59 @@ mod tests {
         assert_eq!(v.len(), 4);
         assert_eq!(v[0].to_f32(), 0.5);
         assert_eq!(v[2].to_f32(), 0.0);
+    }
+
+    /// The tiled-fused RGB8 path must be reliable over many frames (the
+    /// full-frame variant OOM'd autotune — docs/burn-bugs.md Bug 3) and match
+    /// the reference (`infer` + NCHW→rgb24 interleave).
+    #[test]
+    #[ignore = "requires Vulkan + fallin-soft bpk"]
+    fn infer_rgb8_tiled_is_reliable_and_correct() {
+        let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+        let mut registry = crate::model::Registry::new();
+        registry.load_dir(&dir).unwrap();
+        let mref = registry.resolve("fallin-soft", &dir).unwrap();
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        // Correctness: single 512 tile, so tiled == full pass -> exact match.
+        let (h, w): (usize, usize) = (512, 512);
+        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+        let out = engine.infer(&input, &InferOptions { tile_size: Some(512) }).unwrap();
+        let (_, _, oh, ow) = (out.shape[0], out.shape[1], out.shape[2], out.shape[3]);
+        let hw = oh * ow;
+        let mut ref_bytes = Vec::with_capacity(3 * hw);
+        for p in 0..hw {
+            ref_bytes.push((out.data[p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+            ref_bytes.push((out.data[hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+            ref_bytes.push((out.data[2 * hw + p].clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+        }
+        let (bytes, rw, rh) = engine.infer_rgb8(&input, 2).unwrap().unwrap();
+        assert_eq!((rw, rh), (ow as u32, oh as u32));
+        // GPU fused path computes in fp16, the reference in f32: allow ±2
+        // rounding noise (layout must be identical, values ~identical).
+        let max_diff = bytes
+            .iter()
+            .zip(&ref_bytes)
+            .map(|(a, b)| (*a as i32 - *b as i32).abs())
+            .max()
+            .unwrap();
+        let mean_diff = bytes
+            .iter()
+            .zip(&ref_bytes)
+            .map(|(a, b)| (*a as i32 - *b as i32).abs())
+            .sum::<i32>() as f32
+            / bytes.len() as f32;
+        assert!(max_diff <= 2, "max diff {max_diff}, mean diff {mean_diff:.2}");
+
+        // Reliability: 48 frames of 1080p (5x3 tiles, real stitch path).
+        let (h, w): (usize, usize) = (1080, 1920);
+        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+        for _ in 0..48 {
+            let (bytes, rw, rh) = engine.infer_rgb8(&input, 2).unwrap().unwrap();
+            assert_eq!(rw, (w * 2) as u32);
+            assert_eq!(rh, (h * 2) as u32);
+            assert_eq!(bytes.len(), (rw * rh * 3) as usize);
+        }
     }
 }
