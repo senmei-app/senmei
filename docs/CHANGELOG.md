@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **perf: Tile-Größe 512→640 nach GPU-Stitch (2026-08-18)** — das alte
+  Kostenmodell (15 u8-Readbacks + CPU-Stitch) galt nicht mehr, daher neu
+  gemessen (`bench_upscale_step`, fallin-soft, 1080p→2160p): 512px 247.8 ms,
+  **640px 186.1 ms / 5.4 FPS**, 768px 210.2 ms. 640 halbiert die Tile-Zahl
+  (15→8), bevor der per-Tile-Matmul pathologisch wird. Default 640,
+  Override via `SENMEI_TILE`; Korrektheitstest auf ein einzelnes 640-Tile
+  umgestellt. Full-Frame (176 ms) bleibt der Floor bis zum upstream
+  Autotune-OOM-Fix.
+
 - **fix: Dedup kollabiert statisches Material nicht mehr (2026-08-18)** —
   Dedup droppte unbegrenzt aufeinanderfolgende Duplikate; bei statischem/
   nahezu statischem Material blieb nur ein Frame übrig („Render Sample“ mit

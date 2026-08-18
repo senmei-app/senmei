@@ -6,6 +6,7 @@
 - [x] quelle: https://github.com/chaiNNer-org/spandrel (permissive Arch-Referenz, dokumentiert)
 - [x] Depth Map / Detection / Stabilization: **nein** — kein ML-Workflow; Stabilization nur klassisch via OpenCV (Apache-2.0)
 - [x] Upscaler-Perf (25→12 fps): Ursache Tiling (512px, 329 ms) — Preis für Autotune-OOM-Fix; 1024px-Regression → 512px bleibt
+- [x] Tile-Re-Tuning nach GPU-Stitch: 640px = Sweet Spot (186.1 ms / 5.4 FPS) — 512→640 Default, 768 regressiert
 
 ## Backend
 - [x] burn-tch Backend: ROCm-Nightly, RDNA4 fp16; vendored `third_party/` + `[patch.crates-io]`. Offen: Fallin-Bench, App-Anbindung
