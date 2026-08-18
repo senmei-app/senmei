@@ -450,7 +450,8 @@ pub async fn render(
                 total_frames: p.total_frames,
             });
         });
-        if run.is_err() {
+        if let Err(e) = &run {
+            log::error!("render failed: {e}");
             // Drop the partial file on abort/error so it cannot be mistaken for a result.
             let _ = std::fs::remove_file(&output);
         }
