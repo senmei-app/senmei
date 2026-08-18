@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: license gate for model download/use (2026-08-18)** — `download_model`
+  and the app `engine_for_model` only checked `loadable`, so a model flagged
+  `verify`/`unclear` (license review pending) or under a copyleft /
+  non-commercial license could be unlocked by flipping `loadable`. Added
+  `ModelMetadata::license_blocked()` (blocks `verify`, `unclear`,
+  GPL/LGPL/AGPL, CC-BY-NC/ND/SA; missing → blocked) and enforced it in both
+  commands, independent of `loadable` — the review gate never auto-unlocks an
+  unclear license. Guarded by `license_gate_blocks_unclear_and_copyleft`.
+
 - **fix: tiled-fused RGB8 render path (reliable GPU conversion) (2026-08-18)** —
   the full-frame fused `infer_rgb8` OOM'd burn/cubecl autotune on the large
   full-frame matmul (m=1024, n=4M, f16) and then cascaded into "Ordering is
