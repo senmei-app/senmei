@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: NAFNet fp16-Port-Hinweise notiert (2026-08-18)** — litert-community-
+  Konversion (NAFNet-GoPro-width32) bestätigt MIT + liefert Port-Details für
+  den burn-Nachbau: SimpleGate (kein Activation), Channel-Attention = mean×2,
+  Upsample = Conv1×1 + PixelShuffle, und die fp16-LayerNorm-Overflow-Falle
+  (Kanalreduktion in skaliertem Bereich rechnen). In `models.md` Notes.
+
 - **docs: NAFNet-GoPro als Deblur-Kandidat hochgestuft (2026-08-18)** —
   offizielle NAFNet-Weights sind via `nyanko7/nafnet-models` (Hugging Face)
   mit direkten, sha256-pinnbaren URLs verfügbar (kein GDrive nötig);
