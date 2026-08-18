@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: Hotkey-Einstellungen auf der Settings-Seite (2026-08-18)** — neue
+  Sektion „Tastenkürzel“ (Koharu-Stil): Aktionen anzeigen, per Klick neu
+  belegen (nächster Tastendruck), auf Standard zurücksetzen. Overrides werden
+  in den App-Settings persistiert (`Settings.hotkeys`), Defaults bleiben im
+  Code; App-Hotkeys + Monitor-Space nutzen die konfigurierten Combos.
+
 - **ui: About-Dialog folgt dem Dark-Theme (2026-08-18)** — der Dialog wurde
   außerhalb des `dark`-Wrappers gerendert, seine `dark:`-Styles griffen nie
   (immer hell). In den Wrapper verschoben.

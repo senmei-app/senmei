@@ -36,8 +36,7 @@
 - [x] Full-Video-Modus per Doppelklick auf Monitor, Exit ✕/Esc (alle drei Modi)
 - [x] Deduplication: Presets (Aus/Standard/Aggressiv) + Slider mit % + Hinweis
 - [x] Menu: View hinzufügen für Full Video Modus
-- Settings: Tile ändern
-- Settings: Hotkeys einstellungen
+- [x] Settings: Hotkeys einstellungen (einsehen/ändern, Koharu-Stil)
 - Rechte Seite: Tab-Bar neben „Processing Stack" mit Tab „Logs" (Systemlog)
 - [x] About dark Theme (Dark-Styles vorhanden)
 
@@ -69,13 +68,17 @@
 - [x] CPU-Steps: `step.rs` slicet planar, FFmpeg liefert packed `rgb24` — Layout-Konflikt prüfen/fixen (gefixt: packed rgb24)
 - [ ] Doppelte Arg-Parsing-Logik: `splitArgs` (TS) und `split_ffmpeg_args` (Rust) vereinheitlichen
 - [ ] Frontend-Pfade: manuelle `/`-Splits plattform-sicher ersetzen (Windows)
-- [ ] Codec-Mapping angleichen: Frontend `H.264→libx264`/`H.265→libx265` an LGPL-safe Policy
-- [ ] README: „planning phase / M0“ → aktuellen Stand (M2–M5) aktualisieren
+- [x] Codec-Mapping angleichen: Frontend H.264→libopenh264/H.265→libkvazaar (LGPL-safe) + `-c:v`-Override im Encoder
+- [x] README: „planning phase / M0“ → aktuellen Stand (M2–M5) aktualisieren
 - [ ] `todos.md` komplett auf Englisch (AGENTS-Vorgabe docs in English)
+
+## CI / Packaging
+- [ ] GitHub Runner: Pakete für Windows / Linux / macOS bauen + testen (macOS-Runner: Compile + CPU-Tests, kein Metal auf gehosteten Runnern)
 - [ ] Tauri-Security: CSP + Asset-Scope `$HOME/**` bewerten (Media-Zugriff vs. Fläche)
 - [x] AGENTS.md-Pfad geprüft: `crates/senmei/gen/schemas/` existiert (Build-generiert, gitignored) — AGENTS.md korrekt
 
 ## after release
 - [ ] Project website
+- [ ] Settings: Tile-Größe einstellbar machen (Backlog, Anforderung offen)
 - [x] Follow-up: burn Feature-Request „ONNX-Initializer laden“ eingereicht (`tracel-ai/burn-onnx#456`), eigenen Parser später ablösen
 

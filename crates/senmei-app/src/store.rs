@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,10 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub language: String,
     pub theme: String,
+    /// Action-id → key-combo overrides (e.g. `render: "Ctrl+Shift+R"`);
+    /// absent entries use the app defaults.
+    #[serde(default)]
+    pub hotkeys: Option<HashMap<String, String>>,
 }
 
 impl Default for Settings {
@@ -14,6 +19,7 @@ impl Default for Settings {
         Self {
             language: "en".into(),
             theme: "dark".into(),
+            hotkeys: None,
         }
     }
 }
@@ -376,11 +382,16 @@ mod tests {
             let settings = Settings {
                 language: "de".into(),
                 theme: "light".into(),
+                hotkeys: Some(HashMap::from([("render".into(), "Ctrl+Shift+R".into())])),
             };
             save_settings(&settings).unwrap();
             let loaded = load_settings();
             assert_eq!(loaded.language, "de");
             assert_eq!(loaded.theme, "light");
+            assert_eq!(
+                loaded.hotkeys.as_ref().and_then(|h| h.get("render")),
+                Some(&"Ctrl+Shift+R".to_string())
+            );
         });
     }
 

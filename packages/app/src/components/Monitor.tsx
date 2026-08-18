@@ -3,6 +3,7 @@ import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { demoFrame, demoProbe } from "../mock";
 import { useI18n } from "../i18n";
+import { comboFromEvent } from "../hotkeys";
 
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -55,6 +56,7 @@ export default function Monitor({
   onSampleChange,
   onRenderSample,
   toggleFullscreenSignal = 0,
+  togglePlayHotkey = "Space",
 }: {
   file?: string;
   renderedFile: string | null;
@@ -66,6 +68,7 @@ export default function Monitor({
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
   toggleFullscreenSignal?: number;
+  togglePlayHotkey?: string;
 }) {
   const { t } = useI18n();
   // Native fullscreen on the monitor element itself (WebKit fullscreen API):
@@ -142,10 +145,10 @@ export default function Monitor({
     setPlaying((p) => !p);
   };
 
-  // Space toggles play/pause (ignored while typing or on a focused button).
+  // togglePlayHotkey (default Space) toggles play/pause (ignored while typing
+  // or on a focused button).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
       const t = e.target as HTMLElement | null;
       if (
         t &&
@@ -157,13 +160,14 @@ export default function Monitor({
       ) {
         return;
       }
+      if (comboFromEvent(e) !== togglePlayHotkey) return;
       e.preventDefault();
       togglePlay();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, nativeSrc, inMs, outMs]);
+  }, [info, nativeSrc, inMs, outMs, togglePlayHotkey]);
 
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is

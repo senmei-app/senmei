@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@senmei/ui";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
+import { HOTKEY_ACTIONS, comboFromEvent } from "../hotkeys";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
-type Section = "appearance" | "info";
+type Section = "appearance" | "hotkeys" | "info";
 
 const KEY_ENCODERS = [
   "libx264",
@@ -23,22 +24,52 @@ const KEY_ENCODERS = [
 export default function SettingsPage({
   language,
   theme,
+  hotkeys,
   onLanguageChange,
   onThemeChange,
+  onHotkeyChange,
   onBack,
 }: {
   language: string;
   theme: string;
+  hotkeys: Record<string, string>;
   onLanguageChange: (lang: Lang) => void;
   onThemeChange: (theme: Theme) => void;
+  onHotkeyChange: (id: string, combo: string) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("appearance");
+  const [recording, setRecording] = useState<string | null>(null);
   const { status, downloading, pct, error, download } = useFfmpeg();
+
+  const onHotkeyChangeRef = useRef(onHotkeyChange);
+  useEffect(() => {
+    onHotkeyChangeRef.current = onHotkeyChange;
+  }, [onHotkeyChange]);
+  // While recording, swallow the next key combo and bind it (Esc cancels).
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecording(null);
+        return;
+      }
+      const combo = comboFromEvent(e);
+      if (combo) {
+        onHotkeyChangeRef.current(recording, combo);
+        setRecording(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording]);
 
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
+    { key: "hotkeys", label: t("settings.section.hotkeys") },
     { key: "info", label: t("settings.section.info") },
   ];
 
@@ -124,6 +155,46 @@ export default function SettingsPage({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {section === "hotkeys" && (
+            <div className="max-w-xl space-y-1.5">
+              {HOTKEY_ACTIONS.map((a) => {
+                const active = recording === a.id;
+                const current = hotkeys[a.id];
+                const isDefault = current === a.default;
+                return (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60"
+                  >
+                    <span className="text-xs text-slate-700 dark:text-slate-300">{t(a.labelKey)}</span>
+                    <div className="flex items-center gap-2">
+                      {!isDefault && (
+                        <button
+                          onClick={() => onHotkeyChange(a.id, a.default)}
+                          title={t("hotkeys.reset")}
+                          className="rounded-md px-2 py-1 text-[11px] text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                        >
+                          ↺
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setRecording(active ? null : a.id)}
+                        className={
+                          active
+                            ? "min-w-[110px] rounded-md border border-indigo-500 bg-indigo-600/20 px-2.5 py-1 text-center font-mono text-[11px] text-indigo-500 dark:text-indigo-300"
+                            : "min-w-[110px] rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-center font-mono text-[11px] text-slate-700 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
+                        }
+                      >
+                        {active ? t("hotkeys.press") : <kbd>{current}</kbd>}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">{t("hotkeys.hint")}</p>
             </div>
           )}
 
