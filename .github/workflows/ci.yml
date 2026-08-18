@@ -1,9 +1,11 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
+  # Not on push to main: pushes are frequent and would burn the full 3-OS
+  # matrix (incl. app bundle) on every one. Run on PRs, or manually from the
+  # Actions tab.
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
