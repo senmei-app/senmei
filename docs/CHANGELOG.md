@@ -4,6 +4,16 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **perf: tiled-fused RGB8 overlap — tile/8 rejected (2026-08-18)** — tested
+  `overlap = tile/4 → tile/8` on the fused RGB8 path (1080p, fallin-soft):
+  regression to 394 ms / 2.5 FPS vs 329 ms / 3.0 FPS. With 512px tiles the
+  tile count is unchanged (5×3) and the smaller overlap only enlarges the
+  padded region, so the CPU stitch/crop does more work. Kept `tile/4`
+  (reliability confirmed by `infer_rgb8_tiled_is_reliable_and_correct`). The
+  real remaining cost is CPU stitching + per-tile u8 readback — GPU stitching
+  tracked as follow-up in docs/todos.md. Bench test-input generation switched
+  from GPL `libx264` to the universally available native `mpeg4` (LGPL-safe).
+
 - **fix: LGPL-only FFmpeg + LGPL-safe HEVC encoder (2026-08-18)** — the
   portable download now pins BtbN `-lgpl` builds on a dated tag
   (autobuild-2026-08-17-13-05, N-126188) with per-platform SHA-256
