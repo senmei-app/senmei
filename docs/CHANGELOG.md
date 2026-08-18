@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **refactor: `Inspector.tsx` aufgeteilt (2026-08-18)** — der komplette
+  Step-Editor (alle Typen inkl. großem Output-Editor) nach `StepEditor.tsx`
+  extrahiert; `Inspector.tsx` von ~800 auf ~370 Zeilen reduziert (Stack-Liste,
+  Drag&Drop, Add-Menü). Damit sind alle drei Groß-Dateien aufgeteilt
+  (App.tsx, commands.rs, Inspector.tsx).
+
 - **refactor: `commands.rs` aufgeteilt (2026-08-18)** — Modell-Helfer nach
   `models.rs` (`models_dir`/`load_registry`/`engine_for_model`), Preview-Helfer
   nach `preview.rs` (decode-Streams, `read_frame_inner`, PNG-Prune).
