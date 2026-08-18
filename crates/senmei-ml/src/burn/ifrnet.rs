@@ -326,7 +326,7 @@ mod tests {
     use burn_wgpu::{Vulkan, WgpuDevice};
 
     #[test]
-    #[ignore = "requires Vulkan"]
+    #[ignore = "requires Vulkan; needs RUST_MIN_STACK=33554432 (burn autotune stack overflow on RADV)"]
     fn ifrnet_output_shape_matches_input() {
         let device = WgpuDevice::DiscreteGpu(0);
         let m = IfrNet::<Vulkan>::new(&device);
