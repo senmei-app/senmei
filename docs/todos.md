@@ -64,7 +64,7 @@
 
 ## Maintainability (review 2026-08-18)
 
-- [ ] Split large files: `App.tsx` (done: `useBatch` + `RightPanel`), `Inspector.tsx`, `commands.rs` (done: `models.rs` + `preview.rs`)
+- [x] Split large files: `App.tsx` (`useBatch` + `RightPanel`), `commands.rs` (`models.rs` + `preview.rs`), `Inspector.tsx` (`StepEditor`)
 - [x] CPU steps: `step.rs` sliced planar, FFmpeg provides packed `rgb24` — layout conflict checked/fixed (fixed: packed rgb24)
 - [x] Unify duplicate arg parsing: `splitArgs` (TS) and `split_ffmpeg_args` (Rust) — one parser (frontend sends a split array)
 - [x] Frontend paths: replace manual `/` splits with platform-safe helpers (Windows)
