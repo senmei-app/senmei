@@ -11,6 +11,7 @@
 - [x] burn-tch Backend: ROCm-Nightly, RDNA4 fp16; vendored `third_party/` + `[patch.crates-io]`. Offen: Fallin-Bench, App-Anbindung
 - [ ] burn für macOS Grundgerüst als Experiment (keine Garantie)
 - [x] Tiled-Fused-RGB8: Overlap `tile/8` = Regression (394→329 ms) — `tile/4` behalten; GPU-Stitching offen
+- [x] GPU-Stitching: Tiles auf der GPU akkumulieren (`slice_assign`-Overlap-Averaging), ein Readback statt 15 — 329→234.7 ms / 4.3 FPS (fallin-soft)
 - [x] Toten Code entfernen: `tiling::tile`, `Error::Unimplemented`, `Registry::from_json`, `Decoder::open`, `#[allow(dead_code)]`
 - [x] Engine-Trait-Plumbing entfernt: `name()`, `EngineCaps.backend/half`, `InferOptions.half`, `Backend`-Enum nie gelesen
 - [x] Unbenutzte Dependencies aus `senmei-app` entfernen: `base64`, `tauri-plugin-dialog`, `tauri-plugin-opener`
