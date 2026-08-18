@@ -2,16 +2,21 @@
 //! `.bpk` burnpack.
 //!
 //! usage: senmei-ml-convert <arch> <model> <out.bpk> [scale] [num_block]
-//!   arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan
+//!   arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr
 //!   model: a `.pth` state dict or an `.onnx` file (initializers are read via
 //!          the built-in parser — no ONNX Runtime)
-//!   scale / num_block only matter for `realesrgan` (RRDBNet).
+//!   scale / num_block only matter for `realesrgan` (RRDBNet) and `real-plksr`
+//!          (scale: 1 for the decompress models, 4 for 4x-alchemy).
+//!
+//! `real-plksr` pths must have contiguous tensors (burn-store ignores strides,
+//! see docs/burn-bugs.md Bug 5) — preprocess channels-last state dicts with
+//! `{k: v.contiguous() for k, v in sd.items()}`.
 
 fn main() -> senmei_ml::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 4 {
         eprintln!("usage: senmei-ml-convert <arch> <model.pth|model.onnx> <out.bpk> [scale] [num_block]");
-        eprintln!("  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan");
+        eprintln!("  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr");
         std::process::exit(2);
     }
     let scale: u32 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(2);

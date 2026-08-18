@@ -46,7 +46,7 @@ export const demoModels: ModelMetadata[] = [
     scale: 4,
     arch: "real-plksr",
     weights: ["4x_Alchemy.pth.f16.bpk"],
-    loadable: false,
+    loadable: true,
     license: "CC-BY-4.0",
     source_url: "demo",
     download_url: "demo",

@@ -162,6 +162,49 @@ allocation instead of corrupting the server.
 
 ---
 
+## Bug 4 — burn-nn GroupNorm breaks on f16 when the per-group element count is large
+
+### Symptom
+
+`GroupNorm` on `Vulkan<f16>` divides the channel-sum by the per-group element
+count via `div_scalar`. For per-group counts ≥ 2¹⁴ (e.g. RealPLKSR's
+`GroupNorm(4, 64)` on 64×64 maps → 65536/group), the f16 reciprocal `1/N`
+underflows to a subnormal that the fused kernel flushes to 0, so `mean`/`var`
+collapse to 0 and the normalized output explodes (observed `±318` vs torch
+`±1.3`). `mean_dim` (native scaled kernel) stays accurate, so the workaround is
+to compute the norm with `mean_dim` instead of `sum + div_scalar`
+(`crates/senmei-ml/src/burn/real_plksr.rs::group_norm`).
+
+### Reproducer
+
+`crates/senmei-ml/src/burn/real_plksr.rs` tests: `sum_dim(2)` of 65536 × 0.5
+is correct (32768), but `sum_dim(2).div_scalar(65536.0)` returns 0.0 while
+`mean_dim(2)` returns 0.5. Root cause is the reciprocal `1/65536` being a
+subnormal f16 (flushed to zero); the sum itself only overflows for ≥ 65505.
+
+---
+
+## Bug 5 — burn-store `PytorchReader` ignores tensor strides (non-contiguous .pth)
+
+### Symptom
+
+The pickle reader parses `args[3]` (stride) in `rebuild_tensor_v2` but
+discards it (`// args[3] is stride (unused)`), reading every tensor's storage
+linearly. A `.pth` whose weights were saved non-contiguous (e.g. `4x_Alchemy`
+stores conv weights channels-last: shape `[o,i,k,k]` but strides `(27,1,9,3)`)
+therefore loads **scrambled** weights silently — the model runs but produces
+garbage (verified: head weight correlation 0.24 vs the correct tensor).
+
+### Workaround
+
+Preprocess the state dict with `torch` before converting:
+`{k: v.contiguous() for k, v in sd.items()}` (the `deh264`/`dejpg` RealPLKSR
+pths are already contiguous; only `4x_Alchemy` is channels-last). Suggested
+upstream fix: capture `args[3]` and scatter the storage into the logical layout
+in `rebuild_tensor_impl`.
+
+---
+
 ## Repo-side action items
 
 - [ ] File Bug 1 + Bug 3 upstream (tracel-ai/burn / tracel-ai/cubecl), link here.
