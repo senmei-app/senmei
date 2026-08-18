@@ -1,24 +1,20 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::store;
+use crate::models::{engine_for_model, load_registry};
+use crate::preview::{probe_video_inner, read_frame_inner};
 
 /// Shared cancellation flag for the active render (set by `cancel_render`).
 static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 /// Shared pause flag for the active render (set by `pause_render`).
 static PAUSE_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-/// Warm decode streams for the monitor (source + result).
-static PREVIEW_CACHE: OnceLock<Mutex<Option<senmei_media::PreviewCache>>> = OnceLock::new();
-/// Monotonic counter for unique preview frame names.
-static PREVIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
 #[specta::specta]
@@ -144,13 +140,6 @@ pub async fn download_model(
     .map_err(|e| e.to_string())?
 }
 
-fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
-    senmei_media::probe(std::path::Path::new(input)).map_err(|e| {
-        log::warn!("probe_video failed: {e}");
-        e.to_string()
-    })
-}
-
 #[tauri::command]
 #[specta::specta]
 pub fn probe_video(input: String, app: tauri::AppHandle) -> Result<senmei_media::VideoInfo, String> {
@@ -158,87 +147,6 @@ pub fn probe_video(input: String, app: tauri::AppHandle) -> Result<senmei_media:
     // Let the webview load this file via the asset protocol (native <video>).
     let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&input));
     probe_video_inner(&input)
-}
-
-/// Short stable namespace for one input file, so original/result/compare frames
-/// never share a prune bucket or filename.
-fn frame_ns(input: &str) -> String {
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    input.hash(&mut h);
-    format!("{:016x}", h.finish())
-}
-
-/// Extract one frame at `position_ms` as a PNG file and return its path. Uses
-/// a persistent decode stream (one ffmpeg per file) so playback reads frames
-/// from the pipe instead of spawning a process per frame. Frames are written
-/// under the project (`preview/`) when one is open, else the app data dir;
-/// a non-writable project dir falls back to the data dir.
-fn read_frame_inner(
-    input: &str,
-    position_ms: f64,
-    project_dir: Option<&str>,
-) -> Result<String, String> {
-    let dir = project_dir
-        .and_then(|p| {
-            let d = std::path::Path::new(p).join("preview");
-            std::fs::create_dir_all(&d).ok().map(|_| d)
-        })
-        .unwrap_or_else(|| {
-            let d = store::data_dir().join("preview");
-            let _ = std::fs::create_dir_all(&d);
-            d
-        });
-    let ns = frame_ns(input);
-    prune_preview_frames(&dir, &ns, 60);
-
-    let ffmpeg = senmei_media::resolve(&store::data_dir());
-    // Decode under the lock (fast pipe read) but encode outside it, so the two
-    // compare sides don't serialize their (slow) PNG encode behind each other.
-    let frame = {
-        let mut cache = PREVIEW_CACHE
-            .get_or_init(|| Mutex::new(None))
-            .lock()
-            .map_err(|e| e.to_string())?;
-        if cache.is_none() {
-            *cache = Some(senmei_media::PreviewCache::new(ffmpeg));
-        }
-        cache
-            .as_mut()
-            .unwrap()
-            .frame(input, position_ms)
-            .map_err(|e| {
-                log::warn!("preview decode failed: {e}");
-                e.to_string()
-            })?
-    };
-    let png = senmei_media::encode_png(frame.width, frame.height, &frame.data)
-        .map_err(|e| e.to_string())?;
-
-    let seq = PREVIEW_SEQ.fetch_add(1, Ordering::Relaxed);
-    let path = dir.join(format!("frame_{ns}_{seq:08}.png"));
-    std::fs::write(&path, &png).map_err(|e| e.to_string())?;
-    Ok(path.to_string_lossy().into_owned())
-}
-
-/// Best-effort cap on leftover preview frames for one namespace (keep the
-/// newest `keep`). Zero-padded counters make name order equal to write order.
-fn prune_preview_frames(dir: &std::path::Path, ns: &str, keep: usize) {
-    let prefix = format!("frame_{ns}_");
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        let mut old: Vec<_> = entries
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .map(|n| n.to_string_lossy().starts_with(&prefix))
-                    .unwrap_or(false)
-            })
-            .collect();
-        old.sort();
-        for p in old.iter().take(old.len().saturating_sub(keep)) {
-            let _ = std::fs::remove_file(p);
-        }
-    }
 }
 
 #[tauri::command]
@@ -405,49 +313,6 @@ pub struct RenderConfig {
     /// Render only a time range (start ms, end ms; None end = to the end).
     pub start_ms: Option<u64>,
     pub end_ms: Option<u64>,
-}
-
-fn models_dir() -> PathBuf {
-    // Anchor to the repo checkout: cargo tauri dev runs the binary from the
-    // crate dir, so CWD-relative paths can miss models/ at the repo root.
-    let anchored = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models");
-    for dir in [anchored, PathBuf::from("models"), PathBuf::from("../models")] {
-        if dir.is_dir() {
-            return dir;
-        }
-    }
-    PathBuf::from("models")
-}
-
-fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
-    let dir = models_dir();
-    let mut registry = senmei_ml::Registry::new();
-    registry.load_dir(&dir).map_err(|e| e.to_string())?;
-    Ok((registry, dir))
-}
-
-fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
-    let (registry, dir) = load_registry()?;
-    let meta = registry
-        .models()
-        .iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| format!("model not found: {model_id}"))?;
-    if meta.license_blocked() {
-        return Err(format!(
-            "model {model_id} has an unconfirmed/restrictive license ({}); refusing to load weights",
-            meta.license.as_deref().unwrap_or("none")
-        ));
-    }
-    if !meta.loadable {
-        return Err(format!("model {model_id} has no loadable weights yet"));
-    }
-    let mref = registry
-        .resolve(model_id, &dir)
-        .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
-    let mut engine = senmei_ml::engine_for_model(&mref).map_err(|e| e.to_string())?;
-    engine.load(&mref).map_err(|e| e.to_string())?;
-    Ok(engine)
 }
 
 #[tauri::command]

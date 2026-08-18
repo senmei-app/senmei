@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **refactor: `commands.rs` aufgeteilt (2026-08-18)** — Modell-Helfer nach
+  `models.rs` (`models_dir`/`load_registry`/`engine_for_model`), Preview-Helfer
+  nach `preview.rs` (decode-Streams, `read_frame_inner`, PNG-Prune).
+  `commands.rs` von ~800 auf ~636 Zeilen reduziert; nur noch Tauri-Commands.
+
 - **security: Asset-Scope verengt + CSP gesetzt (2026-08-18)** — der statische
   Asset-Protocol-Scope war `["$DATA/**", "$HOME/**"]` (ganzes Home lesbar).
   Alle Media-Loads laufen ohnehin über `probe_video`/`read_frame`, die die
