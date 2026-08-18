@@ -6,6 +6,7 @@
 //! converted format (see `rust-sr-bench`'s `convert-f16` for the one-time
 //! conversion). The arch is chosen from `ModelRef::arch`.
 
+mod ifrnet;
 mod realesrgan;
 mod real_plksr;
 mod rife;
@@ -25,6 +26,7 @@ use burn_store::{
 use burn_wgpu::{Vulkan, WgpuDevice};
 use std::path::Path;
 
+use ifrnet::IfrNet;
 use real_plksr::RealPlk;
 use realesrgan::RrdbNet;
 use rife::RifeNet;
@@ -41,6 +43,7 @@ enum Model {
     UpCunet2xFast(UpCunet2xFast<Vulkan<f16>>),
     RrdbNet(RrdbNet<Vulkan<f16>>),
     RifeNet(RifeNet<Vulkan<f16>>),
+    IfrNet(IfrNet<Vulkan<f16>>),
     RealPlk(RealPlk<Vulkan<f16>>),
 }
 
@@ -51,7 +54,7 @@ impl Model {
             Model::UpCunet2xFast(m) => m.forward(x),
             Model::RrdbNet(m) => m.forward(x),
             Model::RealPlk(m) => m.forward(x),
-            Model::RifeNet(_) => panic!("RifeNet has no single-input forward"),
+            Model::RifeNet(_) | Model::IfrNet(_) => panic!("no single-input forward"),
         }
     }
 
@@ -63,6 +66,7 @@ impl Model {
     ) -> BurnTensor<Vulkan<f16>, 4> {
         match self {
             Model::RifeNet(m) => m.forward(a, b, t),
+            Model::IfrNet(m) => m.forward(a, b, t),
             _ => panic!("model has no frame interpolation"),
         }
     }
@@ -103,6 +107,11 @@ impl BurnEngine {
                 let mut m = RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RrdbNet(m))
+            }
+            "ifrnet" => {
+                let mut m = IfrNet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::IfrNet(m))
             }
             "real-plksr" => {
                 let mut m = RealPlk::new(model.scale as usize, &self.device);
@@ -230,9 +239,17 @@ impl InferenceEngine for BurnEngine {
             Some(m) => m,
             None => return Some(Err(Error::new("model not loaded"))),
         };
-        if !matches!(model, Model::RifeNet(_)) {
+        if !matches!(model, Model::RifeNet(_) | Model::IfrNet(_)) {
             return None; // not an interpolation model → caller falls back
         }
+        // The flow estimators work on a downscaled grid (RIFE 1/32, IFRNet
+        // 1/16 via the 4-level pyramid), so the input is padded to a multiple
+        // and cropped back to the original dims (same as the references).
+        let pad = match model {
+            Model::RifeNet(_) => 32,
+            Model::IfrNet(_) => 16,
+            _ => unreachable!(),
+        };
         let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
         let a_t = BurnTensor::<Vulkan<f16>, 4>::from_data(
             TensorData::new(a.data.clone(), [n, c, h, w]).convert::<f16>(),
@@ -245,8 +262,8 @@ impl InferenceEngine for BurnEngine {
         // RIFE's internal flow estimation runs at 1/32 scale, so the reference
         // (rife-ncnn-vulkan) pads the input to multiples of 32. Do the same and
         // crop the output back to the original dims.
-        let pad_h = (h + 31) / 32 * 32;
-        let pad_w = (w + 31) / 32 * 32;
+        let pad_h = (h + pad - 1) / pad * pad;
+        let pad_w = (w + pad - 1) / pad * pad;
         let pad = |x: BurnTensor<Vulkan<f16>, 4>| {
             let mut x = x;
             if pad_h > h {
@@ -309,6 +326,31 @@ pub fn convert_pth_to_bpk(
         "realesrgan" => {
             let mut store = PytorchStore::from_file(pth_path);
             let mut m = RrdbNet::<Vulkan>::new(scale as usize, num_block as usize, &device);
+            m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+        }
+        "ifrnet" => {
+            // Torch Sequential/ResBlock keys (pyramid1.0.0, convblock.1.conv1.0,
+            // …) are mapped onto the burn field paths (p1.c0.conv, cb1.c1.conv,
+            // …) with capture-group rules; strips a DataParallel `module.` prefix.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^module\.", "")
+                .with_key_remapping(r"encoder\.pyramid(\d)\.(\d)\.0\.", "encoder.p$1.c$2.conv.")
+                .with_key_remapping(r"encoder\.pyramid(\d)\.(\d)\.1\.", "encoder.p$1.c$2.prelu.")
+                .with_key_remapping(r"decoder(\d)\.convblock\.0\.0\.", "decoder$1.cb0.conv.")
+                .with_key_remapping(r"decoder(\d)\.convblock\.0\.1\.", "decoder$1.cb0.prelu.")
+                .with_key_remapping(
+                    r"decoder(\d)\.convblock\.1\.conv([1-4])\.0\.",
+                    "decoder$1.cb1.c$2.conv.",
+                )
+                .with_key_remapping(
+                    r"decoder(\d)\.convblock\.1\.conv([1-4])\.1\.",
+                    "decoder$1.cb1.c$2.prelu.",
+                )
+                .with_key_remapping(r"decoder(\d)\.convblock\.1\.conv5\.", "decoder$1.cb1.c5.")
+                .with_key_remapping(r"decoder(\d)\.convblock\.1\.prelu\.", "decoder$1.cb1.pl.")
+                .with_key_remapping(r"decoder(\d)\.convblock\.2\.", "decoder$1.cb2.");
+            let mut m = IfrNet::<Vulkan>::new(&device);
             m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
         }
