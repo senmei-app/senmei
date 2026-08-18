@@ -74,7 +74,7 @@ export default function LogsPanel() {
           {t("logs.clear")}
         </button>
       </div>
-      <div ref={boxRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-[10px] leading-relaxed">
+      <div ref={boxRef} className="min-h-0 flex-1 select-text overflow-y-auto px-3 py-2 font-mono text-[10px] leading-relaxed">
         {shown.length === 0 && <p className="text-slate-400">{t("logs.empty")}</p>}
         {shown.map((e, i) => (
           <div key={i} className="flex gap-2">

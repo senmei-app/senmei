@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -8,6 +8,7 @@ use crate::{Error, Result};
 pub struct Encoder {
     child: Child,
     stdin: Option<ChildStdin>,
+    stderr: Option<ChildStderr>,
 }
 
 /// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
@@ -33,8 +34,7 @@ fn kvazaar_preset() -> &'static str {
 /// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
 /// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
 /// later and can override it.
-fn pick_video_encoder(ffmpeg: &Path, width: u32, height: u32) -> (String, Vec<String>) {
-    let caps = crate::ffmpeg::probe(ffmpeg).encoders;
+fn pick_from_caps(caps: &[String], width: u32, height: u32) -> (String, Vec<String>) {
     for codec in ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"] {
         if caps.iter().any(|e| e == codec) {
             return match codec {
@@ -87,16 +87,22 @@ impl Encoder {
         start_ms: u64,
         extra_args: &[String],
     ) -> Result<Self> {
-        let (video_codec, mut codec_args) = pick_video_encoder(ffmpeg, width, height);
-        // A caller-supplied `-c:v` fully owns the codec: drop the default
-        // codec's args (e.g. libkvazaar's `-preset`) and apply the override's
-        // own defaults, so a GPL/ABR mismatch never leaks through.
-        if let Some(codec) = extra_args
-            .windows(2)
-            .find(|w| w[0] == "-c:v")
-            .map(|w| w[1].as_str())
-        {
-            codec_args = override_codec_args(codec, extra_args, width, height);
+        let caps = crate::ffmpeg::probe(ffmpeg).encoders;
+        let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height);
+        // Strip any caller-supplied `-c:v` from extra_args: we always pass the
+        // codec ourselves (below) so it can be validated against the available
+        // encoders (the frontend maps H.265→libkvazaar even on builds without
+        // it) and so ffmpeg doesn't see two `-c:v` options.
+        let mut extra_args = extra_args.to_vec();
+        if let Some(pos) = extra_args.windows(2).position(|w| w[0] == "-c:v") {
+            let codec = extra_args[pos + 1].clone();
+            extra_args.drain(pos..pos + 2);
+            if caps.iter().any(|e| *e == codec) {
+                video_codec = codec.clone();
+                codec_args = override_codec_args(&codec, &extra_args, width, height);
+            } else {
+                log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
+            }
         }
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y")
@@ -122,28 +128,60 @@ impl Encoder {
             .args(["-c:v", &video_codec])
             .args(codec_args)
             .args(["-pix_fmt", "yuv420p"])
-            .args(extra_args)
+            .args(&extra_args)
             .arg(path)
             .stdin(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         let mut child = cmd.spawn()?;
 
         let stdin = child
             .stdin
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdin".into()))?;
+        let stderr = child.stderr.take();
 
         Ok(Self {
             child,
             stdin: Some(stdin),
+            stderr,
         })
     }
 
     pub fn write_frame(&mut self, frame: &Frame) -> Result<()> {
         if let Some(stdin) = self.stdin.as_mut() {
-            stdin.write_all(&frame.data)?;
+            if let Err(e) = stdin.write_all(&frame.data) {
+                // The child closed the pipe (exited) — reap it first so the
+                // stderr read below hits EOF instead of blocking, then report
+                // the real reason instead of a bare "Broken pipe".
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                let stderr = self.read_stderr();
+                return Err(Error::Command(if stderr.is_empty() {
+                    format!("ffmpeg encode write failed: {e}")
+                } else {
+                    format!("ffmpeg encode write failed: {e}\n{stderr}")
+                }));
+            }
         }
         Ok(())
+    }
+
+    /// Drain the child's stderr (already buffered once it has exited). ffmpeg
+    /// prints its config banner first, so keep only the tail (the real error).
+    fn read_stderr(&mut self) -> String {
+        use std::io::Read;
+        let mut out = String::new();
+        if let Some(mut e) = self.stderr.take() {
+            let _ = e.read_to_string(&mut out);
+        }
+        const TAIL: usize = 12;
+        let lines: Vec<&str> = out.lines().collect();
+        let tail = if lines.len() > TAIL {
+            &lines[lines.len() - TAIL..]
+        } else {
+            &lines[..]
+        };
+        tail.join("\n").trim().to_string()
     }
 
     pub fn finish(mut self) -> Result<()> {
@@ -152,9 +190,12 @@ impl Encoder {
         if status.success() {
             Ok(())
         } else {
-            Err(Error::Command(format!(
-                "ffmpeg encode exited with {status}"
-            )))
+            let stderr = self.read_stderr();
+            Err(Error::Command(if stderr.is_empty() {
+                format!("ffmpeg encode exited with {status}")
+            } else {
+                format!("ffmpeg encode exited with {status}:\n{stderr}")
+            }))
         }
     }
 }
@@ -213,7 +254,7 @@ mod tests {
             return;
         };
         let ff = Path::new(&ff);
-        let (codec, _args) = pick_video_encoder(ff, 64, 64);
+        let (codec, _args) = pick_from_caps(&crate::ffmpeg::probe(ff).encoders, 64, 64);
         assert!(
             ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"]
                 .contains(&codec.as_str()),

@@ -177,9 +177,6 @@ in `rebuild_tensor_impl`.
 
 ---
 
-
----
-
 ## Repo-side action items
 
 - [x] Filed upstream (2026-08-18, author zachelnet):
