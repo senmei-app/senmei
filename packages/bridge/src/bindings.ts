@@ -168,9 +168,13 @@ export type StepParams = {
 };
 
 export type VideoInfo = {
+	/**  Display width after applying rotation (stored dims for unrotated video). */
 	width: number,
+	/**  Display height after applying rotation. */
 	height: number,
 	fps: number | null,
 	duration: number | null,
+	/**  Clockwise rotation needed for display, normalized to 0/90/180/270. */
+	rotation: number,
 };
 
