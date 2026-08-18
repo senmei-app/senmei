@@ -16,7 +16,8 @@ const ARCHIVE_DIR: &str = "temp";
 const LINUX_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-linux64-lgpl.tar.xz";
 const LINUX_LGPL_SHA256: &str = "0afc3d4d9728587ae1a4af1062c80f11dfdf82833b003b0f4fdf8027e9bf5c53";
 const WINDOWS_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-win64-lgpl.zip";
-const WINDOWS_LGPL_SHA256: &str = "fdf4fcb4797762e8b4cc3eccdedfedad1e4a345fe9bd8f6a44a20ebf57718c7a";
+const WINDOWS_LGPL_SHA256: &str =
+    "fdf4fcb4797762e8b4cc3eccdedfedad1e4a345fe9bd8f6a44a20ebf57718c7a";
 
 fn system_ffmpeg_works() -> bool {
     Command::new("ffmpeg")
@@ -53,8 +54,6 @@ pub struct FfmpegInfo {
     pub decoders: Vec<String>,
 }
 
-
-
 fn parse_caps(output: &str) -> Vec<String> {
     output
         .lines()
@@ -68,23 +67,30 @@ fn parse_caps(output: &str) -> Vec<String> {
 }
 
 pub fn probe(ffmpeg: &Path) -> FfmpegInfo {
-    let version = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-version"]).and_then(|s| {
-        s.lines().next().and_then(|l| {
-            l.strip_prefix("ffmpeg version")
-                .map(|v| v.trim().trim_end_matches("Copyright").trim().to_string())
-        })
-    });
+    let version = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-version"])
+        .and_then(|s| {
+            s.lines().next().and_then(|l| {
+                l.strip_prefix("ffmpeg version")
+                    .map(|v| v.trim().trim_end_matches("Copyright").trim().to_string())
+            })
+        });
 
     if version.is_none() {
         return FfmpegInfo::default();
     }
 
-    let encoders = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-hide_banner", "-encoders"])
-        .map(|s| parse_caps(&s))
-        .unwrap_or_default();
-    let decoders = process::command_output(ffmpeg.to_str().unwrap_or("ffmpeg"), &["-hide_banner", "-decoders"])
-        .map(|s| parse_caps(&s))
-        .unwrap_or_default();
+    let encoders = process::command_output(
+        ffmpeg.to_str().unwrap_or("ffmpeg"),
+        &["-hide_banner", "-encoders"],
+    )
+    .map(|s| parse_caps(&s))
+    .unwrap_or_default();
+    let decoders = process::command_output(
+        ffmpeg.to_str().unwrap_or("ffmpeg"),
+        &["-hide_banner", "-decoders"],
+    )
+    .map(|s| parse_caps(&s))
+    .unwrap_or_default();
 
     FfmpegInfo {
         found: true,
@@ -132,8 +138,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&out, fs::Permissions::from_mode(0o755))
-            .map_err(Error::from)?;
+        fs::set_permissions(&out, fs::Permissions::from_mode(0o755)).map_err(Error::from)?;
     }
 
     let _ = fs::remove_file(&archive);

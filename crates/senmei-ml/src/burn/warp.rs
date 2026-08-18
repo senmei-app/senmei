@@ -40,7 +40,10 @@ pub fn grid_sample_with<B: Backend>(
             (gy + 1.0) / 2.0 * ((h - 1) as f64),
         )
     } else {
-        ((gx + 1.0) / 2.0 * (w as f64) - 0.5, (gy + 1.0) / 2.0 * (h as f64) - 0.5)
+        (
+            (gx + 1.0) / 2.0 * (w as f64) - 0.5,
+            (gy + 1.0) / 2.0 * (h as f64) - 0.5,
+        )
     };
     // border: clamp the coordinate to [0, size-1] before flooring (torch grid_sampler).
     let x = x.clamp(0.0, (w - 1) as f64);
@@ -76,7 +79,10 @@ pub fn grid_sample_with<B: Backend>(
     let i10 = corner(y1.clone(), x0);
     let i11 = corner(y1, x1);
 
-    wx0.clone() * wy0.clone() * i00 + wx1.clone() * wy0 * i01 + wx0 * wy1.clone() * i10 + wx1 * wy1 * i11
+    wx0.clone() * wy0.clone() * i00
+        + wx1.clone() * wy0 * i01
+        + wx0 * wy1.clone() * i10
+        + wx1 * wy1 * i11
 }
 
 #[cfg(test)]
@@ -115,8 +121,14 @@ mod tests {
                     let (x1, y1) = (x0 + 1.0, y0 + 1.0);
                     let (wx1, wy1) = (x - x0, y - y0);
                     let (wx0, wy0) = (1.0 - wx1, 1.0 - wy1);
-                    let (ix0, ix1) = (x0.clamp(0.0, (w - 1) as f32) as usize, x1.clamp(0.0, (w - 1) as f32) as usize);
-                    let (iy0, iy1) = (y0.clamp(0.0, (h - 1) as f32) as usize, y1.clamp(0.0, (h - 1) as f32) as usize);
+                    let (ix0, ix1) = (
+                        x0.clamp(0.0, (w - 1) as f32) as usize,
+                        x1.clamp(0.0, (w - 1) as f32) as usize,
+                    );
+                    let (iy0, iy1) = (
+                        y0.clamp(0.0, (h - 1) as f32) as usize,
+                        y1.clamp(0.0, (h - 1) as f32) as usize,
+                    );
                     for ci in 0..c {
                         let src = |iy: usize, ix: usize| input[((ni * c + ci) * h + iy) * w + ix];
                         let v = wx0 * wy0 * src(iy0, ix0)
@@ -149,7 +161,10 @@ mod tests {
         let x1 = BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(1), &device);
 
         let check = |name: &str, v: &[f32], expected: f32| {
-            assert!(v.iter().all(|&x| (x - expected).abs() < 1e-6), "{name} = {v:?}");
+            assert!(
+                v.iter().all(|&x| (x - expected).abs() < 1e-6),
+                "{name} = {v:?}"
+            );
         };
         let i00 = input.clone().gather(2, y0.clone()).gather(3, x0.clone());
         let i01 = input.clone().gather(2, y0).gather(3, x1.clone());
@@ -166,7 +181,8 @@ mod tests {
         // gather requires matching non-gather dims.)
         let input_flat = input.reshape([1, 4]); // [1*1, 2*2]
         let flat = |y: i32, x: i32| TensorData::new(vec![y * 2 + x; 4], [1, 4]);
-        let idx = |y: i32, x: i32| BurnTensor::<Vulkan<f32>, 2, Int>::from_ints(flat(y, x), &device);
+        let idx =
+            |y: i32, x: i32| BurnTensor::<Vulkan<f32>, 2, Int>::from_ints(flat(y, x), &device);
         let i00 = input_flat.clone().gather(1, idx(0, 0));
         let i01 = input_flat.clone().gather(1, idx(0, 1));
         let i10 = input_flat.clone().gather(1, idx(1, 0));
@@ -183,7 +199,9 @@ mod tests {
         use burn_wgpu::{Vulkan, WgpuDevice};
         let device = WgpuDevice::DiscreteGpu(0);
         let (n, c, h, w) = (1usize, 3usize, 6usize, 8usize);
-        let input: Vec<f32> = (0..n * c * h * w).map(|i| ((i * 37) % 100) as f32 / 100.0).collect();
+        let input: Vec<f32> = (0..n * c * h * w)
+            .map(|i| ((i * 37) % 100) as f32 / 100.0)
+            .collect();
         // grid in [-1.2, 1.2] to exercise border clamping.
         let grid: Vec<f32> = (0..n * h * w)
             .map(|i| {
@@ -194,15 +212,24 @@ mod tests {
             .flatten()
             .collect();
 
-        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(input.clone(), [n, c, h, w]), &device);
-        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(grid.clone(), [n, h, w, 2]), &device);
+        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(input.clone(), [n, c, h, w]),
+            &device,
+        );
+        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(grid.clone(), [n, h, w, 2]),
+            &device,
+        );
 
         let out = grid_sample(x, g);
         let got: Vec<f32> = out.into_data().to_vec().unwrap();
         let want = ref_grid_sample(&input, n, c, h, w, h, w, &grid, true);
         assert_eq!(got.len(), want.len());
         for (i, (a, b)) in got.iter().zip(&want).enumerate() {
-            assert!((a - b).abs() < 1e-3f32, "mismatch at {i}: burn {a} vs ref {b}");
+            assert!(
+                (a - b).abs() < 1e-3f32,
+                "mismatch at {i}: burn {a} vs ref {b}"
+            );
         }
     }
 
@@ -213,7 +240,9 @@ mod tests {
         let device = WgpuDevice::DiscreteGpu(0);
         let (n, c, h, w) = (1usize, 3usize, 6usize, 8usize);
         let (gh, gw) = (2 * h, 2 * w); // upsampled grid -> larger output
-        let input: Vec<f32> = (0..n * c * h * w).map(|i| ((i * 37) % 100) as f32 / 100.0).collect();
+        let input: Vec<f32> = (0..n * c * h * w)
+            .map(|i| ((i * 37) % 100) as f32 / 100.0)
+            .collect();
         // grid in [-1.15, 1.15] (DySample coords may exceed [-1,1] slightly).
         let grid: Vec<f32> = (0..n * gh * gw)
             .map(|i| {
@@ -224,15 +253,24 @@ mod tests {
             .flatten()
             .collect();
 
-        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(input.clone(), [n, c, h, w]), &device);
-        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(grid.clone(), [n, gh, gw, 2]), &device);
+        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(input.clone(), [n, c, h, w]),
+            &device,
+        );
+        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(grid.clone(), [n, gh, gw, 2]),
+            &device,
+        );
 
         let out = grid_sample_with(x, g, false);
         let got: Vec<f32> = out.into_data().to_vec().unwrap();
         let want = ref_grid_sample(&input, n, c, h, w, gh, gw, &grid, false);
         assert_eq!(got.len(), want.len());
         for (i, (a, b)) in got.iter().zip(&want).enumerate() {
-            assert!((a - b).abs() < 1e-3f32, "mismatch at {i}: burn {a} vs ref {b}");
+            assert!(
+                (a - b).abs() < 1e-3f32,
+                "mismatch at {i}: burn {a} vs ref {b}"
+            );
         }
     }
 }

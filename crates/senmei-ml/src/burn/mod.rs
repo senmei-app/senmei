@@ -7,8 +7,8 @@
 //! conversion). The arch is chosen from `ModelRef::arch`.
 
 mod ifrnet;
-mod realesrgan;
 mod real_plksr;
+mod realesrgan;
 mod rife;
 mod upcunet;
 mod warp;
@@ -19,7 +19,7 @@ use crate::tensor::Tensor;
 use crate::{Error, Result};
 use burn::module::ParamId;
 use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor as BurnTensor, TensorData, f16};
+use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
 use burn_store::{
     BurnpackStore, HalfPrecisionAdapter, KeyRemapper, ModuleSnapshot, PytorchStore, TensorSnapshot,
 };
@@ -104,7 +104,8 @@ impl BurnEngine {
                 Ok(Model::UpCunet2xFast(m))
             }
             "realesrgan" => {
-                let mut m = RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
+                let mut m =
+                    RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RrdbNet(m))
             }
@@ -288,7 +289,6 @@ impl InferenceEngine for BurnEngine {
         };
         Some(Ok(Tensor::new(vec![n, c, h, w], data)))
     }
-
 }
 
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
@@ -302,8 +302,7 @@ pub fn convert_pth_to_bpk(
     num_block: u32,
 ) -> Result<()> {
     let device = WgpuDevice::DiscreteGpu(0);
-    let mut save =
-        BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
+    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
     match arch {
         "upcunet2x" | "upcunet2x-fast" | "fallin-cugan" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -312,22 +311,28 @@ pub fn convert_pth_to_bpk(
             match arch {
                 "upcunet2x" => {
                     let mut m = UpCunet2x::<Vulkan>::new(&device);
-                    m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
-                    m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+                    m.load_from(&mut store)
+                        .map_err(|e| Error::new(e.to_string()))?;
+                    m.save_into(&mut save)
+                        .map_err(|e| Error::new(e.to_string()))?;
                 }
                 _ => {
                     // upcunet2x-fast and fallin-cugan share the module layout.
                     let mut m = UpCunet2xFast::<Vulkan>::new(&device);
-                    m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
-                    m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+                    m.load_from(&mut store)
+                        .map_err(|e| Error::new(e.to_string()))?;
+                    m.save_into(&mut save)
+                        .map_err(|e| Error::new(e.to_string()))?;
                 }
             }
         }
         "realesrgan" => {
             let mut store = PytorchStore::from_file(pth_path);
             let mut m = RrdbNet::<Vulkan>::new(scale as usize, num_block as usize, &device);
-            m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
-            m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
         }
         "ifrnet" => {
             // Torch Sequential/ResBlock keys (pyramid1.0.0, convblock.1.conv1.0,
@@ -351,8 +356,10 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"decoder(\d)\.convblock\.1\.prelu\.", "decoder$1.cb1.pl.")
                 .with_key_remapping(r"decoder(\d)\.convblock\.2\.", "decoder$1.cb2.");
             let mut m = IfrNet::<Vulkan>::new(&device);
-            m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
-            m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
         }
         "real-plksr" => {
             // The pth wraps the state dict under `params`; remap the torch
@@ -374,15 +381,14 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"\.channel_mixer\.2\.", ".channel_mixer.conv2.")
                 .with_key_remapping(r"\.attn\.f\.0\.", ".attn.f.");
             let store = (1..=28usize).fold(store, |s, i| {
-                s.with_key_remapping(
-                    format!(r"^feats\.{i}\."),
-                    format!("blocks.{}.", i - 1),
-                )
+                s.with_key_remapping(format!(r"^feats\.{i}\."), format!("blocks.{}.", i - 1))
             });
             let mut store = store;
             let mut m = RealPlk::<Vulkan>::new(scale as usize, &device);
-            m.load_from(&mut store).map_err(|e| Error::new(e.to_string()))?;
-            m.save_into(&mut save).map_err(|e| Error::new(e.to_string()))?;
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }
@@ -426,8 +432,7 @@ pub fn convert_onnx_to_bpk(
     let (snapshots, _) = remapper.remap(snapshots);
 
     let device = WgpuDevice::DiscreteGpu(0);
-    let mut save =
-        BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
+    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
     match arch {
         "upcunet2x" => {
             let mut m = UpCunet2x::<Vulkan>::new(&device);
@@ -446,7 +451,11 @@ pub fn convert_onnx_to_bpk(
     Ok(())
 }
 
-fn apply_and_save<B, M>(m: &mut M, snapshots: Vec<TensorSnapshot>, save: &mut BurnpackStore) -> Result<()>
+fn apply_and_save<B, M>(
+    m: &mut M,
+    snapshots: Vec<TensorSnapshot>,
+    save: &mut BurnpackStore,
+) -> Result<()>
 where
     B: Backend,
     M: ModuleSnapshot<B>,
@@ -475,7 +484,9 @@ fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
         }
         11 => {
             for c in t.data.chunks_exact(8) {
-                out.push(f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32);
+                out.push(
+                    f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32,
+                );
             }
         }
         6 => {
@@ -485,7 +496,9 @@ fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
         }
         7 => {
             for c in t.data.chunks_exact(8) {
-                out.push(i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32);
+                out.push(
+                    i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) as f32,
+                );
             }
         }
         other => {
@@ -621,7 +634,10 @@ mod tests {
             max_abs = max_abs.max(d);
         }
         mae /= out.data.len() as f64;
-        eprintln!("real_plksr_4x mae={mae:.5} max_abs={max_abs:.5} nan={nan_count}/{}", out.data.len());
+        eprintln!(
+            "real_plksr_4x mae={mae:.5} max_abs={max_abs:.5} nan={nan_count}/{}",
+            out.data.len()
+        );
         assert_eq!(nan_count, 0, "output contains non-finite values");
         assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
     }
@@ -773,7 +789,10 @@ mod tests {
         // result is flow-based (not the linear blend) and consistent.
         let blend = crate::interpolate::blend(&a, &b, 0.5);
         let diff = mean_abs_diff(&mid.data, &blend.data);
-        assert!(diff > 0.002, "output matches the linear blend, engine not used: {diff}");
+        assert!(
+            diff > 0.002,
+            "output matches the linear blend, engine not used: {diff}"
+        );
 
         // Symmetry: interpolating (a,b) at t must equal interpolating (b,a) at
         // 1-t — the same in-between frame. Any swapped/negated flow wiring
@@ -786,8 +805,14 @@ mod tests {
         // Directionality: t=0.05 stays near a, t=0.95 near b (fp16, so loose).
         let lo = engine.infer_interp(&a, &b, 0.05, &opts).unwrap().unwrap();
         let hi = engine.infer_interp(&a, &b, 0.95, &opts).unwrap().unwrap();
-        assert!(mean_abs_diff(&lo.data, &a.data) < mean_abs_diff(&lo.data, &b.data), "t=0.05 drifted to b");
-        assert!(mean_abs_diff(&hi.data, &b.data) < mean_abs_diff(&hi.data, &a.data), "t=0.95 drifted to a");
+        assert!(
+            mean_abs_diff(&lo.data, &a.data) < mean_abs_diff(&lo.data, &b.data),
+            "t=0.05 drifted to b"
+        );
+        assert!(
+            mean_abs_diff(&hi.data, &b.data) < mean_abs_diff(&hi.data, &a.data),
+            "t=0.95 drifted to a"
+        );
     }
 
     fn mean_abs_diff(x: &[f32], y: &[f32]) -> f32 {
@@ -798,11 +823,8 @@ mod tests {
     fn tensor_data_f16_to_vec_is_available() {
         // Exercises the CPU-side API we need for a fused f16->RGB8 output path
         // (no GPU involved): f16 TensorData must hand back raw f16 values.
-        let data = burn::tensor::TensorData::new(
-            vec![0.5f32, 1.0, 0.0, 0.25],
-            [4],
-        )
-        .convert::<f16>();
+        let data =
+            burn::tensor::TensorData::new(vec![0.5f32, 1.0, 0.0, 0.25], [4]).convert::<f16>();
         let v: Vec<f16> = data.to_vec().unwrap();
         assert_eq!(v.len(), 4);
         assert_eq!(v[0].to_f32(), 0.5);
@@ -825,7 +847,14 @@ mod tests {
         // Correctness: single 640 tile, so tiled == full pass -> exact match.
         let (h, w): (usize, usize) = (640, 640);
         let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
-        let out = engine.infer(&input, &InferOptions { tile_size: Some(640) }).unwrap();
+        let out = engine
+            .infer(
+                &input,
+                &InferOptions {
+                    tile_size: Some(640),
+                },
+            )
+            .unwrap();
         let (_, _, oh, ow) = (out.shape[0], out.shape[1], out.shape[2], out.shape[3]);
         let hw = oh * ow;
         let mut ref_bytes = Vec::with_capacity(3 * hw);
@@ -850,7 +879,10 @@ mod tests {
             .map(|(a, b)| (*a as i32 - *b as i32).abs())
             .sum::<i32>() as f32
             / bytes.len() as f32;
-        assert!(max_diff <= 2, "max diff {max_diff}, mean diff {mean_diff:.2}");
+        assert!(
+            max_diff <= 2,
+            "max diff {max_diff}, mean diff {mean_diff:.2}"
+        );
 
         // Reliability: 48 frames of 1080p (4x2 tiles, real stitch path).
         let (h, w): (usize, usize) = (1080, 1920);

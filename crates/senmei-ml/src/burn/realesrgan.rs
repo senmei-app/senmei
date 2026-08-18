@@ -2,10 +2,10 @@
 //! Clean port from the BSD-3-Clause `xinntao/Real-ESRGAN` reference.
 
 use burn::module::Module;
-use burn::nn::PaddingConfig2d;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
+use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::leaky_relu;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{backend::Backend, Tensor};
 
 use super::upcunet::nearest2x;
 
@@ -40,13 +40,21 @@ impl<B: Backend> ResidualDenseBlock<B> {
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let x0 = x.clone();
         let x1 = leaky_relu(self.conv1.forward(x.clone()), 0.2);
-        let x2 = leaky_relu(self.conv2.forward(Tensor::cat(vec![x.clone(), x1.clone()], 1)), 0.2);
+        let x2 = leaky_relu(
+            self.conv2
+                .forward(Tensor::cat(vec![x.clone(), x1.clone()], 1)),
+            0.2,
+        );
         let x3 = leaky_relu(
-            self.conv3.forward(Tensor::cat(vec![x.clone(), x1.clone(), x2.clone()], 1)),
+            self.conv3
+                .forward(Tensor::cat(vec![x.clone(), x1.clone(), x2.clone()], 1)),
             0.2,
         );
         let x4 = leaky_relu(
-            self.conv4.forward(Tensor::cat(vec![x.clone(), x1.clone(), x2.clone(), x3.clone()], 1)),
+            self.conv4.forward(Tensor::cat(
+                vec![x.clone(), x1.clone(), x2.clone(), x3.clone()],
+                1,
+            )),
             0.2,
         );
         let x5 = self.conv5.forward(Tensor::cat(vec![x, x1, x2, x3, x4], 1));
@@ -123,6 +131,7 @@ impl<B: Backend> RrdbNet<B> {
             Some(c) => leaky_relu(c.forward(nearest2x(feat)), 0.2),
             None => feat,
         };
-        self.conv_last.forward(leaky_relu(self.conv_hr.forward(feat), 0.2))
+        self.conv_last
+            .forward(leaky_relu(self.conv_hr.forward(feat), 0.2))
     }
 }

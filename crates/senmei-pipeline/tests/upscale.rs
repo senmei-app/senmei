@@ -38,16 +38,12 @@ fn upscale_and_resize_produce_expected_dims() {
         .unwrap();
     assert!(status.success(), "failed to generate test input");
 
-    let steps: Vec<Box<dyn senmei_pipeline::Step>> = vec![Box::new(senmei_pipeline::Upscale::new(
-        2,
-        None,
-    ))];
+    let steps: Vec<Box<dyn senmei_pipeline::Step>> =
+        vec![Box::new(senmei_pipeline::Upscale::new(2, None))];
     let mut pipeline = senmei_pipeline::Pipeline::new(steps);
     let ffmpeg = senmei_media::resolve(&dir);
 
-    pipeline
-        .run(&ffmpeg, &input, &output, |_| {})
-        .unwrap();
+    pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
     let info = senmei_media::probe(&output).unwrap();
     assert_eq!((info.width, info.height), (320, 240));
@@ -62,10 +58,7 @@ fn burn_engine_upscales_real_model() {
         eprintln!("ffmpeg not found, skipping");
         return;
     }
-    let models_dir = std::path::PathBuf::from(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../models"
-    ));
+    let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
     let bpk = models_dir.join("up2x-no-denoise.pth.f16.bpk");
     if !bpk.exists() {
         eprintln!("missing .bpk, skipping");
@@ -80,8 +73,13 @@ fn burn_engine_upscales_real_model() {
 
     let status = Command::new("ffmpeg")
         .args([
-            "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
-            "-pix_fmt", "yuv420p",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=1:size=160x120:rate=10",
+            "-pix_fmt",
+            "yuv420p",
         ])
         .arg(&input)
         .status()
@@ -134,13 +132,12 @@ fn resize_factor_produces_expected_dims() {
         .unwrap();
     assert!(status.success(), "failed to generate test input");
 
-    let steps: Vec<Box<dyn senmei_pipeline::Step>> = vec![Box::new(senmei_pipeline::Resize::new(0.5))];
+    let steps: Vec<Box<dyn senmei_pipeline::Step>> =
+        vec![Box::new(senmei_pipeline::Resize::new(0.5))];
     let mut pipeline = senmei_pipeline::Pipeline::new(steps);
     let ffmpeg = senmei_media::resolve(&dir);
 
-    pipeline
-        .run(&ffmpeg, &input, &output, |_| {})
-        .unwrap();
+    pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
     let info = senmei_media::probe(&output).unwrap();
     assert_eq!((info.width, info.height), (80, 60));

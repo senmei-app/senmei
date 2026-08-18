@@ -38,10 +38,16 @@ fn pick_video_encoder(ffmpeg: &Path, width: u32, height: u32) -> (String, Vec<St
     for codec in ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"] {
         if caps.iter().any(|e| e == codec) {
             return match codec {
-                "libkvazaar" => (codec.into(), vec!["-preset".into(), kvazaar_preset().into()]),
+                "libkvazaar" => (
+                    codec.into(),
+                    vec!["-preset".into(), kvazaar_preset().into()],
+                ),
                 "libopenh264" => (
                     codec.into(),
-                    vec!["-b:v".into(), format!("{}k", width as u64 * height as u64 / 144)],
+                    vec![
+                        "-b:v".into(),
+                        format!("{}k", width as u64 * height as u64 / 144),
+                    ],
                 ),
                 "libx264" => (codec.into(), vec!["-preset".into(), x264_preset().into()]),
                 other => (other.into(), vec![]),
@@ -56,7 +62,10 @@ fn pick_video_encoder(ffmpeg: &Path, width: u32, height: u32) -> (String, Vec<St
 /// `-b:v` (same formula as `pick_video_encoder`) unless already provided.
 fn override_codec_args(codec: &str, extra_args: &[String], width: u32, height: u32) -> Vec<String> {
     if codec == "libopenh264" && !extra_args.iter().any(|a| a == "-b:v") {
-        vec!["-b:v".into(), format!("{}k", width as u64 * height as u64 / 144)]
+        vec![
+            "-b:v".into(),
+            format!("{}k", width as u64 * height as u64 / 144),
+        ]
     } else {
         Vec::new()
     }
@@ -172,24 +181,42 @@ mod tests {
             override_codec_args("libopenh264", &base, w, h),
             vec!["-b:v".to_string(), "14400k".to_string()]
         );
-        let with_bv = ["-c:v".into(), "libopenh264".into(), "-b:v".into(), "1000k".into()];
-        assert_eq!(override_codec_args("libopenh264", &with_bv, w, h), Vec::<String>::new());
-        assert_eq!(override_codec_args("libkvazaar", &base, w, h), Vec::<String>::new());
-        assert_eq!(override_codec_args("libsvtav1", &base, w, h), Vec::<String>::new());
+        let with_bv = [
+            "-c:v".into(),
+            "libopenh264".into(),
+            "-b:v".into(),
+            "1000k".into(),
+        ];
+        assert_eq!(
+            override_codec_args("libopenh264", &with_bv, w, h),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            override_codec_args("libkvazaar", &base, w, h),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            override_codec_args("libsvtav1", &base, w, h),
+            Vec::<String>::new()
+        );
     }
 
     /// End-to-end encode through the selected (LGPL-safe) codec. Skipped unless
     /// `SENMEI_FFMPEG` points at a real ffmpeg (e.g. the pinned BtbN LGPL build).
     #[test]
     fn encodes_through_selected_codec() {
-        let Some(ff) = std::env::var("SENMEI_FFMPEG").ok().filter(|p| !p.is_empty()) else {
+        let Some(ff) = std::env::var("SENMEI_FFMPEG")
+            .ok()
+            .filter(|p| !p.is_empty())
+        else {
             eprintln!("SENMEI_FFMPEG not set, skipping");
             return;
         };
         let ff = Path::new(&ff);
         let (codec, _args) = pick_video_encoder(ff, 64, 64);
         assert!(
-            ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"].contains(&codec.as_str()),
+            ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"]
+                .contains(&codec.as_str()),
             "unexpected codec {codec}"
         );
 
@@ -201,13 +228,31 @@ mod tests {
         // Valid input (2 s silent AAC) so the optional `-map 1:a:0?` + `-shortest`
         // don't kill the pipe: video (30 frames @30fps = 1 s) is the shortest.
         let make = Command::new(ff)
-            .args(["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "2", "-c:a", "aac", "-ar", "44100", "-ac", "1"])
+            .args([
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=44100:cl=mono",
+                "-t",
+                "2",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",
+                "-ac",
+                "1",
+            ])
             .arg(&input)
             .status()
             .unwrap();
         assert!(make.success(), "failed to create test input");
         let mut enc = Encoder::open(&ff, &input, &out, 64, 64, 30.0, 0, &[]).unwrap();
-        let frame = Frame { width: 64, height: 64, data: vec![0u8; 64 * 64 * 3] };
+        let frame = Frame {
+            width: 64,
+            height: 64,
+            data: vec![0u8; 64 * 64 * 3],
+        };
         for _ in 0..30 {
             enc.write_frame(&frame).unwrap();
         }

@@ -29,7 +29,8 @@ fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
     let name = first_string(msg, 8)
         .ok_or_else(|| "TensorProto missing name".to_string())?
         .to_string();
-    let dtype = first_varint(msg, 2).ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
+    let dtype =
+        first_varint(msg, 2).ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
 
     // dims: field 1, packed (length-delimited) or repeated varints.
     let mut dims = Vec::new();
@@ -74,7 +75,12 @@ fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
         Vec::new()
     };
 
-    Ok(OnnxTensor { name, dims, dtype, data })
+    Ok(OnnxTensor {
+        name,
+        dims,
+        dtype,
+        data,
+    })
 }
 
 /// Re-encode varint-packed ints as little-endian fixed-width bytes.

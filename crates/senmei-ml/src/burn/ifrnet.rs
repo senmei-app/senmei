@@ -14,10 +14,10 @@
 //! `convert_pth_to_bpk`.
 
 use burn::module::{Module, Param, ParamId};
-use burn::nn::PaddingConfig2d;
 use burn::nn::conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig};
-use burn::tensor::backend::Backend;
+use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::sigmoid;
+use burn::tensor::backend::Backend;
 use burn::tensor::module::interpolate;
 use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::tensor::{Int, Tensor, TensorData};
@@ -313,9 +313,9 @@ impl<B: Backend> IfrNet<B> {
 
         let img0_warp = warp(a, up_flow0_1);
         let img1_warp = warp(b, up_flow1_1);
-        let imgt_merge =
-            up_mask_1.clone() * img0_warp + (Tensor::ones_like(&up_mask_1) - up_mask_1) * img1_warp
-                + mean_;
+        let imgt_merge = up_mask_1.clone() * img0_warp
+            + (Tensor::ones_like(&up_mask_1) - up_mask_1) * img1_warp
+            + mean_;
         (imgt_merge + up_res_1).clamp(0.0, 1.0)
     }
 }

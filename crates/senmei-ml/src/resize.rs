@@ -6,8 +6,16 @@ pub fn bilinear(t: &Tensor, new_h: usize, new_w: usize) -> Tensor {
     let c = t.shape[1];
     let h = t.shape[2];
     let w = t.shape[3];
-    let x_ratio = if new_w > 1 { (w as f32 - 1.0) / (new_w as f32 - 1.0) } else { 0.0 };
-    let y_ratio = if new_h > 1 { (h as f32 - 1.0) / (new_h as f32 - 1.0) } else { 0.0 };
+    let x_ratio = if new_w > 1 {
+        (w as f32 - 1.0) / (new_w as f32 - 1.0)
+    } else {
+        0.0
+    };
+    let y_ratio = if new_h > 1 {
+        (h as f32 - 1.0) / (new_h as f32 - 1.0)
+    } else {
+        0.0
+    };
     let mut data = vec![0f32; c * new_h * new_w];
     for ci in 0..c {
         for ny in 0..new_h {

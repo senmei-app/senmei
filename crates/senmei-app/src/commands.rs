@@ -1,15 +1,15 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::Manager;
 
-use crate::store;
 use crate::models::{engine_for_model, load_registry};
 use crate::preview::{probe_video_inner, read_frame_inner};
+use crate::store;
 
 /// Shared cancellation flag for the active render (set by `cancel_render`).
 static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
@@ -42,9 +42,7 @@ pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn download_ffmpeg(
-    on_progress: Channel<DownloadProgress>,
-) -> Result<String, String> {
+pub async fn download_ffmpeg(on_progress: Channel<DownloadProgress>) -> Result<String, String> {
     log::info!("downloading portable ffmpeg");
     let dir = store::data_dir();
     tauri::async_runtime::spawn_blocking(move || {
@@ -122,7 +120,10 @@ pub async fn download_model(
             &format!("{base}.{}", if onnx { "onnx" } else { "pth" }),
             meta.sha256.as_deref(),
             &mut |d, t| {
-                let _ = progress.send(DownloadProgress { downloaded: d, total: t });
+                let _ = progress.send(DownloadProgress {
+                    downloaded: d,
+                    total: t,
+                });
             },
         )
         .map_err(|e| e.to_string())?;
@@ -142,10 +143,15 @@ pub async fn download_model(
 
 #[tauri::command]
 #[specta::specta]
-pub fn probe_video(input: String, app: tauri::AppHandle) -> Result<senmei_media::VideoInfo, String> {
+pub fn probe_video(
+    input: String,
+    app: tauri::AppHandle,
+) -> Result<senmei_media::VideoInfo, String> {
     log::info!("probe_video: {input}");
     // Let the webview load this file via the asset protocol (native <video>).
-    let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&input));
+    let _ = app
+        .state::<tauri::scope::Scopes>()
+        .allow_file(std::path::Path::new(&input));
     probe_video_inner(&input)
 }
 
@@ -164,7 +170,9 @@ pub async fn read_frame(
     })
     .await
     .map_err(|e| e.to_string())??;
-    let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&path));
+    let _ = app
+        .state::<tauri::scope::Scopes>()
+        .allow_file(std::path::Path::new(&path));
     Ok(path)
 }
 
@@ -323,9 +331,7 @@ pub async fn render(
     config: RenderConfig,
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
-    log::info!(
-        "render start: {input} -> {output} (config {config:?})"
-    );
+    log::info!("render start: {input} -> {output} (config {config:?})");
     let input = PathBuf::from(input);
     let output = PathBuf::from(output);
 
@@ -412,7 +418,9 @@ pub async fn render(
                     Some(id) => match engine_for_model(id) {
                         Ok(e) => Some(senmei_pipeline::Interpolator::with_engine(f, e)),
                         Err(err) => {
-                            log::warn!("interp model {id} unavailable, using reference blend: {err}");
+                            log::warn!(
+                                "interp model {id} unavailable, using reference blend: {err}"
+                            );
                             None
                         }
                     },
@@ -504,8 +512,13 @@ mod tests {
         let input = dir.join("input.mp4");
         let ok = std::process::Command::new("ffmpeg")
             .args([
-                "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
-                "-pix_fmt", "yuv420p",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=1:size=160x120:rate=10",
+                "-pix_fmt",
+                "yuv420p",
             ])
             .arg(&input)
             .status()
@@ -517,7 +530,8 @@ mod tests {
         assert_eq!((info.width, info.height), (160, 120));
         assert!(info.duration > 0.0);
 
-        let file = read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
+        let file =
+            read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
         let png = std::fs::read(&file).unwrap();
         assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
         let _ = std::fs::remove_dir_all(&dir);
@@ -575,8 +589,14 @@ mod tests {
         assert!(output.exists());
         let ffprobe = std::process::Command::new("ffprobe")
             .args([
-                "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name,pix_fmt", "-of", "csv=p=0",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,pix_fmt",
+                "-of",
+                "csv=p=0",
             ])
             .arg(&output)
             .output()
