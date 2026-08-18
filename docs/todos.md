@@ -2,17 +2,10 @@
 
 ## AI Stack
 - [x] Stacks implementieren (denoise / deblur / dedup — Referenz-CPU)
-- weiter Modelle definieren für:
-  - Interpolation Models
-  - Denoising
-  - Restoration Models
-    - quelle:
-      - https://github.com/chaiNNer-org/spandrel
-- macht folgendes Sinn:
-  - Depth Map Models
-  - Object Detection Models
-  - Video Stabilization
-- Upscaler-Performance eingebrochen (25→12 fps) — Tile per Settings dynamisch einstellen?
+- [x] weiter Modelle definieren für: Interpolation / Denoising / Restoration — **Backlog in `docs/models.md` konkretisiert** (4–6 Kandidaten/Stack mit Lizenz-Check + Empfehlung). Priorität: RIFE-Varianten + GMFSS (Interp, Arch teils vorhanden), SCUNet/DRUNet (Denoise, Konv/Swin-Hybrid), SRVGGNet-RealESRGAN + BSRGAN + SAFMN/SPAN (Restore). **Wichtig:** Re-SISR-Releases ab „Adore" sind CC-BY-NC-SA → neue PLKSR/CUGAN-Weights dort geblockt; spandrel-Core ist nur permissiv (Archs mit `(+)` nicht adoptieren)
+- [x] quelle: https://github.com/chaiNNer-org/spandrel (permissive Arch-Referenz, dokumentiert)
+- [x] macht folgendes Sinn: Depth Map / Object Detection / Video Stabilization — **evaluiert: nein.** Depth: kein etablierter Workflow für Interp/Upscale; Detection: kein Nutzen für reine Enhancement-Pipeline; Stabilization: gehört vor den Stack, ffmpeg-`vidstab` ist GPL → nur klassisch via OpenCV (Apache-2.0) als separates Pre-Tool, kein ML-Stack (Details in models.md)
+- [x] Upscaler-Performance eingebrochen (25→12 fps) — **Ursache: Tiling.** tiled-fused 512px (329 ms) ~2× langsamer als full-frame fused (176 ms) = Preis für den Autotune-OOM-Fix (Bug 3). 1024px-Tiles getestet → **Regression 762 ms** (größere Matmul pathologisch langsam). 512px bleibt; kein dynamischer Tile-Settings nötig (Details in benchmarks.md)
 
 ## Backend
 - [x] burn-tch Backend: ROCm-Nightly, RDNA4 fp16; vendored `third_party/` + `[patch.crates-io]`. Offen: Fallin-Bench, App-Anbindung
@@ -40,7 +33,9 @@
 - [x] Full-Video-Modus per Doppelklick auf Monitor, Exit ✕/Esc (alle drei Modi)
 - [x] Deduplication: Presets (Aus/Standard/Aggressiv) + Slider mit % + Hinweis
 - Menu - View hinzufügne 
+- Settings - Tile ändern
 - Settings - Hotkeys einstellungen
+- Rechte Seite neben "Processing Stack" diese tab-bar macht und Tab"Logs" für system log erstellen
 
 ## Docs
 - [x] ncnn-Engine komplett aus Todos/Plan entfernen (burn ist Default)

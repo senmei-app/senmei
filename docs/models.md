@@ -72,14 +72,56 @@ Goal: ~4–5 models per stack, each needing a clean burn port + a permissive
 weight license before `loadable: true`. Candidates come from
 [`chaiNNer-org/spandrel`](https://github.com/chaiNNer-org/spandrel) (permissive
 arch reference) and the sources above — this is a research list, not a
-commitment.
+commitment. Priority for implementation: RIFE variants + GMFSS (interpolation),
+SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
+(restoration) — either the arch already exists or it's a plain conv port.
 
-| Stack | Candidates | License check |
-|---|---|---|
-| Interpolation | RIFE family (more variants) | MIT ok |
-| Denoise | SCUNet, Real-PLKSr DeJPG/DeH264 | cszn verify · Phhofm verify |
-| Restoration | Real-ESRGAN family, Anime1080Fixer, SPAN | BSD-3 ok · Zarxrax verify · SPAN Apache-2.0 |
-| Depth map (use-case open) | MiDaS / Depth-Anything class | TBD — is it useful for video enhancement? |
+> **Lizenz-Falle Re-SISR (2026-08):** Re-SISR-Releases ab „Adore" sind
+> **CC BY-NC-SA 4.0** (non-commercial → von `license_blocked()` geblockt). Nur
+> Pre-Adore-Checkpoints (CC-BY-4.0, z.B. die adoptierten Fallin/4x_Alchemy) sind
+> adoptierbar — keine neuen PLKSR/CUGAN-Weights mehr von dort.
+> **spandrel-Core = nur permissive Archs** (MIT/Apache/PD); Archs mit `(+)` im
+> spandrel-README (Restormer, MPRNet, MIRNet2, CodeFormer, MAT, DDColor, …) sind
+> restriktiv → nicht adoptieren. VFI-Modelle sind nie in spandrel (Single-Image).
+
+| Stack | Kandidaten | Lizenz-Check | Empfehlung |
+|---|---|---|---|
+| Interpolation | RIFE v4.6 Varianten (Lite/Fast/Max/S, Anime-Finetunes) | MIT ok | **adoptieren** (Arch vorhanden) |
+| Interpolation | GMFSS_Fortuna („union", Anime) | MIT (Repo verifiziert) · GDrive verify | **adoptieren** |
+| Interpolation | IFRNet | MIT Code · Weights verify · Repo-URL verify | **adoptieren** (leicht, konv) |
+| Interpolation | EMA-VFI | MIT Code · Weights verify | nur falls (Cross-Frame-Attention) |
+| Interpolation | AnimeInterp | MIT Code · Weights verify | nur falls |
+| Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |
+| Interpolation | AMT | MIT Code · Weights verify | **nein** (Transformer) |
+| Denoise | SCUNet Real (GAN/PSNR) | Arch Apache-2.0 (verifiziert) · Weights verify | **adoptieren** (Swin-Hybrid-Port) |
+| Denoise | DRUNet (DPIR) | cszn verify | **adoptieren** (Konv, einfach) |
+| Denoise | DnCNN / FFDNet | cszn verify | **adoptieren** (trivial) |
+| Denoise | NAFNet | Arch MIT · Weights verify | nur falls (PSNR-orientiert) |
+| Denoise | FBCNN | verify | nur falls (DeJPEG-Redundanz) |
+| Denoise | VRT / RVRT | verify · nicht in spandrel | **nein** (temporal/Transformer) |
+| Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 ok | **adoptieren** (SRVGGNetCompact-Port) |
+| Restoration | BSRGAN | cszn verify | **adoptieren** (RRDBNet vorhanden) |
+| Restoration | Anime1080Fixer | verify | **adoptieren** (RRDBNet vorhanden) |
+| Restoration | SAFMN Real x2/x4 | Apache-2.0 (verifiziert) | **adoptieren** |
+| Restoration | SPAN | Apache-2.0 (verifiziert) | **adoptieren** |
+| Restoration | PLKSR weitere | Re-SISR neu = NC geblockt · sonst verify | nur falls |
+| Restoration | HAT | Arch MIT · Weights verify | nur falls (Transformer) |
+| Restoration | OmniSR | MIT Code · Weights verify | **nein** (Deformable Conv) |
+
+## Use-case evaluation (non-upscale ideas)
+
+- **Depth map (MiDaS / Depth-Anything) — nein.** Kein etablierter Workflow nutzt
+  Tiefe als Guide für Interpolation/Upscaling; die Nischen (depth-aware upscale,
+  Pseudo-3D/DOF, Occlusion-Guide) sind spekulativ und teuer. Wenn überhaupt, nur
+  Depth-Anything V1 (Repo Apache-2.0); V2-Weights tendieren zu CC-BY-NC-SA.
+- **Object detection — nein.** Kein Nutzen für eine reine Enhancement-Pipeline;
+  nur relevant bei regionsadaptiver Verbesserung (Face/Text erkennen) — außerhalb
+  des Scopes.
+- **Video stabilization — nein als ML-Stack.** Stabilisierung gehört vor den
+  Enhancement-Stack (stabilisieren → interpolieren/upscalen), nicht in die
+  Step-Kette. ffmpegs `vidstab` ist GPL (unvereinbar mit dem LGPL-Build); der
+  pragmatische Weg wäre klassisch (non-ML) via OpenCV VideoStab (Apache-2.0),
+  als separates Pre-Tool — nicht als `ModelKind`.
 
 ## Notes
 

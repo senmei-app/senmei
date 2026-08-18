@@ -4,6 +4,19 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: „Render Sample" rendert nur das aktuelle Video (2026-08-18)** — der
+  Sample-Button rief `startBatch(false, …)` auf und erzeugte Samples für die
+  **ganze Queue** statt für das Video im Monitor. `startBatch` akzeptiert jetzt
+  eine explizite Dateiliste; `onRenderSample` übergibt `[currentFile]`.
+
+- **media: Video-Rotation wird verarbeitet (2026-08-18)** — `probe` liest die
+  Rotation (DisplayMatrix side-data oder case-insensitives `rotate`-Tag), meldet
+  Display-Maße + `VideoInfo.rotation`; `Decoder` setzt `-noautorotate` und wendet
+  die Rotation explizit an (90→`transpose=2`, 180→`hflip,vflip`, 270→`transpose=1`),
+  byte-identisch zu ffmpegs Autorotation verifiziert (Test
+  `probe_and_decode_apply_rotation`). Vorher wurden 90°/270°-Videos
+  fehlbeschriftet/verzerrt verarbeitet (autorotierte Ausgabe ≠ probed Maße).
+
 - **docs: PLAN §14/§15 restructure + maintainability backlog (2026-08-18)** —
   `PLAN.md` §14 split into subsections (own code & libs, models, codecs, AGPL
   boundary) with an expanded dependency/license table, §15 rewritten as a status
