@@ -135,6 +135,29 @@ export default function Monitor({
     setPlaying((p) => !p);
   };
 
+  // Space toggles play/pause (ignored while typing or on a focused button).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.tagName === "BUTTON" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      togglePlay();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info, nativeSrc, inMs, outMs]);
+
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is
     // clamped to the sample in-point (the result has no frames before it) and

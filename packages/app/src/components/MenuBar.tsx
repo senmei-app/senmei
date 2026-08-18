@@ -6,6 +6,7 @@ interface MenuItem {
   label?: string;
   action?: () => void;
   separator?: boolean;
+  shortcut?: string;
   children?: MenuItem[];
 }
 
@@ -56,12 +57,12 @@ export default function MenuBar({
           key: "import",
           label: t("menu.importVideos"),
           children: [
-            { key: "import-file", label: t("menu.importFile"), action: onImportFile },
+            { key: "import-file", label: t("menu.importFile"), shortcut: "Ctrl+O", action: onImportFile },
             { key: "import-folder", label: t("menu.importFolder"), action: onImportFolder },
           ],
         },
         { key: "close", label: t("menu.closeProject"), action: onCloseProject },
-        { key: "export", label: t("menu.exportProject"), action: onExportProject },
+        { key: "export", label: t("menu.exportProject"), shortcut: "Ctrl+E", action: onExportProject },
         { key: "sep", separator: true },
         { key: "settings", label: t("menu.settings"), action: onSettings },
       ],
@@ -70,8 +71,8 @@ export default function MenuBar({
       key: "edit",
       label: t("menu.edit"),
       items: [
-        { key: "select-all", label: t("menu.selectAll"), action: onSelectAll },
-        { key: "delete-selected", label: t("menu.deleteSelected"), action: onDeleteSelected },
+        { key: "select-all", label: t("menu.selectAll"), shortcut: "Ctrl+A", action: onSelectAll },
+        { key: "delete-selected", label: t("menu.deleteSelected"), shortcut: "Delete", action: onDeleteSelected },
       ],
     },
     {
@@ -81,8 +82,8 @@ export default function MenuBar({
         { key: "add-all", label: t("menu.addAllQueue"), action: onAddAllToQueue },
         { key: "add-selected", label: t("menu.addSelectedQueue"), action: onAddSelectedToQueue },
         { key: "sep1", separator: true },
-        { key: "process-selected", label: t("menu.processSelected"), action: onProcessSelected },
-        { key: "process-queue", label: t("menu.processQueue"), action: onProcessAll },
+        { key: "process-selected", label: t("menu.processSelected"), shortcut: "Ctrl+R", action: onProcessSelected },
+        { key: "process-queue", label: t("menu.processQueue"), shortcut: "Ctrl+R", action: onProcessAll },
         { key: "process-all", label: t("menu.processAll"), action: onProcessAll },
       ],
     },
@@ -108,7 +109,7 @@ export default function MenuBar({
             <span>{item.label}</span>
             <span className="ml-2 text-slate-400 dark:text-slate-500">›</span>
           </div>
-          <div className="absolute left-full top-0 z-50 hidden w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-xl group-hover/item:block dark:border-slate-800 dark:bg-slate-900">
+          <div className="absolute left-full top-0 z-50 hidden w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-xl group-hover/item:block dark:border-slate-800 dark:bg-slate-900">
             {item.children.map((child) => (
               <button
                 key={child.key}
@@ -116,9 +117,12 @@ export default function MenuBar({
                   setOpen(null);
                   child.action?.();
                 }}
-                className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               >
-                {child.label}
+                <span>{child.label}</span>
+                {child.shortcut && (
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500">{child.shortcut}</span>
+                )}
               </button>
             ))}
           </div>
@@ -133,9 +137,12 @@ export default function MenuBar({
           setOpen(null);
           item.action?.();
         }}
-        className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
       >
-        {item.label}
+        <span>{item.label}</span>
+        {item.shortcut && (
+          <span className="text-[9px] text-slate-400 dark:text-slate-500">{item.shortcut}</span>
+        )}
       </button>
     );
   };
