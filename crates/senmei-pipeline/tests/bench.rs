@@ -1,6 +1,6 @@
 //! Real-GPU benchmark for the selected upscaler at 1080p.
 //! Run with: cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture
-//! Model selectable via BENCH_MODEL (default: shuffle-cugan).
+//! Model selectable via BENCH_MODEL (default: real-cugan-x2).
 
 use std::time::Instant;
 
@@ -9,8 +9,8 @@ use senmei_pipeline::Step;
 
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
-fn bench_shufflecugan_1080p_fullframe() {
-    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "shuffle-cugan".to_string());
+fn bench_upscaler_1080p_fullframe() {
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let models_dir = std::path::PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../models"
@@ -38,7 +38,7 @@ fn bench_shufflecugan_1080p_fullframe() {
 
     let mut registry = senmei_ml::Registry::new();
     registry.load_dir(&models_dir).unwrap();
-    let mref = registry.resolve("shuffle-cugan", &models_dir).unwrap();
+    let mref = registry.resolve(&model_id, &models_dir).unwrap();
     let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
     engine.load(&mref).unwrap();
 
@@ -107,7 +107,7 @@ fn bench_shufflecugan_1080p_fullframe() {
 #[test]
 #[ignore = "benchmark: requires Vulkan + ShuffleCugan bpk + ffmpeg"]
 fn bench_pipeline_full_render() {
-    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "shuffle-cugan".to_string());
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let models_dir = std::path::PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../models"

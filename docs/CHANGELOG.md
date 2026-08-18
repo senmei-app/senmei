@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Model registry: drop SUDO shuffle-cugan, add Fallin + 4x_Alchemy (2026-08-18)** —
+  removed `shuffle-cugan` (unclear/SUDO weights). Added `fallin-soft` /
+  `fallin-strong` (2× CUGAN retrain, CC-BY-4.0, ONNX-only, sha256-pinned) and
+  `4x-alchemy` (4× RealPLKSR_Dysample, CC-BY-4.0, `.pth`) — all `loadable: false`
+  until their archs are ported. The default upscaler is now `real-cugan-x2`
+  (Apache-2.0). Bench/test defaults updated.
+
 - **Sample output + compare sync (2026-08-18)** — sample renders go into the
   project's `sample/` folder with a time-range tag in the name (pruned to the 5
   newest); the sample window follows the playhead (scrub outside it repositions

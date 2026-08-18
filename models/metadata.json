@@ -1,15 +1,41 @@
 [
   {
-    "id": "shuffle-cugan",
+    "id": "fallin-soft",
     "kind": "upscale",
     "scale": 2,
-    "arch": "upcunet2x-fast",
-    "weights": ["sudo_shuffle_cugan_9.584.969.pth.f16.bpk"],
-    "license": "unclear (SUDO) - prototype opt-in",
-    "source_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/tag/models",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/sudo_shuffle_cugan_9.584.969.pth",
-    "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "fastest variant (46/103 ms @720p/1080p); license unclear - maintainer opted in for the prototype" }
+    "arch": "fallin-cugan",
+    "weights": ["2x_Fallin_soft_renarchi_fp16.onnx"],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
+    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_soft_renarchi_fp16.onnx",
+    "sha256": "17a4c0c6af5a187389f52a9bd026553a8819f148b70dea1a242d1517a352dfec",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); ONNX-only — arch via burn-onnx codegen pending" }
+  },
+  {
+    "id": "fallin-strong",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "fallin-cugan",
+    "weights": ["2x_Fallin_strong_renarchi_fp16.onnx"],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
+    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_strong_renarchi_fp16.onnx",
+    "sha256": "f3d636e298a22fd54ad66571e74f6c91afc6cc7929799d224dc6ebb864c128df",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; ONNX-only — arch via burn-onnx codegen pending" }
+  },
+  {
+    "id": "4x-alchemy",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": ["4x_Alchemy.pth.f16.bpk"],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/4x_Alchemy",
+    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/4x_Alchemy/4x_Alchemy.pth",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true, "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0, .pth); shares the real-plksr arch with the decompress models — port pending" }
   },
   {
     "id": "real-cugan-x2",
