@@ -30,6 +30,7 @@ export default function MenuBar({
   onAddSelectedToQueue,
   onProcessSelected,
   onProcessAll,
+  onToggleFullscreen,
 }: {
   onImportFile: () => void;
   onImportFolder: () => void;
@@ -44,6 +45,7 @@ export default function MenuBar({
   onAddSelectedToQueue: () => void;
   onProcessSelected: () => void;
   onProcessAll: () => void;
+  onToggleFullscreen: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
@@ -74,6 +76,11 @@ export default function MenuBar({
         { key: "select-all", label: t("menu.selectAll"), shortcut: "Ctrl+A", action: onSelectAll },
         { key: "delete-selected", label: t("menu.deleteSelected"), shortcut: "Delete", action: onDeleteSelected },
       ],
+    },
+    {
+      key: "view",
+      label: t("menu.view"),
+      items: [{ key: "full-video", label: t("menu.fullVideo"), action: onToggleFullscreen }],
     },
     {
       key: "process",
