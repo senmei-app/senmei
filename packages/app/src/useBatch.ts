@@ -27,6 +27,13 @@ function fmtTs(ms: number): string {
   return `${sec}s`;
 }
 
+// Show only the actionable tail of a render error in the status bar; the full
+// message stays in the job tooltip and the Logs panel.
+function shortReason(msg: string): string {
+  const last = msg.split("\n").filter(Boolean).pop() ?? msg;
+  return last.length > 160 ? `${last.slice(0, 160)}…` : last;
+}
+
 export interface UseBatchDeps {
   files: string[];
   selected: string[];
@@ -167,7 +174,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
             break; // stop the batch
           }
           patch(i, { status: "failed", error: msg });
-          if (isTauri()) onError(`render failed: ${msg}`);
+          if (isTauri()) onError(`render failed: ${shortReason(msg)}`);
           // continue with the next file
         }
       }
