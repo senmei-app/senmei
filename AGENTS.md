@@ -11,7 +11,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Frontend:** React + TypeScript + Vite · package manager `bun` · Base UI + Tailwind + lucide-react
 - **Inference:** burn (`burn-wgpu`) on the **Vulkan backend, fp16**, CPU fallback — **no libtorch, no ONNX Runtime, no TorchScript, no candle, no ncnn**
 - **Preview:** native `<video>` where the webview can load the file (hardware decode; H.264/AAC), FFmpeg-decoded frame fallback for everything else (codec-agnostic, incl. H.265) + `<audio>` (AAC/Opus) — **no WebGPU/WASM**
-- **Media:** FFmpeg as subprocess with `rawvideo` pipe · source: **system FFmpeg preferred, portable download fallback** (BtbN builds, GPL — separate process, not bundled/linked)
+- **Media:** FFmpeg as subprocess with `rawvideo` pipe · source: **system FFmpeg preferred, portable download fallback** (pinned BtbN **LGPL** builds, dated tag + SHA — separate process, not bundled/linked; encoder picks LGPL-safe HEVC `libkvazaar`, H.264 fallbacks, no GPL `libx264` by default)
 - **Pipeline:** composable `Vec<Step>` (`Upscale` + `Resize`) + a stateful interpolation stage (`Interpolator`) that emits blended intermediates (or duplicates across scene cuts) before the step chain
 - **License:** MIT OR Apache-2.0 · FFmpeg only as **LGPL build**
 - **Model arch = clean re-implementation** (engine-agnostic: applies to any

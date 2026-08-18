@@ -9,8 +9,14 @@ use crate::{Error, Result};
 
 const ENV_PATH: &str = "SENMEI_FFMPEG";
 const ARCHIVE_DIR: &str = "temp";
-// SHA-256 of the pinned BtbN build; update when bumping the download.
-const FFMPEG_SHA256: &str = "e0ae9c7c76dd029457ac54d8d6f95742bd398c8ed5ac434ad313a1e99136278e";
+// Pinned BtbN LGPL builds (autobuild 2026-08-17, N-126188) — LGPL-only per the
+// license policy (no GPL components, so no libx264; the encoder picks
+// libopenh264 instead). Pinned to a dated tag so the SHA is stable; bump URL
+// and SHA together.
+const LINUX_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-linux64-lgpl.tar.xz";
+const LINUX_LGPL_SHA256: &str = "0afc3d4d9728587ae1a4af1062c80f11dfdf82833b003b0f4fdf8027e9bf5c53";
+const WINDOWS_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-win64-lgpl.zip";
+const WINDOWS_LGPL_SHA256: &str = "fdf4fcb4797762e8b4cc3eccdedfedad1e4a345fe9bd8f6a44a20ebf57718c7a";
 
 fn system_ffmpeg_works() -> bool {
     Command::new("ffmpeg")
@@ -89,20 +95,18 @@ pub fn probe(ffmpeg: &Path) -> FfmpegInfo {
     }
 }
 
-fn archive_url() -> Option<&'static str> {
+fn archive() -> Option<(&'static str, &'static str)> {
     match std::env::consts::OS {
-        "linux" if std::env::consts::ARCH == "x86_64" => Some(
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
-        ),
-        "windows" if std::env::consts::ARCH == "x86_64" => Some(
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-        ),
+        "linux" if std::env::consts::ARCH == "x86_64" => Some((LINUX_LGPL_URL, LINUX_LGPL_SHA256)),
+        "windows" if std::env::consts::ARCH == "x86_64" => {
+            Some((WINDOWS_LGPL_URL, WINDOWS_LGPL_SHA256))
+        }
         _ => None,
     }
 }
 
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
-    let url = archive_url().ok_or_else(|| {
+    let (url, sha256) = archive().ok_or_else(|| {
         Error::Command("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
     })?;
     log::info!("ffmpeg download from {url}");
@@ -111,7 +115,7 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
         url,
         &data_dir.join(ARCHIVE_DIR),
         url.rsplit('/').next().unwrap_or("ffmpeg-archive"),
-        Some(FFMPEG_SHA256),
+        Some(sha256),
         &mut on_progress,
     )?;
 
