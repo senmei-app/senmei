@@ -431,8 +431,12 @@ export default function App() {
   // Batch render: one render per file, sequentially. A single file is just a
   // batch of one. Errors mark the job failed and continue; cancel stops after
   // the current file; pause freezes the running file.
-  const startBatch = async (onlySelected = false, range?: { inMs: number; outMs: number } | null) => {
-    const inputs = onlySelected ? files.filter((f) => selected.includes(f)) : files;
+  const startBatch = async (
+    onlySelected = false,
+    range?: { inMs: number; outMs: number } | null,
+    explicit: string[] | null = null,
+  ) => {
+    const inputs = explicit ?? (onlySelected ? files.filter((f) => selected.includes(f)) : files);
     if (!inputs.length || rendering) return;
     const outs = steps.filter((s) => s.enabled && s.stepType === "output");
     const lastOut = outs.length ? outs[outs.length - 1] : undefined;
@@ -606,7 +610,7 @@ export default function App() {
                   sampleInMs={sampleRange?.inMs ?? 0}
                   sampleOutMs={sampleRange?.outMs ?? 0}
                   onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
-                  onRenderSample={() => void startBatch(false, sampleRange)}
+                  onRenderSample={() => currentFile && void startBatch(false, sampleRange, [currentFile])}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
