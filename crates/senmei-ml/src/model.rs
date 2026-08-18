@@ -46,6 +46,24 @@ fn default_true() -> bool {
     true
 }
 
+impl ModelMetadata {
+    /// Whether the license blocks download/use. Blocks pending-review markers
+    /// (`verify`/`unclear`) and copyleft / non-commercial licenses regardless
+    /// of the `loadable` flag — the review gate must never auto-unlock an
+    /// unclear license. Missing license → blocked.
+    pub fn license_blocked(&self) -> bool {
+        let Some(lic) = self.license.as_deref() else {
+            return true;
+        };
+        let lic = lic.to_ascii_lowercase();
+        [
+            "verify", "unclear", "gpl", "lgpl", "agpl", "cc-by-nc", "cc-by-nd", "cc-by-sa",
+        ]
+        .iter()
+        .any(|b| lic.contains(b))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ModelRef {
     pub id: String,
@@ -175,5 +193,30 @@ mod tests {
         assert_eq!(mref.num_block, 6);
         assert_eq!(mref.path, Path::new("/models/span.pth"));
         assert!(registry.resolve("missing", Path::new("/models")).is_none());
+    }
+
+    #[test]
+    fn license_gate_blocks_unclear_and_copyleft() {
+        let mk = |license: Option<&str>| ModelMetadata {
+            id: "m".into(),
+            kind: ModelKind::Upscale,
+            scale: 2,
+            arch: "upcunet2x".into(),
+            weights: None,
+            license: license.map(str::to_string),
+            source_url: None,
+            download_url: None,
+            sha256: None,
+            loadable: true, // loadable alone must NOT unlock (review gate)
+            metadata: serde_json::Value::Null,
+        };
+        assert!(mk(Some("verify (cszn)")).license_blocked());
+        assert!(mk(Some("unclear")).license_blocked());
+        assert!(mk(Some("GPL-3.0")).license_blocked());
+        assert!(mk(Some("CC-BY-NC-4.0")).license_blocked());
+        assert!(mk(None).license_blocked());
+        assert!(!mk(Some("MIT")).license_blocked());
+        assert!(!mk(Some("Apache-2.0")).license_blocked());
+        assert!(!mk(Some("CC-BY-4.0")).license_blocked());
     }
 }

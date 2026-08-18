@@ -90,6 +90,12 @@ pub async fn download_model(
         .resolve(&model_id, &dir)
         .map(|m| m.num_block)
         .unwrap_or(4);
+    if meta.license_blocked() {
+        return Err(format!(
+            "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
+            meta.license.as_deref().unwrap_or("none")
+        ));
+    }
     if !meta.loadable {
         return Err(format!("model {model_id} has no loadable arch yet"));
     }
@@ -442,6 +448,12 @@ fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine
         .iter()
         .find(|m| m.id == model_id)
         .ok_or_else(|| format!("model not found: {model_id}"))?;
+    if meta.license_blocked() {
+        return Err(format!(
+            "model {model_id} has an unconfirmed/restrictive license ({}); refusing to load weights",
+            meta.license.as_deref().unwrap_or("none")
+        ));
+    }
     if !meta.loadable {
         return Err(format!("model {model_id} has no loadable weights yet"));
     }
