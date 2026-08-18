@@ -34,8 +34,8 @@
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/4x_Alchemy",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/4x_Alchemy/4x_Alchemy.pth",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0, .pth); shares the real-plksr arch with the decompress models — port pending" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "dysample": true, "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0); clean burn port verified vs torch (mae ~0.002). The raw .pth stores weights channels-last (non-contiguous) — convert from a .contiguous()-fixed copy (see senmei-ml-convert)." }
   },
   {
     "id": "real-cugan-x2",
@@ -102,25 +102,25 @@
     "kind": "decompress",
     "scale": 1,
     "arch": "real-plksr",
-    "weights": ["1xDeH264_realplksr.pth"],
+    "weights": ["1xDeH264_realplksr.pth.f16.bpk"],
     "license": "verify (Phhofm)",
     "source_url": "https://github.com/Phhofm/models",
     "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeH264_realplksr.pth",
     "sha256": "92829754924fbcf944acf5d09e9cfd1cb3d1f2ee67a208a9921c1c0e4d74d6e7",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "arch port pending; license check required" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "dysample": false, "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); license still pending review so download stays gated" }
   },
   {
     "id": "real-plksr-dejpg",
     "kind": "decompress",
     "scale": 1,
     "arch": "real-plksr",
-    "weights": ["1xDeJPG_realplksr_otf.pth"],
+    "weights": ["1xDeJPG_realplksr_otf.pth.f16.bpk"],
     "license": "verify (Phhofm)",
     "source_url": "https://github.com/Phhofm/models",
     "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeJPG_realplksr_otf.pth",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "arch port pending; license check required" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "dysample": false, "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); license still pending review so download stays gated" }
   },
   {
     "id": "anime1080fixer",

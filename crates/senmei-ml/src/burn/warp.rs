@@ -1,25 +1,50 @@
 //! Bilinear grid sampling (`torch.nn.functional.grid_sample`) for burn.
 //!
-//! Mirrors the semantics RIFE relies on: `align_corners=True`,
-//! `padding_mode='border'`. The warp is built from `gather` over the H/W
-//! dims with per-corner index tensors; the four samples are combined with
-//! the bilinear weights.
+//! Mirrors torch grid_sample with `padding_mode='border'` and a selectable
+//! `align_corners` (RIFE uses `true`, RealPLKSR's DySample tail uses `false`).
+//! The output spatial size follows the grid, so upsampling grids work. The
+//! warp is built from `gather` over the flattened spatial axis with per-corner
+//! index tensors; the four samples are combined with the bilinear weights.
 
 use burn::tensor::backend::Backend;
 use burn::tensor::{IntDType, Tensor};
 
 /// Sample `input` at the normalized grid coordinates `grid` (in [-1,1], xy).
-/// `grid` must have the same spatial size as `input`.
+/// `align_corners=true` (torch default; RIFE).
 pub fn grid_sample<B: Backend>(input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
+    grid_sample_with(input, grid, true)
+}
+
+/// `grid_sample` with selectable `align_corners` (false = DySample).
+pub fn grid_sample_with<B: Backend>(
+    input: Tensor<B, 4>,
+    grid: Tensor<B, 4>,
+    align_corners: bool,
+) -> Tensor<B, 4> {
     let [n, c, h, w] = input.dims();
     let [gh, gw] = [grid.dims()[1], grid.dims()[2]];
-    debug_assert_eq!((gh, gw), (h, w), "grid_sample grid must match input spatial size");
 
-    // grid: [N,H,W,2] (x, y in [-1,1]) -> pixel coords, align_corners=True.
-    let gx = grid.clone().slice([0..n, 0..gh, 0..gw, 0..1]).reshape([n, gh, gw]).unsqueeze_dim(1);
-    let gy = grid.slice([0..n, 0..gh, 0..gw, 1..2]).reshape([n, gh, gw]).unsqueeze_dim(1);
-    let x = (gx.clone() + 1.0) / 2.0 * ((w - 1) as f64);
-    let y = (gy.clone() + 1.0) / 2.0 * ((h - 1) as f64);
+    // grid: [N,GH,GW,2] (x, y in [-1,1]) -> pixel coords, border-clamped.
+    let gx = grid
+        .clone()
+        .slice([0..n, 0..gh, 0..gw, 0..1])
+        .reshape([n, gh, gw])
+        .unsqueeze_dim(1);
+    let gy = grid
+        .slice([0..n, 0..gh, 0..gw, 1..2])
+        .reshape([n, gh, gw])
+        .unsqueeze_dim(1);
+    let (x, y) = if align_corners {
+        (
+            (gx + 1.0) / 2.0 * ((w - 1) as f64),
+            (gy + 1.0) / 2.0 * ((h - 1) as f64),
+        )
+    } else {
+        ((gx + 1.0) / 2.0 * (w as f64) - 0.5, (gy + 1.0) / 2.0 * (h as f64) - 0.5)
+    };
+    // border: clamp the coordinate to [0, size-1] before flooring (torch grid_sampler).
+    let x = x.clamp(0.0, (w - 1) as f64);
+    let y = y.clamp(0.0, (h - 1) as f64);
 
     let x0f = x.clone().floor();
     let y0f = y.clone().floor();
@@ -40,10 +65,10 @@ pub fn grid_sample<B: Backend>(input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tenso
     let input_flat = input.reshape([n * c, h * w]);
     let corner = |yo: Tensor<B, 4, burn::tensor::Int>, xo: Tensor<B, 4, burn::tensor::Int>| {
         let flat = (yo * (w as i64) + xo)
-            .reshape([n, 1, h * w])
+            .reshape([n, 1, gh * gw])
             .repeat_dim(1, c)
-            .reshape([n * c, h * w]);
-        input_flat.clone().gather(1, flat).reshape([n, c, h, w])
+            .reshape([n * c, gh * gw]);
+        input_flat.clone().gather(1, flat).reshape([n, c, gh, gw])
     };
 
     let i00 = corner(y0.clone(), x0.clone());
@@ -59,15 +84,33 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor as BurnTensor, TensorData};
 
-    /// CPU reference mirroring torch grid_sample (align_corners=True, border).
-    fn ref_grid_sample(input: &[f32], n: usize, c: usize, h: usize, w: usize, grid: &[f32]) -> Vec<f32> {
-        let mut out = vec![0.0f32; n * c * h * w];
+    /// CPU reference mirroring torch grid_sample (border padding).
+    fn ref_grid_sample(
+        input: &[f32],
+        n: usize,
+        c: usize,
+        h: usize,
+        w: usize,
+        gh: usize,
+        gw: usize,
+        grid: &[f32],
+        align_corners: bool,
+    ) -> Vec<f32> {
+        let mut out = vec![0.0f32; n * c * gh * gw];
+        let coord = |g: f32, size: usize| {
+            let px = if align_corners {
+                (g + 1.0) / 2.0 * (size as f32 - 1.0)
+            } else {
+                (g + 1.0) / 2.0 * size as f32 - 0.5
+            };
+            px.clamp(0.0, size as f32 - 1.0)
+        };
         for ni in 0..n {
-            for oy in 0..h {
-                for ox in 0..w {
-                    let gi = ((ni * h + oy) * w + ox) * 2;
-                    let x = (grid[gi] + 1.0) / 2.0 * (w as f32 - 1.0);
-                    let y = (grid[gi + 1] + 1.0) / 2.0 * (h as f32 - 1.0);
+            for oy in 0..gh {
+                for ox in 0..gw {
+                    let gi = ((ni * gh + oy) * gw + ox) * 2;
+                    let x = coord(grid[gi], w);
+                    let y = coord(grid[gi + 1], h);
                     let (x0, y0) = (x.floor(), y.floor());
                     let (x1, y1) = (x0 + 1.0, y0 + 1.0);
                     let (wx1, wy1) = (x - x0, y - y0);
@@ -80,7 +123,7 @@ mod tests {
                             + wx1 * wy0 * src(iy0, ix1)
                             + wx0 * wy1 * src(iy1, ix0)
                             + wx1 * wy1 * src(iy1, ix1);
-                        out[((ni * c + ci) * h + oy) * w + ox] = v;
+                        out[((ni * c + ci) * gh + oy) * gw + ox] = v;
                     }
                 }
             }
@@ -117,28 +160,21 @@ mod tests {
         check("i10", &i10.into_data().to_vec().unwrap(), 2.0);
         check("i11", &i11.into_data().to_vec().unwrap(), 3.0);
 
-        // same gathers, but with indices repeated across a channel dim (as in
-        // grid_sample, which uses repeat_dim instead of expand for gather).
-        let idx = |v: i32| TensorData::new(vec![v; 4], [1, 1, 2, 2]);
-        let r = |t: BurnTensor<Vulkan<f32>, 4, Int>| t.repeat_dim(1, 3);
-        let (y0, y1, x0, x1) = (
-            BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(0), &device),
-            BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(1), &device),
-            BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(0), &device),
-            BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(1), &device),
-        );
-        let i00 = input.clone().gather(2, r(y0.clone())).gather(3, r(x0.clone()));
-        let i01 = input.clone().gather(2, r(y0)).gather(3, r(x1.clone()));
-        let i10 = input.clone().gather(2, r(y1.clone())).gather(3, r(x0));
-        let i11 = input.gather(2, r(y1)).gather(3, r(x1));
-        let g00: Vec<f32> = i00.into_data().to_vec().unwrap();
-        let g01: Vec<f32> = i01.into_data().to_vec().unwrap();
-        let g10: Vec<f32> = i10.into_data().to_vec().unwrap();
-        let g11: Vec<f32> = i11.into_data().to_vec().unwrap();
-        assert_eq!(g00, vec![0.0; 12], "repeated i00 should be 0 everywhere");
-        assert_eq!(g01, vec![1.0; 12], "repeated i01 should be 1 everywhere");
-        assert_eq!(g10, vec![2.0; 12], "repeated i10 should be 2 everywhere");
-        assert_eq!(g11, vec![3.0; 12], "repeated i11 should be 3 everywhere");
+        // The grid_sample gather pattern: flatten input to [N*C, H*W] and
+        // gather along the flattened spatial axis with flat indices y*W + x.
+        // (Chained dim gathers with a widened channel dim don't work — burn's
+        // gather requires matching non-gather dims.)
+        let input_flat = input.reshape([1, 4]); // [1*1, 2*2]
+        let flat = |y: i32, x: i32| TensorData::new(vec![y * 2 + x; 4], [1, 4]);
+        let idx = |y: i32, x: i32| BurnTensor::<Vulkan<f32>, 2, Int>::from_ints(flat(y, x), &device);
+        let i00 = input_flat.clone().gather(1, idx(0, 0));
+        let i01 = input_flat.clone().gather(1, idx(0, 1));
+        let i10 = input_flat.clone().gather(1, idx(1, 0));
+        let i11 = input_flat.gather(1, idx(1, 1));
+        check("flat i00", &i00.into_data().to_vec().unwrap(), 0.0);
+        check("flat i01", &i01.into_data().to_vec().unwrap(), 1.0);
+        check("flat i10", &i10.into_data().to_vec().unwrap(), 2.0);
+        check("flat i11", &i11.into_data().to_vec().unwrap(), 3.0);
     }
 
     #[test]
@@ -163,7 +199,37 @@ mod tests {
 
         let out = grid_sample(x, g);
         let got: Vec<f32> = out.into_data().to_vec().unwrap();
-        let want = ref_grid_sample(&input, n, c, h, w, &grid);
+        let want = ref_grid_sample(&input, n, c, h, w, h, w, &grid, true);
+        assert_eq!(got.len(), want.len());
+        for (i, (a, b)) in got.iter().zip(&want).enumerate() {
+            assert!((a - b).abs() < 1e-3f32, "mismatch at {i}: burn {a} vs ref {b}");
+        }
+    }
+
+    #[test]
+    #[ignore = "requires Vulkan"]
+    fn grid_sample_align_false_upsamples() {
+        use burn_wgpu::{Vulkan, WgpuDevice};
+        let device = WgpuDevice::DiscreteGpu(0);
+        let (n, c, h, w) = (1usize, 3usize, 6usize, 8usize);
+        let (gh, gw) = (2 * h, 2 * w); // upsampled grid -> larger output
+        let input: Vec<f32> = (0..n * c * h * w).map(|i| ((i * 37) % 100) as f32 / 100.0).collect();
+        // grid in [-1.15, 1.15] (DySample coords may exceed [-1,1] slightly).
+        let grid: Vec<f32> = (0..n * gh * gw)
+            .map(|i| {
+                let x = ((i * 13) % 61) as f32 / 26.0 - 1.15;
+                let y = ((i * 7) % 59) as f32 / 25.0 - 1.15;
+                [x, y]
+            })
+            .flatten()
+            .collect();
+
+        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(input.clone(), [n, c, h, w]), &device);
+        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(TensorData::new(grid.clone(), [n, gh, gw, 2]), &device);
+
+        let out = grid_sample_with(x, g, false);
+        let got: Vec<f32> = out.into_data().to_vec().unwrap();
+        let want = ref_grid_sample(&input, n, c, h, w, gh, gw, &grid, false);
         assert_eq!(got.len(), want.len());
         for (i, (a, b)) in got.iter().zip(&want).enumerate() {
             assert!((a - b).abs() < 1e-3f32, "mismatch at {i}: burn {a} vs ref {b}");

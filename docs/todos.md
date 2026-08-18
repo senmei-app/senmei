@@ -65,7 +65,7 @@
 ## Models
 - [x] Fallin-Arch: burn-onnx-Codegen vs. Hand-Port (upcunet2x-Struktur) vergleichen → `fallin-soft`/`fallin-strong` loadable machen — Hand-Port gewinnt (Fallin = `UpCunet2x_fast`, Pad 38, numerisch gegen ONNX verifiziert)
 - [x] Laufzeit-ONNX→fp16-bpk-Import: `download_model` ONNX-fähig machen (onnx-ir-Parser, kein ONNX Runtime) — `senmei_ml::onnx` (dependency-frei) + `convert_onnx_to_bpk` + `download_model`-ONNX-Zweig
-- [ ] RealPLKSR-Arch portieren → `4x-alchemy` + `real-plksr-deh264/dejpg` loadable machen
+- [x] RealPLKSR-Arch portieren → `4x-alchemy` + `real-plksr-deh264/dejpg` loadable machen — clean burn-Port (dim 64/28 Blöcke/kernel 17/DySample), numerisch gegen torch verifiziert (1x mae ~0.002, 4x mae ~0.002). Zwei burn-bugs dabei gefunden & umgangen: f16-`div_scalar(65536)` → 0 (GroupNorm via `mean_dim` neu gebaut) und `repeat`/`reshape`-Interleaving (repeat_interleave explizit); DySample-`init_pos` exakt nach Referenz-Transformation. `4x_Alchemy.pth` ist channels-last (nicht contiguous) — burn-store ignoriert Strides (Bug 5), Converter braucht `.contiguous()`-Vorverarbeitung
 - [x] Bench: Fallin Soft/Strong gegen `real-cugan-x2` messen — fused step 1080p→2160p: real-cugan 380 ms/2.6 FPS/14.6 GB, fallin-soft 176 ms/5.7 FPS/8.1 GB, fallin-strong 177 ms/5.7 FPS/8.1 GB (dabei burn-fusion-Ordering-Panic in `infer_rgb8` gefunden & gefixt: f32-Rücklese statt u8/f16)
 - [ ] Follow-up: Feature-Request bei burn einreichen — „burn-store: ONNX-Initializer (weights-only) laden“, damit der eigene ONNX-Parser später durch burn-store ersetzt werden kann
 

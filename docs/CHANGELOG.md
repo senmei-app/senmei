@@ -4,6 +4,21 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ml: RealPLKSR port — 4x-alchemy + decompress models loadable (2026-08-18)** —
+  clean burn re-implementation of RealPLKSR (Partial Large Kernel CNNs for
+  Efficient Super-Resolution, arXiv 2404.11848; spandrel MIT reference):
+  head → 28 PLK blocks (DCCM + partial 17×17 conv + EA + GroupNorm) → tail,
+  with the DySample upsampler tail for the 4x model and a pixel-shuffle
+  identity for the 1x decompress models. Numerically verified against torch
+  on deterministic inputs (deh264/dejpg 1x mae ~0.002 / ~0.0002, alchemy 4x
+  mae ~0.002). Two burn-wgpu findings worked around along the way: f16
+  `div_scalar(65536)` underflows to 0 (GroupNorm rebuilt on `mean_dim`,
+  docs/burn-bugs.md Bug 4) and `repeat`/`reshape` interleaves copies wrongly
+  (`repeat_interleave` built explicitly). `4x_Alchemy.pth` stores weights
+  channels-last — burn-store ignores strides (docs/burn-bugs.md Bug 5), so
+  that conversion needs a `.contiguous()`-fixed pth. `warp.rs` grid sampling
+  generalized (align_corners selectable, arbitrary output size).
+
 - **ui: keyboard shortcuts (2026-08-18)** — Ctrl/Cmd+O imports a file, +A
   selects all, +E exports the project, +R renders, Delete removes the
   selection, Space toggles monitor play/pause. Shortcut hints are shown in the
