@@ -144,6 +144,30 @@
     "source_url": "https://github.com/nihui/rife-ncnn-vulkan",
     "loadable": true,
     "metadata": { "input_range": "0..1", "half": true, "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin" }
+  },
+  {
+    "id": "ifrnet-vimeo90k",
+    "kind": "interpolate",
+    "scale": 1,
+    "arch": "ifrnet",
+    "weights": ["IFRNet_Vimeo90K.pth.f16.bpk"],
+    "license": "MIT",
+    "source_url": "https://github.com/ltkong218/IFRNet",
+    "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port; arch in place, GPU verify pending" }
+  },
+  {
+    "id": "ifrnet-gopro",
+    "kind": "interpolate",
+    "scale": 1,
+    "arch": "ifrnet",
+    "weights": ["IFRNet_GoPro.pth.f16.bpk"],
+    "license": "MIT",
+    "source_url": "https://github.com/ltkong218/IFRNet",
+    "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
+    "loadable": false,
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port; arch in place, GPU verify pending" }
   }
 ]
 

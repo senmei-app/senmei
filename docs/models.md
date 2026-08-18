@@ -92,7 +92,7 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
 |---|---|---|---|
 | Interpolation | RIFE v4.6 Varianten (Lite/Fast/Max/S, Anime-Finetunes) | MIT ok | **adoptieren** (Arch vorhanden) |
 | Interpolation | GMFSS_Fortuna („union", Anime) | MIT (Repo verifiziert) · GDrive verify | **adoptieren** |
-| Interpolation | IFRNet (Vimeo90K / GoPro) | MIT (HF-Reuploads, direkte URLs) | **adoptieren** (leicht, konv) |
+| Interpolation | IFRNet (Vimeo90K / GoPro) | MIT (HF-Reuploads, direkte URLs) | **adoptieren** (Arch-Port in place, GPU-verify pending) |
 | Interpolation | EMA-VFI | MIT Code · Weights verify | nur falls (Cross-Frame-Attention) |
 | Interpolation | AnimeInterp | MIT Code · Weights verify | nur falls |
 | Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |

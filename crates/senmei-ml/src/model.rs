@@ -153,13 +153,13 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 12);
+        assert_eq!(registry.models().len(), 14);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
         assert!(registry.models()[1].loadable);
         assert_eq!(registry.models()[2].id, "4x-alchemy");
-        assert!(!registry.models()[2].loadable);
+        assert!(registry.models()[2].loadable);
         assert_eq!(registry.models()[3].id, "real-cugan-x2");
         assert!(matches!(registry.models()[3].kind, ModelKind::Upscale));
         assert_eq!(registry.models()[3].scale, 2);
@@ -177,6 +177,12 @@ mod tests {
         assert!(matches!(registry.models()[11].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[11].arch, "rife46");
         assert!(registry.models()[11].loadable);
+        assert_eq!(registry.models()[12].id, "ifrnet-vimeo90k");
+        assert_eq!(registry.models()[13].id, "ifrnet-gopro");
+        assert!(matches!(registry.models()[12].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[12].arch, "ifrnet");
+        assert!(!registry.models()[12].loadable);
+        assert_eq!(registry.models()[12].license.as_deref(), Some("MIT"));
     }
 
     #[test]

@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: IFRNet burn-Arch-Port (2026-08-18)** — `burn/ifrnet.rs`: Base-Variante
+  (ltkong218, MIT) als sauberer Nachbau — 2× geteilter 4-Level-Encoder, vier
+  coarse-to-fine Decoder (bilinear, kein GRU), Side-Channel-ResBlock, eigene
+  PReLU-Implementierung (fehlt in burn 0.21), geteiltes `warp`/`grid_sample`.
+  Engine-Dispatch (`Model::IfrNet`, Interp-Pfad pad 16), `senmei-ml-convert`
+  `ifrnet`-Arch (Capture-Group-Key-Remap), Registry-Einträge
+  `ifrnet-vimeo90k`/`ifrnet-gopro` (MIT, HF-URLs). `loadable: false` bis
+  GPU-verify.
+
 - **docs: IFRNet-Weights verifiziert (2026-08-18)** — offizielle Checkpoints
   (Vimeo90K + GoPro, je 19.9 MB, MIT) via `pavlichenko/ifrnet_*` auf Hugging
   Face mit direkten resolve-URLs; „Weights verify / Repo-URL verify" im
