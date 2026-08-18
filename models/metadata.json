@@ -155,7 +155,7 @@
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port; arch in place, GPU verify pending" }
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified when unfused; BLOCKED by burn-fusion bug (docs/burn-bugs.md Bug 6, ResBlock side-channel)" }
   },
   {
     "id": "ifrnet-gopro",
@@ -167,7 +167,7 @@
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port; arch in place, GPU verify pending" }
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified when unfused; BLOCKED by burn-fusion bug (docs/burn-bugs.md Bug 6, ResBlock side-channel)" }
   }
 ]
 
