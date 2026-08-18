@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Ranged renders: stable timestamps + container duration (2026-08-18)** — the
+  encoder passes `-copyts` so the piped video keeps its 0-based PTS (the muxer
+  no longer shifts it by the seeked-and-copied audio start, which broke
+  compare/result alignment) and `-shortest` so copied audio cannot over-run a
+  ranged render (the container duration no longer over-reports).
+
 - **Persistent preview decode + PNG frames (2026-08-18)** — `senmei-media` keeps
   one long-lived ffmpeg decode stream per file (`PreviewCache`), so the monitor
   reads the next frame from the pipe instead of spawning ffmpeg per frame.
