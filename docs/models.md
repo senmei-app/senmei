@@ -94,14 +94,17 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
 | Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |
 | Interpolation | AMT | MIT Code · Weights verify | **nein** (Transformer) |
 | Denoise | SCUNet Real (GAN/PSNR) | Apache-2.0 (Arch + Weights verifiziert) | **adoptieren** (Swin-Hybrid-Port) |
-| Denoise | DRUNet (DPIR) | MIT (KAIR v1.0 verifiziert) | **adoptieren** (Konv, einfach) |
-| Denoise | DnCNN / FFDNet | cszn verify | **adoptieren** (trivial) |
-| Denoise | NAFNet | MIT (verifiziert) | nur falls (PSNR-orientiert) |
+| Denoise | DRUNet (DPIR) | MIT (KAIR v1.0: `drunet_color/gray`, deblocking) | **adoptieren** (Konv, einfach) |
+| Denoise | DnCNN / FFDNet | MIT (KAIR v1.0: `dncnn_*`, `ffdnet_*`) | **adoptieren** (trivial) |
+| Denoise | NAFNet | MIT (SIDD/GoPro/REDS weights verfügbar) | nur falls (PSNR-orientiert) |
+| Denoise | IRCNN | MIT (KAIR v1.0) | nur falls (denoise/deblur/deblock) |
 | Denoise | FBCNN | verify | nur falls (DeJPEG-Redundanz) |
 | Denoise | VRT / RVRT | verify · nicht in spandrel | **nein** (temporal/Transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 ok | **adoptieren** (SRVGGNetCompact-Port) |
-| Restoration | BSRGAN | cszn verify | **adoptieren** (RRDBNet vorhanden) |
+| Deblur | NAFNet-GoPro / Baseline | MIT (verifiziert) | nur falls (Deblur-Stack noch CPU-only) |
+| Restoration | BSRGAN / BSRNet | MIT (KAIR v1.0) | **adoptieren** (RRDBNet vorhanden) |
 | Restoration | Anime1080Fixer | verify | **adoptieren** (RRDBNet vorhanden) |
+| Restoration | IMDN x4 | MIT (KAIR v1.0) | nur falls (leichtgewichtig) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 (verifiziert) | **adoptieren** |
 | Restoration | SPAN | Apache-2.0 (verifiziert) | **adoptieren** |
 | Restoration | USRNet / USRGAN | MIT (verifiziert) | nur falls (non-blind: Kernel + Noise-Level nötig) |

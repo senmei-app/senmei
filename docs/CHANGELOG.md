@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: KAIR v1.0 + NAFNet Modelle gesichtet (2026-08-18)** — weitere
+  permissive Weights im Backlog: DRUNet/DnCNN/FFDNet/IRCNN/BSRGAN/IMDN
+  (alle MIT via KAIR v1.0, direkte Download-URLs), NAFNet SIDD/GoPro/REDS
+  (MIT). Erster neuronaler Deblur-Kandidat (NAFNet-GoPro) notiert.
+
 - **docs: Lizenzen für Denoise/Restoration geklärt (2026-08-18)** — SCUNet
   **Apache-2.0** (in `metadata.json` + `models.md` eingetragen → nicht mehr
   lizenz-geblockt; Arch-Port bleibt offen), DRUNet (DPIR) **MIT** via KAIR
