@@ -4,6 +4,10 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: meaningful dedup controls (2026-08-18)** — the deduplication step now
+  has mode presets (Off / Standard / Aggressive), a threshold slider with a
+  live percent readout, and a one-line explanation instead of a bare slider.
+
 - **ui: full-video monitor mode via native WebKit fullscreen (2026-08-18)** —
   double-click on the monitor view opens it fullscreen via the HTML Fullscreen
   API (`requestFullscreen` on the monitor element, supported by WebKitGTK) —
