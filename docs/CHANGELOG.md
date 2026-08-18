@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: CPU-Steps verarbeiten packed `rgb24` statt planar (2026-08-18)** —
+  `Denoise`/`Deblur`/`Resize` sliceten `Frame.data` als planare RGB-Ebenen,
+  aber Decoder/Encoder arbeiten mit packed `rgb24`. Dadurch mischte der
+  Denoiser die Kanäle: „Render Sample" driftete mit aktivem Upscaler
+  auseinander, Denoiser-only ergab Müll. Die Steps bluren/schärfen/resamplen
+  jetzt kanalgetrennt auf packed Daten; Regressionstests
+  `denoise_keeps_channels_separate`, `deblur_keeps_channels_separate`,
+  `resize_keeps_channels_separate` (schließt Maintainability-TODO).
+
 - **ui: „Render Sample" rendert nur das aktuelle Video (2026-08-18)** — der
   Sample-Button rief `startBatch(false, …)` auf und erzeugte Samples für die
   **ganze Queue** statt für das Video im Monitor. `startBatch` akzeptiert jetzt
