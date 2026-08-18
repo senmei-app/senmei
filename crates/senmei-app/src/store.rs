@@ -83,6 +83,9 @@ pub struct StepParams {
     pub color_transfer: Option<String>,
     #[serde(default)]
     pub color_matrix: Option<String>,
+    /// HDR→SDR tonemapping for the decode stage: "auto" | "always" | "off".
+    #[serde(default)]
+    pub tonemap: Option<String>,
     /// Output container/extension (e.g. "mp4", "mkv", "webm").
     #[serde(default)]
     pub container: Option<String>,

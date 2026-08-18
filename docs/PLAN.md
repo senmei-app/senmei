@@ -275,7 +275,7 @@ sequenceDiagram
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain | ✅ done |
 | **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (real-cugan-x2, e2e verified 1080p→2160p); NCNN plan superseded |
 | **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | ✅ RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
-| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 profiles + preview + audio/subtitles + color metadata done; true HDR→SDR tone-map needs a 16-bit decode path (follow-up) |
+| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | ✅ profiles + preview + audio/subtitles + color metadata + HDR→SDR tonemapping done |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | 🟡 live monitor + compare + timeline in/out sample presets done |
 | **M6** | **Engine** | decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**; no C++/ncnn shim | ✅ burn default, ncnn engine dropped |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks done; more models/backends pending |

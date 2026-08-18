@@ -90,7 +90,15 @@ export const demoVideos = [
 ];
 
 export function demoProbe(): VideoInfo {
-  return { width: 1920, height: 1080, fps: 23.976, duration: 1440, rotation: 0 };
+  return {
+    width: 1920,
+    height: 1080,
+    fps: 23.976,
+    duration: 1440,
+    rotation: 0,
+    colorTransfer: null,
+    colorPrimaries: null,
+  };
 }
 
 // 320x180 indigo frame (generated with ffmpeg) so the preview shows an image.

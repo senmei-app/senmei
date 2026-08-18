@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: HDR→SDR tonemapping (2026-08-18)** — `probe` liest `color_transfer`/
+  `color_primaries` und `VideoInfo::is_hdr()` erkennt PQ/HLG/DCI. Der Decoder
+  wendet bei HDR (oder `always`) eine zscale+tonemap-Filterkette an und
+  konvertiert korrekt nach SDR, bevor `rgb24` ausgegeben wird — vorher wurde
+  HDR beim Decode unkontrolliert geclippt. Neues Output-Step-Setting `tonemap`
+  (auto/always/off), durchgereicht über `RenderConfig` → `Pipeline::set_tonemap`
+  → `Decoder`. Tests: `hdr_detection` (Unit) + `hdr_source_is_detected_and_tonemapped`
+  (Integration, libx265-gated).
+
 - **feat: IFRNet burn-Arch-Port (2026-08-18)** — `burn/ifrnet.rs`: Base-Variante
   (ltkong218, MIT) als sauberer Nachbau — 2× geteilter 4-Level-Encoder, vier
   coarse-to-fine Decoder (bilinear, kein GRU), Side-Channel-ResBlock, eigene

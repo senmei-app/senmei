@@ -18,6 +18,7 @@ pub struct Pipeline {
     cancel: Arc<AtomicBool>,
     pause: Arc<AtomicBool>,
     encoder_args: Vec<String>,
+    tonemap: senmei_media::Tonemap,
     range: Option<(u64, Option<u64>)>,
 }
 
@@ -29,6 +30,7 @@ impl Pipeline {
             cancel: Arc::new(AtomicBool::new(false)),
             pause: Arc::new(AtomicBool::new(false)),
             encoder_args: Vec::new(),
+            tonemap: senmei_media::Tonemap::Auto,
             range: None,
         }
     }
@@ -41,6 +43,11 @@ impl Pipeline {
     /// Extra ffmpeg arguments appended to the output encode command.
     pub fn set_encoder_args(&mut self, args: Vec<String>) {
         self.encoder_args = args;
+    }
+
+    /// HDR→SDR tonemapping policy for the decode stage.
+    pub fn set_tonemap(&mut self, tonemap: senmei_media::Tonemap) {
+        self.tonemap = tonemap;
     }
 
     /// Install a cancellation flag; `run` aborts between frames once it is set.
@@ -67,7 +74,7 @@ impl Pipeline {
     ) -> Result<()> {
         log::info!("pipeline: decode/encode {input:?} -> {output:?}");
         let (start_ms, end_ms) = self.range.unwrap_or((0, None));
-        let mut decoder = Decoder::open_with_range(ffmpeg, input, start_ms, end_ms)?;
+        let mut decoder = Decoder::open_with_range(ffmpeg, input, start_ms, end_ms, self.tonemap)?;
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
         let total_frames = decoder.total_frames * factor;
         let fps = decoder.fps * factor as f64;

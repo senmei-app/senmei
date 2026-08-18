@@ -318,6 +318,8 @@ pub struct RenderConfig {
     pub interp_model: Option<String>,
     /// Pre-split ffmpeg args (the frontend parses the custom field).
     pub ffmpeg_args: Option<Vec<String>>,
+    /// HDR→SDR tonemapping: "auto" | "always" | "off" (default auto).
+    pub tonemap: Option<String>,
     /// Render only a time range (start ms, end ms; None end = to the end).
     pub start_ms: Option<u64>,
     pub end_ms: Option<u64>,
@@ -345,6 +347,7 @@ pub async fn render(
             fps_multiplier,
             interp_model,
             ffmpeg_args,
+            tonemap,
             start_ms,
             end_ms,
         } = config;
@@ -399,6 +402,13 @@ pub async fn render(
             if !args.is_empty() {
                 pipeline.set_encoder_args(args);
             }
+        }
+        if let Some(t) = tonemap {
+            pipeline.set_tonemap(match t.as_str() {
+                "always" => senmei_media::Tonemap::Always,
+                "off" => senmei_media::Tonemap::Off,
+                _ => senmei_media::Tonemap::Auto,
+            });
         }
         let cancel = CANCEL_RENDER
             .get_or_init(|| Arc::new(AtomicBool::new(false)))

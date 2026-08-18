@@ -121,6 +121,8 @@ export type RenderConfig = {
 	interpModel?: string | null,
 	/**  Pre-split ffmpeg args (the frontend parses the custom field). */
 	ffmpegArgs?: string[] | null,
+	/**  HDR→SDR tonemapping: "auto" | "always" | "off" (default auto). */
+	tonemap?: string | null,
 	/**  Render only a time range (start ms, end ms; None end = to the end). */
 	startMs?: number | null,
 	endMs?: number | null,
@@ -173,6 +175,8 @@ export type StepParams = {
 	colorPrimaries?: string | null,
 	colorTransfer?: string | null,
 	colorMatrix?: string | null,
+	/**  HDR→SDR tonemapping for the decode stage: "auto" | "always" | "off". */
+	tonemap?: string | null,
 	/**  Output container/extension (e.g. "mp4", "mkv", "webm"). */
 	container?: string | null,
 	/**  Output folder mode: "input" | "global" | "custom". */
@@ -190,5 +194,9 @@ export type VideoInfo = {
 	duration: number | null,
 	/**  Clockwise rotation needed for display, normalized to 0/90/180/270. */
 	rotation: number,
+	/**  Source color transfer characteristic (e.g. "smpte2084" = PQ). */
+	colorTransfer: string | null,
+	/**  Source color primaries (e.g. "bt2020"). */
+	colorPrimaries: string | null,
 };
 

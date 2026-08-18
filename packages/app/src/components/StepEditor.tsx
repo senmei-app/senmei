@@ -432,6 +432,18 @@ export default function StepEditor(props: StepEditorProps) {
                 ))}
               </select>,
             )}
+            {field(
+              t("output.tonemap"),
+              <select
+                value={s.params?.tonemap ?? "auto"}
+                onChange={(e) => updateParams(s.id, { tonemap: e.target.value })}
+                className={inputCls}
+              >
+                {["auto", "always", "off"].map((x) => (
+                  <option key={x} value={x}>{x}</option>
+                ))}
+              </select>,
+            )}
           </div>
           {field(
             t("output.audio"),

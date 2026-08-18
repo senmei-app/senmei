@@ -94,6 +94,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     const outInterpModel = interp ? (interp.params?.modelId ?? null) : null;
     const outFfmpegArgs = buildEncoderArgs(lastOut?.params, lastOut?.params?.ffmpegArgs ?? "");
+    const outTonemap = lastOut?.params?.tonemap ?? null;
     const outFilter = {
       denoiseRadius: dn ? (dn.params?.radius ?? null) : null,
       deblurAmount: db ? (db.params?.amount ?? null) : null,
@@ -108,6 +109,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       fpsMultiplier: outFps,
       interpModel: outInterpModel,
       ffmpegArgs: outFfmpegArgs,
+      tonemap: outTonemap,
       startMs: range?.inMs ?? null,
       endMs: range?.outMs ?? null,
     };

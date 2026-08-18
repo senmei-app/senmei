@@ -51,7 +51,14 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
         .success();
     assert!(ok, "failed to generate 1080p input");
     let ffmpeg = senmei_media::resolve(&dir);
-    let mut dec = senmei_media::Decoder::open_with_range(&ffmpeg, &input, 0, None).unwrap();
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ffmpeg,
+        &input,
+        0,
+        None,
+        senmei_media::Tonemap::Auto,
+    )
+    .unwrap();
     let mut frames = Vec::new();
     while let Some(f) = dec.next_frame().unwrap() {
         frames.push(f);

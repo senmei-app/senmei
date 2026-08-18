@@ -88,6 +88,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     colorPrimaries: "",
     colorTransfer: "",
     colorMatrix: "",
+    tonemap: "auto",
   },
 };
 

@@ -120,8 +120,13 @@ impl PreviewCache {
     }
 
     fn open(ffmpeg: &Path, input: &str, position_ms: f64) -> Result<PreviewStream> {
-        let decoder =
-            Decoder::open_with_range(ffmpeg, Path::new(input), position_ms.max(0.0) as u64, None)?;
+        let decoder = Decoder::open_with_range(
+            ffmpeg,
+            Path::new(input),
+            position_ms.max(0.0) as u64,
+            None,
+            crate::Tonemap::Auto,
+        )?;
         let frame_ms = 1000.0 / decoder.fps;
         let end_ms = (decoder.total_frames.max(1) as f64) / decoder.fps * 1000.0;
         Ok(PreviewStream {
