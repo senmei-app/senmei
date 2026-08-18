@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: full-video monitor mode via native WebKit fullscreen (2026-08-18)** —
+  double-click on the monitor view opens it fullscreen via the HTML Fullscreen
+  API (`requestFullscreen` on the monitor element, supported by WebKitGTK) —
+  the same video/frame instance stays mounted, so playback continues and no
+  second decoder runs underneath. Works in original / compare / result modes.
+  Exit via a second double-click, the ✕ button, or native Esc.
+
 - **perf: tiled-fused RGB8 overlap — tile/8 rejected (2026-08-18)** — tested
   `overlap = tile/4 → tile/8` on the fused RGB8 path (1080p, fallin-soft):
   regression to 394 ms / 2.5 FPS vs 329 ms / 3.0 FPS. With 512px tiles the
