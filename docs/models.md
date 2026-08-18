@@ -1,153 +1,77 @@
 # Model Adoption Notes
 
-Research & adoption matrix for ML models. Companion to `PLAN.md` §14 (licensing
-policy) and `models/metadata.json` (registry). Last verified: 2026-08-18.
+Adoption matrix for ML models. Companion to `PLAN.md` §14 (licensing) and
+`models/metadata.json` (registry). Last verified: 2026-08-19.
 
-Adoption rule (from `AGENTS.md`/`PLAN.md`): only permissive weights
-(BSD/MIT/Apache), never AGPL-derived (RVE/TAS off-limits). Weights and arch are
-separate licenses: a clean arch re-implementation does not relicense the
-weights. Each adopted model gets a `metadata.json` entry with license + source +
-download URL (+ sha256 where known).
-
-## Model flow (v3)
-
-- Inference stack: **burn (`burn-wgpu`) Vulkan fp16**, CPU fallback. No
-  libtorch, ONNX Runtime, TorchScript, candle or ncnn.
-- Every arch is a **clean Rust re-implementation** in burn (spec or permissive
-  reference), never translated from AGPL/unclear code. Weights load as
-  `.pth`/`.onnx` and convert once to f16 `.bpk`; `BurnEngine` consumes the `.bpk`.
-- Convert: `senmei-ml-convert <arch> <model.pth> <out.bpk>` (f32 → f16,
-  maintainer step). In-app, `download_model` downloads (sha256-verified when
-  pinned) and converts automatically.
-- Per-model cost: (a) burn arch port, (b) permissive-license check, (c) one-time
-  `.pth → f16 .bpk` conversion.
-- Engine decision: burn beats ncnn (302 vs 398 ms @1080p up2x) — see
-  `docs/benchmarks.md`.
+Rule: permissive weights only (BSD/MIT/Apache/CC0), never AGPL-derived
+(RVE/TAS off-limits). Weights and arch are separate licenses; each adopted
+model gets a `metadata.json` entry (license + source + download URL + sha256).
 
 ## Adopted (burn)
 
-| Model | License | Scale | Status | Source |
-|---|---|---|---|---|
-| Real-CUGAN up2x no-denoise | Apache-2.0 | 2 | **loadable** (UpCunet2x) | `bilibili/ailab` · `cugan_up2x-latest-no-denoise.pth` (VSGAN) |
-| Fallin Soft | CC-BY-4.0 | 2 | **loadable** (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
-| Fallin Strong | CC-BY-4.0 | 2 | **loadable** (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
-| 4x_Alchemy | CC-BY-4.0 | 4 | **loadable** (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `4x_Alchemy.pth` |
-| Real-ESRGAN animevideo x2 / x4 | BSD-3-Clause | 2 / 4 | **loadable** (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
-| Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
-| RIFE v4.6 | MIT | 1 | **loadable** (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
-| Real-PLKSr DeJPG / DeH264 | verify (Phhofm) | 1 | **loadable** (RealPLKSR); download gated until license reviewed | `Phhofm/models` · TAS-Models-Host |
-| SCUNet denoise | Apache-2.0 | 1 | arch port pending | `cszn/SCUNet` · `scunet_color_15.pth` |
-| Anime1080Fixer | verify (Zarxrax) | 1 | arch port pending | `Zarxrax/Anime1080Fixer` · VSGAN |
+| Model | Kind | License | Scale | Status | Source |
+|---|---|---|---|---|---|
+| Real-CUGAN up2x no-denoise | upscale | Apache-2.0 | 2 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
+| Fallin Soft | upscale | CC-BY-4.0 | 2 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
+| Fallin Strong | upscale | CC-BY-4.0 | 2 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
+| 4x_Alchemy | upscale | CC-BY-4.0 | 4 | loadable (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `.pth` |
+| Real-ESRGAN animevideo x2/x4 | upscale | BSD-3-Clause | 2/4 | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
+| IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | arch port done, numeric verify pending | HF `pavlichenko/ifrnet_*` |
+| Real-PLKSr DeJPG / DeH264 | decompress | verify (Phhofm) | 1 | loadable, download gated | `Phhofm/models` · TAS host |
 
-Weights are never committed (`models/*` gitignored); the app downloads them
-(download-on-demand, sha256-verified) and converts to f16 `.bpk`.
+Weights never committed (`models/*` gitignored); download-on-demand + sha256,
+converted once to f16 `.bpk`.
 
-## Engine / integration status
+## Sources
 
-- **BurnEngine** (Vulkan fp16) implements `InferenceEngine` and dispatches on
-  `ModelRef::arch`: `upcunet2x`, `realesrgan` (RRDBNet, BSD-3), `rife46`
-  (RifeNet from ncnn `flownet`, MIT), `fallin-cugan` (UpCunet2x_fast) and
-  `real-plksr`.
-- **Interpolation** is real (RIFE v4.6): `infer_interp(a, b, t)` on Vulkan,
-  verified (symmetric, directionally correct).
-- **Deduplication** is a pipeline/UI step (frame-similarity filter), not an ML
-  `ModelKind` — no neural model needed.
+- `renarchi/Re-SISR` — Fallin Soft/Strong + 4x_Alchemy, CC-BY-4.0 (Fallin ONNX-only).
+- `styler00dollar/VSGAN-tensorrt-docker` `models` tag — many `.pth`/`.onnx` checkpoints.
+- `pavlichenko/ifrnet_vimeo` / `ifrnet_gopro` (HF) — IFRNet weights, MIT (re-uploads of `ltkong218/IFRNet`).
+- `NevermindNilas/TAS-Models-Host` — host only; TAS arch code is AGPL (off-limits).
 
-## Model sources
+## Backlog
 
-- **`renarchi/Re-SISR`** releases — Fallin Soft/Strong (2× CUGAN) and 4x_Alchemy
-  (4× RealPLKSR), all **CC-BY-4.0**; Fallin is ONNX-only, 4x_Alchemy ships a `.pth`.
-- **`styler00dollar/VSGAN-tensorrt-docker`** `models` release tag — hosts many
-  `.pth`/`.onnx` checkpoints (Real-CUGAN, Real-ESRGAN, SCUNet, …) with direct
-  release download URLs.
-- **`pavlichenko/ifrnet_vimeo` + `pavlichenko/ifrnet_gopro`** (Hugging Face) —
-  offizielle IFRNet-Weights (Vimeo90K / GoPro, je 19.9 MB, **MIT**), Re-Upload
-  der Dropbox-Links aus dem Original-Repo `ltkong218/IFRNet`; direkte
-  `resolve/main/<file>.pth`-URLs.
-- **`NevermindNilas/TAS-Models-Host`** `main` release — hosts the models
-  TheAnimeScripter uses (`.pth` + ONNX). TAS itself is AGPL — never copy its
-  arch code; only its model *host* URLs may be referenced.
-- TheAnimeScripter's model list (upscale/interpolate/restore) is used as an
-  *inspiration* for what to adopt, not as a source of arch code or licensing.
+Candidates per stack; each needs a clean burn port + permissive license before
+`loadable: true`. Reference: `chaiNNer-org/spandrel` (permissive archs only).
 
-## Backlog (candidates to evaluate)
+> Re-SISR "Adore"+ = CC-BY-NC-SA → blocked (only pre-Adore CC-BY-4.0 adoptable).
+> spandrel `(+)` archs (Restormer, CodeFormer, …) restrictive → skip. VFI never in spandrel.
 
-Goal: ~4–5 models per stack, each needing a clean burn port + a permissive
-weight license before `loadable: true`. Candidates come from
-[`chaiNNer-org/spandrel`](https://github.com/chaiNNer-org/spandrel) (permissive
-arch reference) and the sources above — this is a research list, not a
-commitment. Priority for implementation: RIFE variants + GMFSS (interpolation),
-SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
-(restoration) — either the arch already exists or it's a plain conv port.
-
-> **Lizenz-Falle Re-SISR (2026-08):** Re-SISR-Releases ab „Adore" sind
-> **CC BY-NC-SA 4.0** (non-commercial → von `license_blocked()` geblockt). Nur
-> Pre-Adore-Checkpoints (CC-BY-4.0, z.B. die adoptierten Fallin/4x_Alchemy) sind
-> adoptierbar — keine neuen PLKSR/CUGAN-Weights mehr von dort.
-> **spandrel-Core = nur permissive Archs** (MIT/Apache/PD); Archs mit `(+)` im
-> spandrel-README (Restormer, MPRNet, MIRNet2, CodeFormer, MAT, DDColor, …) sind
-> restriktiv → nicht adoptieren. VFI-Modelle sind nie in spandrel (Single-Image).
-
-| Stack | Kandidaten | Lizenz-Check | Empfehlung |
+| Stack | Candidate | License | Recommendation |
 |---|---|---|---|
-| Interpolation | RIFE v4.6 Varianten (Lite/Fast/Max/S, Anime-Finetunes) | MIT ok | **adoptieren** (Arch vorhanden) |
-| Interpolation | GMFSS_Fortuna („union", Anime) | MIT (Repo verifiziert) · GDrive verify | **adoptieren** |
-| Interpolation | IFRNet (Vimeo90K / GoPro) | MIT (HF-Reuploads, direkte URLs) | **adoptieren** (Arch-Port in place, GPU-verify pending) |
-| Interpolation | EMA-VFI | MIT Code · Weights verify | nur falls (Cross-Frame-Attention) |
-| Interpolation | AnimeInterp | MIT Code · Weights verify | nur falls |
-| Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |
-| Interpolation | AMT | MIT Code · Weights verify | **nein** (Transformer) |
-| Denoise | SCUNet Real (GAN/PSNR) | Apache-2.0 (Arch + Weights verifiziert) | **adoptieren** (Swin-Hybrid-Port) |
-| Denoise | DRUNet (DPIR) | MIT (KAIR v1.0: `drunet_color/gray`, deblocking) | **adoptieren** (Konv, einfach) |
-| Denoise | DnCNN / FFDNet | MIT (KAIR v1.0: `dncnn_*`, `ffdnet_*`) | **adoptieren** (trivial) |
-| Denoise | NAFNet | MIT (SIDD/GoPro/REDS; direkte HF-URLs via nyanko7) | nur falls (PSNR-orientiert) |
-| Denoise | IRCNN | MIT (KAIR v1.0) | nur falls (denoise/deblur/deblock) |
-| Denoise | FBCNN | verify | nur falls (DeJPEG-Redundanz) |
-| Denoise | VRT / RVRT | verify · nicht in spandrel | **nein** (temporal/Transformer) |
-| Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 ok | **adoptieren** (SRVGGNetCompact-Port) |
-| Deblur | NAFNet-GoPro (width32/64) | MIT (offizielle Weights, HF-Mirror nyanko7) | **adoptieren** (erster ML-Deblur; NAFBlock-Port) |
-| Restoration | BSRGAN / BSRNet | MIT (KAIR v1.0) | **adoptieren** (RRDBNet vorhanden) |
-| Restoration | Anime1080Fixer | verify | **adoptieren** (RRDBNet vorhanden) |
-| Restoration | IMDN x4 | MIT (KAIR v1.0) | nur falls (leichtgewichtig) |
-| Restoration | SAFMN Real x2/x4 | Apache-2.0 (verifiziert) | **adoptieren** |
-| Restoration | SPAN | Apache-2.0 (verifiziert) | **adoptieren** |
-| Restoration | USRNet / USRGAN | MIT (verifiziert) | nur falls (non-blind: Kernel + Noise-Level nötig) |
-| Restoration | PLKSR weitere | Re-SISR neu = NC geblockt · sonst verify | nur falls |
-| Restoration | HAT | Arch MIT · Weights verify | nur falls (Transformer) |
-| Restoration | OmniSR | MIT Code · Weights verify | **nein** (Deformable Conv) |
-
-## Use-case evaluation (non-upscale ideas)
-
-- **Depth map (MiDaS / Depth-Anything) — nein.** Kein etablierter Workflow nutzt
-  Tiefe als Guide für Interpolation/Upscaling; die Nischen (depth-aware upscale,
-  Pseudo-3D/DOF, Occlusion-Guide) sind spekulativ und teuer. Wenn überhaupt, nur
-  Depth-Anything V1 (Repo Apache-2.0); V2-Weights tendieren zu CC-BY-NC-SA.
-- **Object detection — nein.** Kein Nutzen für eine reine Enhancement-Pipeline;
-  nur relevant bei regionsadaptiver Verbesserung (Face/Text erkennen) — außerhalb
-  des Scopes.
-- **Video stabilization — nein als ML-Stack.** Stabilisierung gehört vor den
-  Enhancement-Stack (stabilisieren → interpolieren/upscalen), nicht in die
-  Step-Kette. ffmpegs `vidstab` ist GPL (unvereinbar mit dem LGPL-Build); der
-  pragmatische Weg wäre klassisch (non-ML) via OpenCV VideoStab (Apache-2.0),
-  als separates Pre-Tool — nicht als `ModelKind`.
+| Interpolation | RIFE variants (Lite/Fast/Max/S, anime) | MIT | adopt (arch exists) |
+| Interpolation | GMFSS_Fortuna (union, anime) | MIT (repo) · weights verify | adopt |
+| Interpolation | EMA-VFI | MIT · weights verify | maybe (cross-frame attention) |
+| Interpolation | AnimeInterp | MIT · weights verify | maybe |
+| Interpolation | FILM | Apache-2.0 repo · TF weights | maybe (TF conversion) |
+| Interpolation | AMT | MIT · weights verify | no (transformer) |
+| Denoise | SCUNet (GAN/PSNR) | Apache-2.0 | adopt (Swin port) |
+| Denoise | DRUNet (DPIR) | MIT (KAIR) | adopt (conv, simple) |
+| Denoise | DnCNN / FFDNet | MIT (KAIR) | adopt (trivial) |
+| Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
+| Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
+| Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
+| Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
+| Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
+| Restoration | BSRGAN / BSRNet | MIT (KAIR) | adopt (RRDBNet exists) |
+| Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
+| Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
+| Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
+| Restoration | SPAN | Apache-2.0 | adopt |
+| Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
+| Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
+| Restoration | HAT | MIT · weights verify | maybe (transformer) |
+| Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
+| Deblur | NAFNet-GoPro (width32/64) | MIT (HF mirror) | adopt (first ML deblur; NAFBlock) |
 
 ## Notes
 
-- **License is per artifact, not per arch**: each checkpoint carries its own
-  license (code license ≠ weight license; community fine-tunes are sometimes
-  non-commercial). Only adopt permissive (BSD/MIT/Apache, CC0 ok); "verify"
-  models need a license check before `loadable: true`.
-- **ONNX sources load without ONNX Runtime**: a built-in protobuf reader
-  (`senmei_ml::onnx`) extracts the `initializer` tensors (the ONNX is only a
-  weight container; the arch is the existing `UpCunet2x_fast`);
-  `download_model` auto-detects `.onnx`.
-- **NAFNet fp16-Port (NAFBlock)**: kein Aktivierungs-Funktion nötig — `SimpleGate`
-  ist nur Channel-Split × Multiply, das Netz ist rein konvolutiv (beliebige Größe
-  in Vielfachen von 16). Zwei Fallen: (1) `LayerNorm2d`-Reduktion läuft in fp16
-  über (bottleneck |x|≈175, Σ_c über ~15M Werte → Overflow/Gitter-Artefakt auf
-  GPU) — die Kanal-Reduktion in skaliertem `x/S`-Bereich rechnen (S≈128) und
-  zurück; (2) Channel-Attention = `mean(3).mean(2)`, Upsample = Conv1×1 +
-  PixelShuffle(2) (= depth-to-space). MIT bestätigt via litert-community-
-  Konversion (offizielle GoPro-width32-Weights).
-- **f32→f16:** `PytorchStore` can't cast f32→f16 at load — pre-convert to f16
-  `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).
+- License is per artifact (code ≠ weight); adopt permissive only.
+- ONNX loads without ONNX Runtime (built-in protobuf reader).
+- NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
+  LayerNorm2d in fp16 overflows — compute channel reduction in scaled `x/S`
+  (S≈128) and back; channel attention = `mean(3).mean(2)`, upsample =
+  Conv1×1 + PixelShuffle(2). MIT confirmed (GoPro width32 weights).
+- f32→f16: pre-convert to `.bpk` (BurnpackStore + HalfPrecisionAdapter).
