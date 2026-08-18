@@ -651,7 +651,7 @@ export default function Inspector({
             {field(
               t("output.preview"),
               <pre className="whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[9px] leading-4 text-slate-600 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-400">
-                {`ffmpeg -y -i input.mp4 ${previewArgs || "(defaults)"} output.${s.params?.container ?? "mkv"}`}
+                {`ffmpeg -y -i input.mp4 ${previewArgs.join(" ") || "(defaults)"} output.${s.params?.container ?? "mkv"}`}
               </pre>,
             )}
           </>

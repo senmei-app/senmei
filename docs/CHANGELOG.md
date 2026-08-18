@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **refactor: FFmpeg-Args einheitlich geparst (2026-08-18)** — das Frontend
+  sendet die Encoder-Args jetzt als vorgesplittetes Array
+  (`RenderConfig.ffmpegArgs: string[]`); der doppelte Rust-Parser
+  `split_ffmpeg_args` wurde entfernt. Es gibt nur noch einen Parser
+  (`splitArgs` in `steps.ts`), geteilt für Vorschau und Render.
+
 - **ui: Hotkey-Einstellungen auf der Settings-Seite (2026-08-18)** — neue
   Sektion „Tastenkürzel“ (Koharu-Stil): Aktionen anzeigen, per Klick neu
   belegen (nächster Tastendruck), auf Standard zurücksetzen. Overrides werden
