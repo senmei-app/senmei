@@ -91,11 +91,11 @@
     "scale": 1,
     "arch": "scunet",
     "weights": ["scunet_color_15.pth"],
-    "license": "verify (cszn)",
+    "license": "Apache-2.0",
     "source_url": "https://github.com/cszn/SCUNet",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/scunet_color_15.pth",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "arch port pending; license check required" }
+    "metadata": { "input_range": "0..1", "half": true, "note": "license confirmed Apache-2.0; arch port pending" }
   },
   {
     "id": "real-plksr-deh264",
