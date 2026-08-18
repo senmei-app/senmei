@@ -400,7 +400,8 @@ pub struct RenderConfig {
     pub output_resize: Option<f32>,
     pub fps_multiplier: Option<u32>,
     pub interp_model: Option<String>,
-    pub ffmpeg_args: Option<String>,
+    /// Pre-split ffmpeg args (the frontend parses the custom field).
+    pub ffmpeg_args: Option<Vec<String>>,
     /// Render only a time range (start ms, end ms; None end = to the end).
     pub start_ms: Option<u64>,
     pub end_ms: Option<u64>,
@@ -423,28 +424,6 @@ fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
     let mut registry = senmei_ml::Registry::new();
     registry.load_dir(&dir).map_err(|e| e.to_string())?;
     Ok((registry, dir))
-}
-
-/// Split a shell-style arg string into tokens (respects double quotes).
-fn split_ffmpeg_args(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut cur = String::new();
-    let mut in_quote = false;
-    for c in s.chars() {
-        match c {
-            '"' => in_quote = !in_quote,
-            ' ' | '\t' if !in_quote => {
-                if !cur.is_empty() {
-                    out.push(std::mem::take(&mut cur));
-                }
-            }
-            _ => cur.push(c),
-        }
-    }
-    if !cur.is_empty() {
-        out.push(cur);
-    }
-    out
 }
 
 fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
@@ -545,9 +524,9 @@ pub async fn render(
         if start_ms.is_some() || end_ms.is_some() {
             pipeline.set_range(start_ms.unwrap_or(0), end_ms);
         }
-        if let Some(args) = ffmpeg_args.as_deref() {
-            if !args.trim().is_empty() {
-                pipeline.set_encoder_args(split_ffmpeg_args(args));
+        if let Some(args) = ffmpeg_args {
+            if !args.is_empty() {
+                pipeline.set_encoder_args(args);
             }
         }
         let cancel = CANCEL_RENDER
@@ -788,21 +767,5 @@ mod tests {
         assert!(newest.exists(), "newest sample was pruned");
         assert!(!oldest.exists(), "oldest sample kept");
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn split_ffmpeg_args_handles_quotes() {
-        let args = split_ffmpeg_args("-vf \"scale=1920:1080,yadif=mode=0\" -c:v libx265 -crf 18");
-        assert_eq!(
-            args,
-            vec![
-                "-vf",
-                "scale=1920:1080,yadif=mode=0",
-                "-c:v",
-                "libx265",
-                "-crf",
-                "18"
-            ]
-        );
     }
 }

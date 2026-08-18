@@ -153,7 +153,7 @@ function splitArgs(s: string): string[] {
  * field wins for any flag it defines (e.g. `-tune grain`); the structured
  * dropdown values fill the rest (e.g. `-pix_fmt`).
  */
-export function buildEncoderArgs(params: StepParams | undefined, custom: string): string {
+export function buildEncoderArgs(params: StepParams | undefined, custom: string): string[] {
   const structured: string[] = [];
   const vc = params?.videoCodec;
   const codec = vc && CODEC_MAP[vc] ? CODEC_MAP[vc] : null;
@@ -183,5 +183,5 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   for (let i = 0; i + 1 < structured.length; i += 2) {
     if (!customFlags.has(structured[i])) merged.push(structured[i], structured[i + 1]);
   }
-  return merged.join(" ");
+  return merged;
 }

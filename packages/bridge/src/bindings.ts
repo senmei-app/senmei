@@ -111,7 +111,8 @@ export type RenderConfig = {
 	outputResize?: number | null,
 	fpsMultiplier?: number | null,
 	interpModel?: string | null,
-	ffmpegArgs?: string | null,
+	/**  Pre-split ffmpeg args (the frontend parses the custom field). */
+	ffmpegArgs?: string[] | null,
 	/**  Render only a time range (start ms, end ms; None end = to the end). */
 	startMs?: number | null,
 	endMs?: number | null,
