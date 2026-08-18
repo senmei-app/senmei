@@ -64,7 +64,7 @@
 
 ## Maintainability (Review 2026-08-18)
 
-- [ ] Große Dateien splitten: `App.tsx`, `Inspector.tsx`, `commands.rs` (Orchestrierung/State trennen)
+- [ ] Große Dateien splitten: `App.tsx` (erledigt: `useBatch` + `RightPanel`), `Inspector.tsx`, `commands.rs`
 - [x] CPU-Steps: `step.rs` slicet planar, FFmpeg liefert packed `rgb24` — Layout-Konflikt prüfen/fixen (gefixt: packed rgb24)
 - [ ] Doppelte Arg-Parsing-Logik: `splitArgs` (TS) und `split_ffmpeg_args` (Rust) vereinheitlichen
 - [ ] Frontend-Pfade: manuelle `/`-Splits plattform-sicher ersetzen (Windows)
