@@ -13,7 +13,7 @@ download URL (+ sha256 where known).
 
 | Kind | Adopted & loadable | Port pending | License verify |
 |---|---|---|---|
-| Upscale | Real-CUGAN up2x (2×) · ShuffleCugan (2×) · Real-ESRGAN animevideo x2/x4 · x4plus-anime 6B | — | — |
+| Upscale | Real-CUGAN up2x (2×) · Fallin Soft/Strong (2×) · 4x_Alchemy (4×) · Real-ESRGAN animevideo x2/x4 · x4plus-anime 6B | — | — |
 | Interpolation | RIFE v4.6 | — | — |
 | Denoise / restore | — | SCUNet | Real-PLKSr DeJPG/DeH264 · Anime1080Fixer |
 
@@ -31,17 +31,17 @@ download URL (+ sha256 where known).
   when pinned) and converts it automatically.
 - The per-model cost is: (a) the burn arch port, (b) a permissive-weight license
   check, (c) the one-time `.pth → f16 .bpk` conversion.
-- Engine decision (2026-08-17): **burn** beats ncnn (302 vs 398 ms @1080p up2x;
-  ShuffleCugan 46/103 ms) — see `docs/benchmarks.md`.
+- Engine decision (2026-08-17): **burn** beats ncnn (302 vs 398 ms @1080p up2x) — see `docs/benchmarks.md`.
 
 ## Engine / integration status
 
 - **BurnEngine** (Vulkan fp16) implements `InferenceEngine` and dispatches on
-  `ModelRef::arch`: **`upcunet2x`** (verified in `rust-sr-bench`), **`upcunet2x-fast`**
-  (ShuffleCugan, verified), **`realesrgan`** (`RRDBNet`, BSD-3 port) and
-  **`rife46`** (`RifeNet`, generated from the ncnn `flownet` graph, MIT weights).
+  `ModelRef::arch`: **`upcunet2x`** (verified in `rust-sr-bench`), **`realesrgan`**
+  (`RRDBNet`, BSD-3 port) and **`rife46`** (`RifeNet`, generated from the ncnn
+  `flownet` graph, MIT weights).
   `real-cugan-x2`, the 3× Real-ESRGAN models and `rife-v4.6` are `loadable: true`;
-  SCUNet, Real-PLKSr and Anime1080Fixer (license verify) are pending.
+  SCUNet, Real-PLKSr and Anime1080Fixer (license verify) and Fallin/4x_Alchemy
+  (arch port pending) are not loadable yet.
 - **Interpolation** is real (RIFE v4.6): `infer_interp(a, b, t)` runs the
   flow-based network on Vulkan, verified (symmetric, directionally correct).
 - **Deduplication** is a pipeline/UI step (frame-similarity filter), not an ML
@@ -49,9 +49,11 @@ download URL (+ sha256 where known).
 
 ## Model sources
 
+- **`renarchi/Re-SISR`** releases — Fallin Soft/Strong (2× CUGAN) and 4x_Alchemy
+  (4× RealPLKSR), all **CC-BY-4.0**; Fallin is ONNX-only, 4x_Alchemy ships a `.pth`.
 - **`styler00dollar/VSGAN-tensorrt-docker`** `models` release tag — hosts many
-  `.pth`/`.onnx` checkpoints (Real-CUGAN, Real-ESRGAN, SCUNet, ShuffleCugan,
-  GMFSS, waifu2x, …) with direct release download URLs.
+  `.pth`/`.onnx` checkpoints (Real-CUGAN, Real-ESRGAN, SCUNet, GMFSS, waifu2x, …)
+  with direct release download URLs.
 - **`NevermindNilas/TAS-Models-Host`** `main` release — hosts the models
   TheAnimeScripter uses (`.pth` + ONNX). TAS itself is AGPL — never copy its
   arch code; only its model *host* URLs may be referenced.
@@ -63,7 +65,9 @@ download URL (+ sha256 where known).
 | Model | License | Scale | Arch status | Source |
 |---|---|---|---|---|
 | Real-CUGAN up2x no-denoise | Apache-2.0 | 2 | **loadable** (UpCunet2x port, verified) | `bilibili/ailab` · `cugan_up2x-latest-no-denoise.pth` (VSGAN) |
-| ShuffleCugan | unclear (SUDO) | 2 | **loadable** (upcunet2x-fast; prototype opt-in) | `sudo_shuffle_cugan_9.584.969.pth` (VSGAN) |
+| Fallin Soft | CC-BY-4.0 | 2 | port pending (CUGAN, ONNX-only; burn-onnx codegen) | `renarchi/Re-SISR` · `2x_Fallin_soft_renarchi_fp16.onnx` |
+| Fallin Strong | CC-BY-4.0 | 2 | port pending (CUGAN, ONNX-only; oversharpened sibling) | `renarchi/Re-SISR` · `2x_Fallin_strong_renarchi_fp16.onnx` |
+| 4x_Alchemy | CC-BY-4.0 | 4 | port pending (RealPLKSR_Dysample, `.pth`) | `renarchi/Re-SISR` · `4x_Alchemy.pth` |
 | Real-ESRGAN animevideo x2 / x4 | BSD-3-Clause | 2 / 4 | **loadable** (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | RIFE v4.6 | MIT | 1 | **loadable** (RifeNet port, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
@@ -96,9 +100,9 @@ commitment.
   non-commercial). Record the weight license per model in `metadata.json` and
   only adopt permissive (BSD/MIT/Apache, CC0 ok). Models flagged "verify" need a
   license check before `loadable: true`.
-- **ShuffleCugan** is the fastest SR variant (46/103 ms @720p/1080p in
-  `rust-sr-bench`) but its weights carry no clear license → flagged
-  "prototype opt-in" in the catalog until the author clarifies.
+- **`shuffle-cugan` (SUDO) was removed (2026-08-18)** — its weights had no clear
+  license. It is replaced by the CC-BY-4.0 Fallin Soft/Strong (2×) and 4x_Alchemy
+  (4×); the default upscaler is now `real-cugan-x2` (Apache-2.0).
 - **f16 is the default** (Vulkan): half the memory and 3–6× faster than f32 on
   the reference GPU. `PytorchStore` cannot cast f32→f16 at load, so weights are
   pre-converted to f16 `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).

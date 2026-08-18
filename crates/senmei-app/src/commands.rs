@@ -686,7 +686,7 @@ mod tests {
             .success();
         assert!(ok, "ffmpeg input generation failed");
 
-        let engine = engine_for_model("shuffle-cugan").expect("engine_for_model");
+        let engine = engine_for_model("real-cugan-x2").expect("engine_for_model");
         let ffmpeg = senmei_media::resolve(&store::data_dir());
         let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];
