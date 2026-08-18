@@ -77,5 +77,5 @@
 
 ## after release
 - [ ] Project website
-- [ ] Follow-up: burn Feature-Request „ONNX-Initializer laden“ einreichen, eigenen Parser ablösen
+- [x] Follow-up: burn Feature-Request „ONNX-Initializer laden“ eingereicht (`tracel-ai/burn-onnx#456`), eigenen Parser später ablösen
 
