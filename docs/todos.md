@@ -73,7 +73,7 @@
 - [x] `todos.md` fully in English (AGENTS rule: docs in English)
 
 ## CI / Packaging
-- [ ] Tauri security: evaluate CSP + asset scope `$HOME/**` (media access vs. surface)
+- [x] Tauri security: CSP + asset scope — `$HOME/**` entfernt (nur `$DATA/**`), CSP gesetzt; alle Media-Loads sind runtime-granted
 - [x] AGENTS.md path checked: `crates/senmei/gen/schemas/` exists (build-generated, gitignored) — AGENTS.md correct
 
 ## shortly before release
