@@ -104,14 +104,14 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 - `Pipeline::run` now runs decode/encode on threads so CPU I/O hides behind the
   GPU inference; the encode thread uses x264 `-preset veryfast` (was default
   medium — that had become the bottleneck at 2160p: 4.7 FPS).
-- **GPU-side RGB conversion (`infer_rgb8`):** after the model forward, the
-  output is transposed NCHW→NHWC, clamped to 0..1 and scaled to 0..255 **on the
-  GPU** (`permute` + `clamp` + `*255`); the final u8 cast happens on the CPU
-  after an f32 readback. This removes the ~100 MB f32 download + the CPU
-  interleave pass → 168 → 157 ms, end-to-end **5.1 → 6.5 FPS**.
-  (Reading the RGB8 back as u8 directly, or as f16, triggers a burn-fusion 0.21
-  stream-ordering panic over repeated frames — see the 2026-08-18 section.
-  The f32 readback is the safe path and is byte-identical to the reference.)
+- **GPU-side RGB conversion (`infer_rgb8`):** the output is transposed
+  NCHW→NHWC, clamped to 0..1, scaled to 0..255 and cast to u8 **on the GPU**
+  (`permute` + `clamp` + `*255` + `cast(U8)`), per 512px tile, so only packed
+  u8 bytes cross back; tiles are stitched with overlap averaging. The
+  **full-frame** fused variant OOM'd burn/cubecl autotune on large matmuls and
+  then panicked with "Ordering is bigger than operations" — see the 2026-08-18
+  section. Tiling avoids it entirely; the earlier numbers below (157 ms /
+  6.4 FPS) predate the tiled version.
 - **Model inference (157 ms) is burn-Vulkan's floor** on RDNA4: ~6.4 FPS pure,
   ~6.5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified via
   rocm-smi); no throttling. **It is not an absolute floor** — torch-ROCm fp16
@@ -123,8 +123,12 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 ## Fallin + fused-step re-measure (2026-08-18)
 
 `senmei-pipeline/tests/bench.rs`, 1080p testsrc → 2160p x2, 48 frames, Vulkan
-fp16, autotune + fusion **on**, tiled (512). Fused step = `Upscale` +
-`infer_rgb8` (GPU permute+clamp+scale, f32 readback, CPU u8 cast).
+fp16, autotune + fusion **on**. Fused step = `Upscale` + `infer_rgb8`
+(tiled-fused: per-512px-tile GPU permute+clamp+scale+u8 cast, u8 readback,
+overlap-stitched).
+
+The table below is the earlier **full-frame** fused step. The tiled-fused step
+measures ~329 ms / 3.0 FPS (fallin-soft); full threaded pipeline 2.8 FPS.
 
 | Model | infer | total | FPS | fused step | step FPS | VRAM peak |
 |---|---|---|---|---|---|---|
@@ -136,14 +140,13 @@ Fallin Soft/Strong are ~2× faster than real-cugan-x2 at ~half the VRAM.
 VRAM sampled via `/sys/class/drm/card1/device/mem_info_vram_used` (baseline
 ~1.3 GB).
 
-**burn-fusion panic — root cause & fix:** the on-GPU `cast(IntDType::U8)`
-readback (and any non-f32 `to_vec()`) panics deterministically after ~48
-repeated frames with "Ordering is bigger than operations"
-(burn-fusion 0.21 `ordering.rs`), on every model. It is the **readback dtype**
-that triggers it, not the fused chain: `into_data().convert::<f32>().to_vec()`
-is safe, byte-identical to the reference, and keeps autotune at full speed.
-(Disabled autotune "works" but is ~5× slower.) Guarded by
-`repeated_infer_rgb8_does_not_panic` + `infer_rgb8_matches_infer_reference`.
+**burn/cubecl autotune failures — root cause & fix:** the full-frame fused
+`infer_rgb8` OOM'd autotune on a large full-frame matmul (m=1024, n=4M, f16)
+and then cascaded into "Ordering is bigger than operations" panics
+(docs/burn-bugs.md Bug 1+3). Fix: tile `infer_rgb8` (512px) so no full-frame
+matmul reaches autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`
+(correctness within fp16 tolerance + 48-frame reliability). Disabling autotune
+also "works" but is ~5× slower.
 
 ## torch-ROCm re-test (2026-08-17, ROCm 7.14)
 

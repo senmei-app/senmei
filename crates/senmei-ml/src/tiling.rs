@@ -96,6 +96,50 @@ pub fn crop(t: &Tensor, oh: usize, ow: usize) -> Tensor {
     Tensor::new(vec![1, c, oh, ow], data)
 }
 
+/// Place packed rgb24 tiles back into a canvas, averaging overlapping regions.
+/// Tiles are `(x, y, rgb24_bytes, tile_h, tile_w)` with top-left output coords.
+/// Only used by the burn engine's fused `infer_rgb8` (feature-gated).
+#[allow(dead_code)]
+pub fn stitch_rgb24(
+    tiles: &[(usize, usize, Vec<u8>, usize, usize)],
+    out_h: usize,
+    out_w: usize,
+) -> Vec<u8> {
+    let mut acc = vec![0u64; 3 * out_h * out_w];
+    let mut count = vec![0u32; out_h * out_w];
+    for (x, y, bytes, th, tw) in tiles {
+        for yy in 0..*th {
+            for xx in 0..*tw {
+                let src = (yy * tw + xx) * 3;
+                let dst = ((y + yy) * out_w + (x + xx)) * 3;
+                acc[dst] += bytes[src] as u64;
+                acc[dst + 1] += bytes[src + 1] as u64;
+                acc[dst + 2] += bytes[src + 2] as u64;
+                count[(y + yy) * out_w + (x + xx)] += 1;
+            }
+        }
+    }
+    let mut out = vec![0u8; 3 * out_h * out_w];
+    for i in 0..out_h * out_w {
+        let c = count[i].max(1) as u64;
+        out[i * 3] = ((acc[i * 3] + c / 2) / c) as u8;
+        out[i * 3 + 1] = ((acc[i * 3 + 1] + c / 2) / c) as u8;
+        out[i * 3 + 2] = ((acc[i * 3 + 2] + c / 2) / c) as u8;
+    }
+    out
+}
+
+/// Crop a packed rgb24 canvas to its top-left `oh × ow` region.
+/// Only used by the burn engine's fused `infer_rgb8` (feature-gated).
+#[allow(dead_code)]
+pub fn crop_rgb24(src: &[u8], src_w: usize, oh: usize, ow: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(3 * oh * ow);
+    for yy in 0..oh {
+        out.extend_from_slice(&src[yy * src_w * 3..yy * src_w * 3 + ow * 3]);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
