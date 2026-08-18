@@ -4,6 +4,14 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: surface the real encode error instead of "encode channel closed" (2026-08-19)** —
+  the encoder discarded ffmpeg's stderr (`Stdio::null()`), so a failed encode
+  only surfaced as "encode channel closed" (the main loop's channel error masked
+  the encode thread's real cause). The encoder now captures stderr and includes
+  it in the write/finish error, and the pipeline reports the encode thread's
+  error (cancellation and step errors still win). Render failures now show the
+  actual ffmpeg reason in the Logs panel.
+
 - **docs: IFRNet torch-verifiziert, durch burn-fusion Bug 6 geblockt (2026-08-19)** —
   `tools/ifrnet_verify.py` + vendorte torch-Referenz (`ref/ifrnet/`, MIT) erzeugen
   Referenz-Bins; Encoder + Weights sind exakt (mae ~0.0001), der ResBlock

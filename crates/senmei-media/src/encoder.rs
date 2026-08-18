@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -8,6 +8,7 @@ use crate::{Error, Result};
 pub struct Encoder {
     child: Child,
     stdin: Option<ChildStdin>,
+    stderr: Option<ChildStderr>,
 }
 
 /// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
@@ -125,25 +126,49 @@ impl Encoder {
             .args(extra_args)
             .arg(path)
             .stdin(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         let mut child = cmd.spawn()?;
 
         let stdin = child
             .stdin
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdin".into()))?;
+        let stderr = child.stderr.take();
 
         Ok(Self {
             child,
             stdin: Some(stdin),
+            stderr,
         })
     }
 
     pub fn write_frame(&mut self, frame: &Frame) -> Result<()> {
         if let Some(stdin) = self.stdin.as_mut() {
-            stdin.write_all(&frame.data)?;
+            if let Err(e) = stdin.write_all(&frame.data) {
+                // The child closed the pipe (exited) — reap it first so the
+                // stderr read below hits EOF instead of blocking, then report
+                // the real reason instead of a bare "Broken pipe".
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                let stderr = self.read_stderr();
+                return Err(Error::Command(if stderr.is_empty() {
+                    format!("ffmpeg encode write failed: {e}")
+                } else {
+                    format!("ffmpeg encode write failed: {e}\n{stderr}")
+                }));
+            }
         }
         Ok(())
+    }
+
+    /// Drain the child's stderr (already buffered once it has exited).
+    fn read_stderr(&mut self) -> String {
+        use std::io::Read;
+        let mut out = String::new();
+        if let Some(mut e) = self.stderr.take() {
+            let _ = e.read_to_string(&mut out);
+        }
+        out.trim().to_string()
     }
 
     pub fn finish(mut self) -> Result<()> {
@@ -152,9 +177,12 @@ impl Encoder {
         if status.success() {
             Ok(())
         } else {
-            Err(Error::Command(format!(
-                "ffmpeg encode exited with {status}"
-            )))
+            let stderr = self.read_stderr();
+            Err(Error::Command(if stderr.is_empty() {
+                format!("ffmpeg encode exited with {status}")
+            } else {
+                format!("ffmpeg encode exited with {status}:\n{stderr}")
+            }))
         }
     }
 }
