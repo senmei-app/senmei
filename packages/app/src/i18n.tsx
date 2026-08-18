@@ -6,6 +6,8 @@ const messages: Record<Lang, Record<string, string>> = {
   en: {
     "menu.file": "File",
     "menu.edit": "Edit",
+    "menu.view": "View",
+    "menu.fullVideo": "Full Video Mode",
     "menu.help": "Help",
     "menu.importVideos": "Import Videos",
     "menu.importFile": "File…",
@@ -172,6 +174,8 @@ const messages: Record<Lang, Record<string, string>> = {
   de: {
     "menu.file": "Datei",
     "menu.edit": "Bearbeiten",
+    "menu.view": "Ansicht",
+    "menu.fullVideo": "Full-Video-Modus",
     "menu.help": "Hilfe",
     "menu.importVideos": "Videos importieren",
     "menu.importFile": "Datei…",

@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: About-Dialog folgt dem Dark-Theme (2026-08-18)** — der Dialog wurde
+  außerhalb des `dark`-Wrappers gerendert, seine `dark:`-Styles griffen nie
+  (immer hell). In den Wrapper verschoben.
+
+- **ui: Menü „View“ mit Full-Video-Modus (2026-08-18)** — neues Menü „View“
+  (Ansicht) mit „Full Video Mode“; togglet denselben Fullscreen wie der
+  Doppelklick auf den Monitor (Signal an `Monitor.toggleFullscreenSignal`).
+  DE/EN übersetzt.
+
 - **fix: Codec-Mapping LGPL-safe (2026-08-18)** — der Encoder-Dropdown mappte
   H.264→`libx264`/H.265→`libx265` (beide GPL, fehlen in den gepinnten
   BtbN-LGPL-Builds), wodurch H.264/H.265-Outputs mit dem LGPL-FFmpeg

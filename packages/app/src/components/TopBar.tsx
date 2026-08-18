@@ -20,6 +20,7 @@ export default function TopBar({
   onAddSelectedToQueue,
   onProcessSelected,
   onProcessAll,
+  onToggleFullscreen,
 }: {
   file?: string;
   projectName?: string;
@@ -38,6 +39,7 @@ export default function TopBar({
   onAddSelectedToQueue: () => void;
   onProcessSelected: () => void;
   onProcessAll: () => void;
+  onToggleFullscreen: () => void;
 }) {
   const { t } = useI18n();
 
@@ -63,6 +65,7 @@ export default function TopBar({
         onAddSelectedToQueue={onAddSelectedToQueue}
         onProcessSelected={onProcessSelected}
         onProcessAll={onProcessAll}
+        onToggleFullscreen={onToggleFullscreen}
       />
 
       <div data-tauri-drag-region className="flex-1 self-stretch" />

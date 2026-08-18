@@ -35,11 +35,11 @@
 - [x] Version unten rechts (Statusleiste + Startseite)
 - [x] Full-Video-Modus per Doppelklick auf Monitor, Exit ✕/Esc (alle drei Modi)
 - [x] Deduplication: Presets (Aus/Standard/Aggressiv) + Slider mit % + Hinweis
-- Menu: View hinzufügen für Full Video Modus
+- [x] Menu: View hinzufügen für Full Video Modus
 - Settings: Tile ändern
 - Settings: Hotkeys einstellungen
 - Rechte Seite: Tab-Bar neben „Processing Stack" mit Tab „Logs" (Systemlog)
-- About dark Thmea
+- [x] About dark Theme (Dark-Styles vorhanden)
 
 ## Docs
 - [x] ncnn-Engine komplett aus Todos/Plan entfernen (burn ist Default)

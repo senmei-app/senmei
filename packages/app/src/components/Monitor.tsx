@@ -54,6 +54,7 @@ export default function Monitor({
   projectDir,
   onSampleChange,
   onRenderSample,
+  toggleFullscreenSignal = 0,
 }: {
   file?: string;
   renderedFile: string | null;
@@ -64,6 +65,7 @@ export default function Monitor({
   projectDir?: string | null;
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
+  toggleFullscreenSignal?: number;
 }) {
   const { t } = useI18n();
   // Native fullscreen on the monitor element itself (WebKit fullscreen API):
@@ -79,6 +81,11 @@ export default function Monitor({
       void rootRef.current?.requestFullscreen().then(() => setIsFull(true)).catch(() => {});
     }
   };
+  // View menu "Full Video Mode" toggles fullscreen on each signal.
+  useEffect(() => {
+    if (toggleFullscreenSignal > 0) toggleFullscreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toggleFullscreenSignal]);
   // Keep the ✕/hint state in sync with native exits (Esc).
   useEffect(() => {
     const onFs = () => setIsFull(!!document.fullscreenElement);

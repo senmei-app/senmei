@@ -67,6 +67,7 @@ export default function App() {
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
   const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
+  const [fullscreenSignal, setFullscreenSignal] = useState(0);
 
   const currentFile = files[0];
 
@@ -577,6 +578,7 @@ export default function App() {
               onAddSelectedToQueue={() => setMediaView("queue")}
               onProcessSelected={() => startBatch(true)}
               onProcessAll={() => startBatch(false)}
+              onToggleFullscreen={() => setFullscreenSignal((n) => n + 1)}
             />
             <PanelGroup direction="horizontal" className="flex flex-1 overflow-hidden">
               <Panel defaultSize={20} minSize={14}>
@@ -611,6 +613,7 @@ export default function App() {
                   sampleOutMs={sampleRange?.outMs ?? 0}
                   onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
                   onRenderSample={() => currentFile && void startBatch(false, sampleRange, [currentFile])}
+                  toggleFullscreenSignal={fullscreenSignal}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
@@ -627,8 +630,8 @@ export default function App() {
             />
           </div>
         )}
+        {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} onGithub={openGithub} />}
       </div>
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} onGithub={openGithub} />}
     </I18nProvider>
   );
 }
