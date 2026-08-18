@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **refactor: Frontend-Pfade plattformsicher (2026-08-18)** — alle manuellen
+  `split("/")`-Stellen durch `paths.ts`-Helfer ersetzt (`basename`/`dirname`/
+  `joinPath`), die sowohl `/` als auch `\` (Windows) verarbeiten; Joins nutzen
+  `/`, das Windows-APIs ebenfalls akzeptieren. Betrifft Output-Pfadbau,
+  Sample-Ordner und Dateinamen-Anzeige.
+
 - **refactor: FFmpeg-Args einheitlich geparst (2026-08-18)** — das Frontend
   sendet die Encoder-Args jetzt als vorgesplittetes Array
   (`RenderConfig.ffmpegArgs: string[]`); der doppelte Rust-Parser

@@ -29,6 +29,7 @@ import {
 import { I18nProvider, type Lang } from "./i18n";
 import { buildEncoderArgs, defaultSteps, normalizeSteps, type BatchJob, type PipelineStep } from "./steps";
 import { defaultHotkey, comboFromEvent, resolveHotkeys } from "./hotkeys";
+import { basename, dirname, joinPath } from "./paths";
 import {
   demoProjects,
   demoVideos,
@@ -287,7 +288,7 @@ export default function App() {
       setHealth("export not available in the browser demo");
       return;
     }
-    const base = projectDir.split("/").pop() ?? "project";
+    const base = basename(projectDir) || "project";
     const dest = await save({
       defaultPath: `${base}.tar.xz`,
       filters: [{ name: "Senmei project", extensions: ["tar.xz"] }],
@@ -389,14 +390,12 @@ export default function App() {
     const isSample = !!(range && range.outMs > range.inMs);
     const rangeTag = isSample && range ? `_${fmtTs(range.inMs)}-${fmtTs(range.outMs)}` : "";
     const name =
-      input
-        .split("/")
-        .pop()
+      basename(input)
         ?.replace(/\.[^.]+$/, `_${marker}${info}${rangeTag}.${container}`) ??
       `output_${marker}${info}${rangeTag}.${container}`;
-    const dir = targetDir ?? input.split("/").slice(0, -1).join("/");
-    if (isSample) return [projectDir ?? dir, "sample", name].join("/");
-    return [dir, name].join("/");
+    const dir = targetDir ?? dirname(input);
+    if (isSample) return joinPath(projectDir ?? dir, "sample", name);
+    return joinPath(dir, name);
   };
 
   // Plain click selects only that file; toggle (multi-select mode or Ctrl/Cmd) adds/removes.
@@ -539,7 +538,7 @@ export default function App() {
           setRenderedFile(output);
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
-            void pruneSamples(output.split("/").slice(0, -1).join("/"), 5);
+            void pruneSamples(dirname(output), 5);
           }
         } catch (e) {
           const msg = String(e);
@@ -585,7 +584,7 @@ export default function App() {
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
             <TopBar
               file={currentFile}
-              projectName={projectDir ? projectDir.split("/").pop() : undefined}
+              projectName={projectDir ? basename(projectDir) : undefined}
               rendering={rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
