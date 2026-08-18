@@ -104,13 +104,14 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
 - `Pipeline::run` now runs decode/encode on threads so CPU I/O hides behind the
   GPU inference; the encode thread uses x264 `-preset veryfast` (was default
   medium — that had become the bottleneck at 2160p: 4.7 FPS).
-- **GPU-side RGB conversion (`infer_rgb8`, the PyTorch way):** after the model
-  forward, the output is transposed NCHW→NHWC, scaled to 0..255 and cast to U8
-  **on the GPU** (`permute` + `cast(IntDType::U8)`), then only the packed RGB
-  bytes (24.8 MB) cross the PCIe bus. This removes the ~100 MB f32 download +
-  the CPU interleave pass entirely → 168 → 157 ms, end-to-end **5.1 → 6.5 FPS**.
-  (A naive CPU f16→u8 loop was much slower — `f16::to_f32()` doesn't
-  autovectorize; the GPU cast is the right call.)
+- **GPU-side RGB conversion (`infer_rgb8`):** after the model forward, the
+  output is transposed NCHW→NHWC, clamped to 0..1 and scaled to 0..255 **on the
+  GPU** (`permute` + `clamp` + `*255`); the final u8 cast happens on the CPU
+  after an f32 readback. This removes the ~100 MB f32 download + the CPU
+  interleave pass → 168 → 157 ms, end-to-end **5.1 → 6.5 FPS**.
+  (Reading the RGB8 back as u8 directly, or as f16, triggers a burn-fusion 0.21
+  stream-ordering panic over repeated frames — see the 2026-08-18 section.
+  The f32 readback is the safe path and is byte-identical to the reference.)
 - **Model inference (157 ms) is burn-Vulkan's floor** on RDNA4: ~6.4 FPS pure,
   ~6.5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified via
   rocm-smi); no throttling. **It is not an absolute floor** — torch-ROCm fp16
@@ -118,6 +119,31 @@ optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc �
   Closing to TensorRT-class speed (36 FPS) still needs hand-tuned kernels.
 - Real-CUGAN up2x and ShuffleCugan both measure identically — the per-frame
   transfer cost dominates, not the weights.
+
+## Fallin + fused-step re-measure (2026-08-18)
+
+`senmei-pipeline/tests/bench.rs`, 1080p testsrc → 2160p x2, 48 frames, Vulkan
+fp16, autotune + fusion **on**, tiled (512). Fused step = `Upscale` +
+`infer_rgb8` (GPU permute+clamp+scale, f32 readback, CPU u8 cast).
+
+| Model | infer | total | FPS | fused step | step FPS | VRAM peak |
+|---|---|---|---|---|---|---|
+| real-cugan-x2 | 359 ms | 374 ms | 2.7 | 380 ms | 2.6 | 14.6 GB |
+| fallin-soft | 193 ms | 205 ms | 4.9 | 176 ms | 5.7 | 8.1 GB |
+| fallin-strong | 196 ms | 208 ms | 4.8 | 177 ms | 5.7 | 8.1 GB |
+
+Fallin Soft/Strong are ~2× faster than real-cugan-x2 at ~half the VRAM.
+VRAM sampled via `/sys/class/drm/card1/device/mem_info_vram_used` (baseline
+~1.3 GB).
+
+**burn-fusion panic — root cause & fix:** the on-GPU `cast(IntDType::U8)`
+readback (and any non-f32 `to_vec()`) panics deterministically after ~48
+repeated frames with "Ordering is bigger than operations"
+(burn-fusion 0.21 `ordering.rs`), on every model. It is the **readback dtype**
+that triggers it, not the fused chain: `into_data().convert::<f32>().to_vec()`
+is safe, byte-identical to the reference, and keeps autotune at full speed.
+(Disabled autotune "works" but is ~5× slower.) Guarded by
+`repeated_infer_rgb8_does_not_panic` + `infer_rgb8_matches_infer_reference`.
 
 ## torch-ROCm re-test (2026-08-17, ROCm 7.14)
 
