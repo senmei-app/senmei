@@ -77,7 +77,7 @@
 - [x] AGENTS.md path checked: `crates/senmei/gen/schemas/` exists (build-generated, gitignored) — AGENTS.md correct
 
 ## shortly before release
-- [ ] GitHub runner: build + test packages for Windows / Linux / macOS (macOS runner: compile + CPU tests, no Metal on hosted runners)
+- [x] GitHub runner: build + test packages for Windows / Linux / macOS (macOS runner: compile + CPU tests, no Metal on hosted runners)
 
 ## after release
 - [ ] Project website

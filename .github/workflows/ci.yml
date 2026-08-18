@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev ffmpeg
+
+      - name: Install ffmpeg (macOS tests)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Ensure ffmpeg (Windows tests)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: where.exe ffmpeg || (choco install ffmpeg -y)
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          cache: true
+
+      - name: Install frontend deps
+        run: bun install --frozen-lockfile
+
+      - name: Frontend typecheck + build
+        run: bun run build
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo check --workspace
+        run: cargo check --workspace
+
+      # GPU tests are #[ignore] (need Vulkan + downloaded models), so this
+      # runs the CPU/unit tests everywhere; on macOS there is no Metal path
+      # exercised on hosted runners either.
+      - name: cargo test --workspace
+        run: cargo test --workspace
+
+      - name: Build app bundle
+        run: bunx @tauri-apps/cli@^2 build
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: senmei-${{ matrix.os }}
+          path: target/release/bundle/**/*
+          if-no-files-found: warn

@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ci: GitHub Actions Matrix-Build (2026-08-18)** — `.github/workflows/ci.yml`:
+  Windows/Linux/macOS — System-Deps, Frontend-Build, `cargo check` +
+  `cargo test --workspace` (GPU-Tests sind `#[ignore]`), App-Bundle via
+  `tauri build`, Artifact-Upload.
+
 - **docs: NAFNet fp16-Port-Hinweise notiert (2026-08-18)** — litert-community-
   Konversion (NAFNet-GoPro-width32) bestätigt MIT + liefert Port-Details für
   den burn-Nachbau: SimpleGate (kein Activation), Channel-Attention = mean×2,
