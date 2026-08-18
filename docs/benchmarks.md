@@ -3,16 +3,27 @@
 Comparative inference benchmarks behind the engine decision (final: 2026-08-17).
 Target device = the actual dev machine, not a synthetic proxy.
 
-## TL;DR (2026-08-17)
+## Final decision (2026-08-17)
 
-- **Shipped:** burn (`burn-wgpu`) **Vulkan fp16** — Real-CUGAN up2x **302 ms**
-  @1080p, ShuffleCugan **103 ms** @1080p; beats ncnn (398 ms) and is portable.
-- **Fastest measured:** torch-ROCm (ROCm-7.14 build) fp16 ShuffleCugan
-  **41.8 ms** @1080p — but not portable (needs ROCm 7.x + RDNA4 + matching
-  torch) → not shipped.
+- **Shipped: burn (`burn-wgpu`) Vulkan fp16.** Real-CUGAN up2x **302 ms**
+  @1080p, ShuffleCugan **103 ms** @1080p — beats ncnn (398 ms) and is portable.
+  Weighed costs: heavy build (~800 crates / 1.6 GB `target/`), a `burn-fusion`
+  f32 crash at 1080p (fp16 path is fine), the f32→f16 weight workflow.
+- **Fastest measured, not shipped:** torch-ROCm (7.14-built) fp16 ShuffleCugan
+  **41.8 ms** @1080p — 3.8× faster than burn. Not portable (ROCm 7.x + RDNA4 +
+  matching torch), heavy libtorch → kept as an optional `InferenceEngine`
+  backend at most.
 - **Dropped:** ncnn/Vulkan (superseded), candle/ROCm, burn-ROCm (cubecl fp16
   kernel gap on RDNA4).
-- Full pipeline: **~6.5 FPS** end-to-end (1080p → 2160p, x264 veryfast, GPU RGB8).
+
+## Key numbers
+
+| Path | 1080p x2 | Notes |
+|---|---|---|
+| **burn-Vulkan fp16 (shipped)** | up2x **302 ms** · ShuffleCugan **103 ms** | ShuffleCugan ~5× faster: UNet runs at half-res |
+| torch-ROCm 7.14 fp16 | ShuffleCugan **41.8 ms** (23.9 FPS) | not portable |
+| Full app (end-to-end) | **~6.5 FPS** | 1080p→2160p, tiled-fused step + x264 veryfast |
+| Fallin soft / strong (fused step) | 176 / 177 ms | full-frame, pre-tiling; ~2× faster than real-cugan-x2 (380 ms) |
 
 ## Environment
 
@@ -21,114 +32,62 @@ Target device = the actual dev machine, not a synthetic proxy.
 | GPU | AMD Radeon RX 9070 (Navi 48, RDNA4, `gfx1201`), 16 GB VRAM |
 | CPU / RAM | Granite Ridge iGPU; 30 GiB RAM |
 | OS | Fedora/Nobara (fc44, dnf) |
-| ROCm | 7.1 (hipcc, rocminfo, `/dev/kfd`, `libamdhip64`), torch 2.13.0+rocm7.1 |
+| ROCm | installed 7.1 driving the **7.14 RDNA4 port** (`/opt/therock-tarball/install`); torch 2.13.0+rocm7.1 + nightly 2.15.0.dev+rocm7.14 |
 | Vulkan | Mesa/RADV |
 | Rust | 1.96.1 |
 
-## Workload
+## Shipped path — burn-Vulkan (2026-08-17)
 
-- Real-CUGAN up2x (upcunet_v3, no-denoise), fp16, no tiling unless noted.
-- Inputs: 720p and 1080p still frames → x2.
+Real models (`upcunet_v3`, `sudo_shuffle_cugan`), weights via
+`burn-store::PytorchStore` (key remap `conv.0`/`conv.2` → `conv`/`conv2`),
+numerically verified vs torch (f32 max diff ~6e-6; fp16 ~1.7e-2).
 
-## Results
+| Model | Dtype | 720p x2 | 1080p x2 | Notes |
+|---|---|---|---|---|
+| up2x | f32 | 966 ms | crash | `burn-fusion` bug `Ordering is bigger than operations` @1080p |
+| up2x | fp16 | **136 ms** | **302 ms** | beats ncnn (249 / 398 ms) |
+| ShuffleCugan | fp16 | **46 ms** | **103 ms** | pixel-unshuffle ⇒ UNet at half-res |
 
-| Engine | Workload | Time/frame | Notes |
-|---|---|---|---|
-| torch-ROCm | 720p x2 | 139.26 ms | full-image, direct tensor I/O |
-| torch-ROCm | 1080p x2 | 7153.6 ms | pathological: 51× slower than 720p despite 2.25× pixels (MIOpen/RDNA4) |
-| torch-ROCm (tiling) | tile 512 | OOM | 16 GB VRAM exceeded |
-| torch-ROCm (tiling) | tile 256 | GPU hard fault | "Memory access fault by GPU node-1"; core dump (`gpucore.*`) |
-| torch-ROCm | RealESRGAN x4plus 640×360→1440p | 924.6 ms | |
-| ncnn-Vulkan | 720p x2 | 249.24 ms | prebuilt `realcugan-ncnn-vulkan`; auto-tile, fp16; **includes PNG codec overhead** |
-| ncnn-Vulkan | 1080p x2 | 397.66 ms | 18× faster than torch at 1080p |
-| burn-ROCm (smoke) | 3× Conv2d 32ch 256×256 | 57.11 ms | JIT artifact |
-| burn-ROCm (smoke) | same, 512×512 | 2.19 ms | proves ROCm launches on RDNA4; not SR-representative |
-
-### Burn re-benchmark (2026-08-17)
-
-The original burn-ROCm rows were a 3-conv toy. Re-tested with the **real
-Real-CUGAN `upcunet_v3`** (up2x-no-denoise `.pth`) and the **ShuffleCugan**
-alternative (`sudo_shuffle_cugan`), weights loaded via `burn-store::PytorchStore`
-(key remap `conv.0`/`conv.2` → `conv`/`conv2`), outputs numerically verified
-against the torch reference (f32 max diff ~6e-6; fp16 max diff ~1.7e-2).
-Setup: `burn` 0.21.0, `burn-rocm`, `burn-wgpu` (Vulkan via RADV).
-
-| Engine | Model | Dtype | 720p x2 | 1080p x2 | Notes |
-|---|---|---|---|---|---|
-| burn-ROCm | up2x | f32 | 1119 ms | 2197 ms | linear scaling; no torch-style 1080p collapse |
-| burn-ROCm | any | fp16/bf16 | — | — | cubecl-hip kernels hit LLVM `Cannot select: %llvm.amdgcn.wmma.f32.16x16x16.{f16,bf16}` on gfx1201 — a ROCm-7.1/cubecl **software** gap; the HW WMMA works (see torch-ROCm re-test below) |
-| burn-Vulkan | up2x | f32 | 966 ms | crash | 1080p f32: burn-fusion bug `Ordering is bigger than operations` |
-| burn-Vulkan | up2x | fp16 | **136 ms** | **302 ms** | **beats ncnn** (249 / 398 ms) |
-| burn-Vulkan | ShuffleCugan | f32 | 313 ms | — | |
-| burn-Vulkan | ShuffleCugan | fp16 | **46 ms** | **103 ms** | **~5× faster than ncnn**; pixel-unshuffle input ⇒ UNet runs at half resolution |
-
-## Read honestly
-
-- ncnn rows include PNG encode/decode + auto-tiling overhead; torch rows use
-  direct tensor I/O — the real ncnn gap vs torch is smaller than the table
-  suggests, but at 1080p ncnn is still ~an order of magnitude faster.
-- bf16 on ROCm is slower than fp16 (verified); fp16 is the default.
-- burn-ROCm (2026-08-16 rows) is a 3-conv toy — not SR-representative.
-- **2026-08-17:** burn's real SR numbers come from the **Vulkan backend, not
-  ROCm**. `burn-rocm`'s fp16/bf16 matmul hits a cubecl/ROCm-7.1 `LLVM ERROR` on
-  RDNA4 (`gfx1201`); even a bare 256×256 matmul fails. ROCm f32 works but is
-  slow. **This is a software gap, not a hardware one** — see the torch-ROCm
-  fp16 re-test below: with the ROCm 7.14 RDNA4 runtime, fp16 WMMA works and
-  beats burn-Vulkan.
-- burn-Vulkan fp16 runs the real upcunet at 136/302 ms — **faster than ncnn's
-  249/398 ms** on the same GPU (ncnn rows include PNG overhead; burn is pure
-  inference). The ShuffleCugan variant is ~5× faster still (46/103 ms) because
-  the heavy UNet processes half-resolution tensors.
-- Practical burn caveats: ~800 crates / 1.6 GB `target/`; `PytorchStore` cannot
-  cast f32→f16 at load (pre-convert weights, or use `SafetensorsStore`/
-  `BurnpackStore` + `HalfPrecisionAdapter`); a `burn-fusion` bug crashes Vulkan
-  f32 at 1080p.
+Caveats: heavy build (~800 crates / 1.6 GB `target/`); `PytorchStore` can't cast
+f32→f16 at load (pre-convert weights, or `BurnpackStore` + `HalfPrecisionAdapter`).
 
 ## Full-app render pipeline (2026-08-17)
 
-Real end-to-end numbers from `senmei-pipeline/tests/bench.rs`
-(`cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture`,
-optional `BENCH_MODEL` and `SENMEI_X264_PRESET` env). Workload: 1080p testsrc →
-2160p x2, ShuffleCugan f16 burnpack, Vulkan, 48 frames.
+`senmei-pipeline/tests/bench.rs` (`cargo test -p senmei-pipeline --release --test
+bench -- --ignored --nocapture`; env `BENCH_MODEL`, `SENMEI_X264_PRESET`).
+Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
 
-| Path | convert-in | infer | convert-out | total | FPS |
-|---|---|---|---|---|---|
-| before (sequential) | 3.7 ms | 158 ms | 35.7 ms | 197 ms | 5.1 |
-| after (optimized) | 1.9 ms | 157 ms | 9.7 ms | 168 ms | 5.9 |
-| **fused GPU RGB8 step** | 1.9 ms | 157 ms | — (on GPU) | **157 ms** | **6.4** |
-| full threaded pipeline + x264 veryfast + GPU RGB8 | — | — | — | — | **6.5** |
+| Path | total | FPS |
+|---|---|---|
+| before (sequential) | 197 ms | 5.1 |
+| after (optimized) | 168 ms | 5.9 |
+| **fused GPU RGB8 step** | **157 ms** | **6.4** |
+| full threaded + x264 veryfast | — | **6.5** |
 
-- The 4K `tensor_to_frame` (35.7 → 9.7 ms) was the biggest CPU win: replaced
-  `round().clamp()` per element with a saturating `(x*255+0.5) as u8`
-  (autovectorizes); `frame_to_tensor` uses a `x/255` LUT (3.7 → 1.9 ms).
-- `Pipeline::run` now runs decode/encode on threads so CPU I/O hides behind the
-  GPU inference; the encode thread uses x264 `-preset veryfast` (was default
-  medium — that had become the bottleneck at 2160p: 4.7 FPS).
-- **GPU-side RGB conversion (`infer_rgb8`):** the output is transposed
-  NCHW→NHWC, clamped to 0..1, scaled to 0..255 and cast to u8 **on the GPU**
-  (`permute` + `clamp` + `*255` + `cast(U8)`), per 512px tile, so only packed
-  u8 bytes cross back; tiles are stitched with overlap averaging. The
-  **full-frame** fused variant OOM'd burn/cubecl autotune on large matmuls and
-  then panicked with "Ordering is bigger than operations" — see the 2026-08-18
-  section. Tiling avoids it entirely; the earlier numbers below (157 ms /
-  6.4 FPS) predate the tiled version.
-- **Model inference (157 ms) is burn-Vulkan's floor** on RDNA4: ~6.4 FPS pure,
-  ~6.5 FPS end-to-end. GPU hits 100 % / 3.2 GHz during inference (verified via
-  rocm-smi); no throttling. **It is not an absolute floor** — torch-ROCm fp16
-  (ROCm 7.14 runtime) runs the same model at 111.5 ms / 9.0 FPS (see below).
-  Closing to TensorRT-class speed (36 FPS) still needs hand-tuned kernels.
-- Real-CUGAN up2x and ShuffleCugan both measure identically — the per-frame
-  transfer cost dominates, not the weights.
+- Biggest CPU win: 4K `tensor_to_frame` 35.7→9.7 ms via saturating
+  `(x*255+0.5) as u8`; `frame_to_tensor` uses a `x/255` LUT (3.7→1.9 ms).
+- Decode/encode run on threads so CPU I/O hides behind GPU inference; encode uses
+  x264 `-preset veryfast` (was medium — the 2160p bottleneck at 4.7 FPS).
+- **`infer_rgb8`:** NCHW→NHWC, clamp 0..1, scale 0..255, cast to u8 **on GPU**
+  per 512px tile; only packed u8 crosses back; tiles overlap-averaged. The
+  full-frame variant OOM'd autotune + panicked — tiling avoids it (below).
+- 157 ms is burn-Vulkan's floor on RDNA4 (GPU 100 % / 3.2 GHz, no throttling);
+  torch-ROCm fp16 runs the same model at 111.5 ms / 9.0 FPS.
 
-## Fallin + fused-step re-measure (2026-08-18)
+### Autotune failures — root cause & fix (2026-08-18)
 
-`senmei-pipeline/tests/bench.rs`, 1080p testsrc → 2160p x2, 48 frames, Vulkan
-fp16, autotune + fusion **on**. Fused step = `Upscale` + `infer_rgb8`
-(tiled-fused: per-512px-tile GPU permute+clamp+scale+u8 cast, u8 readback,
-overlap-stitched).
+Full-frame fused `infer_rgb8` OOM'd autotune on a large matmul (m=1024, n=4M,
+f16), then panicked `Ordering is bigger than operations` (docs/burn-bugs.md
+Bug 1+3). **Fix:** tile `infer_rgb8` (512px) so no full-frame matmul reaches
+autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
+autotune also works but is ~5× slower.
 
-The table below is the earlier **full-frame** fused step. The tiled-fused step
-measures ~329 ms / 3.0 FPS (fallin-soft); full threaded pipeline 2.8 FPS.
+## Fallin vs real-cugan (2026-08-18)
+
+`bench.rs`, 1080p→2160p x2, Vulkan fp16, autotune + fusion on. Fused step =
+`Upscale` + `infer_rgb8`. **Table = earlier full-frame fused step**; the current
+tiled-fused step measures ~329 ms / 3.0 FPS (fallin-soft), full threaded
+pipeline 2.8 FPS.
 
 | Model | infer | total | FPS | fused step | step FPS | VRAM peak |
 |---|---|---|---|---|---|---|
@@ -136,25 +95,17 @@ measures ~329 ms / 3.0 FPS (fallin-soft); full threaded pipeline 2.8 FPS.
 | fallin-soft | 193 ms | 205 ms | 4.9 | 176 ms | 5.7 | 8.1 GB |
 | fallin-strong | 196 ms | 208 ms | 4.8 | 177 ms | 5.7 | 8.1 GB |
 
-Fallin Soft/Strong are ~2× faster than real-cugan-x2 at ~half the VRAM.
-VRAM sampled via `/sys/class/drm/card1/device/mem_info_vram_used` (baseline
-~1.3 GB).
+Fallin Soft/Strong ~2× faster than real-cugan-x2 at ~half the VRAM. VRAM via
+`/sys/class/drm/card1/device/mem_info_vram_used` (baseline ~1.3 GB).
 
-**burn/cubecl autotune failures — root cause & fix:** the full-frame fused
-`infer_rgb8` OOM'd autotune on a large full-frame matmul (m=1024, n=4M, f16)
-and then cascaded into "Ordering is bigger than operations" panics
-(docs/burn-bugs.md Bug 1+3). Fix: tile `infer_rgb8` (512px) so no full-frame
-matmul reaches autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`
-(correctness within fp16 tolerance + 48-frame reliability). Disabling autotune
-also "works" but is ~5× slower.
+## Alternatives
 
-## torch-ROCm re-test (2026-08-17, ROCm 7.14)
+### torch-ROCm (2026-08-17, ROCm 7.14)
 
-The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. It was a
-**ROCm-7.1 software gap** — the machine runs the **ROCm 7.14** RDNA4 port
-(`/opt/therock-tarball/install`). Two torch builds tested: the installed
-`2.13.0+rocm7.1` binary driving the 7.14 runtime, and a fresh nightly built
-**for** 7.14 (`2.15.0.dev+rocm7.14`, in `$HOME/torch714-venv`).
+The 2026-08-16 "fp16 impossible on RDNA4" verdict was a **ROCm-7.1 software
+gap** — the machine runs the **7.14 RDNA4 port**. The 7.14-built nightly
+(`2.15.0.dev+rocm7.14`, `$HOME/torch714-venv`) unlocks RDNA4 fp16
+kernels: WMMA is present; the earlier `LLVM Cannot select` was cubecl-hip/7.1.
 
 | Test | torch 2.13 (7.1-built) | **torch 2.15 (7.14-built)** |
 |---|---|---|
@@ -164,49 +115,42 @@ The 2026-08-16 verdict ("fp16 impossible on RDNA4") was wrong. It was a
 | **ShuffleCugan fp16 1080p→2160p** | 111.5 ms → 9.0 FPS | **41.8 ms → 23.9 FPS** |
 | ShuffleCugan fp32 1080p→2160p | 569.0 ms → 1.8 FPS | 94.2 ms → 10.6 FPS |
 
-- WMMA (FP16/BF16/FP8/BF8) is **present on RDNA4**; the earlier `LLVM Cannot
-  select` was a **cubecl-hip / ROCm-7.1 kernel gap**. The **7.14-built torch
-  unlocks RDNA4 fp16 conv kernels**: ShuffleCugan fp16 drops 111.5 → 41.8 ms —
-  **3.8× faster than burn-Vulkan fp16 (157.4 ms / 6.4 FPS)**. fp32 also drops
-  569 → 94.2 ms.
-- **FP8 (e4m3/e5m2) is NOT usable on RDNA4 yet — two independent gaps:**
-  (1) torch on ROCm never wires fp8: `addmm_cuda not implemented for
-  Float8_*`, `_scaled_mm` is CUDA-only (cuBLASLt error) even in the 7.14-built
-  nightly. (2) A **direct hipBLASLt 1.4 C++ probe** (`/tmp/fp8probe2.cpp`) found
-  fp8 kernels ARE compiled for gfx1201 (`Cijk_Ailk_Bljk_F8SS_..._ISA1201`;
-  heuristic returns 8 algos), but every `hipblasLtMatmul` crashes with a GPU
-  Memory Fault ("Page not present or supervisor privilege") regardless of algo
-  or workspace → **broken fp8 kernel on RDNA4 in this ROCm release**. fp8 needs
-  a newer ROCm/driver or a framework that works around it — not reachable
-  today. fp16 via torch-ROCm-7.14 remains the win.
-- **Caveat — fp16 is input-range sensitive:** on inputs outside 0..1 (e.g.
-  randn) the fp16 path collapses to all-NaN; fp32 stays clean. With realistic
-  video (normalized 0..1, what the app feeds) fp16 is clean: max diff vs fp32
-  0.075, mean 0.0006, no NaN. **Clamp input to 0..1 before the fp16 forward.**
-- Other caveats: needs ROCm 7.x + RDNA4 + a matching torch install (not
-  portable like Vulkan) + libtorch size + first-kernel JIT. End-to-end gain is
-  smaller than the model-only number (decode/encode + transfers dominate).
+- **FP8 not usable on RDNA4 yet** (two gaps): torch never wires fp8 on ROCm
+  (`addmm_cuda not implemented for Float8_*`, `_scaled_mm` CUDA-only), and a
+  direct hipBLASLt 1.4 probe crashes every `hipblasLtMatmul` with a GPU memory
+  fault despite fp8 kernels being compiled for gfx1201 → needs newer ROCm.
+- **fp16 is input-range sensitive:** outside 0..1 (e.g. randn) fp16 collapses
+  to all-NaN; fp32 clean. With normalized 0..1 video (what the app feeds) fp16
+  is clean (max diff vs fp32 0.075, mean 0.0006). **Clamp input to 0..1.**
+- Not portable (ROCm 7.x + RDNA4 + matching torch), heavy libtorch, first-kernel
+  JIT; end-to-end gain smaller than model-only (decode/encode dominate).
 
-## Decision (2026-08-17, final)
+### ncnn/Vulkan — dropped
 
-- **Shipped engine: burn (`burn-wgpu`) on the Vulkan backend, fp16.** With the
-  real upcunet + Vulkan + fp16, burn beats ncnn (302 vs 398 ms @1080p; 136 vs
-  249 ms @720p) and ShuffleCugan is ~5× faster still (46/103 ms). The earlier
-  "burn set aside" verdict (2026-08-16) rested on a toy model on the wrong
-  backend (ROCm). Weighed costs: heavy build (~800 crates/1.6 GB), a
-  `burn-fusion` f32 crash at 1080p (fp16 path is fine), the f32→f16 weight
-  workflow — all acceptable against one portable backend + clean Rust ports.
-- **torch/ROCm (7.14-built, fp16) is the fastest measured** on RDNA4
-  (ShuffleCugan fp16 1080p→2160p at 41.8 ms / 23.9 FPS — 3.8× faster than
-  burn-Vulkan). Not portable (needs ROCm 7.x + RDNA4 + matching torch) + heavy
-  libtorch → kept as an optional AMD backend behind the `InferenceEngine` trait
-  at most, **not shipped**. Clamp inputs to 0..1 for fp16.
-- **ncnn/Vulkan dropped** — was the 2026-08-16 winner (398 ms @1080p) but is
-  superseded by burn-Vulkan fp16; the C++ shim (`senmei-ncnn`) was removed.
-  ncnn survives only as a **weight format** for the RIFE port (`flownet.bin`).
-- **candle/ROCm dropped** — the `xmiksay/feat/rocm-backend` fork is numerically
-  correct but f32 convs materialize the im2col matrix (memory cliff from ~640p),
-  f16 stays ~6× slower than burn-Vulkan, and the ShuffleCugan port OOMs even at
-  64×64. Not pursued.
+Prebuilt `realcugan-ncnn-vulkan` (auto-tile, fp16, **includes PNG codec
+overhead**): 249 ms @720p, 398 ms @1080p. Was the 2026-08-16 winner but is
+superseded by burn-Vulkan fp16; the C++ shim (`senmei-ncnn`) was removed. ncnn
+survives only as a **weight format** for the RIFE port (`flownet.bin`).
+
+### candle/ROCm — dropped
+
+The `xmiksay/feat/rocm-backend` fork is numerically correct but f32 convs
+materialize im2col (memory cliff from ~640p), f16 ~6× slower than burn-Vulkan,
+and the ShuffleCugan port OOMs even at 64×64.
+
+### burn-ROCm — dropped
+
+f32 works but is slow (up2x 1119 / 2197 ms @720p / 1080p, linear scaling, no
+1080p collapse). fp16/bf16 matmul hits cubecl/ROCm-7.1 `LLVM Cannot select` on
+gfx1201 — a **software gap** (HW WMMA works, see torch-ROCm); bf16 is slower
+than fp16 anyway. Early smoke rows (57 / 2.19 ms) were a 3-conv toy, not
+SR-representative.
+
+### torch-ROCm original rows (2026-08-16, superseded)
+
+Full-image, direct tensor I/O: 139.26 ms @720p, **7153.6 ms @1080p**
+(pathological MIOpen/RDNA4 collapse: 51× slower than 720p despite 2.25× pixels);
+tiling OOM'd (tile 512) or hard-faulted the GPU (tile 256, core dump). RealESRGAN
+x4plus 640×360→1440p: 924.6 ms.
 
 See `docs/PLAN.md` for the current engine/roadmap status.
