@@ -34,6 +34,76 @@ fn preview_backend_functions_work() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// HDR10 sources: probe detects PQ/bt2020 and the decoder applies the tonemap
+/// filter (Auto) while Off skips it. Gated on libx265 (GPL-only, absent from
+/// the LGPL portable build) because the clip needs a 10-bit encoder.
+#[test]
+fn hdr_source_is_detected_and_tonemapped() {
+    let encoders = Command::new("ffmpeg")
+        .args(["-hide_banner", "-encoders"])
+        .output();
+    let has_x265 = encoders
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("libx265"))
+        .unwrap_or(false);
+    if !has_x265 {
+        eprintln!("libx265 not available, skipping HDR test");
+        return;
+    }
+
+    let dir = std::env::temp_dir().join("senmei-hdr-test");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let input: PathBuf = dir.join("hdr.mp4");
+    let ok = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=1:size=320x180:rate=10",
+            "-pix_fmt",
+            "yuv420p10le",
+            "-c:v",
+            "libx265",
+            "-x265-params",
+            "log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
+            "-tag:v",
+            "hvc1",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok, "HDR generation failed");
+
+    let info = senmei_media::probe(&input).expect("probe failed");
+    assert!(info.is_hdr(), "HDR10 source should be detected as HDR");
+
+    let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let mut auto = senmei_media::Decoder::open_with_range(
+        std::path::Path::new(&ffmpeg),
+        &input,
+        0,
+        Some(1000),
+        senmei_media::Tonemap::Auto,
+    )
+    .expect("auto decoder");
+    let f = auto.next_frame().expect("next_frame").expect("a frame");
+    assert_eq!((f.width, f.height), (320, 180));
+
+    let mut off = senmei_media::Decoder::open_with_range(
+        std::path::Path::new(&ffmpeg),
+        &input,
+        0,
+        Some(1000),
+        senmei_media::Tonemap::Off,
+    )
+    .expect("off decoder");
+    off.next_frame().expect("next_frame").expect("a frame");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Rotated videos: probe reports display dims + rotation, and the decoder
 /// outputs display-sized frames (no silent autorotation mismatch). The rotation
 /// is a real MP4 DisplayMatrix (ffmpeg autorotates it), and the decoded
@@ -86,6 +156,7 @@ fn probe_and_decode_apply_rotation() {
         &input,
         0,
         Some(2000),
+        senmei_media::Tonemap::Auto,
     )
     .expect("decoder open");
     let frame = dec.next_frame().expect("next_frame").expect("a frame");

@@ -5,6 +5,21 @@ use std::process::{Command, Stdio};
 use crate::frame::Frame;
 use crate::{Error, Result};
 
+/// HDR→SDR tonemapping policy for the decode stage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Tonemap {
+    /// Tone-map only when the source is detected as HDR.
+    #[default]
+    Auto,
+    /// Always apply the HDR→SDR filter.
+    Always,
+    /// Never tone-map.
+    Off,
+}
+
+/// FFmpeg HDR→SDR filter (zscale + tonemap; LGPL-safe, needs libzimg).
+const TONEMAP_VF: &str = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=rgb24";
+
 pub struct Decoder {
     child: std::process::Child,
     stdout: BufReader<std::process::ChildStdout>,
@@ -24,6 +39,7 @@ impl Decoder {
         path: &Path,
         start_ms: u64,
         end_ms: Option<u64>,
+        tonemap: Tonemap,
     ) -> Result<Self> {
         let info = crate::probe::probe(path)?;
         let fps = info.fps;
@@ -36,10 +52,15 @@ impl Decoder {
             .arg(path)
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
 
+        // Tonemap HDR→SDR before the output conversion; rotation last so the
+        // decoded frames always match `probe`'s display dimensions.
+        let mut filters: Vec<&str> = Vec::new();
+        if tonemap == Tonemap::Always || (tonemap == Tonemap::Auto && info.is_hdr()) {
+            filters.push(TONEMAP_VF);
+        }
         // ffmpeg autorotates by default (DisplayMatrix), which would silently
         // change the output size away from the probed one. Disable that and
-        // apply the rotation explicitly so the decoded frames always match
-        // `probe`'s display dimensions. The filter per rotation is verified
+        // apply the rotation explicitly. The filter per rotation is verified
         // byte-identical against ffmpeg's own autorotation.
         if info.rotation != 0 {
             cmd.arg("-noautorotate");
@@ -49,7 +70,10 @@ impl Decoder {
                 270 => "transpose=1", // 270° cw = 90° clockwise
                 _ => unreachable!(),
             };
-            cmd.args(["-vf", vf]);
+            filters.push(vf);
+        }
+        if !filters.is_empty() {
+            cmd.arg("-vf").arg(filters.join(","));
         }
 
         let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;

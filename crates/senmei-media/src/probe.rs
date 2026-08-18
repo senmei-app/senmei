@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoInfo {
     /// Display width after applying rotation (stored dims for unrotated video).
     pub width: u32,
@@ -16,6 +17,20 @@ pub struct VideoInfo {
     pub duration: f64,
     /// Clockwise rotation needed for display, normalized to 0/90/180/270.
     pub rotation: u32,
+    /// Source color transfer characteristic (e.g. "smpte2084" = PQ).
+    pub color_transfer: Option<String>,
+    /// Source color primaries (e.g. "bt2020").
+    pub color_primaries: Option<String>,
+}
+
+impl VideoInfo {
+    /// HDR if the source uses a PQ/HLG/DCI transfer (tonemapping to SDR applies).
+    pub fn is_hdr(&self) -> bool {
+        matches!(
+            self.color_transfer.as_deref(),
+            Some("smpte2084" | "arib-std-b67" | "smpte428-1")
+        )
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +51,10 @@ struct Stream {
     height: u32,
     #[serde(default)]
     avg_frame_rate: String,
+    #[serde(default)]
+    color_transfer: Option<String>,
+    #[serde(default)]
+    color_primaries: Option<String>,
     #[serde(default)]
     tags: HashMap<String, String>,
     #[serde(default)]
@@ -125,6 +144,8 @@ pub fn probe(path: &Path) -> Result<VideoInfo> {
         fps,
         duration,
         rotation,
+        color_transfer: stream.color_transfer.clone(),
+        color_primaries: stream.color_primaries.clone(),
     })
 }
 
@@ -136,5 +157,31 @@ fn parse_ratio(s: &str) -> Option<f64> {
         None
     } else {
         Some(num / den)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VideoInfo;
+
+    fn info(transfer: Option<&str>) -> VideoInfo {
+        VideoInfo {
+            width: 1920,
+            height: 1080,
+            fps: 24.0,
+            duration: 1.0,
+            rotation: 0,
+            color_transfer: transfer.map(String::from),
+            color_primaries: Some("bt2020".into()),
+        }
+    }
+
+    #[test]
+    fn hdr_detection() {
+        assert!(info(Some("smpte2084")).is_hdr(), "PQ");
+        assert!(info(Some("arib-std-b67")).is_hdr(), "HLG");
+        assert!(info(Some("smpte428-1")).is_hdr(), "DCI-P3 transfer");
+        assert!(!info(Some("bt709")).is_hdr(), "SDR");
+        assert!(!info(None).is_hdr(), "no transfer");
     }
 }
