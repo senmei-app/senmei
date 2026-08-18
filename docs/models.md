@@ -137,5 +137,13 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
   (`senmei_ml::onnx`) extracts the `initializer` tensors (the ONNX is only a
   weight container; the arch is the existing `UpCunet2x_fast`);
   `download_model` auto-detects `.onnx`.
+- **NAFNet fp16-Port (NAFBlock)**: kein Aktivierungs-Funktion nötig — `SimpleGate`
+  ist nur Channel-Split × Multiply, das Netz ist rein konvolutiv (beliebige Größe
+  in Vielfachen von 16). Zwei Fallen: (1) `LayerNorm2d`-Reduktion läuft in fp16
+  über (bottleneck |x|≈175, Σ_c über ~15M Werte → Overflow/Gitter-Artefakt auf
+  GPU) — die Kanal-Reduktion in skaliertem `x/S`-Bereich rechnen (S≈128) und
+  zurück; (2) Channel-Attention = `mean(3).mean(2)`, Upsample = Conv1×1 +
+  PixelShuffle(2) (= depth-to-space). MIT bestätigt via litert-community-
+  Konversion (offizielle GoPro-width32-Weights).
 - **f32→f16:** `PytorchStore` can't cast f32→f16 at load — pre-convert to f16
   `.bpk` (`BurnpackStore` + `HalfPrecisionAdapter`).
