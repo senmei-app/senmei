@@ -59,20 +59,22 @@ fn slice_c<B: Backend>(x: Tensor<B, 4>, s: usize, e: usize) -> Tensor<B, 4> {
 }
 
 fn conv2d<B: Backend>(in_c: usize, out_c: usize, stride: usize, device: &B::Device) -> Conv2d<B> {
+    // Explicit(1,1,1,1) matches torch `padding=1` exactly; burn's `Same` pads
+    // only 1 total at stride 2 (0 left/1 right) which shifts the output.
     Conv2dConfig::new([in_c, out_c], [3, 3])
         .with_stride([stride, stride])
-        .with_padding(PaddingConfig2d::Same)
+        .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
         .init(device)
 }
 
 /// Per-channel PReLU (`nn.PReLU(channels)`): `max(0,x) + w[c]*min(0,x)`.
 /// Not in burn 0.21, so implemented as a tiny module with a 1D weight param.
 #[derive(Module, Debug)]
-pub struct Prelu<B: Backend> {
+pub struct PRelu<B: Backend> {
     weight: Param<Tensor<B, 1>>,
 }
 
-impl<B: Backend> Prelu<B> {
+impl<B: Backend> PRelu<B> {
     pub fn new(num: usize, device: &B::Device) -> Self {
         let data = TensorData::new(vec![0.25f32; num], [num]);
         Self {
@@ -90,14 +92,14 @@ impl<B: Backend> Prelu<B> {
 #[derive(Module, Debug)]
 struct ConvRelu<B: Backend> {
     conv: Conv2d<B>,
-    prelu: Prelu<B>,
+    prelu: PRelu<B>,
 }
 
 impl<B: Backend> ConvRelu<B> {
     fn new(in_c: usize, out_c: usize, stride: usize, device: &B::Device) -> Self {
         Self {
             conv: conv2d(in_c, out_c, stride, device),
-            prelu: Prelu::new(out_c, device),
+            prelu: PRelu::new(out_c, device),
         }
     }
 
@@ -115,7 +117,7 @@ struct ResBlock<B: Backend> {
     c3: ConvRelu<B>,
     c4: ConvRelu<B>,
     c5: Conv2d<B>,
-    pl: Prelu<B>,
+    pl: PRelu<B>,
     side: usize,
 }
 
@@ -127,24 +129,22 @@ impl<B: Backend> ResBlock<B> {
             c3: ConvRelu::new(in_c, in_c, 1, device),
             c4: ConvRelu::new(side, side, 1, device),
             c5: conv2d(in_c, in_c, 1, device),
-            pl: Prelu::new(in_c, device),
+            pl: PRelu::new(in_c, device),
             side,
         }
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [n, c, h, w] = x.dims();
+        let [_, c, _, _] = x.dims();
         let side = self.side;
-        let r = [0..n, (c - side)..c, 0..h, 0..w];
+        let main = c - side;
 
         let out1 = self.c1.forward(x.clone());
-        let out2 = out1
-            .clone()
-            .slice_assign(r.clone(), self.c2.forward(out1.slice(r.clone())));
+        let p = out1.split_with_sizes(vec![main, side], 1);
+        let out2 = Tensor::cat(vec![p[0].clone(), self.c2.forward(p[1].clone())], 1);
         let out3 = self.c3.forward(out2);
-        let out4 = out3
-            .clone()
-            .slice_assign(r.clone(), self.c4.forward(out3.slice(r.clone())));
+        let q = out3.split_with_sizes(vec![main, side], 1);
+        let out4 = Tensor::cat(vec![q[0].clone(), self.c4.forward(q[1].clone())], 1);
         self.pl.forward(out4 + x)
     }
 }
@@ -323,6 +323,8 @@ impl<B: Backend> IfrNet<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn::tensor::f16;
+    use burn_store::{BurnpackStore, ModuleSnapshot};
     use burn_wgpu::{Vulkan, WgpuDevice};
 
     #[test]
@@ -345,5 +347,72 @@ mod tests {
         );
         let out = m.forward(a, b, t);
         assert_eq!(out.dims(), [n, c, h, w]);
+    }
+
+    /// Numerical check against the official torch model (tools/ifrnet_verify.py
+    /// writes `a.bin`/`b.bin`/`ref.bin` as f32 little-endian). Loads the real
+    /// f16 burnpack, runs the same pair, and asserts a small mean abs error.
+    ///
+    /// NOTE: currently FAILS on the fused `Vulkan<f16>` backend (mae ~0.16) —
+    /// burn-fusion computes wrong results for the ResBlock side-channel pattern
+    /// (split/cat) when compiled as a standalone function stream; inline it is
+    /// correct (verified ~0.0001). See docs/burn-bugs.md Bug 4.
+    #[test]
+    #[ignore = "KNOWN FAILURE: burn-fusion bug (docs/burn-bugs.md Bug 4); needs Vulkan + models/IFRNet_Vimeo90K.pth.f16.bpk + torch ref bins (tools/ifrnet_verify.py); needs RUST_MIN_STACK=33554432"]
+    fn ifrnet_matches_torch_reference() {
+        let device = WgpuDevice::DiscreteGpu(0);
+        let dir = std::env::var("SENMEI_IFRNET_VERIFY_DIR")
+            .unwrap_or_else(|_| "/tmp/ifrnet_verify".into());
+        let read = |name: &str, n: usize| -> Vec<f32> {
+            let data = std::fs::read(format!("{dir}/{name}")).expect("missing ref bin");
+            assert_eq!(data.len(), n * 4, "bad {name} size");
+            data.chunks_exact(4)
+                .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                .collect()
+        };
+
+        let [n, c, h, w] = [1usize, 3, 64, 64];
+        let a_v = read("a.bin", n * c * h * w);
+        let b_v = read("b.bin", n * c * h * w);
+        let ref_v = read("ref.bin", n * c * h * w);
+
+        let mut m = IfrNet::<Vulkan<f16>>::new(&device);
+        let mut store = BurnpackStore::from_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../models/IFRNet_Vimeo90K.pth.f16.bpk"
+        ));
+        let res = m.load_from(&mut store).unwrap();
+        println!(
+            "load: applied={} missing={} unused={}",
+            res.applied.len(),
+            res.missing.len(),
+            res.unused.len()
+        );
+        for (p, c) in &res.missing {
+            println!("  missing {p} ({c})");
+        }
+        for u in &res.unused {
+            println!("  unused {u}");
+        }
+
+        let a = Tensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(a_v, [n, c, h, w]).convert::<f16>(),
+            &device,
+        );
+        let b = Tensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(b_v, [n, c, h, w]).convert::<f16>(),
+            &device,
+        );
+        let t = Tensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], &device) * 0.5;
+        let out = m.forward(a, b, t);
+        let out_v = out.into_data().convert::<f32>().to_vec().unwrap();
+        let mae: f32 = out_v
+            .iter()
+            .zip(&ref_v)
+            .map(|(x, y): (&f32, &f32)| (x - y).abs())
+            .sum::<f32>()
+            / ref_v.len() as f32;
+        println!("mae vs torch = {mae}");
+        assert!(mae < 0.01, "mae too large: {mae}");
     }
 }

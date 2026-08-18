@@ -4,6 +4,17 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: IFRNet torch-verifiziert, durch burn-fusion Bug 6 geblockt (2026-08-19)** —
+  `tools/ifrnet_verify.py` + vendorte torch-Referenz (`ref/ifrnet/`, MIT) erzeugen
+  Referenz-Bins; Encoder + Weights sind exakt (mae ~0.0001), der ResBlock
+  (Side-Channel split/cat) stimmt nur **ungefuset** mit torch überein. Auf dem
+  gefuseten `Vulkan<f16>`-Backend liefert der ResBlock über Funktionsaufrufe
+  deterministisch falsche Werte (mae 0.0525) — burn-Fusion-Bug (docs/burn-bugs.md
+  Bug 6; alle Workarounds inkl. Mask-Multiply scheitern). Fixes unterwegs:
+  Conv-Padding `Explicit(1,1,1,1)` statt `Same` (torch-konform), PRelu-Rename für
+  den HalfPrecisionAdapter. IFRNet bleibt `loadable: false` bis der Backend-Bug
+  gelöst ist (Referenz-Test als bekannte Fehlschlag-Doku).
+
 - **feat: HDR→SDR tonemapping (2026-08-18)** — `probe` liest `color_transfer`/
   `color_primaries` und `VideoInfo::is_hdr()` erkennt PQ/HLG/DCI. Der Decoder
   wendet bei HDR (oder `always`) eine zscale+tonemap-Filterkette an und

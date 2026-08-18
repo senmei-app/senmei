@@ -11,3 +11,4 @@ models/*.bin
 models/*.pth
 models/*.bpk
 models/*.onnx
+__pycache__/
