@@ -51,6 +51,17 @@ fn pick_video_encoder(ffmpeg: &Path, width: u32, height: u32) -> (String, Vec<St
     ("h264".into(), vec![])
 }
 
+/// Default extra args when the caller overrides `-c:v` (the frontend codec
+/// dropdown). libopenh264 is bitrate-only (ABR), so it gets a resolution-based
+/// `-b:v` (same formula as `pick_video_encoder`) unless already provided.
+fn override_codec_args(codec: &str, extra_args: &[String], width: u32, height: u32) -> Vec<String> {
+    if codec == "libopenh264" && !extra_args.iter().any(|a| a == "-b:v") {
+        vec!["-b:v".into(), format!("{}k", width as u64 * height as u64 / 144)]
+    } else {
+        Vec::new()
+    }
+}
+
 impl Encoder {
     /// `extra_args` are appended after the defaults (before the output path), so
     /// user-supplied codec/filter options override the built-in defaults.
@@ -67,7 +78,17 @@ impl Encoder {
         start_ms: u64,
         extra_args: &[String],
     ) -> Result<Self> {
-        let (video_codec, codec_args) = pick_video_encoder(ffmpeg, width, height);
+        let (video_codec, mut codec_args) = pick_video_encoder(ffmpeg, width, height);
+        // A caller-supplied `-c:v` fully owns the codec: drop the default
+        // codec's args (e.g. libkvazaar's `-preset`) and apply the override's
+        // own defaults, so a GPL/ABR mismatch never leaks through.
+        if let Some(codec) = extra_args
+            .windows(2)
+            .find(|w| w[0] == "-c:v")
+            .map(|w| w[1].as_str())
+        {
+            codec_args = override_codec_args(codec, extra_args, width, height);
+        }
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y")
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
@@ -139,6 +160,23 @@ impl Drop for Encoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn override_codec_sets_bitrate_for_openh264_only() {
+        // libopenh264 is ABR-only: the override adds a resolution-based `-b:v`
+        // unless the caller already passed one; other codecs get no defaults.
+        let w = 1920u32;
+        let h = 1080u32;
+        let base = ["-c:v".into(), "libopenh264".into()];
+        assert_eq!(
+            override_codec_args("libopenh264", &base, w, h),
+            vec!["-b:v".to_string(), "14400k".to_string()]
+        );
+        let with_bv = ["-c:v".into(), "libopenh264".into(), "-b:v".into(), "1000k".into()];
+        assert_eq!(override_codec_args("libopenh264", &with_bv, w, h), Vec::<String>::new());
+        assert_eq!(override_codec_args("libkvazaar", &base, w, h), Vec::<String>::new());
+        assert_eq!(override_codec_args("libsvtav1", &base, w, h), Vec::<String>::new());
+    }
 
     /// End-to-end encode through the selected (LGPL-safe) codec. Skipped unless
     /// `SENMEI_FFMPEG` points at a real ffmpeg (e.g. the pinned BtbN LGPL build).

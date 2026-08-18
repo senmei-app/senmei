@@ -114,9 +114,12 @@ export function normalizeSteps(steps: PipelineStep[]): PipelineStep[] {
   return steps.filter((s) => isStepType(s.stepType));
 }
 
+// LGPL-safe encoder mapping (matches the backend's policy): libx264/libx265
+// are GPL and absent from the pinned BtbN LGPL builds, so H.264/H.265 map to
+// libopenh264/libkvazaar (both BSD, shipped in the LGPL builds).
 const CODEC_MAP: Record<string, string> = {
-  "H.264": "libx264",
-  "H.265": "libx265",
+  "H.264": "libopenh264",
+  "H.265": "libkvazaar",
   AV1: "libsvtav1",
   VP9: "libvpx-vp9",
 };
@@ -153,9 +156,17 @@ function splitArgs(s: string): string[] {
 export function buildEncoderArgs(params: StepParams | undefined, custom: string): string {
   const structured: string[] = [];
   const vc = params?.videoCodec;
-  if (vc && CODEC_MAP[vc]) structured.push("-c:v", CODEC_MAP[vc]);
-  if (params?.crf != null) structured.push("-crf", String(params.crf));
-  if (params?.preset) structured.push("-preset", params.preset);
+  const codec = vc && CODEC_MAP[vc] ? CODEC_MAP[vc] : null;
+  if (codec) structured.push("-c:v", codec);
+  // CRF/preset only where the codec supports them: svtav1/vpx take a CRF,
+  // kvazaar takes a preset (quality-based rate control), openh264 is
+  // bitrate-only (ABR) and gets its `-b:v` from the backend.
+  if (codec === "libsvtav1" || codec === "libvpx-vp9") {
+    if (params?.crf != null) structured.push("-crf", String(params.crf));
+    if (params?.preset) structured.push("-preset", params.preset);
+  } else if (codec === "libkvazaar") {
+    if (params?.preset) structured.push("-preset", params.preset);
+  }
   if (params?.pixFmt) structured.push("-pix_fmt", params.pixFmt);
   if (params?.tune) structured.push("-tune", params.tune);
   if (params?.colorPrimaries) structured.push("-color_primaries", params.colorPrimaries);

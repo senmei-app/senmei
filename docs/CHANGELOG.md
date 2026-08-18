@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: Codec-Mapping LGPL-safe (2026-08-18)** — der Encoder-Dropdown mappte
+  H.264→`libx264`/H.265→`libx265` (beide GPL, fehlen in den gepinnten
+  BtbN-LGPL-Builds), wodurch H.264/H.265-Outputs mit dem LGPL-FFmpeg
+  fehlschlugen. Jetzt H.264→`libopenh264`, H.265→`libkvazaar` (beide BSD) und
+  die Args sind codec-bewusst: CRF nur für svtav1/vpx, Preset für kvazaar,
+  openh264 ist ABR und bekommt sein `-b:v` vom Backend. `Encoder::open`
+  verwirft beim `-c:v`-Override die Default-Args des Basis-Codecs. Test
+  `override_codec_sets_bitrate_for_openh264_only`.
+
 - **perf: Tile-Größe 512→640 nach GPU-Stitch (2026-08-18)** — das alte
   Kostenmodell (15 u8-Readbacks + CPU-Stitch) galt nicht mehr, daher neu
   gemessen (`bench_upscale_step`, fallin-soft, 1080p→2160p): 512px 247.8 ms,
