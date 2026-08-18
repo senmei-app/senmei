@@ -281,7 +281,13 @@ pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
                 .unwrap_or(false)
         })
         .collect();
-    files.sort();
+    // Oldest first by modification time, so `keep` always retains the newest
+    // files regardless of filename (range-tagged names don't sort chronologically).
+    files.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::UNIX_EPOCH)
+    });
     for p in files.iter().take(files.len().saturating_sub(keep)) {
         let _ = std::fs::remove_file(p);
     }
@@ -750,6 +756,37 @@ mod tests {
         std::fs::write(&b, b"x").unwrap();
         let free = unique_path(a.to_string_lossy().into_owned()).unwrap();
         assert_eq!(free, dir.join("out_3.mkv").to_string_lossy().into_owned());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn prune_samples_keeps_newest_by_mtime() {
+        let dir = std::env::temp_dir().join("senmei-prune-smoke");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // The newest file's name sorts first; a lexical prune would wrongly
+        // delete it, a mtime prune must keep it.
+        let oldest = dir.join("b.mkv");
+        let newest = dir.join("a.mkv");
+        std::fs::write(&oldest, b"x").unwrap();
+        std::fs::write(&newest, b"x").unwrap();
+        let t0 = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+        let t1 = t0 + std::time::Duration::from_secs(10);
+        let set = |p: &std::path::Path, t: std::time::SystemTime| {
+            std::fs::File::options()
+                .write(true)
+                .open(p)
+                .unwrap()
+                .set_times(std::fs::FileTimes::new().set_modified(t))
+                .unwrap();
+        };
+        set(&oldest, t0);
+        set(&newest, t1);
+
+        prune_samples(dir.to_string_lossy().into_owned(), 1).unwrap();
+        assert!(newest.exists(), "newest sample was pruned");
+        assert!(!oldest.exists(), "oldest sample kept");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

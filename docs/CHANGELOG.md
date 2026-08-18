@@ -13,6 +13,12 @@
   `denoise_keeps_channels_separate`, `deblur_keeps_channels_separate`,
   `resize_keeps_channels_separate` (schließt Maintainability-TODO).
 
+- **fix: `prune_samples` löscht nach mtime statt Dateiname (2026-08-18)** —
+  Sample-Renderings wurden lexikalisch nach Pfad sortiert gelöscht; durch die
+  Range-Tags im Namen konnte so das gerade gerenderte Sample verschwinden.
+  Löscht jetzt die ältesten (mtime), behält die `keep` neuesten. Test
+  `prune_samples_keeps_newest_by_mtime`.
+
 - **ui: „Render Sample" rendert nur das aktuelle Video (2026-08-18)** — der
   Sample-Button rief `startBatch(false, …)` auf und erzeugte Samples für die
   **ganze Queue** statt für das Video im Monitor. `startBatch` akzeptiert jetzt
