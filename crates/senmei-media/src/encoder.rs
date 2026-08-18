@@ -89,17 +89,17 @@ impl Encoder {
     ) -> Result<Self> {
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height);
-        // A caller-supplied `-c:v` fully owns the codec — but only if the
-        // encoder is actually available; otherwise keep the probed default
-        // (the frontend maps H.265→libkvazaar even on builds without it).
-        if let Some(codec) = extra_args
-            .windows(2)
-            .find(|w| w[0] == "-c:v")
-            .map(|w| w[1].as_str())
-        {
-            if caps.iter().any(|e| e == codec) {
-                video_codec = codec.to_string();
-                codec_args = override_codec_args(codec, extra_args, width, height);
+        // Strip any caller-supplied `-c:v` from extra_args: we always pass the
+        // codec ourselves (below) so it can be validated against the available
+        // encoders (the frontend maps H.265→libkvazaar even on builds without
+        // it) and so ffmpeg doesn't see two `-c:v` options.
+        let mut extra_args = extra_args.to_vec();
+        if let Some(pos) = extra_args.windows(2).position(|w| w[0] == "-c:v") {
+            let codec = extra_args[pos + 1].clone();
+            extra_args.drain(pos..pos + 2);
+            if caps.iter().any(|e| *e == codec) {
+                video_codec = codec.clone();
+                codec_args = override_codec_args(&codec, &extra_args, width, height);
             } else {
                 log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
             }
@@ -128,7 +128,7 @@ impl Encoder {
             .args(["-c:v", &video_codec])
             .args(codec_args)
             .args(["-pix_fmt", "yuv420p"])
-            .args(extra_args)
+            .args(&extra_args)
             .arg(path)
             .stdin(Stdio::piped())
             .stderr(Stdio::piped());
