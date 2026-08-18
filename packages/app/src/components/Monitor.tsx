@@ -66,6 +66,26 @@ export default function Monitor({
   onRenderSample?: () => void;
 }) {
   const { t } = useI18n();
+  // Native fullscreen on the monitor element itself (WebKit fullscreen API):
+  // the same video/frame instance stays mounted, so playback continues and no
+  // second decoder runs underneath. Esc exits fullscreen natively.
+  const rootRef = useRef<HTMLElement | null>(null);
+  const [isFull, setIsFull] = useState(false);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      setIsFull(false);
+      void document.exitFullscreen();
+    } else {
+      void rootRef.current?.requestFullscreen().then(() => setIsFull(true)).catch(() => {});
+    }
+  };
+  // Keep the ✕/hint state in sync with native exits (Esc).
+  useEffect(() => {
+    const onFs = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
   const [mode, setMode] = useState<"source" | "result" | "compare">("source");
   // Source shows the whole source timeline; result/compare show only the
   // sample window (the rendered result spans exactly in..out).
@@ -362,8 +382,11 @@ export default function Monitor({
       : "rounded-md bg-black/50 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur hover:bg-black/60";
 
   return (
-    <main className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800">
+    <main ref={rootRef} className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
+      <div
+        onDoubleClick={toggleFullscreen}
+        className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800"
+      >
         {mode === "compare" && file && effRendered ? (
           <div className="flex h-full w-full">
             <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
@@ -450,6 +473,16 @@ export default function Monitor({
           <div className="absolute top-3 right-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur">
             …
           </div>
+        )}
+
+        {isFull && (
+          <button
+            onClick={toggleFullscreen}
+            title={t("monitor.exitFull")}
+            className="absolute top-10 right-3 z-10 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur hover:bg-black/80"
+          >
+            ✕
+          </button>
         )}
 
         {error && (
