@@ -1,5 +1,7 @@
 mod commands;
 pub mod log_hub;
+mod models;
+mod preview;
 mod store;
 
 use tauri_specta::{collect_commands, Builder, ErrorHandlingMode};
