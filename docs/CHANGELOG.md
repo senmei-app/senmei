@@ -4,6 +4,19 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: LGPL-only FFmpeg + LGPL-safe HEVC encoder (2026-08-18)** — the
+  portable download now pins BtbN `-lgpl` builds on a dated tag
+  (autobuild-2026-08-17-13-05, N-126188) with per-platform SHA-256
+  (linux/win64); the old single `latest`-tag GPL pin was license-noncompliant
+  and shared one SHA across platforms. The encoder no longer hardcodes
+  `libx264` (GPL-only): `pick_video_encoder` prefers libkvazaar (HEVC, BSD,
+  ships in the LGPL builds) → libopenh264 → h264_nvenc → libx264 → native
+  h264. kvazaar/x264 use quality-based rate control; libopenh264 gets a
+  resolution-based `-b:v` (~14 Mbps @1080p; `extra_args` override). Resolves
+  the AGENTS.md GPL-vs-LGPL contradiction. Guarded by
+  `encodes_through_selected_codec` (runs against a real ffmpeg via
+  SENMEI_FFMPEG).
+
 - **fix: license gate for model download/use (2026-08-18)** — `download_model`
   and the app `engine_for_model` only checked `loadable`, so a model flagged
   `verify`/`unclear` (license review pending) or under a copyleft /
