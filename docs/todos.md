@@ -25,8 +25,8 @@
 - [x] Totes IPC-Command `remember_project` entfernt (internes `store::remember_project` bleibt)
 - [x] `num_block`-Default aus `commands.rs` in Modell-Metadaten/Converter verlagern
 - [x] Überflüssige Kommentare gekürzt: `Monitor.tsx`, Batch-Kommentar, `.pth`-/Asset-Protocol-Kommentar
-- sample mit anderen Stacks geht nicht
-- werden die sample video files durch rotiert?
+- [x] sample mit anderen Stacks geht nicht — Root-Cause: „Render Sample" hat die **ganze Queue** gerendert (`startBatch(false, …)`), nicht nur das aktuelle Video im Monitor. Gefixt: `startBatch` bekommt eine explizite Dateiliste, `onRenderSample` übergibt `[currentFile]`. (Interpolation/Dedup sind zustandsbehaftet und starten am Sample-In-Punkt „kalt" — erstes Frame passthrough, das ist beabsichtigt.)
+- [x] werden die sample video files durch rotiert? — Rotation wurde nirgends behandelt: ffmpeg autorotiert standardmäßig (DisplayMatrix), aber `probe` las nur die Stored-Maße → 90°/270°-Videos wurden fehlbeschriftet/verzerrt verarbeitet. Gefixt: `probe` liest Rotation (side_data `rotation` oder case-insensitives `rotate`-Tag) und meldet Display-Maße; `Decoder` setzt `-noautorotate` + explizite Transpose (90→`transpose=2`, 180→`hflip,vflip`, 270→`transpose=1`), byte-identisch zu ffmpegs Autorotation verifiziert. Test `probe_and_decode_apply_rotation`. `VideoInfo.rotation` neu in den Bindings.
 
 ## UI
 - [x] Export Project als .tar.xz + „Open Project“ lädt das Archiv (Save As entfernt)
@@ -63,6 +63,18 @@
 - [x] Laufzeit-ONNX→fp16-bpk: `senmei_ml::onnx` (dependency-frei) + `convert_onnx_to_bpk` + `download_model`-Zweig
 - [x] RealPLKSR-Port → `4x-alchemy` + `real-plksr-deh264/dejpg` loadable (numerisch verifiziert)
 - [x] Bench: Fallin Soft/Strong vs. real-cugan (1080p→2160p): 176/177 vs 380 ms; Fusion-Panic gefixt
+
+## Maintainability (Review 2026-08-18)
+
+- [ ] Große Dateien splitten: `App.tsx`, `Inspector.tsx`, `commands.rs` (Orchestrierung/State trennen)
+- [ ] CPU-Steps: `step.rs` slicet planar, FFmpeg liefert packed `rgb24` — Layout-Konflikt prüfen/fixen
+- [ ] Doppelte Arg-Parsing-Logik: `splitArgs` (TS) und `split_ffmpeg_args` (Rust) vereinheitlichen
+- [ ] Frontend-Pfade: manuelle `/`-Splits plattform-sicher ersetzen (Windows)
+- [ ] Codec-Mapping angleichen: Frontend `H.264→libx264`/`H.265→libx265` an LGPL-safe Policy
+- [ ] README: „planning phase / M0“ → aktuellen Stand (M2–M5) aktualisieren
+- [ ] `todos.md` komplett auf Englisch (AGENTS-Vorgabe docs in English)
+- [ ] Tauri-Security: CSP + Asset-Scope `$HOME/**` bewerten (Media-Zugriff vs. Fläche)
+- [x] AGENTS.md-Pfad geprüft: `crates/senmei/gen/schemas/` existiert (Build-generiert, gitignored) — AGENTS.md korrekt
 
 ## after release
 - Project website
