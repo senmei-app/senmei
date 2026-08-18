@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: IFRNet-Weights verifiziert (2026-08-18)** — offizielle Checkpoints
+  (Vimeo90K + GoPro, je 19.9 MB, MIT) via `pavlichenko/ifrnet_*` auf Hugging
+  Face mit direkten resolve-URLs; „Weights verify / Repo-URL verify" im
+  Backlog aufgelöst.
+
 - **ci: GitHub Actions Matrix-Build (2026-08-18)** — `.github/workflows/ci.yml`:
   Windows/Linux/macOS — System-Deps, Frontend-Build, `cargo check` +
   `cargo test --workspace` (GPU-Tests sind `#[ignore]`), App-Bundle via
