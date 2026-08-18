@@ -18,6 +18,7 @@ import {
   saveSettings,
   type ProjectEntry,
   type ProjectSettings,
+  type Settings,
 } from "@senmei/bridge";
 import { I18nProvider, type Lang } from "./i18n";
 import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
@@ -43,6 +44,7 @@ export default function App() {
   const [files, setFiles] = useState<string[]>([]);
   const [lang, setLang] = useState<Lang>("en");
   const [theme, setTheme] = useState<string>("dark");
+  const [tileSize, setTileSize] = useState<number>(640);
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -83,6 +85,7 @@ export default function App() {
           setLang((s.language as Lang) || "en");
           setTheme(s.theme || "dark");
           setHotkeyOverrides(s.hotkeys ?? {});
+          setTileSize(s.tileSize ?? 640);
         })
         .catch(() => {});
     }
@@ -95,9 +98,20 @@ export default function App() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Persist the current settings merged with `partial`.
+  const persistSettings = (partial: Partial<Settings>) => {
+    void saveSettings({
+      language: lang,
+      theme,
+      hotkeys: Object.keys(hotkeyOverrides).length ? hotkeyOverrides : null,
+      tileSize,
+      ...partial,
+    });
+  };
+
   const changeLang = (l: Lang) => {
     setLang(l);
-    void saveSettings({ language: l, theme });
+    persistSettings({ language: l });
   };
 
   // Load per-project settings when a project opens; save on any change.
@@ -129,7 +143,12 @@ export default function App() {
 
   const changeTheme = (t: string) => {
     setTheme(t);
-    void saveSettings({ language: lang, theme: t });
+    persistSettings({ theme: t });
+  };
+
+  const changeTileSize = (n: number) => {
+    setTileSize(n);
+    persistSettings({ tileSize: n });
   };
 
   // Persist a hotkey override; resetting to the default drops the entry.
@@ -138,7 +157,7 @@ export default function App() {
       const next = { ...prev };
       if (combo === defaultHotkey(id)) delete next[id];
       else next[id] = combo;
-      void saveSettings({ language: lang, theme, hotkeys: Object.keys(next).length ? next : null });
+      persistSettings({ hotkeys: Object.keys(next).length ? next : null });
       return next;
     });
   };
@@ -376,9 +395,11 @@ export default function App() {
           <SettingsPage
             language={lang}
             theme={theme}
+            tileSize={tileSize}
             hotkeys={resolveHotkeys(hotkeyOverrides)}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
+            onTileSizeChange={changeTileSize}
             onHotkeyChange={changeHotkey}
             onBack={() => setSettingsOpen(false)}
           />

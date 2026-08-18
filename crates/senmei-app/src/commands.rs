@@ -351,6 +351,7 @@ pub async fn render(
             start_ms,
             end_ms,
         } = config;
+        senmei_ml::set_tile_size(store::load_settings().tile_size.unwrap_or(640));
         let ffmpeg = senmei_media::resolve(&store::data_dir());
         let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
             vec![Box::new(senmei_pipeline::Passthrough)];

@@ -6,6 +6,28 @@ mod resize;
 mod tensor;
 mod tiling;
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
+/// Fused RGB8 tile-size override (app settings); 0 = unset.
+static TILE_SIZE: AtomicU32 = AtomicU32::new(0);
+
+/// Override the fused RGB8 tile size (px). Falls back to `SENMEI_TILE`, then 640.
+pub fn set_tile_size(n: u32) {
+    TILE_SIZE.store(n, Ordering::Relaxed);
+}
+
+pub(crate) fn current_tile_size() -> usize {
+    let n = TILE_SIZE.load(Ordering::Relaxed);
+    if n > 0 {
+        n as usize
+    } else {
+        std::env::var("SENMEI_TILE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(640)
+    }
+}
+
 #[cfg(feature = "burn")]
 mod burn;
 

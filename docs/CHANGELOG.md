@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: tile size configurable in Settings (2026-08-19)** — the fused RGB8
+  upscale tile size (default 640, previously `SENMEI_TILE` env only) is now a
+  Settings value (`tileSize`), applied per render via `senmei_ml::set_tile_size`
+  and editable in the Settings UI (Appearance, 128–2048 px). `SENMEI_TILE`
+  still works as a bench-only fallback. Also removed the top-right settings
+  gear (Settings remain reachable via the status bar and menu).
+
 - **fix: IFRNet ResBlock c5-Conv + Bug-6-Diagnose zurückgezogen (2026-08-19)** —
   der ResBlock-`forward` ließ die `conv5`-Conv weg (`pl(out4 + x)` statt
   `pl(c5(out4) + x)`; Referenz: `x + self.conv5(out)`). Das war die echte

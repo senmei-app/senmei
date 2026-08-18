@@ -24,17 +24,21 @@ const KEY_ENCODERS = [
 export default function SettingsPage({
   language,
   theme,
+  tileSize,
   hotkeys,
   onLanguageChange,
   onThemeChange,
+  onTileSizeChange,
   onHotkeyChange,
   onBack,
 }: {
   language: string;
   theme: string;
+  tileSize: number;
   hotkeys: Record<string, string>;
   onLanguageChange: (lang: Lang) => void;
   onThemeChange: (theme: Theme) => void;
+  onTileSizeChange: (n: number) => void;
   onHotkeyChange: (id: string, combo: string) => void;
   onBack: () => void;
 }) {
@@ -42,6 +46,17 @@ export default function SettingsPage({
   const [section, setSection] = useState<Section>("appearance");
   const [recording, setRecording] = useState<string | null>(null);
   const { status, downloading, pct, error, download } = useFfmpeg();
+  const [tileDraft, setTileDraft] = useState(String(tileSize));
+  const commitTileSize = () => {
+    const n = Math.round(Number(tileDraft));
+    if (Number.isFinite(n)) {
+      const clamped = Math.min(2048, Math.max(128, n));
+      setTileDraft(String(clamped));
+      onTileSizeChange(clamped);
+    } else {
+      setTileDraft(String(tileSize));
+    }
+  };
 
   const onHotkeyChangeRef = useRef(onHotkeyChange);
   useEffect(() => {
@@ -154,6 +169,26 @@ export default function SettingsPage({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.tileSize")}
+                </label>
+                <input
+                  type="number"
+                  min={128}
+                  max={2048}
+                  step={64}
+                  value={tileDraft}
+                  onChange={(e) => setTileDraft(e.target.value)}
+                  onBlur={commitTileSize}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  className="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+                <span className="ml-2 text-[11px] text-slate-400">{t("settings.tileSizeHint")}</span>
               </div>
             </div>
           )}
