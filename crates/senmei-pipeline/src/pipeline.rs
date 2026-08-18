@@ -196,11 +196,18 @@ impl Pipeline {
             .join()
             .unwrap_or_else(|_| Err(Error::new("encode thread panicked")));
 
-        if let Some(e) = main_err {
-            return Err(e);
+        // "encode channel closed" only means the encode thread exited first —
+        // its join result carries the real cause (ffmpeg stderr). Cancellation
+        // and step errors from the main loop win.
+        match main_err {
+            Some(e) if e.to_string() != "encode channel closed" => return Err(e),
+            _ => {}
         }
-        dec_res?;
-        enc_res
+        match enc_res {
+            Err(e) => return Err(e),
+            Ok(()) => {}
+        }
+        dec_res
     }
 
     fn emit(&mut self, frame: senmei_media::Frame) -> Result<Vec<senmei_media::Frame>> {

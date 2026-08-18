@@ -4,16 +4,40 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
-- **docs: IFRNet torch-verifiziert, durch burn-fusion Bug 6 geblockt (2026-08-19)** —
+- **fix: IFRNet ResBlock c5-Conv + Bug-6-Diagnose zurückgezogen (2026-08-19)** —
+  der ResBlock-`forward` ließ die `conv5`-Conv weg (`pl(out4 + x)` statt
+  `pl(c5(out4) + x)`; Referenz: `x + self.conv5(out)`). Das war die echte
+  Ursache der angeblichen burn-Fusion-Bug-6-Abweichung — kein Backend-Bug.
+  Mit der Korrektur lädt IFRNet sauber (applied=104, missing=0) und der
+  Torch-Referenz-Test besteht auf gefusetem `Vulkan<f16>` (mae 0.005).
+  `ifrnet-vimeo90k`/`ifrnet-gopro` sind jetzt `loadable: true`;
+  docs/burn-bugs.md Bug 6 entfernt. (Review von PR #1, copilot-swe-agent.)
+
+- **feat: DRUNet burn-Arch-Port (2026-08-19)** — `burn/drunet.rs`: `UNetRes`
+  (DPIR, MIT) als sauberer Nachbau — 3× Stride-2-Downsample, 4 ResBlocks pro
+  Ebene (Conv→ReLU→Conv + Skip), 3× ConvTranspose2d-Upsample, alle Convs
+  `bias=false`, `in_nc=4` (RGB + konstante Noise-Level-Map). Torch-verifiziert
+  (mae 0.001, alle 64 Weights geladen) — als erster ML-Denoise **loadable**,
+  ohne Fusion-Bug (keine Channel-Slices). `senmei-ml-convert` `drunet`-Arch
+  (Capture-Group-Key-Remap), Registry `drunet-color` (MIT, KAIR v1.0),
+  `tools/drunet_verify.py`. Pipeline-Denoise-Step-Verdrahtung (4ch-Sigma-Map)
+  noch offen.
+
+- **fix: surface the real encode error instead of "encode channel closed" (2026-08-19)** —
+  the encoder discarded ffmpeg's stderr (`Stdio::null()`), so a failed encode
+  only surfaced as "encode channel closed" (the main loop's channel error masked
+  the encode thread's real cause). The encoder now captures stderr and includes
+  it in the write/finish error, and the pipeline reports the encode thread's
+  error (cancellation and step errors still win). Render failures now show the
+  actual ffmpeg reason in the Logs panel.
+
+- **docs: IFRNet torch-verifiziert (2026-08-19)** —
   `tools/ifrnet_verify.py` + vendorte torch-Referenz (`ref/ifrnet/`, MIT) erzeugen
-  Referenz-Bins; Encoder + Weights sind exakt (mae ~0.0001), der ResBlock
-  (Side-Channel split/cat) stimmt nur **ungefuset** mit torch überein. Auf dem
-  gefuseten `Vulkan<f16>`-Backend liefert der ResBlock über Funktionsaufrufe
-  deterministisch falsche Werte (mae 0.0525) — burn-Fusion-Bug (docs/burn-bugs.md
-  Bug 6; alle Workarounds inkl. Mask-Multiply scheitern). Fixes unterwegs:
-  Conv-Padding `Explicit(1,1,1,1)` statt `Same` (torch-konform), PRelu-Rename für
-  den HalfPrecisionAdapter. IFRNet bleibt `loadable: false` bis der Backend-Bug
-  gelöst ist (Referenz-Test als bekannte Fehlschlag-Doku).
+  Referenz-Bins; Encoder + Weights sind exakt (mae ~0.0001). Der ResBlock
+  (Side-Channel split/cat) wich zwischen Methode und inline ab (mae 0.0525 vs
+  ~0.0001) — als burn-Fusion-Bug 6 fehldiagnostiziert; die echte Ursache war
+  eine im `forward` fehlende `conv5`-Conv (siehe fix-Entry oben; Bug 6
+  zurückgezogen, IFRNet `loadable: true`).
 
 - **feat: HDR→SDR tonemapping (2026-08-18)** — `probe` liest `color_transfer`/
   `color_primaries` und `VideoInfo::is_hdr()` erkennt PQ/HLG/DCI. Der Decoder
@@ -30,8 +54,8 @@
   PReLU-Implementierung (fehlt in burn 0.21), geteiltes `warp`/`grid_sample`.
   Engine-Dispatch (`Model::IfrNet`, Interp-Pfad pad 16), `senmei-ml-convert`
   `ifrnet`-Arch (Capture-Group-Key-Remap), Registry-Einträge
-  `ifrnet-vimeo90k`/`ifrnet-gopro` (MIT, HF-URLs). `loadable: false` bis
-  GPU-verify.
+  `ifrnet-vimeo90k`/`ifrnet-gopro` (MIT, HF-URLs). `loadable: true` nach der
+  ResBlock-c5-Korrektur (siehe fix-Entry oben).
 
 - **docs: IFRNet-Weights verifiziert (2026-08-18)** — offizielle Checkpoints
   (Vimeo90K + GoPro, je 19.9 MB, MIT) via `pavlichenko/ifrnet_*` auf Hugging

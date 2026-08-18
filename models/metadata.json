@@ -135,6 +135,18 @@
     "metadata": { "input_range": "0..1", "half": true, "note": "arch port pending; license check required" }
   },
   {
+    "id": "drunet-color",
+    "kind": "denoise",
+    "scale": 1,
+    "arch": "drunet",
+    "weights": ["drunet_color.pth.f16.bpk"],
+    "license": "MIT",
+    "source_url": "https://github.com/cszn/KAIR",
+    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/drunet_color.pth",
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "in_nc": 4, "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending" }
+  },
+  {
     "id": "rife-v4.6",
     "kind": "interpolate",
     "scale": 1,
@@ -154,8 +166,8 @@
     "license": "MIT",
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified when unfused; BLOCKED by burn-fusion bug (docs/burn-bugs.md Bug 6, ResBlock side-channel)" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix)" }
   },
   {
     "id": "ifrnet-gopro",
@@ -166,8 +178,8 @@
     "license": "MIT",
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
-    "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified when unfused; BLOCKED by burn-fusion bug (docs/burn-bugs.md Bug 6, ResBlock side-channel)" }
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded" }
   }
 ]
 

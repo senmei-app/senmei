@@ -352,9 +352,8 @@ mod tests {
     /// Numerical check against the official torch model (tools/ifrnet_verify.py
     /// writes `a.bin`/`b.bin`/`ref.bin` as f32 little-endian). Loads the real
     /// f16 burnpack, runs the same pair, and asserts a small mean abs error.
-    ///
     #[test]
-    #[ignore = "needs Vulkan + models/IFRNet_Vimeo90K.pth.f16.bpk + torch ref bins"]
+    #[ignore = "needs Vulkan + models/IFRNet_Vimeo90K.pth.f16.bpk + torch ref bins (tools/ifrnet_verify.py); needs RUST_MIN_STACK=33554432"]
     fn ifrnet_matches_torch_reference() {
         let device = WgpuDevice::DiscreteGpu(0);
         let dir = std::env::var("SENMEI_IFRNET_VERIFY_DIR")

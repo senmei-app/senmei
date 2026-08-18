@@ -19,6 +19,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
+| DRUNet color (DPIR) | denoise | MIT | 1 | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); Denoise-step wiring pending | `cszn/KAIR` · `drunet_color.pth` |
 | Real-PLKSr DeJPG / DeH264 | decompress | verify (Phhofm) | 1 | loadable, download gated | `Phhofm/models` · TAS host |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
@@ -29,6 +30,7 @@ converted once to f16 `.bpk`.
 - `renarchi/Re-SISR` — Fallin Soft/Strong + 4x_Alchemy, CC-BY-4.0 (Fallin ONNX-only).
 - `styler00dollar/VSGAN-tensorrt-docker` `models` tag — many `.pth`/`.onnx` checkpoints.
 - `pavlichenko/ifrnet_vimeo` / `ifrnet_gopro` (HF) — IFRNet weights, MIT (re-uploads of `ltkong218/IFRNet`).
+- `cszn/KAIR` v1.0 — DRUNet/DnCNN/FFDNet/BSRGAN weights, MIT (direct release URLs).
 - `NevermindNilas/TAS-Models-Host` — host only; TAS arch code is AGPL (off-limits).
 
 ## Backlog
@@ -48,7 +50,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Interpolation | FILM | Apache-2.0 repo · TF weights | maybe (TF conversion) |
 | Interpolation | AMT | MIT · weights verify | no (transformer) |
 | Denoise | SCUNet (GAN/PSNR) | Apache-2.0 | adopt (Swin port) |
-| Denoise | DRUNet (DPIR) | MIT (KAIR) | adopt (conv, simple) |
+| Denoise | DRUNet (DPIR) | MIT (KAIR) | **adopted** — loadable (UNetRes, in_nc=4 sigma-map), Denoise-step wiring pending |
 | Denoise | DnCNN / FFDNet | MIT (KAIR) | adopt (trivial) |
 | Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
