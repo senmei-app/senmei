@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **senmei-app: drop dead IPC + unused deps (2026-08-18)** — removed the
+  frontend-unused `remember_project` command (the internal
+  `store::remember_project` stays for `export_project`) and the unused
+  `base64` / `tauri-plugin-dialog` / `tauri-plugin-opener` dependencies; the
+  `num_block` default now comes from `Registry::resolve`.
+
 - **Dead code removed (2026-08-18)** — dropped `tiling::tile` (test-only),
   `Error::Unimplemented`, `Registry::from_json` (test-only), `Decoder::open`
   (bench-only), `preview::extract_frame` (test-only; the smoke test now encodes

@@ -16,7 +16,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_projects,
             commands::create_project,
             commands::delete_project,
-            commands::remember_project,
             commands::export_project,
             commands::open_project,
             commands::load_project_settings,

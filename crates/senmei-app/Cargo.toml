@@ -7,7 +7,6 @@ repository.workspace = true
 description = "Tauri application shell for Senmei: commands, state, and IPC."
 
 [dependencies]
-base64 = "0.22"
 # tar.xz like senmei-media: reuse the liblzma already in the graph (a zip dep
 # would pull xz2 and conflict on the native `lzma` link).
 tar = "0.4"
@@ -22,5 +21,3 @@ specta = "2.0.0-rc.25"
 specta-typescript = "0.0.12"
 tauri = { version = "2", features = ["custom-protocol"] }
 tauri-specta = { version = "2.0.0-rc.25", features = ["typescript"] }
-tauri-plugin-dialog = "2"
-tauri-plugin-opener = "2"
