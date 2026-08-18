@@ -303,7 +303,7 @@ sequenceDiagram
 | inference runtime | **burn (`burn-wgpu`), Vulkan fp16** — no libtorch / no ONNX Runtime / no candle / no ncnn |
 | Engine (2026-08-17) | burn-Vulkan fp16 is the shipped default; ncnn C++ shim dropped; libtorch deferred |
 
-**Open evaluation — Tauri CEF backend (`feat/cef`):**
+**Open evaluation (2026-08-19) — Tauri CEF backend (`feat/cef`):**
 - **Status:** active branch (2026-08); Koharu already installs the CLI from it.
 - **Gain:** Chromium rendering + VAAPI decode in the native `<video>` preview (WebKitGTK lacks it).
 - **Cost:** pre-release; Chromium footprint.
