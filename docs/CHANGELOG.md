@@ -4,6 +4,14 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: tidy-up + re-sync all docs (2026-08-18)** — `todos.md` entries capped at
+  ~135 chars; `benchmarks.md` reorganized decision-first with a key-numbers table;
+  `burn-bugs.md` prose tightened (all facts kept); `models.md` deduped
+  (status-at-a-glance removed) and loadable status updated to match
+  `metadata.json`; `PLAN.md` brought back in sync with the code (engine trait,
+  PNG/native-video preview, adopted models/licenses, LGPL-safe encoder, vertical
+  layout diagram).
+
 - **ml: RealPLKSR port — 4x-alchemy + decompress models loadable (2026-08-18)** —
   clean burn re-implementation of RealPLKSR (Partial Large Kernel CNNs for
   Efficient Super-Resolution, arXiv 2404.11848; spandrel MIT reference):

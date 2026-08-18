@@ -11,7 +11,7 @@
 A fast, modern desktop video enhancer in Rust with:
 
 - **Frame interpolation** (e.g. 24 → 48 fps) and **upscaling** (e.g. 1080p → 4K)
-- **GPU inference**: **burn (`burn-wgpu`) on the Vulkan backend, fp16** with CPU fallback — no libtorch, no ONNX, no TorchScript, no candle, no ncnn
+- **GPU inference**: **burn (`burn-wgpu`) on the Vulkan backend, fp16** with CPU fallback — no libtorch, no ONNX Runtime, no TorchScript, no candle, no ncnn
 - **Consistent HTML/CSS/JS UI** via platform webviews (webkit2gtk / WebView2 / WKWebView)
 - **Better FFmpeg settings** than RVE (profile-based, extensible, validated)
 - **Sample preview** of 10–60 s directly in the app
@@ -24,8 +24,8 @@ A fast, modern desktop video enhancer in Rust with:
 |---|---|---|
 | 1 | Shell / UI host | **Tauri 2 + platform webview** (webkit2gtk / WebView2 / WKWebView), not CEF |
 | 2 | Frontend | **React + TypeScript**, `react-resizable-panels`, Tailwind, lucide-react |
-| 3 | Inference | **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback — no libtorch, no ONNX, no candle, no ncnn engine |
-| 4 | No ONNX / no TorchScript | every arch is a **clean burn re-implementation**; weights from a permissive source (torch `.pth` → f16 `.bpk`, or ncnn `.bin` for RIFE) |
+| 3 | Inference | **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback — no libtorch, no ONNX Runtime, no candle, no ncnn engine |
+| 4 | No ONNX Runtime / no TorchScript | every arch is a **clean burn re-implementation**; weights from a permissive source (torch `.pth` → f16 `.bpk`, ONNX `.onnx` via a built-in reader, or ncnn `.bin` for RIFE) |
 | 5 | No WebGPU/WASM | preview via native `<video>` where the webview can play the file; FFmpeg-decoded frame fallback (codec-agnostic, incl. H.265) |
 | 6 | Media | **FFmpeg as subprocess** with `rawvideo` pipe; prefer **system FFmpeg**, fallback: portable download (BtbN builds) into data dir |
 | 7 | Layout | **3-panel + timeline**: Input \| Monitor \| Settings |
@@ -58,9 +58,9 @@ A fast, modern desktop video enhancer in Rust with:
 ### 3.1 Layout (3-Panel + Timeline)
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph App
-        direction LR
+        direction TB
         A[Left: Input<br/>file browser · models · queue]
         B[Center: Monitor<br/>live preview · before/after<br/><br/>timeline below: in/out 10–60s]
         C[Right: Settings<br/>tabs: model · interpolate · upscale · FFmpeg · audio · advanced]
@@ -81,7 +81,7 @@ flowchart LR
 
 | Task | Solution |
 |---|---|
-| Live monitor (last frame) | Rust → JPEG → Tauri `Channel<PreviewFrame>` → `createImageBitmap` → 2D `<canvas>` (~10–15 fps) |
+| Live monitor (last frame) | Rust → PNG → Tauri `Channel<PreviewFrame>` → 2D `<canvas>` |
 | Before/after | two bitmaps, movable divider (CSS `clip-path`) |
 | Sample playback | native `<video>` (hardware decode) where supported; else FFmpeg decodes frames → 2D canvas; audio via `<audio>` (AAC/Opus) |
 
@@ -145,11 +145,10 @@ senmei/
 
 ```rust
 pub trait InferenceEngine: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn capabilities(&self) -> EngineCaps;            // backend, half-precision, tiles
+    fn capabilities(&self) -> EngineCaps;            // tiles
     fn load(&mut self, model: &ModelRef) -> Result<()>;
     fn infer(&mut self, input: &Tensor, opts: &InferOptions) -> Result<Tensor>;
-    // optional: fused RGB8 path, two-input interpolation (RIFE)
+    // optional: fused RGB8 path (must tile internally), two-input interpolation (RIFE)
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>>;
     fn infer_interp(&mut self, a: &Tensor, b: &Tensor, t: f32, opts: &InferOptions) -> Option<Result<Tensor>>;
 }
@@ -251,7 +250,7 @@ sequenceDiagram
     loop Frame pairs
         MEDIA->>ML: RGB frame (float32/half)
         ML-->>ENC: interpolated/upscaled frame
-        ML-->>UI: JPEG preview via Channel (throttled)
+        ML-->>UI: PNG preview via Channel (throttled)
     end
     ENC-->>UI: progress / ETA / FPS
 ```
@@ -262,9 +261,9 @@ sequenceDiagram
 
 - Timeline with **in/out markers** + preset buttons
 - Exact seek via FFmpeg (`-ss` after `-i`)
-- Sample playback is **codec-agnostic** (incl. H.265): FFmpeg decodes sample → frames → 2D canvas; audio via `<audio>` (AAC/Opus)
+- Sample playback: native `<video>` (hardware decode) where the webview can play the file; FFmpeg frame fallback for everything else (codec-agnostic, incl. H.265); audio via `<audio>` (AAC/Opus)
 - Button **"apply sample settings to full render"**
-- Live monitor: last frame as JPEG via `Channel`, ~10–15 fps
+- Live monitor: last frame as PNG via `Channel`
 
 ---
 
@@ -274,9 +273,9 @@ sequenceDiagram
 |---|---|---|---|
 | **M0** | **Scaffold** | workspace, cargo crates (empty/stub), Tauri shell, React 3-panel, `InferenceEngine` trait | ✅ done |
 | **M1** | **FFmpeg passthrough** | decode → frames → encode end-to-end (no ML), first renderable chain | ✅ done |
-| **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (shuffle-cugan, e2e verified 1080p→2160p); NCNN plan superseded |
-| **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | � RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
-| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | � profiles + preview + audio/subtitles + color metadata done; true HDR→SDR tone-map needs a 16-bit decode path (follow-up) |
+| **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (real-cugan-x2, e2e verified 1080p→2160p); NCNN plan superseded |
+| **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | ✅ RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
+| **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | 🟡 profiles + preview + audio/subtitles + color metadata done; true HDR→SDR tone-map needs a 16-bit decode path (follow-up) |
 | **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | 🟡 live monitor + compare + timeline in/out sample presets done |
 | **M6** | **Engine** | decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**; no C++/ncnn shim | ✅ burn default, ncnn engine dropped |
 | **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks done; more models/backends pending |
@@ -290,7 +289,7 @@ sequenceDiagram
 
 1. **Per-model port cost**: every arch is a clean Rust port (UpCunet2x, RrdbNet, RifeNet…) and must be numerically verified against a reference. Weights are **not bundled** — downloaded/converted on demand (`download_url` + `sha256` in `metadata.json`).
 2. **burn maturity**: `burn`/`cubecl` is young — expect API churn on upgrade; a `burn-fusion` f32 bug crashes Vulkan at 1080p (fp16 path is fine); the build is heavy (~800 crates). Mitigated by pinning the burn version and running fp16.
-3. **Preview codec**: HEVC is **not** supported in webviews — in-app preview is frame-based (FFmpeg decode → canvas), so any source codec (incl. H.265) plays.
+3. **Preview codec**: HEVC is **not** supported in webviews — native `<video>` covers H.264/AAC, everything else (incl. H.265) falls back to FFmpeg-decoded frames, so any source codec plays.
 4. **Single-backend risk**: burn-Vulkan covers all vendors; the CPU fallback keeps dev/render usable without Vulkan. macOS is experimental only.
 
 ---
@@ -301,7 +300,7 @@ sequenceDiagram
 |---|---|
 | Frontend build | **Vite** |
 | Package manager | **bun** (like Koharu) |
-| inference runtime | **burn (`burn-wgpu`), Vulkan fp16** — no libtorch / no ONNX / no candle / no ncnn |
+| inference runtime | **burn (`burn-wgpu`), Vulkan fp16** — no libtorch / no ONNX Runtime / no candle / no ncnn |
 | Engine (2026-08-17) | burn-Vulkan fp16 is the shipped default; ncnn C++ shim dropped; libtorch deferred |
 
 ---
@@ -311,7 +310,7 @@ sequenceDiagram
 1. **End-to-end RIFE render** through the app (interpolate with `rife-v4.6`, verify the output).
 2. **Numeric verification** of RIFE against the ncnn reference binary.
 3. More upscalers/interpolators as clean burn ports; mac backend marked experimental.
-4. Docs: `docs/models.md` and `docs/benchmarks.md` tidy-up.
+4. Port + license-verify the backlog models (SCUNet, Anime1080Fixer) — tracked in `docs/models.md` / `docs/todos.md`.
 
 ---
 
@@ -331,16 +330,17 @@ sequenceDiagram
 | Model | Kind | License | Source |
 |---|---|---|---|
 | RIFE v4.6 | interpolate | **MIT** | `nihui/rife-ncnn-vulkan` (weights) — clean burn port |
-| Real-ESRGAN x4plus / x4plus-anime / x2plus | upscale | **BSD-3-Clause** | `xinntao/Real-ESRGAN` |
-| Real-CUGAN up2x (ShuffleCugan / upcunet) | upscale | **MIT** (weights; shuffle-cugan license flagged) | `bilibili/ailab`, VSGAN-tensorrt-docker |
-| SwinIR x2 (classical) / x4 (real-world) | upscale | **Apache-2.0** | `JingyunLiang/SwinIR` |
-| HAT-S x4 | upscale | **Apache-2.0** | `XPixelGroup/HAT` |
+| Real-CUGAN up2x no-denoise | upscale | **Apache-2.0** | `bilibili/ailab` / VSGAN — clean UpCunet2x port |
+| Real-ESRGAN animevideo x2/x4 + x4plus-anime 6B | upscale | **BSD-3-Clause** | `xinntao/Real-ESRGAN` |
+| Fallin Soft/Strong | upscale | **CC-BY-4.0** | `renarchi/Re-SISR` — UpCunet2x_fast port |
+| 4x_Alchemy | upscale | **CC-BY-4.0** | `renarchi/Re-SISR` — RealPLKSR_Dysample port |
+| Real-PLKSr DeJPG/DeH264 | decompress | verify (Phhofm) | `Phhofm/models` — loadable, download gated |
 
 **SPAN** (`hongyuanyu/SPAN`) is **Apache-2.0** — a top upscaler candidate. See [`docs/models.md`](models.md) for the full adoption matrix. Every adopted arch is a **clean Rust port** (never translated from AGPL or unclear-license code); TAS's vendored code stays off-limits. Candidate/undecided models are tracked in `docs/models.md`.
 
 Weights are **never committed** — only downloaded; `metadata.json` holds id/kind/arch/scale + license/source_url.
 
-**Note (codecs):** `libx264`/`libx265` require a **GPL** FFmpeg build — conflicts with the LGPL-only rule. Dev encoder uses `libx264`; when bundling (M8) pick a GPL build for output, or LGPL-safe encoders (`libopenh264` / HW `h264_nvenc`/`vaapi`). In-app preview is frame-based (canvas) and needs no encoder.
+**Note (codecs):** `libx264`/`libx265` require a **GPL** FFmpeg build — conflicts with the LGPL-only rule. The encoder prefers LGPL-safe codecs first: `libkvazaar` (HEVC) → `libopenh264` → `h264_nvenc` → `libx264` (system GPL) → native `h264`; the portable download pins **BtbN `-lgpl` builds** (see `docs/CHANGELOG.md`, 2026-08-18).
 
 **Optional:** if a weak copyleft for the own code is desired later, **LGPL-3.0** is possible as an alternative — the default is **MIT OR Apache-2.0**.
 
@@ -371,7 +371,7 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
   `-color_primaries` / `-color_trc` / `-colorspace` (e.g. bt2020 / smpte2084).
   True HDR→SDR tone-mapping is a follow-up: it needs a 16-bit decode path
   (the pipeline currently feeds 8-bit rgb24 frames).
-- **Upscaling (M2):** real models on burn-Vulkan fp16 (ShuffleCugan, Real-ESRGAN) with tiling, verified 1080p→2160p.
+- **Upscaling (M2):** real models on burn-Vulkan fp16 (real-cugan-x2, Real-ESRGAN) with tiling, verified 1080p→2160p.
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
-- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, save-project-as.
-- **Next:** end-to-end RIFE render in the app, more model ports, docs tidy-up.
+- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, export/open project (`.tar.xz`).
+- **Next:** end-to-end RIFE render in the app, more model ports; backlog tracked in `docs/todos.md`.
