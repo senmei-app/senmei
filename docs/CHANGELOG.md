@@ -4,6 +4,14 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **security: Asset-Scope verengt + CSP gesetzt (2026-08-18)** — der statische
+  Asset-Protocol-Scope war `["$DATA/**", "$HOME/**"]` (ganzes Home lesbar).
+  Alle Media-Loads laufen ohnehin über `probe_video`/`read_frame`, die die
+  Datei per `allow_file` zur Laufzeit freigeben (dieselbe Scope, die der
+  Asset-Protocol prüft), also reicht `["$DATA/**"]` (App-Datadir für
+  Previews/Samples/Projekte). Dazu eine CSP für Produktion (dev bleibt
+  unberührt).
+
 - **refactor: App.tsx aufgeteilt — Batch-Logik in `useBatch`-Hook (2026-08-18)** —
   Render-State + `startBatch`/`cancel`/`togglePause` + `desiredPath` aus
   `App.tsx` in `useBatch.ts` extrahiert (~150 Zeilen weniger). Verhalten
