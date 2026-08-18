@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **refactor: App.tsx aufgeteilt — Batch-Logik in `useBatch`-Hook (2026-08-18)** —
+  Render-State + `startBatch`/`cancel`/`togglePause` + `desiredPath` aus
+  `App.tsx` in `useBatch.ts` extrahiert (~150 Zeilen weniger). Verhalten
+  unverändert (Demo-Render + Cancel verifiziert).
+
 - **ui: Logs-Tab neben dem Processing Stack (2026-08-18)** — das rechte Panel
   hat jetzt einen Tab-Umschalter „Processing Stack“ / „Logs“ (`RightPanel`).
   Neuer `LogHub`-Logger leitet `log`-Records als Tauri-Event an die UI
