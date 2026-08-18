@@ -179,11 +179,11 @@ in `rebuild_tensor_impl`.
 
 ## Repo-side action items
 
-- [ ] File Bug 1 + Bug 3 upstream, link back here. Ready-to-paste drafts live in
-  `docs/upstream-issues.md`. Existing upstream context (checked 2026-08-18):
-  - Bug 1 → `tracel-ai/burn#4950` (same panic, thin report — add root-cause comment)
-  - Bug 3 → `tracel-ai/cubecl#1384` (closed, different fix) + `#1401` (open, CUDA, rules out autotune) — our wgpu/autotune-OOM trigger is unreported
-  - Bug 4 (GroupNorm f16) and Bug 5 (PytorchReader strides) — both unreported
+- [x] Filed upstream (2026-08-18, author zachelnet):
+  - Bug 1 → root-cause comment on `tracel-ai/burn#4950`
+  - Bug 3 → `tracel-ai/cubecl#1531` (wgpu/autotune-OOM; related: `#1384` closed, `#1401` CUDA)
+  - Bug 4 → `tracel-ai/burn#5382` (GroupNorm f16 div_scalar)
+  - Bug 5 → `tracel-ai/burn#5383` (PytorchReader strides)
 - [ ] Decide the app default: keep autotune ON (fast, occasional failure) vs
       OFF (reliable, 5× slower) vs vendor-patch with graceful recovery. See
       `docs/todos.md`.

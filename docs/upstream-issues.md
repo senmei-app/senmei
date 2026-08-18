@@ -1,15 +1,19 @@
-# Upstream bug reports (ready to paste)
+# Upstream reports (ready to paste)
 
-Draft texts for the burn/cubecl issues tracked in `docs/burn-bugs.md`.
-Written for upstream (English). Copy each block as-is into the linked issue
-or new-issue form.
+Draft texts for the burn/cubecl issues tracked in `docs/burn-bugs.md` plus the
+ONNX feature request from `docs/todos.md`. Written for upstream (English). Copy
+each block as-is into the linked issue or new-issue form.
+
+Section numbers ≠ bug numbers: Bug 2 (tuner panic without fusion) is a secondary
+manifestation of the same autotune machinery and is folded into Bug 3's context,
+not filed separately.
 
 ---
 
-## 1. burn-fusion "Ordering is bigger than operations" — comment on tracel-ai/burn#4950
+## 1. burn-fusion "Ordering is bigger than operations" — comment on tracel-ai/burn#4950 (Bug 1)
 
 Link: <https://github.com/tracel-ai/burn/issues/4950> (same panic, thin report).
-Post the following as a comment.
+Filed 2026-08-18 as a comment (author zachelnet). Post the following as a comment.
 
 ```text
 We hit the same panic deterministically under autotune on Vulkan
@@ -40,9 +44,9 @@ fall back to executing the available operations unfused. That keeps correctness
 
 ---
 
-## 2. cubecl-wgpu: autotune OOMs the device on an oversized matmul, then corrupts the server
+## 2. cubecl-wgpu: autotune OOMs the device on an oversized matmul, then corrupts the server (Bug 3)
 
-New issue in `tracel-ai/cubecl`. Links: #1384, #1401 (same stale-page symptom,
+Filed: `tracel-ai/cubecl#1531`. Links: #1384, #1401 (same stale-page symptom,
 different trigger).
 
 Title:
@@ -83,9 +87,9 @@ Tile the input so no full-frame matmul reaches autotune (we run 640px tiles).
 
 ---
 
-## 3. burn-nn GroupNorm: f16 div_scalar underflows for large per-group element counts
+## 3. burn-nn GroupNorm: f16 div_scalar underflows for large per-group element counts (Bug 4)
 
-New issue in `tracel-ai/burn`. No existing report.
+Filed: `tracel-ai/burn#5382`.
 
 Title:
 
@@ -102,25 +106,32 @@ per-group element count via div_scalar. For per-group counts ≥ 2^14 the f16
 reciprocal 1/N is subnormal and is flushed to 0 by the fused kernel, so the
 normalized output explodes.
 
-Reproducer (f16): the sum of 65536 elements of 0.5 is 32768 (correct), but
-sum_dim(2).div_scalar(65536.0) returns 0.0, while mean_dim(2) returns 0.5.
+**To Reproduce**
+1. Create an f16 tensor of 65536 elements of 0.5 (or run RealPLKSR's
+   GroupNorm(4, 64) on a 64×64 map → 65536 elements per group).
+2. sum_dim(2).div_scalar(65536.0) returns 0.0 (should be 0.5).
+3. mean_dim(2) returns 0.5 (correct).
 
-Real case: RealPLKSR's GroupNorm(4, 64) on 64×64 maps → 65536/group; the
-normalized output was ±318 vs the torch reference ±1.3.
+Real case: the normalized output was ±318 vs the torch reference ±1.3.
 
-**Expected**
+**Expected behavior**
 div_scalar should not underflow on f16 — either promote the reciprocal to f32,
 or compute the mean with a scaled kernel like mean_dim.
 
-**Workaround**
-Compute the normalization with mean_dim instead of sum + div_scalar.
+**Desktop (please complete the following information):**
+ - OS: Fedora Linux
+ - burn: 0.21.0 (burn-nn), burn-wgpu (Vulkan)
+ - GPU: AMD RX 9070 XT (RDNA4), RADV, 16 GB VRAM
+
+**Additional context**
+Workaround: compute the normalization with mean_dim instead of sum + div_scalar.
 ```
 
 ---
 
-## 4. burn-store PytorchReader ignores tensor strides (non-contiguous .pth loads scrambled)
+## 4. burn-store PytorchReader ignores tensor strides (non-contiguous .pth loads scrambled) (Bug 5)
 
-New issue in `tracel-ai/burn`. No existing report.
+Filed: `tracel-ai/burn#5383`.
 
 Title:
 
@@ -132,19 +143,74 @@ Body:
 
 ```text
 **Describe the bug**
-PytorchReader parses the stride tuple (args[3] in rebuild_tensor_v2) but discards
-it, reading every tensor's storage linearly. A .pth whose weights were saved
-non-contiguous therefore loads silently scrambled — the model runs but produces
-garbage.
+PytorchReader parses the stride tuple (args[3] in rebuild_tensor_v2) but
+discards it, reading every tensor's storage linearly. A .pth whose weights were
+saved non-contiguous therefore loads silently scrambled — the model runs but
+produces garbage.
 
-Real case: RealPLKSR 4x_Alchemy.pth stores conv weights channels-last — shape
-[o,i,k,k] with strides (27,1,9,3). The loaded head weights had correlation 0.24
-vs the correct tensor.
+**To Reproduce**
+1. Save a conv weight tensor non-contiguous (channels-last: shape [o,i,k,k],
+   strides (27,1,9,3)) into a .pth.
+2. Load it with PytorchStore.
+3. Compare against the original: the loaded head weights have correlation 0.24
+   (scrambled).
 
-**Expected**
+**Expected behavior**
 Capture the stride and scatter the storage into the logical layout (or
 .contiguous() the data before returning), matching torch's semantics.
 
-**Workaround**
-Pre-process the state dict with {k: v.contiguous() for k, v in sd.items()}.
+**Desktop (please complete the following information):**
+ - OS: Fedora Linux
+ - burn: 0.21.0 (burn-store)
+
+**Additional context**
+Workaround: pre-process the state dict with
+{k: v.contiguous() for k, v in sd.items()}.
+```
+
+---
+
+## 5. burn-onnx: runtime API to load ONNX initializer tensors (feature request)
+
+Filed: `tracel-ai/burn-onnx#456`. No duplicate found — existing issues cover
+operator coverage / codegen, not a weight-only initializer reader.
+
+Title:
+
+```text
+feat: runtime API to load ONNX initializer tensors (weight-container use case)
+```
+
+Body:
+
+```text
+<!-- Please search existing issues to avoid creating duplicates -->
+
+### Feature description
+
+A runtime-only API that reads just the `initializer` tensors from an ONNX file
+as plain tensors, without the codegen step. Today burn-onnx converts the full
+graph into generated Rust code; projects that only use ONNX as a weight
+container (hand-ported architecture) need the weights, not the graph.
+
+### Feature motivation
+
+We (an open-source video enhancer, MIT OR Apache-2.0, on burn 0.21.0) hand-port
+architectures as native burn code and only need the weights. Several checkpoints
+ship exclusively as ONNX, so we maintain a dependency-free hand-rolled protobuf
+reader to extract the `initializer` tensors. That duplicates serialization logic
+already implemented in burn-onnx. A public API would let us delete the parser
+and stop duplicating ONNX wire-format handling.
+
+### (Optional) Suggest a Solution
+
+Surface the existing initializer-parsing path as a public runtime function, e.g.
+in burn-onnx:
+
+    pub fn load_initializers(bytes: &[u8]) -> Result<Vec<(String, TensorData)>>;
+
+The protobuf tensor wire format is already parsed (and covered by burn-onnx
+tests); the change is mostly exposing it publicly and decoupling it from graph
+codegen. Tradeoff: keep it runtime-only (no generated code) so it stays a small,
+dependency-light path for weight loading.
 ```
