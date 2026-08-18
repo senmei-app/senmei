@@ -34,8 +34,7 @@ fn kvazaar_preset() -> &'static str {
 /// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
 /// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
 /// later and can override it.
-fn pick_video_encoder(ffmpeg: &Path, width: u32, height: u32) -> (String, Vec<String>) {
-    let caps = crate::ffmpeg::probe(ffmpeg).encoders;
+fn pick_from_caps(caps: &[String], width: u32, height: u32) -> (String, Vec<String>) {
     for codec in ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"] {
         if caps.iter().any(|e| e == codec) {
             return match codec {
@@ -88,16 +87,22 @@ impl Encoder {
         start_ms: u64,
         extra_args: &[String],
     ) -> Result<Self> {
-        let (video_codec, mut codec_args) = pick_video_encoder(ffmpeg, width, height);
-        // A caller-supplied `-c:v` fully owns the codec: drop the default
-        // codec's args (e.g. libkvazaar's `-preset`) and apply the override's
-        // own defaults, so a GPL/ABR mismatch never leaks through.
+        let caps = crate::ffmpeg::probe(ffmpeg).encoders;
+        let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height);
+        // A caller-supplied `-c:v` fully owns the codec — but only if the
+        // encoder is actually available; otherwise keep the probed default
+        // (the frontend maps H.265→libkvazaar even on builds without it).
         if let Some(codec) = extra_args
             .windows(2)
             .find(|w| w[0] == "-c:v")
             .map(|w| w[1].as_str())
         {
-            codec_args = override_codec_args(codec, extra_args, width, height);
+            if caps.iter().any(|e| e == codec) {
+                video_codec = codec.to_string();
+                codec_args = override_codec_args(codec, extra_args, width, height);
+            } else {
+                log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
+            }
         }
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y")
@@ -161,14 +166,22 @@ impl Encoder {
         Ok(())
     }
 
-    /// Drain the child's stderr (already buffered once it has exited).
+    /// Drain the child's stderr (already buffered once it has exited). ffmpeg
+    /// prints its config banner first, so keep only the tail (the real error).
     fn read_stderr(&mut self) -> String {
         use std::io::Read;
         let mut out = String::new();
         if let Some(mut e) = self.stderr.take() {
             let _ = e.read_to_string(&mut out);
         }
-        out.trim().to_string()
+        const TAIL: usize = 12;
+        let lines: Vec<&str> = out.lines().collect();
+        let tail = if lines.len() > TAIL {
+            &lines[lines.len() - TAIL..]
+        } else {
+            &lines[..]
+        };
+        tail.join("\n").trim().to_string()
     }
 
     pub fn finish(mut self) -> Result<()> {
@@ -241,7 +254,7 @@ mod tests {
             return;
         };
         let ff = Path::new(&ff);
-        let (codec, _args) = pick_video_encoder(ff, 64, 64);
+        let (codec, _args) = pick_from_caps(&crate::ffmpeg::probe(ff).encoders, 64, 64);
         assert!(
             ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"]
                 .contains(&codec.as_str()),
