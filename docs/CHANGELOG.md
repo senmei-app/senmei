@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: Lizenzen für Denoise/Restoration geklärt (2026-08-18)** — SCUNet
+  **Apache-2.0** (in `metadata.json` + `models.md` eingetragen → nicht mehr
+  lizenz-geblockt; Arch-Port bleibt offen), DRUNet (DPIR) **MIT** via KAIR
+  v1.0, NAFNet **MIT**, USRNet/USRGAN **MIT** (Backlog ergänzt).
+
 - **refactor: `Inspector.tsx` aufgeteilt (2026-08-18)** — der komplette
   Step-Editor (alle Typen inkl. großem Output-Editor) nach `StepEditor.tsx`
   extrahiert; `Inspector.tsx` von ~800 auf ~370 Zeilen reduziert (Stack-Liste,

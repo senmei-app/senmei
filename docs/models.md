@@ -36,7 +36,7 @@ download URL (+ sha256 where known).
 | Real-ESRGAN x4plus-anime (6B) | BSD-3-Clause | 4 | **loadable** (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | RIFE v4.6 | MIT | 1 | **loadable** (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | Real-PLKSr DeJPG / DeH264 | verify (Phhofm) | 1 | **loadable** (RealPLKSR); download gated until license reviewed | `Phhofm/models` · TAS-Models-Host |
-| SCUNet denoise | verify (cszn) | 1 | arch port pending | `cszn/SCUNet` · `scunet_color_15.pth` |
+| SCUNet denoise | Apache-2.0 | 1 | arch port pending | `cszn/SCUNet` · `scunet_color_15.pth` |
 | Anime1080Fixer | verify (Zarxrax) | 1 | arch port pending | `Zarxrax/Anime1080Fixer` · VSGAN |
 
 Weights are never committed (`models/*` gitignored); the app downloads them
@@ -93,10 +93,10 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
 | Interpolation | AnimeInterp | MIT Code · Weights verify | nur falls |
 | Interpolation | FILM | Repo Apache-2.0 · Weights TF (CC-BY-4.0) | nur falls (TF-Konvertierung) |
 | Interpolation | AMT | MIT Code · Weights verify | **nein** (Transformer) |
-| Denoise | SCUNet Real (GAN/PSNR) | Arch Apache-2.0 (verifiziert) · Weights verify | **adoptieren** (Swin-Hybrid-Port) |
-| Denoise | DRUNet (DPIR) | cszn verify | **adoptieren** (Konv, einfach) |
+| Denoise | SCUNet Real (GAN/PSNR) | Apache-2.0 (Arch + Weights verifiziert) | **adoptieren** (Swin-Hybrid-Port) |
+| Denoise | DRUNet (DPIR) | MIT (KAIR v1.0 verifiziert) | **adoptieren** (Konv, einfach) |
 | Denoise | DnCNN / FFDNet | cszn verify | **adoptieren** (trivial) |
-| Denoise | NAFNet | Arch MIT · Weights verify | nur falls (PSNR-orientiert) |
+| Denoise | NAFNet | MIT (verifiziert) | nur falls (PSNR-orientiert) |
 | Denoise | FBCNN | verify | nur falls (DeJPEG-Redundanz) |
 | Denoise | VRT / RVRT | verify · nicht in spandrel | **nein** (temporal/Transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 ok | **adoptieren** (SRVGGNetCompact-Port) |
@@ -104,6 +104,7 @@ SCUNet/DRUNet (denoise), SRVGGNet Real-ESRGAN + BSRGAN + SAFMN/SPAN
 | Restoration | Anime1080Fixer | verify | **adoptieren** (RRDBNet vorhanden) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 (verifiziert) | **adoptieren** |
 | Restoration | SPAN | Apache-2.0 (verifiziert) | **adoptieren** |
+| Restoration | USRNet / USRGAN | MIT (verifiziert) | nur falls (non-blind: Kernel + Noise-Level nötig) |
 | Restoration | PLKSR weitere | Re-SISR neu = NC geblockt · sonst verify | nur falls |
 | Restoration | HAT | Arch MIT · Weights verify | nur falls (Transformer) |
 | Restoration | OmniSR | MIT Code · Weights verify | **nein** (Deformable Conv) |
