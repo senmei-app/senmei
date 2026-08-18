@@ -16,6 +16,7 @@ export type {
   FfmpegInfo as FfmpegStatus,
   RenderConfig,
   FilterParams,
+  LogEntry,
 } from "./bindings";
 
 export const healthCheck = () => commands.healthCheck();
@@ -61,3 +62,5 @@ export const pruneSamples = (dir: string, keep: number) => commands.pruneSamples
 export const pauseRender = (paused: boolean) => commands.pauseRender(paused);
 
 export const uniquePath = (path: string) => commands.uniquePath(path);
+
+export const getLogs = () => commands.getLogs();

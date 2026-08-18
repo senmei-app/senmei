@@ -37,7 +37,7 @@
 - [x] Deduplication: Presets (Aus/Standard/Aggressiv) + Slider mit % + Hinweis
 - [x] Menu: View hinzufügen für Full Video Modus
 - [x] Settings: Hotkeys einstellungen (einsehen/ändern, Koharu-Stil)
-- Rechte Seite: Tab-Bar neben „Processing Stack" mit Tab „Logs" (Systemlog)
+- [x] Rechte Seite: Tab-Bar neben „Processing Stack“ mit Tab „Logs“ (Systemlog)
 - [x] About dark Theme (Dark-Styles vorhanden)
 
 ## Docs
@@ -72,10 +72,13 @@
 - [x] README: „planning phase / M0“ → aktuellen Stand (M2–M5) aktualisieren
 - [ ] `todos.md` komplett auf Englisch (AGENTS-Vorgabe docs in English)
 
+
 ## CI / Packaging
-- [ ] GitHub Runner: Pakete für Windows / Linux / macOS bauen + testen (macOS-Runner: Compile + CPU-Tests, kein Metal auf gehosteten Runnern)
 - [ ] Tauri-Security: CSP + Asset-Scope `$HOME/**` bewerten (Media-Zugriff vs. Fläche)
 - [x] AGENTS.md-Pfad geprüft: `crates/senmei/gen/schemas/` existiert (Build-generiert, gitignored) — AGENTS.md korrekt
+
+## kurz vor release
+- [ ] GitHub Runner: Pakete für Windows / Linux / macOS bauen + testen (macOS-Runner: Compile + CPU-Tests, kein Metal auf gehosteten Runnern)
 
 ## after release
 - [ ] Project website

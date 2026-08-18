@@ -40,6 +40,8 @@ export const commands = {
 	 *  free name, so batch renders never overwrite an existing file.
 	 */
 	uniquePath: (path: string) => __TAURI_INVOKE<string>("unique_path", { path }),
+	/**  Buffered entries for the Logs panel when it opens. */
+	getLogs: () => __TAURI_INVOKE<LogEntry[]>("get_logs"),
 };
 
 /* Types */
@@ -61,6 +63,12 @@ export type FilterParams = {
 	denoiseRadius?: number | null,
 	deblurAmount?: number | null,
 	dedupThreshold?: number | null,
+};
+
+export type LogEntry = {
+	level: string,
+	message: string,
+	timestamp: number,
 };
 
 export type ModelKind = "interpolate" | "upscale" | "denoise" | "decompress" | "deblur";

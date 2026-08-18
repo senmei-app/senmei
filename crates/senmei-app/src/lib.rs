@@ -1,4 +1,5 @@
 mod commands;
+pub mod log_hub;
 mod store;
 
 use tauri_specta::{collect_commands, Builder, ErrorHandlingMode};
@@ -29,7 +30,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_render,
             commands::pause_render,
             commands::prune_samples,
-            commands::unique_path
+            commands::unique_path,
+            log_hub::get_logs
         ])
 }
 

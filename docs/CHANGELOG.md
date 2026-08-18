@@ -4,6 +4,14 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: Logs-Tab neben dem Processing Stack (2026-08-18)** — das rechte Panel
+  hat jetzt einen Tab-Umschalter „Processing Stack“ / „Logs“ (`RightPanel`).
+  Neuer `LogHub`-Logger leitet `log`-Records als Tauri-Event an die UI
+  (Ringbuffer 500, `get_logs` beim Öffnen); das Panel hat Level-Filter
+  (ALL/ERROR/WARN/INFO), Clear und Auto-Scroll. Das Konsolenverhalten von
+  `env_logger` bleibt unverändert (error + `wgpu_hal=off`), das Panel fängt
+  Info+.
+
 - **refactor: Frontend-Pfade plattformsicher (2026-08-18)** — alle manuellen
   `split("/")`-Stellen durch `paths.ts`-Helfer ersetzt (`basename`/`dirname`/
   `joinPath`), die sowohl `/` als auch `\` (Windows) verarbeiten; Joins nutzen
