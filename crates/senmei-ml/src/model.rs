@@ -66,12 +66,6 @@ impl Registry {
         Self::default()
     }
 
-    pub fn from_json(json: &str) -> Result<Self> {
-        Ok(Self {
-            models: serde_json::from_str(json)?,
-        })
-    }
-
     pub fn load_dir(&mut self, dir: &Path) -> Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let path = entry?.path();
@@ -118,7 +112,7 @@ mod tests {
             {"id": "rife-v4", "kind": "interpolate", "scale": 1, "arch": "rife425"},
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "span"}
         ]"#;
-        let registry = Registry::from_json(json).unwrap();
+        let registry = Registry { models: serde_json::from_str(json).unwrap() };
         assert_eq!(registry.models().len(), 2);
         assert_eq!(registry.models()[0].id, "rife-v4");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
@@ -132,7 +126,7 @@ mod tests {
         let json = r#"[
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "loadable": false}
         ]"#;
-        let registry = Registry::from_json(json).unwrap();
+        let registry = Registry { models: serde_json::from_str(json).unwrap() };
         assert!(!registry.models()[0].loadable);
     }
 
@@ -173,7 +167,7 @@ mod tests {
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "realesrgan",
              "weights": ["span.pth"], "metadata": {"num_block": 6}}
         ]"#;
-        let registry = Registry::from_json(json).unwrap();
+        let registry = Registry { models: serde_json::from_str(json).unwrap() };
         let mref = registry.resolve("span", Path::new("/models")).unwrap();
         assert_eq!(mref.id, "span");
         assert_eq!(mref.arch, "realesrgan");
