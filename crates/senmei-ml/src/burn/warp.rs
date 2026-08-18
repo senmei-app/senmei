@@ -10,7 +10,6 @@ use burn::tensor::{IntDType, Tensor};
 
 /// Sample `input` at the normalized grid coordinates `grid` (in [-1,1], xy).
 /// `grid` must have the same spatial size as `input`.
-#[allow(dead_code)] // used by the RIFE interpolation arch (M3)
 pub fn grid_sample<B: Backend>(input: Tensor<B, 4>, grid: Tensor<B, 4>) -> Tensor<B, 4> {
     let [n, c, h, w] = input.dims();
     let [gh, gw] = [grid.dims()[1], grid.dims()[2]];

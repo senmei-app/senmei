@@ -19,8 +19,8 @@ fn preview_backend_functions_work() {
     let info = senmei_media::probe(&input).expect("probe failed");
     assert!(info.width > 0 && info.duration > 0.0);
 
-    let ffmpeg = senmei_media::resolve(std::path::Path::new("."));
-    let png = senmei_media::extract_frame(&ffmpeg, &input, 0.5).expect("extract_frame failed");
+    let rgb = vec![128u8; (info.width * info.height * 3) as usize];
+    let png = senmei_media::encode_png(info.width, info.height, &rgb).expect("encode_png failed");
     assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
 
     let _ = std::fs::remove_dir_all(&dir);

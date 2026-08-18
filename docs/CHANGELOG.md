@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Dead code removed (2026-08-18)** — dropped `tiling::tile` (test-only),
+  `Error::Unimplemented`, `Registry::from_json` (test-only), `Decoder::open`
+  (bench-only), `preview::extract_frame` (test-only; the smoke test now encodes
+  a synthetic frame via `encode_png`), and a stale `#[allow(dead_code)]` on
+  `grid_sample` (it is used by the RIFE arch).
+
 - **Inference engine trait simplified (2026-08-18)** — removed the never-read
   `Backend` enum, `EngineCaps.backend`/`half`, `InferOptions.half`, and
   `InferenceEngine::name()`; capabilities/options now carry only what the

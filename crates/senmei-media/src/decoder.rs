@@ -17,10 +17,6 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn open(ffmpeg: &Path, path: &Path) -> Result<Self> {
-        Self::open_with_range(ffmpeg, path, 0, None)
-    }
-
     /// Decode a time range. `start_ms` seeks the input (fast `-ss` before `-i`);
     /// `end_ms` caps the frame count (None = to the end).
     pub fn open_with_range(
