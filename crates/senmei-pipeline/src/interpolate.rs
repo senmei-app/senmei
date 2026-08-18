@@ -1,6 +1,6 @@
 use senmei_media::Frame;
 use senmei_ml as ml;
-use senmei_ml::{InferenceEngine, InferOptions};
+use senmei_ml::{InferOptions, InferenceEngine};
 
 use crate::frame::{frame_to_tensor, tensor_to_frame};
 use crate::Result;

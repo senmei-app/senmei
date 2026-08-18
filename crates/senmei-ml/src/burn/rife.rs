@@ -4,10 +4,10 @@
 //! (nihui/rife-ncnn-vulkan, MIT). Do not hand-edit — regenerate instead.
 
 use burn::module::Module;
-use burn::nn::PaddingConfig2d;
 use burn::nn::conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig};
-use burn::tensor::backend::Backend;
+use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::{leaky_relu, sigmoid};
+use burn::tensor::backend::Backend;
 use burn::tensor::module::interpolate;
 use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::tensor::{Int, Tensor};
@@ -62,8 +62,12 @@ fn warp<B: Backend>(img: Tensor<B, 4>, flow: Tensor<B, 4>) -> Tensor<B, 4> {
     let fy = flow.slice([0..n, 1..2, 0..h, 0..w]);
 
     // pixel coordinates 0..W-1 / 0..H-1 broadcast over batch/spatial
-    let xs = Tensor::<B, 1, Int>::arange(0..w as i64, &img.device()).float().reshape([1, 1, 1, w]);
-    let ys = Tensor::<B, 1, Int>::arange(0..h as i64, &img.device()).float().reshape([1, 1, h, 1]);
+    let xs = Tensor::<B, 1, Int>::arange(0..w as i64, &img.device())
+        .float()
+        .reshape([1, 1, 1, w]);
+    let ys = Tensor::<B, 1, Int>::arange(0..h as i64, &img.device())
+        .float()
+        .reshape([1, 1, h, 1]);
 
     // sample = coord + flow, normalized to [-1,1] (align_corners=True)
     let sx = (xs + fx) / ((w - 1) as f64 / 2.0) - 1.0;
@@ -122,55 +126,57 @@ pub struct RifeNet<B: Backend> {
     conv_57: Conv2d<B>,
     conv_58: Conv2d<B>,
     conv_59: Conv2d<B>,
-    deconv_63: ConvTranspose2d<B>,}
+    deconv_63: ConvTranspose2d<B>,
+}
 
 impl<B: Backend> RifeNet<B> {
     pub fn new(device: &B::Device) -> Self {
         Self {
-        convrelu_0: conv2d(7, 96, 2, device),
-        convrelu_1: conv2d(96, 192, 2, device),
-        conv_22: conv2d(192, 192, 1, device),
-        conv_23: conv2d(192, 192, 1, device),
-        conv_24: conv2d(192, 192, 1, device),
-        conv_25: conv2d(192, 192, 1, device),
-        conv_26: conv2d(192, 192, 1, device),
-        conv_27: conv2d(192, 192, 1, device),
-        conv_28: conv2d(192, 192, 1, device),
-        conv_29: conv2d(192, 192, 1, device),
-        deconv_60: deconv2d(192, 24, device),
-        convrelu_2: conv2d(12, 64, 2, device),
-        convrelu_3: conv2d(64, 128, 2, device),
-        conv_32: conv2d(128, 128, 1, device),
-        conv_33: conv2d(128, 128, 1, device),
-        conv_34: conv2d(128, 128, 1, device),
-        conv_35: conv2d(128, 128, 1, device),
-        conv_36: conv2d(128, 128, 1, device),
-        conv_37: conv2d(128, 128, 1, device),
-        conv_38: conv2d(128, 128, 1, device),
-        conv_39: conv2d(128, 128, 1, device),
-        deconv_61: deconv2d(128, 24, device),
-        convrelu_4: conv2d(12, 48, 2, device),
-        convrelu_5: conv2d(48, 96, 2, device),
-        conv_42: conv2d(96, 96, 1, device),
-        conv_43: conv2d(96, 96, 1, device),
-        conv_44: conv2d(96, 96, 1, device),
-        conv_45: conv2d(96, 96, 1, device),
-        conv_46: conv2d(96, 96, 1, device),
-        conv_47: conv2d(96, 96, 1, device),
-        conv_48: conv2d(96, 96, 1, device),
-        conv_49: conv2d(96, 96, 1, device),
-        deconv_62: deconv2d(96, 24, device),
-        convrelu_6: conv2d(12, 32, 2, device),
-        convrelu_7: conv2d(32, 64, 2, device),
-        conv_52: conv2d(64, 64, 1, device),
-        conv_53: conv2d(64, 64, 1, device),
-        conv_54: conv2d(64, 64, 1, device),
-        conv_55: conv2d(64, 64, 1, device),
-        conv_56: conv2d(64, 64, 1, device),
-        conv_57: conv2d(64, 64, 1, device),
-        conv_58: conv2d(64, 64, 1, device),
-        conv_59: conv2d(64, 64, 1, device),
-        deconv_63: deconv2d(64, 24, device),        }
+            convrelu_0: conv2d(7, 96, 2, device),
+            convrelu_1: conv2d(96, 192, 2, device),
+            conv_22: conv2d(192, 192, 1, device),
+            conv_23: conv2d(192, 192, 1, device),
+            conv_24: conv2d(192, 192, 1, device),
+            conv_25: conv2d(192, 192, 1, device),
+            conv_26: conv2d(192, 192, 1, device),
+            conv_27: conv2d(192, 192, 1, device),
+            conv_28: conv2d(192, 192, 1, device),
+            conv_29: conv2d(192, 192, 1, device),
+            deconv_60: deconv2d(192, 24, device),
+            convrelu_2: conv2d(12, 64, 2, device),
+            convrelu_3: conv2d(64, 128, 2, device),
+            conv_32: conv2d(128, 128, 1, device),
+            conv_33: conv2d(128, 128, 1, device),
+            conv_34: conv2d(128, 128, 1, device),
+            conv_35: conv2d(128, 128, 1, device),
+            conv_36: conv2d(128, 128, 1, device),
+            conv_37: conv2d(128, 128, 1, device),
+            conv_38: conv2d(128, 128, 1, device),
+            conv_39: conv2d(128, 128, 1, device),
+            deconv_61: deconv2d(128, 24, device),
+            convrelu_4: conv2d(12, 48, 2, device),
+            convrelu_5: conv2d(48, 96, 2, device),
+            conv_42: conv2d(96, 96, 1, device),
+            conv_43: conv2d(96, 96, 1, device),
+            conv_44: conv2d(96, 96, 1, device),
+            conv_45: conv2d(96, 96, 1, device),
+            conv_46: conv2d(96, 96, 1, device),
+            conv_47: conv2d(96, 96, 1, device),
+            conv_48: conv2d(96, 96, 1, device),
+            conv_49: conv2d(96, 96, 1, device),
+            deconv_62: deconv2d(96, 24, device),
+            convrelu_6: conv2d(12, 32, 2, device),
+            convrelu_7: conv2d(32, 64, 2, device),
+            conv_52: conv2d(64, 64, 1, device),
+            conv_53: conv2d(64, 64, 1, device),
+            conv_54: conv2d(64, 64, 1, device),
+            conv_55: conv2d(64, 64, 1, device),
+            conv_56: conv2d(64, 64, 1, device),
+            conv_57: conv2d(64, 64, 1, device),
+            conv_58: conv2d(64, 64, 1, device),
+            conv_59: conv2d(64, 64, 1, device),
+            deconv_63: deconv2d(64, 24, device),
+        }
     }
 
     /// Interpolate frame `in0` -> `in1` at `in2` (timestep in [0,1]).
@@ -450,7 +456,8 @@ impl<B: Backend> RifeNet<B> {
         let b_339 = slice_c(b_329, 0, 2);
         let b_340 = warp(b_2, b_339);
         let b_341 = b_340 * b_334;
-        let b_out0 = b_341 + b_338;        b_out0
+        let b_out0 = b_341 + b_338;
+        b_out0
     }
 
     /// Load weights from the rife-v4.6 ncnn `flownet.bin`.
@@ -461,16 +468,31 @@ impl<B: Backend> RifeNet<B> {
         use burn::module::Param;
         use burn::tensor::{f16, TensorData};
         let mut pos = 0usize;
-        let mut rd = |out: usize, wsize: usize, in_c: usize, k: usize, bias: bool, transpose: bool|
-            -> (Tensor<B, 4>, Option<Tensor<B, 1>>) {
+        let mut rd = |out: usize,
+                      wsize: usize,
+                      in_c: usize,
+                      k: usize,
+                      bias: bool,
+                      transpose: bool|
+         -> (Tensor<B, 4>, Option<Tensor<B, 1>>) {
             pos += 4; // fp16 tag
             let w: Vec<f32> = (0..wsize)
-                .map(|i| f16::from_bits(u16::from_le_bytes([bin[pos + 2 * i], bin[pos + 2 * i + 1]])).to_f32())
+                .map(|i| {
+                    f16::from_bits(u16::from_le_bytes([bin[pos + 2 * i], bin[pos + 2 * i + 1]]))
+                        .to_f32()
+                })
                 .collect();
             pos += 2 * wsize;
             let b = if bias {
                 let bv: Vec<f32> = (0..out)
-                    .map(|i| f32::from_le_bytes([bin[pos + 4 * i], bin[pos + 4 * i + 1], bin[pos + 4 * i + 2], bin[pos + 4 * i + 3]]))
+                    .map(|i| {
+                        f32::from_le_bytes([
+                            bin[pos + 4 * i],
+                            bin[pos + 4 * i + 1],
+                            bin[pos + 4 * i + 2],
+                            bin[pos + 4 * i + 3],
+                        ])
+                    })
                     .collect();
                 pos += 4 * out;
                 Some(Tensor::from_data(TensorData::new(bv, [out]), device))
@@ -480,7 +502,11 @@ impl<B: Backend> RifeNet<B> {
             // ncnn stores deconv weights out-major [out, in, k, k]; burn's
             // ConvTranspose2d expects [in, out, k, k].
             let wt = Tensor::from_data(TensorData::new(w, [out, in_c, k, k]), device);
-            let wt = if transpose { wt.permute([1, 0, 2, 3]) } else { wt };
+            let wt = if transpose {
+                wt.permute([1, 0, 2, 3])
+            } else {
+                wt
+            };
             (wt, b)
         };
         let (w, b) = rd(96, 6048, 7, 3, true, false);
@@ -614,7 +640,8 @@ impl<B: Backend> RifeNet<B> {
         self.conv_59.bias = b.map(Param::from_tensor);
         let (w, b) = rd(24, 24576, 64, 4, true, true);
         self.deconv_63.weight = Param::from_tensor(w);
-        self.deconv_63.bias = b.map(Param::from_tensor);        if pos != bin.len() {
+        self.deconv_63.bias = b.map(Param::from_tensor);
+        if pos != bin.len() {
             return Err(format!("ncnn bin: consumed {pos} of {} bytes", bin.len()));
         }
         Ok(())
@@ -634,11 +661,21 @@ mod tests {
         use burn_wgpu::{Vulkan, WgpuDevice};
         let device = WgpuDevice::DiscreteGpu(0);
         let net = RifeNet::<Vulkan<f32>>::new(&device);
-        let in0 = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.5f32; 3 * 64 * 64], [1, 3, 64, 64]), &device);
-        let in1 = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.6f32; 3 * 64 * 64], [1, 3, 64, 64]), &device);
-        let t = Tensor::<Vulkan<f32>, 4>::from_data(TensorData::new(vec![0.5f32; 64 * 64], [1, 1, 64, 64]), &device);
+        let in0 = Tensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(vec![0.5f32; 3 * 64 * 64], [1, 3, 64, 64]),
+            &device,
+        );
+        let in1 = Tensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(vec![0.6f32; 3 * 64 * 64], [1, 3, 64, 64]),
+            &device,
+        );
+        let t = Tensor::<Vulkan<f32>, 4>::from_data(
+            TensorData::new(vec![0.5f32; 64 * 64], [1, 1, 64, 64]),
+            &device,
+        );
         let out = net.forward(in0, in1, t);
         assert_eq!(out.dims(), [1, 3, 64, 64]);
         let v: Vec<f32> = out.into_data().convert::<f32>().to_vec().unwrap();
         assert!(v.iter().all(|x| x.is_finite()));
-    }}
+    }
+}

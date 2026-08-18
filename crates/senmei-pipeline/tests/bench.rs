@@ -19,7 +19,9 @@ fn model() -> senmei_ml::ModelRef {
     let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
     let mut registry = senmei_ml::Registry::new();
     registry.load_dir(&models_dir).unwrap();
-    let mref = registry.resolve(&model_id, &models_dir).expect("model in registry");
+    let mref = registry
+        .resolve(&model_id, &models_dir)
+        .expect("model in registry");
     let bpk = models_dir.join(&mref.path);
     assert!(bpk.exists(), "missing {bpk:?}");
     mref
@@ -33,8 +35,15 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
     let input = dir.join("input.mp4");
     let ok = std::process::Command::new("ffmpeg")
         .args([
-            "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1920x1080:rate=24",
-            "-pix_fmt", "yuv420p", "-c:v", "mpeg4",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=2:size=1920x1080:rate=24",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "mpeg4",
         ])
         .arg(&input)
         .status()
@@ -62,7 +71,9 @@ fn bench_upscaler_1080p_fullframe() {
     let mut frames = bench_frames();
     let total = frames.len();
 
-    let opts = InferOptions { tile_size: Some(512) };
+    let opts = InferOptions {
+        tile_size: Some(512),
+    };
     let mut t_in = 0f64;
     let mut t_infer = 0f64;
     let mut t_out = 0f64;
@@ -90,7 +101,10 @@ fn bench_upscaler_1080p_fullframe() {
     let total_ms = ms_in + ms_infer + ms_out;
     println!("\n==== {model_id} 1080p -> 2160p tiled infer ====");
     println!("frames: {total} | convert-in {ms_in:.1} ms | infer {ms_infer:.1} ms | convert-out {ms_out:.1} ms");
-    println!("total {total_ms:.1} ms/frame | {:.1} FPS", 1000.0 / total_ms);
+    println!(
+        "total {total_ms:.1} ms/frame | {:.1} FPS",
+        1000.0 / total_ms
+    );
     println!("=================================================");
 }
 
@@ -114,7 +128,11 @@ fn bench_upscale_step() {
     }
     let s_el = s0.elapsed().as_secs_f64() / total as f64;
     println!("\n==== {model_id} Upscale step (tiled, app path) ====");
-    println!("frames: {total} | step {:.1} ms/frame | {:.1} FPS", s_el * 1000.0, 1.0 / s_el);
+    println!(
+        "frames: {total} | step {:.1} ms/frame | {:.1} FPS",
+        s_el * 1000.0,
+        1.0 / s_el
+    );
     println!("=================================================");
 }
 
@@ -132,8 +150,15 @@ fn bench_pipeline_full_render() {
     let output = dir.join("output.mp4");
     let ok = std::process::Command::new("ffmpeg")
         .args([
-            "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1920x1080:rate=24",
-            "-pix_fmt", "yuv420p", "-c:v", "mpeg4",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=2:size=1920x1080:rate=24",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "mpeg4",
         ])
         .arg(&input)
         .status()

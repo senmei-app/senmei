@@ -279,7 +279,8 @@ pub fn export_project(src: &str, dest: &str) -> Result<(), String> {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        tar.append_path_with_name(&path, &name).map_err(|e| e.to_string())?;
+        tar.append_path_with_name(&path, &name)
+            .map_err(|e| e.to_string())?;
     }
     let xz = tar.into_inner().map_err(|e| e.to_string())?;
     xz.finish().map_err(|e| e.to_string())?;
@@ -306,7 +307,11 @@ pub fn open_project(archive: &str) -> Result<String, String> {
             }
         })
         .collect();
-    let safe = if safe.trim().is_empty() { "project" } else { safe.trim() };
+    let safe = if safe.trim().is_empty() {
+        "project"
+    } else {
+        safe.trim()
+    };
 
     let base = data_dir().join("projects").join(safe);
     let target = unique_dir(&base);
@@ -366,10 +371,8 @@ mod tests {
 
     fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
         let _guard = ENV_LOCK.lock().unwrap();
-        let base = std::env::temp_dir().join(format!(
-            "senmei-store-test-{}-{name}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("senmei-store-test-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::env::set_var("XDG_DATA_HOME", &base);
         test();

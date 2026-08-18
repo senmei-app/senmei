@@ -245,7 +245,9 @@ mod tests {
     fn small_input_skips_tiling() {
         let t = input(8, 8);
         let mut engine = ScaleEngine { factor: 2 };
-        let opts = InferOptions { tile_size: Some(16) };
+        let opts = InferOptions {
+            tile_size: Some(16),
+        };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(out.shape, vec![1, 3, 16, 16]);
     }
@@ -264,7 +266,9 @@ mod tests {
         // 720p > tile size but ≤ full-HD threshold → exactly one engine call.
         let t = input(720, 1280);
         let mut engine = CountingEngine { calls: 0 };
-        let opts = InferOptions { tile_size: Some(512) };
+        let opts = InferOptions {
+            tile_size: Some(512),
+        };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
         assert_eq!(engine.calls, 1);
         assert_eq!(out.shape, t.shape);
@@ -276,9 +280,15 @@ mod tests {
         // chunks of 4 (15 tiles → 4 engine calls instead of 15).
         let t = input(1080, 2048);
         let mut engine = CountingEngine { calls: 0 };
-        let opts = InferOptions { tile_size: Some(512) };
+        let opts = InferOptions {
+            tile_size: Some(512),
+        };
         let out = infer_tiled(&mut engine, &t, &opts).unwrap();
-        assert!(engine.calls < 8, "expected few batched calls, got {}", engine.calls);
+        assert!(
+            engine.calls < 8,
+            "expected few batched calls, got {}",
+            engine.calls
+        );
         assert_eq!(out.shape, vec![1, 3, 1080, 2048]);
     }
 }

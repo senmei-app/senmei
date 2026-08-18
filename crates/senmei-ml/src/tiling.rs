@@ -1,12 +1,7 @@
 use crate::Tensor;
 
 /// Place tiles back into an NCHW canvas, averaging overlapping regions.
-pub fn stitch(
-    tiles: &[(usize, usize, Tensor)],
-    out_h: usize,
-    out_w: usize,
-    c: usize,
-) -> Tensor {
+pub fn stitch(tiles: &[(usize, usize, Tensor)], out_h: usize, out_w: usize, c: usize) -> Tensor {
     let mut acc = vec![0f32; c * out_h * out_w];
     let mut count = vec![0f32; c * out_h * out_w];
     for (x, y, t) in tiles {

@@ -46,7 +46,11 @@ fn interpolation_doubles_frame_rate() {
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
     let info = senmei_media::probe(&output).unwrap();
-    assert!((info.fps - 20.0).abs() < 1.0, "expected ~20 fps, got {}", info.fps);
+    assert!(
+        (info.fps - 20.0).abs() < 1.0,
+        "expected ~20 fps, got {}",
+        info.fps
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -58,8 +62,7 @@ fn rife_interpolates_real_model_e2e() {
         eprintln!("ffmpeg not found, skipping");
         return;
     }
-    let models_dir =
-        std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+    let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
     let bin = models_dir.join("flownet.bin");
     if !bin.exists() {
         eprintln!("missing flownet.bin, skipping");
@@ -102,7 +105,11 @@ fn rife_interpolates_real_model_e2e() {
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
     let info = senmei_media::probe(&output).unwrap();
-    assert!((info.fps - 20.0).abs() < 1.0, "expected ~20 fps, got {}", info.fps);
+    assert!(
+        (info.fps - 20.0).abs() < 1.0,
+        "expected ~20 fps, got {}",
+        info.fps
+    );
 
     // Input had 10 frames; factor-2 interpolation emits 10 + 9 = 19 frames.
     let count = Command::new("ffprobe")
@@ -120,7 +127,10 @@ fn rife_interpolates_real_model_e2e() {
         .arg(&output)
         .output()
         .unwrap();
-    let frames: f64 = String::from_utf8_lossy(&count.stdout).trim().parse().unwrap_or(0.0);
+    let frames: f64 = String::from_utf8_lossy(&count.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(0.0);
     assert_eq!(frames, 19.0, "expected 19 frames, got {frames}");
 
     let _ = std::fs::remove_dir_all(&dir);

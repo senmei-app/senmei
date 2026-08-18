@@ -109,13 +109,20 @@ impl Registry {
     /// file (e.g. the `.bpk`); carries the arch/config the engine needs.
     pub fn resolve(&self, id: &str, dir: &Path) -> Option<ModelRef> {
         self.models.iter().find(|m| m.id == id).and_then(|m| {
-            m.weights.as_ref().and_then(|f| f.first()).map(|f| ModelRef {
-                id: id.to_string(),
-                arch: m.arch.clone(),
-                scale: m.scale,
-                num_block: m.metadata.get("num_block").and_then(|v| v.as_u64()).unwrap_or(4) as u32,
-                path: dir.join(f),
-            })
+            m.weights
+                .as_ref()
+                .and_then(|f| f.first())
+                .map(|f| ModelRef {
+                    id: id.to_string(),
+                    arch: m.arch.clone(),
+                    scale: m.scale,
+                    num_block: m
+                        .metadata
+                        .get("num_block")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(4) as u32,
+                    path: dir.join(f),
+                })
         })
     }
 }
@@ -130,7 +137,9 @@ mod tests {
             {"id": "rife-v4", "kind": "interpolate", "scale": 1, "arch": "rife425"},
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "span"}
         ]"#;
-        let registry = Registry { models: serde_json::from_str(json).unwrap() };
+        let registry = Registry {
+            models: serde_json::from_str(json).unwrap(),
+        };
         assert_eq!(registry.models().len(), 2);
         assert_eq!(registry.models()[0].id, "rife-v4");
         assert!(matches!(registry.models()[0].kind, ModelKind::Interpolate));
@@ -144,7 +153,9 @@ mod tests {
         let json = r#"[
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "span", "loadable": false}
         ]"#;
-        let registry = Registry { models: serde_json::from_str(json).unwrap() };
+        let registry = Registry {
+            models: serde_json::from_str(json).unwrap(),
+        };
         assert!(!registry.models()[0].loadable);
     }
 
@@ -191,7 +202,9 @@ mod tests {
             {"id": "span", "kind": "upscale", "scale": 4, "arch": "realesrgan",
              "weights": ["span.pth"], "metadata": {"num_block": 6}}
         ]"#;
-        let registry = Registry { models: serde_json::from_str(json).unwrap() };
+        let registry = Registry {
+            models: serde_json::from_str(json).unwrap(),
+        };
         let mref = registry.resolve("span", Path::new("/models")).unwrap();
         assert_eq!(mref.id, "span");
         assert_eq!(mref.arch, "realesrgan");

@@ -52,10 +52,7 @@ impl Decoder {
             cmd.args(["-vf", vf]);
         }
 
-        let mut child = cmd
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
+        let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
 
         let stdout = child
             .stdout

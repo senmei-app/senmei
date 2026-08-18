@@ -51,7 +51,10 @@ fn passthrough_decodes_and_encodes() {
         })
         .unwrap();
 
-    assert!(frames.load(std::sync::atomic::Ordering::Relaxed) > 0, "expected at least one frame");
+    assert!(
+        frames.load(std::sync::atomic::Ordering::Relaxed) > 0,
+        "expected at least one frame"
+    );
     assert!(output.exists());
     assert!(output.metadata().unwrap().len() > 0);
 
@@ -138,8 +141,13 @@ fn passthrough_pause_resume() {
 
     let status = Command::new("ffmpeg")
         .args([
-            "-y", "-f", "lavfi", "-i", "testsrc=duration=8:size=320x240:rate=24",
-            "-pix_fmt", "yuv420p",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=8:size=320x240:rate=24",
+            "-pix_fmt",
+            "yuv420p",
         ])
         .arg(&input)
         .status()
@@ -232,8 +240,14 @@ fn render_only_time_range() {
         .arg(&output)
         .output()
         .unwrap();
-    let frames: f64 = String::from_utf8_lossy(&count.stdout).trim().parse().unwrap_or(0.0);
-    assert_eq!(frames, 5.0, "expected 5 frames from the 200..700 ms range, got {frames}");
+    let frames: f64 = String::from_utf8_lossy(&count.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(0.0);
+    assert_eq!(
+        frames, 5.0,
+        "expected 5 frames from the 200..700 ms range, got {frames}"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

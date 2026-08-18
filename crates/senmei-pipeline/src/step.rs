@@ -1,5 +1,5 @@
 use senmei_media::Frame;
-use senmei_ml::{InferenceEngine, InferOptions};
+use senmei_ml::{InferOptions, InferenceEngine};
 
 use crate::frame::{frame_to_tensor, tensor_to_frame};
 
@@ -29,7 +29,9 @@ pub struct Denoise {
 
 impl Denoise {
     pub fn new(radius: u32) -> Self {
-        Self { radius: radius.max(1) }
+        Self {
+            radius: radius.max(1),
+        }
     }
 }
 
@@ -75,7 +77,9 @@ pub struct Deblur {
 
 impl Deblur {
     pub fn new(amount: f32) -> Self {
-        Self { amount: amount.clamp(0.0, 2.0) }
+        Self {
+            amount: amount.clamp(0.0, 2.0),
+        }
     }
 }
 
@@ -168,7 +172,11 @@ impl Step for Dedup {
 
 fn mean_abs_diff(a: &[u8], b: &[u8]) -> f32 {
     let n = a.len().max(1);
-    a.iter().zip(b).map(|(x, y)| (x.abs_diff(*y) as u32) as f32).sum::<f32>() / (n as f32 * 255.0)
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| (x.abs_diff(*y) as u32) as f32)
+        .sum::<f32>()
+        / (n as f32 * 255.0)
 }
 
 /// Default tile size handed to engines that advertise tiling support.
@@ -183,7 +191,10 @@ pub struct Upscale {
 
 impl Upscale {
     pub fn new(scale: u32, engine: Option<Box<dyn InferenceEngine>>) -> Self {
-        Self { scale: scale.max(1), engine }
+        Self {
+            scale: scale.max(1),
+            engine,
+        }
     }
 }
 
@@ -199,17 +210,27 @@ impl Step for Upscale {
         if let Some(engine) = self.engine.as_mut() {
             if let Some(res) = engine.infer_rgb8(&input, self.scale) {
                 let (bytes, w, h) = res.map_err(|e| crate::Error::new(e.to_string()))?;
-                *frame = Frame { width: w, height: h, data: bytes };
+                *frame = Frame {
+                    width: w,
+                    height: h,
+                    data: bytes,
+                };
                 return Ok(true);
             }
         }
         let out = match self.engine.as_mut() {
             Some(engine) => {
-                let opts = InferOptions { tile_size: Some(TILE_SIZE) };
+                let opts = InferOptions {
+                    tile_size: Some(TILE_SIZE),
+                };
                 senmei_ml::infer_tiled(engine.as_mut(), &input, &opts)
                     .map_err(|e| crate::Error::new(e.to_string()))?
             }
-            None => senmei_ml::bilinear(&input, frame.height as usize * self.scale as usize, frame.width as usize * self.scale as usize),
+            None => senmei_ml::bilinear(
+                &input,
+                frame.height as usize * self.scale as usize,
+                frame.width as usize * self.scale as usize,
+            ),
         };
         // An engine may upscale at a fixed factor (e.g. x4); enforce the
         // requested scale when the engine's output dims differ.
@@ -260,8 +281,16 @@ fn resize_frame(frame: &mut Frame, nw: u32, nh: u32) -> crate::Result<()> {
         return Ok(());
     }
 
-    let x_ratio = if nw > 1 { (w as f32 - 1.0) / (nw as f32 - 1.0) } else { 0.0 };
-    let y_ratio = if nh > 1 { (h as f32 - 1.0) / (nh as f32 - 1.0) } else { 0.0 };
+    let x_ratio = if nw > 1 {
+        (w as f32 - 1.0) / (nw as f32 - 1.0)
+    } else {
+        0.0
+    };
+    let y_ratio = if nh > 1 {
+        (h as f32 - 1.0) / (nh as f32 - 1.0)
+    } else {
+        0.0
+    };
 
     let src = &frame.data;
     let mut out = vec![0u8; 3 * nw * nh];
@@ -282,7 +311,8 @@ fn resize_frame(frame: &mut Frame, nw: u32, nh: u32) -> crate::Result<()> {
                 let d = src[(y1 * w + x1) * 3 + c] as f32;
                 let top = a + (b - a) * fx;
                 let bot = c0 + (d - c0) * fx;
-                out[(ny * nw + nx) * 3 + c] = (top + (bot - top) * fy).round().clamp(0.0, 255.0) as u8;
+                out[(ny * nw + nx) * 3 + c] =
+                    (top + (bot - top) * fy).round().clamp(0.0, 255.0) as u8;
             }
         }
     }
@@ -396,7 +426,11 @@ mod tests {
         fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
             Ok(())
         }
-        fn infer(&mut self, input: &Tensor, _o: &senmei_ml::InferOptions) -> senmei_ml::Result<Tensor> {
+        fn infer(
+            &mut self,
+            input: &Tensor,
+            _o: &senmei_ml::InferOptions,
+        ) -> senmei_ml::Result<Tensor> {
             let h = input.shape[2];
             let w = input.shape[3];
             Ok(senmei_ml::bilinear(input, h * 4, w * 4))
@@ -489,18 +523,43 @@ mod tests {
             0, 0, 255, // blue
             255, 255, 255, // white
         ];
-        let mut frame = Frame { width: 2, height: 2, data: pixels.to_vec() };
+        let mut frame = Frame {
+            width: 2,
+            height: 2,
+            data: pixels.to_vec(),
+        };
         Resize::new(2.0).process(&mut frame).unwrap();
-        assert_eq!(&frame.data[..3], &[255, 0, 0], "corner not red: {:?}", &frame.data[..12]);
+        assert_eq!(
+            &frame.data[..3],
+            &[255, 0, 0],
+            "corner not red: {:?}",
+            &frame.data[..12]
+        );
     }
 
     #[test]
     fn dedup_drops_only_near_duplicates() {
         let mut step = Dedup::new(0.02);
-        let a = Frame { width: 2, height: 2, data: vec![10u8; 12] };
-        let b = Frame { width: 2, height: 2, data: vec![11u8; 12] }; // near-dup
-        let c = Frame { width: 2, height: 2, data: vec![200u8; 12] }; // cut
-        let d = Frame { width: 2, height: 2, data: vec![100u8; 12] }; // new cut
+        let a = Frame {
+            width: 2,
+            height: 2,
+            data: vec![10u8; 12],
+        };
+        let b = Frame {
+            width: 2,
+            height: 2,
+            data: vec![11u8; 12],
+        }; // near-dup
+        let c = Frame {
+            width: 2,
+            height: 2,
+            data: vec![200u8; 12],
+        }; // cut
+        let d = Frame {
+            width: 2,
+            height: 2,
+            data: vec![100u8; 12],
+        }; // new cut
 
         let mut f = a.clone();
         assert!(step.process(&mut f).unwrap()); // first frame kept
@@ -521,7 +580,11 @@ mod tests {
         let mut step = Dedup::new(0.02);
         let mut kept = 0;
         for _ in 0..40 {
-            let mut f = Frame { width: 2, height: 2, data: vec![10u8; 12] };
+            let mut f = Frame {
+                width: 2,
+                height: 2,
+                data: vec![10u8; 12],
+            };
             if step.process(&mut f).unwrap() {
                 kept += 1;
             }

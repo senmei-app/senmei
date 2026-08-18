@@ -6,7 +6,11 @@ pub fn models_dir() -> PathBuf {
     // Anchor to the repo checkout: cargo tauri dev runs the binary from the
     // crate dir, so CWD-relative paths can miss models/ at the repo root.
     let anchored = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models");
-    for dir in [anchored, PathBuf::from("models"), PathBuf::from("../models")] {
+    for dir in [
+        anchored,
+        PathBuf::from("models"),
+        PathBuf::from("../models"),
+    ] {
         if dir.is_dir() {
             return dir;
         }

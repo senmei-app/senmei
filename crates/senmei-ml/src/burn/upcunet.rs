@@ -7,13 +7,19 @@
 //! `KeyRemapper` in the engine.
 
 use burn::module::Module;
-use burn::nn::PaddingConfig2d;
 use burn::nn::conv::{Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig};
+use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::{leaky_relu, relu, sigmoid};
 use burn::tensor::ops::PadMode;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{backend::Backend, Tensor};
 
-fn conv2d<B: Backend>(in_c: usize, out_c: usize, k: usize, s: usize, device: &B::Device) -> Conv2d<B> {
+fn conv2d<B: Backend>(
+    in_c: usize,
+    out_c: usize,
+    k: usize,
+    s: usize,
+    device: &B::Device,
+) -> Conv2d<B> {
     Conv2dConfig::new([in_c, out_c], [k, k])
         .with_stride([s, s])
         .with_padding(PaddingConfig2d::Valid)
@@ -57,11 +63,18 @@ impl<B: Backend> UnetConv<B> {
         let conv = conv2d(in_c, mid_c, 3, 1, device);
         let conv2 = conv2d(mid_c, out_c, 3, 1, device);
         let seblock = se.then(|| SeBlock::new(out_c, device));
-        Self { conv, conv2, seblock }
+        Self {
+            conv,
+            conv2,
+            seblock,
+        }
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let z = leaky_relu(self.conv2.forward(leaky_relu(self.conv.forward(x), 0.1)), 0.1);
+        let z = leaky_relu(
+            self.conv2.forward(leaky_relu(self.conv.forward(x), 0.1)),
+            0.1,
+        );
         match &self.seblock {
             Some(se) => se.forward(z),
             None => z,
@@ -95,7 +108,14 @@ impl<B: Backend> Unet1<B> {
             .with_padding([3, 3])
             .with_padding_out([0, 0])
             .init(device);
-        Self { conv1, conv1_down, conv2, conv2_up, conv3, conv_bottom }
+        Self {
+            conv1,
+            conv1_down,
+            conv2,
+            conv2_up,
+            conv3,
+            conv_bottom,
+        }
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
@@ -143,7 +163,18 @@ impl<B: Backend> Unet2<B> {
             .init(device);
         let conv5 = conv2d(64, 64, 3, 1, device);
         let conv_bottom = conv2d(64, out_c, 3, 1, device);
-        Self { conv1, conv1_down, conv2, conv2_down, conv3, conv3_up, conv4, conv4_up, conv5, conv_bottom }
+        Self {
+            conv1,
+            conv1_down,
+            conv2,
+            conv2_down,
+            conv3,
+            conv3_up,
+            conv4,
+            conv4_up,
+            conv5,
+            conv_bottom,
+        }
     }
 
     fn forward(&self, x: Tensor<B, 4>, alpha: f64) -> Tensor<B, 4> {
@@ -172,7 +203,10 @@ pub struct UpCunet2x<B: Backend> {
 
 impl<B: Backend> UpCunet2x<B> {
     pub fn new(device: &B::Device) -> Self {
-        Self { unet1: Unet1::<B>::new(3, 3, device), unet2: Unet2::<B>::new(3, 3, device) }
+        Self {
+            unet1: Unet1::<B>::new(3, 3, device),
+            unet2: Unet2::<B>::new(3, 3, device),
+        }
     }
 
     /// Full-image forward (`tile_mode=0`, `alpha=1`): reflect-pad 18, UNet1

@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use senmei_media::{Decoder, Encoder};
 
@@ -89,7 +89,16 @@ impl Pipeline {
         let (raw_tx, raw_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
         let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
-        let encoder = Encoder::open(ffmpeg, input, output, w, h, fps, start_ms, &self.encoder_args)?;
+        let encoder = Encoder::open(
+            ffmpeg,
+            input,
+            output,
+            w,
+            h,
+            fps,
+            start_ms,
+            &self.encoder_args,
+        )?;
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
@@ -130,7 +139,8 @@ impl Pipeline {
                     }
                     // Wait while paused; the bounded channels keep the decode/encode
                     // threads blocked, so no frames accumulate.
-                    while self.pause.load(Ordering::Relaxed) && !self.cancel.load(Ordering::Relaxed) {
+                    while self.pause.load(Ordering::Relaxed) && !self.cancel.load(Ordering::Relaxed)
+                    {
                         std::thread::sleep(std::time::Duration::from_millis(50));
                     }
                     if self.cancel.load(Ordering::Relaxed) {
@@ -172,10 +182,12 @@ impl Pipeline {
 
         drop(out_tx);
         drop(raw_rx); // unblock the decode thread if we bailed early
-        let dec_res =
-            dec_handle.join().unwrap_or_else(|_| Err(Error::new("decode thread panicked")));
-        let enc_res =
-            enc_handle.join().unwrap_or_else(|_| Err(Error::new("encode thread panicked")));
+        let dec_res = dec_handle
+            .join()
+            .unwrap_or_else(|_| Err(Error::new("decode thread panicked")));
+        let enc_res = enc_handle
+            .join()
+            .unwrap_or_else(|_| Err(Error::new("encode thread panicked")));
 
         if let Some(e) = main_err {
             return Err(e);
@@ -193,7 +205,10 @@ impl Pipeline {
 }
 
 /// Run a batch through one step, keeping only frames the step doesn't drop.
-fn run_step(step: &mut dyn Step, batch: Vec<senmei_media::Frame>) -> Result<Vec<senmei_media::Frame>> {
+fn run_step(
+    step: &mut dyn Step,
+    batch: Vec<senmei_media::Frame>,
+) -> Result<Vec<senmei_media::Frame>> {
     let mut kept = Vec::with_capacity(batch.len());
     for mut frame in batch {
         if step.process(&mut frame)? {
@@ -202,4 +217,3 @@ fn run_step(step: &mut dyn Step, batch: Vec<senmei_media::Frame>) -> Result<Vec<
     }
     Ok(kept)
 }
-

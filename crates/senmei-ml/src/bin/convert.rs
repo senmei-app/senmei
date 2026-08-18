@@ -16,8 +16,12 @@
 fn main() -> senmei_ml::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 4 {
-        eprintln!("usage: senmei-ml-convert <arch> <model.pth|model.onnx> <out.bpk> [scale] [num_block]");
-        eprintln!("  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr | ifrnet");
+        eprintln!(
+            "usage: senmei-ml-convert <arch> <model.pth|model.onnx> <out.bpk> [scale] [num_block]"
+        );
+        eprintln!(
+            "  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr | ifrnet"
+        );
         std::process::exit(2);
     }
     let scale: u32 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(2);

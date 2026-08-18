@@ -8,9 +8,9 @@
 //! (`ModelRef::scale`) and whether the `DySample` tail is present.
 
 use burn::module::Module;
-use burn::nn::PaddingConfig2d;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::norm::{GroupNorm, GroupNormConfig};
+use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::{mish, sigmoid};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, TensorData};
@@ -67,7 +67,10 @@ impl<B: Backend> PlkConv2d<B> {
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let total = x.dims()[1];
         let parts = x.split_with_sizes(vec![self.pdim, total - self.pdim], 1);
-        Tensor::cat(vec![self.conv.forward(parts[0].clone()), parts[1].clone()], 1)
+        Tensor::cat(
+            vec![self.conv.forward(parts[0].clone()), parts[1].clone()],
+            1,
+        )
     }
 }
 
@@ -101,7 +104,13 @@ pub struct PlkBlock<B: Backend> {
 }
 
 impl<B: Backend> PlkBlock<B> {
-    pub fn new(dim: usize, pdim: usize, kernel: usize, norm_groups: usize, device: &B::Device) -> Self {
+    pub fn new(
+        dim: usize,
+        pdim: usize,
+        kernel: usize,
+        norm_groups: usize,
+        device: &B::Device,
+    ) -> Self {
         Self {
             channel_mixer: Dccm::new(dim, device),
             lk: PlkConv2d::new(pdim, kernel, device),
@@ -147,10 +156,9 @@ fn group_norm<B: Backend>(x: Tensor<B, 4>, norm: &GroupNorm<B>) -> Tensor<B, 4> 
     let out = xc * inv_std;
     let out = out.reshape([b, c, h, w]);
     match (&norm.gamma, &norm.beta) {
-        (Some(g), Some(beta)) => {
-            out.mul(g.val().reshape([1, c, 1, 1]))
-                .add(beta.val().reshape([1, c, 1, 1]))
-        }
+        (Some(g), Some(beta)) => out
+            .mul(g.val().reshape([1, c, 1, 1]))
+            .add(beta.val().reshape([1, c, 1, 1])),
         _ => out,
     }
 }
@@ -299,7 +307,11 @@ fn init_pos<B: Backend>(scale: usize, groups: usize, device: &B::Device) -> Tens
     for i in 0..total {
         let coord = i / (groups * n * n);
         let rem = i % (groups * n * n);
-        data.push(if coord == 0 { h[rem % n] } else { h[(rem / n) % n] });
+        data.push(if coord == 0 {
+            h[rem % n]
+        } else {
+            h[(rem / n) % n]
+        });
     }
     let data = TensorData::new(data, [1, total, 1, 1]).convert::<B::FloatElem>();
     Tensor::<B, 4>::from_data(data, device)

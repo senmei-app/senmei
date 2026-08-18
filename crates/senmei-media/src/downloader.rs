@@ -20,9 +20,7 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
     let mut buf = [0u8; 64 * 1024];
     let mut downloaded = 0u64;
     loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(Error::from)?;
+        let n = reader.read(&mut buf).map_err(Error::from)?;
         if n == 0 {
             break;
         }
@@ -118,7 +116,10 @@ mod tests {
     fn sha256_matches_known_vector() {
         let path = std::env::temp_dir().join("senmei-sha256-test.txt");
         fs::write(&path, b"hello").unwrap();
-        assert_eq!(sha256_hex(&path).unwrap(), "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        assert_eq!(
+            sha256_hex(&path).unwrap(),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
         fs::remove_file(path).unwrap();
     }
 }
