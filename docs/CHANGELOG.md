@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: PLAN §14/§15 restructure + maintainability backlog (2026-08-18)** —
+  `PLAN.md` §14 split into subsections (own code & libs, models, codecs, AGPL
+  boundary) with an expanded dependency/license table, §15 rewritten as a status
+  snapshot; `models.md` SPAN added to the backlog; `todos.md` gained a
+  Maintainability section from a code review (8 open items; AGENTS generated-path
+  check confirmed fine).
+
 - **docs: tidy-up + re-sync all docs (2026-08-18)** — `todos.md` entries capped at
   ~135 chars; `benchmarks.md` reorganized decision-first with a key-numbers table;
   `burn-bugs.md` prose tightened (all facts kept); `models.md` deduped

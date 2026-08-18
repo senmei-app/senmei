@@ -316,16 +316,24 @@ sequenceDiagram
 
 ## 14. License
 
-**Own code: MIT OR Apache-2.0** (dual license like Koharu). **No AGPL code is adopted** — everything is cleanly re-implemented.
+### 14.1 Own code & dependencies
+
+**MIT OR Apache-2.0** (dual license like Koharu); **no AGPL code is adopted** — everything is cleanly re-implemented.
 
 | Component | License | Note |
 |---|---|---|
 | Own code | **MIT OR Apache-2.0** | user chooses one of the two |
 | FFmpeg | **LGPL build** (dynamically linked) | compatible with permissive license; **do not bundle a GPL build** |
-| burn / wgpu | MIT / Apache / BSD | permissive, compatible |
-| Tauri / React | MIT / Apache / BSD | permissive, compatible |
+| Encoder codec libs | `libkvazaar` **BSD-2-Clause** · `libopenh264` **BSD-2-Clause** | LGPL-safe encoders (see 14.3) |
+| burn / cubecl / wgpu | **MIT / Apache-2.0** | inference engine + Vulkan backend |
+| Tauri / tauri-specta | **MIT / Apache-2.0** | app shell + typed IPC |
+| React / Vite / Base UI / Tailwind / lucide-react | **MIT** | frontend stack |
+| tokio / serde | **MIT / Apache-2.0** | async runtime / serialization |
+| liblzma (XZ) | **public domain (0BSD)** | `.tar.xz` project export |
 
-**Models (separately published, permissive — NOT from RVE code):** RVE itself is AGPL-3.0, but the models it runs are published independently under permissive licenses. We only adopt the **weights + architecture definitions**, never RVE code. Each model's license + source is recorded in `models/metadata.json`.
+### 14.2 Models (weights — separately published, permissive)
+
+RVE itself is AGPL-3.0, but the models it runs are published independently under permissive licenses — we adopt only the **weights + architecture definitions**, never RVE code. **Adopted archs are clean Rust ports** (never translated from AGPL or unclear-license code); TAS's vendored code stays off-limits. `models/metadata.json` is the source of truth; see [`docs/models.md`](models.md) for the full matrix.
 
 | Model | Kind | License | Source |
 |---|---|---|---|
@@ -336,15 +344,19 @@ sequenceDiagram
 | 4x_Alchemy | upscale | **CC-BY-4.0** | `renarchi/Re-SISR` — RealPLKSR_Dysample port |
 | Real-PLKSr DeJPG/DeH264 | decompress | verify (Phhofm) | `Phhofm/models` — loadable, download gated |
 
-**SPAN** (`hongyuanyu/SPAN`) is **Apache-2.0** — a top upscaler candidate. See [`docs/models.md`](models.md) for the full adoption matrix. Every adopted arch is a **clean Rust port** (never translated from AGPL or unclear-license code); TAS's vendored code stays off-limits. Candidate/undecided models are tracked in `docs/models.md`.
+**Candidates** (not adopted yet), e.g. **SPAN** (`hongyuanyu/SPAN`, Apache-2.0), are tracked in the `docs/models.md` backlog.
 
-Weights are **never committed** — only downloaded; `metadata.json` holds id/kind/arch/scale + license/source_url.
+Weights are **never committed** — only downloaded on demand; `metadata.json` holds id/kind/arch/scale + license/source_url.
 
-**Note (codecs):** `libx264`/`libx265` require a **GPL** FFmpeg build — conflicts with the LGPL-only rule. The encoder prefers LGPL-safe codecs first: `libkvazaar` (HEVC) → `libopenh264` → `h264_nvenc` → `libx264` (system GPL) → native `h264`; the portable download pins **BtbN `-lgpl` builds** (see `docs/CHANGELOG.md`, 2026-08-18).
+### 14.3 Codecs (LGPL-only)
 
-**Optional:** if a weak copyleft for the own code is desired later, **LGPL-3.0** is possible as an alternative — the default is **MIT OR Apache-2.0**.
+`libx264`/`libx265` need a **GPL** FFmpeg build and conflict with the LGPL-only rule. The encoder prefers LGPL-safe codecs first: `libkvazaar` (HEVC) → `libopenh264` → `h264_nvenc` → `libx264` (system GPL) → native `h264`; the portable download pins **BtbN `-lgpl` builds** (see `docs/CHANGELOG.md`, 2026-08-18).
 
-**Important:** RVE and TAS are **AGPL-3.0**. If their code parts (FFmpeg logic, conversion scripts, NCNN wrapper) are adopted, the project automatically becomes AGPL-3.0 — therefore always cleanly re-implement.
+### 14.4 AGPL boundary
+
+**RVE and TAS are AGPL-3.0** — adopting any of their code parts (FFmpeg logic, conversion scripts, NCNN wrapper) would make the project AGPL-3.0, so they are always cleanly re-implemented.
+
+**Optional:** if a weak copyleft for the own code is wanted later, **LGPL-3.0** is possible as an alternative — the default stays **MIT OR Apache-2.0**.
 
 ---
 
@@ -352,26 +364,13 @@ Weights are **never committed** — only downloaded; `metadata.json` holds id/ki
 
 ## 15. Current Status
 
-> Short status. The full implementation log lives in [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top).
+> Short status snapshot — the full implementation log lives in [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top).
 
-- **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end — clean burn port of the ncnn `flownet` (215 layers), weights from `flownet.bin` (MIT), input padded to 32-multiples (like the ncnn reference), full pipeline test: 10 fps → 19 frames @ 20 fps on Vulkan.
-- **Sample preview (M5, 2026-08-17):** the Monitor timeline gains an in/out
-  sample range with 10s/15s/30s/60s/Full presets; playback loops inside the
-  range and the selected window is highlighted on the slider with In/Out
-  markers. A "Render Sample" button renders only that range (decoder `-ss`
-  seek + frame cap, encoder audio sync). (Live monitor,
-  source/compare/result tabs and the scrubber were already in place.)
-- **FFmpeg profiles + command preview (M4, 2026-08-17):** the Output step
-  gains a Quality profile dropdown (Lossless / Very High / High / Medium / Low,
-  sets crf + preset as a bundle; "Custom" when the values diverge) and a live
-  command preview that renders the merged ffmpeg args. Persisted via
-  `StepParams.quality`.
-- **Color metadata (M4, 2026-08-17):** the Output step gains a Color group
-  (primaries / transfer / matrix) that tags the encode with
-  `-color_primaries` / `-color_trc` / `-colorspace` (e.g. bt2020 / smpte2084).
-  True HDR→SDR tone-mapping is a follow-up: it needs a 16-bit decode path
-  (the pipeline currently feeds 8-bit rgb24 frames).
-- **Upscaling (M2):** real models on burn-Vulkan fp16 (real-cugan-x2, Real-ESRGAN) with tiling, verified 1080p→2160p.
-- **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output all work; batch queue + progress done.
-- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, export/open project (`.tar.xz`).
-- **Next:** end-to-end RIFE render in the app, more model ports; backlog tracked in `docs/todos.md`.
+- **Engine:** burn (`burn-wgpu`) **Vulkan fp16** (shipped default) — see `docs/benchmarks.md`.
+- **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end (clean burn port, `flownet.bin` weights; 10 fps → 19 frames @ 20 fps pipeline test).
+- **Upscaling (M2):** real models on burn-Vulkan fp16 with tiling — real-cugan-x2, Fallin Soft/Strong, 4x-Alchemy + Real-PLKSr decompress (loadable), Real-ESRGAN; verified 1080p→2160p.
+- **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output — all work; batch queue + progress done.
+- **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, monitor (native `<video>` + FFmpeg fallback, full-video mode), keyboard shortcuts, export/open project (`.tar.xz`).
+- **Sample preview (M5):** timeline in/out presets + "Render Sample" range render; compare/result views.
+- **Media/License (2026-08-18):** LGPL-only FFmpeg (BtbN `-lgpl` pinned) + LGPL-safe encoder chain; license gate for model download/use.
+- **Next:** end-to-end RIFE render in the app, more model ports — backlog in `docs/todos.md` / `docs/models.md`.

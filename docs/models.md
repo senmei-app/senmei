@@ -78,7 +78,7 @@ commitment.
 |---|---|---|
 | Interpolation | RIFE family (more variants) | MIT ok |
 | Denoise | SCUNet, Real-PLKSr DeJPG/DeH264 | cszn verify · Phhofm verify |
-| Restoration | Real-ESRGAN family, Anime1080Fixer | BSD-3 ok · Zarxrax verify |
+| Restoration | Real-ESRGAN family, Anime1080Fixer, SPAN | BSD-3 ok · Zarxrax verify · SPAN Apache-2.0 |
 | Depth map (use-case open) | MiDaS / Depth-Anything class | TBD — is it useful for video enhancement? |
 
 ## Notes
