@@ -42,22 +42,25 @@ impl Step for Denoise {
         let r = self.radius as usize;
         let h = frame.height as usize;
         let w = frame.width as usize;
-        let mut out = frame.data.clone();
-        for c in 0..3 {
-            let src = &frame.data[c * w * h..(c + 1) * w * h];
-            let dst = &mut out[c * w * h..(c + 1) * w * h];
-            for y in 0..h {
-                for x in 0..w {
-                    let mut sum = 0u32;
-                    let mut n = 0u32;
-                    for dy in y.saturating_sub(r)..=(y + r).min(h - 1) {
-                        for dx in x.saturating_sub(r)..=(x + r).min(w - 1) {
-                            sum += src[dy * w + dx] as u32;
-                            n += 1;
-                        }
+        let src = &frame.data;
+        let mut out = vec![0u8; src.len()];
+        for y in 0..h {
+            for x in 0..w {
+                let mut sum = [0u32; 3];
+                let mut n = 0u32;
+                for dy in y.saturating_sub(r)..=(y + r).min(h - 1) {
+                    for dx in x.saturating_sub(r)..=(x + r).min(w - 1) {
+                        let p = (dy * w + dx) * 3;
+                        sum[0] += src[p] as u32;
+                        sum[1] += src[p + 1] as u32;
+                        sum[2] += src[p + 2] as u32;
+                        n += 1;
                     }
-                    dst[y * w + x] = (sum / n.max(1)) as u8;
                 }
+                let p = (y * w + x) * 3;
+                out[p] = (sum[0] / n.max(1)) as u8;
+                out[p + 1] = (sum[1] / n.max(1)) as u8;
+                out[p + 2] = (sum[2] / n.max(1)) as u8;
             }
         }
         frame.data = out;
@@ -87,34 +90,35 @@ impl Step for Deblur {
         }
         let h = frame.height as usize;
         let w = frame.width as usize;
-        let blur = {
-            // 3x3 box blur as the low-pass for the sharpening.
-            let mut b = vec![0u8; 3 * w * h];
-            for c in 0..3 {
-                let src = &frame.data[c * w * h..(c + 1) * w * h];
-                let dst = &mut b[c * w * h..(c + 1) * w * h];
-                for y in 0..h {
-                    for x in 0..w {
-                        let mut sum = 0u32;
-                        let mut n = 0u32;
-                        for dy in y.saturating_sub(1)..=(y + 1).min(h - 1) {
-                            for dx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
-                                sum += src[dy * w + dx] as u32;
-                                n += 1;
-                            }
-                        }
-                        dst[y * w + x] = (sum / n.max(1)) as u8;
+        let src = &frame.data;
+        let mut blur = vec![0u8; src.len()];
+        for y in 0..h {
+            for x in 0..w {
+                let mut sum = [0u32; 3];
+                let mut n = 0u32;
+                for dy in y.saturating_sub(1)..=(y + 1).min(h - 1) {
+                    for dx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
+                        let p = (dy * w + dx) * 3;
+                        sum[0] += src[p] as u32;
+                        sum[1] += src[p + 1] as u32;
+                        sum[2] += src[p + 2] as u32;
+                        n += 1;
                     }
                 }
+                let p = (y * w + x) * 3;
+                blur[p] = (sum[0] / n.max(1)) as u8;
+                blur[p + 1] = (sum[1] / n.max(1)) as u8;
+                blur[p + 2] = (sum[2] / n.max(1)) as u8;
             }
-            b
-        };
-        let a = self.amount;
-        for i in 0..frame.data.len() {
-            let v = frame.data[i] as f32;
-            let l = blur[i] as f32;
-            frame.data[i] = (v + a * (v - l)).clamp(0.0, 255.0) as u8;
         }
+        let a = self.amount;
+        let mut out = vec![0u8; src.len()];
+        for i in 0..src.len() {
+            let v = src[i] as f32;
+            let l = blur[i] as f32;
+            out[i] = (v + a * (v - l)).clamp(0.0, 255.0) as u8;
+        }
+        frame.data = out;
         Ok(true)
     }
 }
@@ -212,7 +216,7 @@ impl Step for Upscale {
     }
 }
 
-/// Resize step: bilinear-resamples the planar RGB frame by a scale factor.
+/// Resize step: bilinear-resamples the packed rgb24 frame by a scale factor.
 pub struct Resize {
     factor: f32,
 }
@@ -248,27 +252,26 @@ fn resize_frame(frame: &mut Frame, nw: u32, nh: u32) -> crate::Result<()> {
     let x_ratio = if nw > 1 { (w as f32 - 1.0) / (nw as f32 - 1.0) } else { 0.0 };
     let y_ratio = if nh > 1 { (h as f32 - 1.0) / (nh as f32 - 1.0) } else { 0.0 };
 
+    let src = &frame.data;
     let mut out = vec![0u8; 3 * nw * nh];
-    for c in 0..3 {
-        let src = &frame.data[c * w * h..(c + 1) * w * h];
-        let dst = &mut out[c * nw * nh..(c + 1) * nw * nh];
-        for ny in 0..nh {
-            let sy = y_ratio * ny as f32;
-            let y0 = sy.floor() as usize;
-            let y1 = (y0 + 1).min(h - 1);
-            let fy = sy - y0 as f32;
-            for nx in 0..nw {
-                let sx = x_ratio * nx as f32;
-                let x0 = sx.floor() as usize;
-                let x1 = (x0 + 1).min(w - 1);
-                let fx = sx - x0 as f32;
-                let a = src[y0 * w + x0] as f32;
-                let b = src[y0 * w + x1] as f32;
-                let c0 = src[y1 * w + x0] as f32;
-                let d = src[y1 * w + x1] as f32;
+    for ny in 0..nh {
+        let sy = y_ratio * ny as f32;
+        let y0 = sy.floor() as usize;
+        let y1 = (y0 + 1).min(h - 1);
+        let fy = sy - y0 as f32;
+        for nx in 0..nw {
+            let sx = x_ratio * nx as f32;
+            let x0 = sx.floor() as usize;
+            let x1 = (x0 + 1).min(w - 1);
+            let fx = sx - x0 as f32;
+            for c in 0..3 {
+                let a = src[(y0 * w + x0) * 3 + c] as f32;
+                let b = src[(y0 * w + x1) * 3 + c] as f32;
+                let c0 = src[(y1 * w + x0) * 3 + c] as f32;
+                let d = src[(y1 * w + x1) * 3 + c] as f32;
                 let top = a + (b - a) * fx;
                 let bot = c0 + (d - c0) * fx;
-                dst[ny * nw + nx] = (top + (bot - top) * fy).round().clamp(0.0, 255.0) as u8;
+                out[(ny * nw + nx) * 3 + c] = (top + (bot - top) * fy).round().clamp(0.0, 255.0) as u8;
             }
         }
     }
@@ -426,12 +429,58 @@ mod tests {
         };
         for x in 4..8 {
             for c in 0..3 {
-                frame.data[c * 8 + x] = 200;
+                frame.data[x * 3 + c] = 200;
             }
         }
         Deblur::new(0.5).process(&mut frame).unwrap();
         // The bright edge pixel is pushed past its original value (overshoot).
-        assert!(frame.data[4] > 200);
+        assert!(frame.data[4 * 3] > 200);
+    }
+
+    #[test]
+    fn denoise_keeps_channels_separate() {
+        // Pure red packed frame: a channel-independent denoise keeps G/B at 0.
+        let mut frame = Frame {
+            width: 8,
+            height: 8,
+            data: vec![0u8; 3 * 8 * 8],
+        };
+        for px in frame.data.chunks_exact_mut(3) {
+            px[0] = 255;
+        }
+        Denoise::new(1).process(&mut frame).unwrap();
+        assert_eq!(frame.data[1], 0, "G contaminated");
+        assert_eq!(frame.data[2], 0, "B contaminated");
+    }
+
+    #[test]
+    fn deblur_keeps_channels_separate() {
+        let mut frame = Frame {
+            width: 8,
+            height: 8,
+            data: vec![0u8; 3 * 8 * 8],
+        };
+        for px in frame.data.chunks_exact_mut(3) {
+            px[0] = 255;
+        }
+        Deblur::new(0.5).process(&mut frame).unwrap();
+        assert_eq!(frame.data[1], 0, "G contaminated");
+        assert_eq!(frame.data[2], 0, "B contaminated");
+    }
+
+    #[test]
+    fn resize_keeps_channels_separate() {
+        // 2x2 packed frame with four distinct colors; resampling must keep each
+        // pixel's channel triplet intact (top-left stays red).
+        let pixels: [u8; 12] = [
+            255, 0, 0, // red
+            0, 255, 0, // green
+            0, 0, 255, // blue
+            255, 255, 255, // white
+        ];
+        let mut frame = Frame { width: 2, height: 2, data: pixels.to_vec() };
+        Resize::new(2.0).process(&mut frame).unwrap();
+        assert_eq!(&frame.data[..3], &[255, 0, 0], "corner not red: {:?}", &frame.data[..12]);
     }
 
     #[test]

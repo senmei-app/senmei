@@ -2,10 +2,10 @@
 
 ## AI Stack
 - [x] Stacks implementieren (denoise / deblur / dedup — Referenz-CPU)
-- [x] weiter Modelle definieren für: Interpolation / Denoising / Restoration — **Backlog in `docs/models.md` konkretisiert** (4–6 Kandidaten/Stack mit Lizenz-Check + Empfehlung). Priorität: RIFE-Varianten + GMFSS (Interp, Arch teils vorhanden), SCUNet/DRUNet (Denoise, Konv/Swin-Hybrid), SRVGGNet-RealESRGAN + BSRGAN + SAFMN/SPAN (Restore). **Wichtig:** Re-SISR-Releases ab „Adore" sind CC-BY-NC-SA → neue PLKSR/CUGAN-Weights dort geblockt; spandrel-Core ist nur permissiv (Archs mit `(+)` nicht adoptieren)
+- [x] Model-Backlog in `models.md`: RIFE/GMFSS, SCUNet/DRUNet, SRVGGNet/SPAN. Re-SISR ab „Adore" CC-BY-NC-SA → geblockt
 - [x] quelle: https://github.com/chaiNNer-org/spandrel (permissive Arch-Referenz, dokumentiert)
-- [x] macht folgendes Sinn: Depth Map / Object Detection / Video Stabilization — **evaluiert: nein.** Depth: kein etablierter Workflow für Interp/Upscale; Detection: kein Nutzen für reine Enhancement-Pipeline; Stabilization: gehört vor den Stack, ffmpeg-`vidstab` ist GPL → nur klassisch via OpenCV (Apache-2.0) als separates Pre-Tool, kein ML-Stack (Details in models.md)
-- [x] Upscaler-Performance eingebrochen (25→12 fps) — **Ursache: Tiling.** tiled-fused 512px (329 ms) ~2× langsamer als full-frame fused (176 ms) = Preis für den Autotune-OOM-Fix (Bug 3). 1024px-Tiles getestet → **Regression 762 ms** (größere Matmul pathologisch langsam). 512px bleibt; kein dynamischer Tile-Settings nötig (Details in benchmarks.md)
+- [x] Depth Map / Detection / Stabilization: **nein** — kein ML-Workflow; Stabilization nur klassisch via OpenCV (Apache-2.0)
+- [x] Upscaler-Perf (25→12 fps): Ursache Tiling (512px, 329 ms) — Preis für Autotune-OOM-Fix; 1024px-Regression → 512px bleibt
 
 ## Backend
 - [x] burn-tch Backend: ROCm-Nightly, RDNA4 fp16; vendored `third_party/` + `[patch.crates-io]`. Offen: Fallin-Bench, App-Anbindung
@@ -18,8 +18,8 @@
 - [x] Totes IPC-Command `remember_project` entfernt (internes `store::remember_project` bleibt)
 - [x] `num_block`-Default aus `commands.rs` in Modell-Metadaten/Converter verlagern
 - [x] Überflüssige Kommentare gekürzt: `Monitor.tsx`, Batch-Kommentar, `.pth`-/Asset-Protocol-Kommentar
-- [x] sample mit anderen Stacks geht nicht — Root-Cause: „Render Sample" hat die **ganze Queue** gerendert (`startBatch(false, …)`), nicht nur das aktuelle Video im Monitor. Gefixt: `startBatch` bekommt eine explizite Dateiliste, `onRenderSample` übergibt `[currentFile]`. (Interpolation/Dedup sind zustandsbehaftet und starten am Sample-In-Punkt „kalt" — erstes Frame passthrough, das ist beabsichtigt.)
-- [x] werden die sample video files durch rotiert? — Rotation wurde nirgends behandelt: ffmpeg autorotiert standardmäßig (DisplayMatrix), aber `probe` las nur die Stored-Maße → 90°/270°-Videos wurden fehlbeschriftet/verzerrt verarbeitet. Gefixt: `probe` liest Rotation (side_data `rotation` oder case-insensitives `rotate`-Tag) und meldet Display-Maße; `Decoder` setzt `-noautorotate` + explizite Transpose (90→`transpose=2`, 180→`hflip,vflip`, 270→`transpose=1`), byte-identisch zu ffmpegs Autorotation verifiziert. Test `probe_and_decode_apply_rotation`. `VideoInfo.rotation` neu in den Bindings.
+- [x] Sample rendert ganze Queue statt nur Monitor-Video — gefixt: `startBatch` bekommt explizite Dateiliste
+- [x] Rotation: `probe` meldet Display-Maße + `rotation`; `Decoder` -noautorotate + Transpose
 
 ## UI
 - [x] Export Project als .tar.xz + „Open Project“ lädt das Archiv (Save As entfernt)
@@ -32,10 +32,10 @@
 - [x] Version unten rechts (Statusleiste + Startseite)
 - [x] Full-Video-Modus per Doppelklick auf Monitor, Exit ✕/Esc (alle drei Modi)
 - [x] Deduplication: Presets (Aus/Standard/Aggressiv) + Slider mit % + Hinweis
-- Menu - View hinzufügne 
-- Settings - Tile ändern
-- Settings - Hotkeys einstellungen
-- Rechte Seite neben "Processing Stack" diese tab-bar macht und Tab"Logs" für system log erstellen
+- Menu: View hinzufügen
+- Settings: Tile ändern
+- Settings: Hotkeys einstellungen
+- Rechte Seite: Tab-Bar neben „Processing Stack" mit Tab „Logs" (Systemlog)
 
 ## Docs
 - [x] ncnn-Engine komplett aus Todos/Plan entfernen (burn ist Default)
@@ -62,7 +62,7 @@
 ## Maintainability (Review 2026-08-18)
 
 - [ ] Große Dateien splitten: `App.tsx`, `Inspector.tsx`, `commands.rs` (Orchestrierung/State trennen)
-- [ ] CPU-Steps: `step.rs` slicet planar, FFmpeg liefert packed `rgb24` — Layout-Konflikt prüfen/fixen
+- [x] CPU-Steps: `step.rs` slicet planar, FFmpeg liefert packed `rgb24` — Layout-Konflikt prüfen/fixen (gefixt: packed rgb24)
 - [ ] Doppelte Arg-Parsing-Logik: `splitArgs` (TS) und `split_ffmpeg_args` (Rust) vereinheitlichen
 - [ ] Frontend-Pfade: manuelle `/`-Splits plattform-sicher ersetzen (Windows)
 - [ ] Codec-Mapping angleichen: Frontend `H.264→libx264`/`H.265→libx265` an LGPL-safe Policy
@@ -72,6 +72,6 @@
 - [x] AGENTS.md-Pfad geprüft: `crates/senmei/gen/schemas/` existiert (Build-generiert, gitignored) — AGENTS.md korrekt
 
 ## after release
-- Project website
+- [ ] Project website
 - [ ] Follow-up: burn Feature-Request „ONNX-Initializer laden“ einreichen, eigenen Parser ablösen
 
