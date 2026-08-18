@@ -29,6 +29,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::read_frame,
             commands::cancel_render,
             commands::pause_render,
+            commands::prune_samples,
             commands::unique_path
         ])
 }

@@ -26,11 +26,16 @@ export const commands = {
 	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
-	readFrame: (input: string, positionMs: number | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs }),
+	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
 	/**  Pause/resume the active render (the pipeline waits between frames). */
 	pauseRender: (paused: boolean) => __TAURI_INVOKE<void>("pause_render", { paused }),
+	/**
+	 *  Keep only the `keep` newest sample render files in `dir` (deletes older
+	 *  video files so the samples/ folder never grows unbounded).
+	 */
+	pruneSamples: (dir: string, keep: number) => __TAURI_INVOKE<null>("prune_samples", { dir, keep }),
 	/**
 	 *  Return `path` if free, else `{stem}_2.{ext}`, `{stem}_3.{ext}`, … first
 	 *  free name, so batch renders never overwrite an existing file.

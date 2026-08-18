@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **read_frame: async + project preview frames (2026-08-18)** — `read_frame` is
+  now async (decode off the main thread) and accepts `project_dir`; preview
+  PNGs land in `<project>/preview/`, namespaced per input file with zero-padded
+  counters so pruning keeps the actual newest frames. New `prune_samples`
+  command keeps only the newest sample renders in a folder.
+
 - **Ranged renders: stable timestamps + container duration (2026-08-18)** — the
   encoder passes `-copyts` so the piped video keeps its 0-based PTS (the muxer
   no longer shifts it by the seeked-and-copied audio start, which broke
