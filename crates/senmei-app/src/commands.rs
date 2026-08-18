@@ -106,7 +106,6 @@ pub async fn download_model(
     if !weight.ends_with(".bpk") {
         return Err(format!("expected f16 burnpack weight, got {weight}"));
     }
-    // Sources host the f32 `.pth`; download it, convert to the f16 `.bpk`.
     let pth_name = format!("{}.pth", weight.trim_end_matches(".f16.bpk"));
     let bpk_path = dir.join(&weight);
     tauri::async_runtime::spawn_blocking(move || {
@@ -242,7 +241,6 @@ pub async fn read_frame(
     })
     .await
     .map_err(|e| e.to_string())??;
-    // Let the webview load this frame through the asset protocol.
     let _ = app.state::<tauri::scope::Scopes>().allow_file(std::path::Path::new(&path));
     Ok(path)
 }

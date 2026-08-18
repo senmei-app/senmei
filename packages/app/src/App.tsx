@@ -384,9 +384,6 @@ export default function App() {
     return [dir, name].join("/");
   };
 
-  // Batch render: one render per file, sequentially. A single file is just a
-  // batch of one. Errors mark the job failed and continue; cancel stops after
-  // the current file; pause freezes the running file.
   // Plain click selects only that file; toggle (multi-select mode or Ctrl/Cmd) adds/removes.
   const selectFile = (path: string, toggle: boolean) =>
     setSelected((prev) =>
@@ -423,6 +420,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selected]);
 
+  // Batch render: one render per file, sequentially. A single file is just a
+  // batch of one. Errors mark the job failed and continue; cancel stops after
+  // the current file; pause freezes the running file.
   const startBatch = async (onlySelected = false, range?: { inMs: number; outMs: number } | null) => {
     const inputs = onlySelected ? files.filter((f) => selected.includes(f)) : files;
     if (!inputs.length || rendering) return;
