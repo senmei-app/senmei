@@ -27,14 +27,14 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **No backward compat:** when an API, schema, or config changes, update every in-repo consumer and remove the old form — no aliases, shims, or compatibility parsers.
 - **Own responsibilities:** keep responsibilities self-contained; defaults belong to the owning component, not a central list of special cases.
 - **Remove dead code:** delete dead abstractions and one-use helpers when direct code is clearer.
-- **Generated code:** never hand-edit generated output (`packages/bridge/src/bindings.ts`, `crates/senmei-app/gen/`). Change the authoritative input and rerun the generator.
+- **Generated code:** never hand-edit generated output (`packages/bridge/src/bindings.ts`, `crates/senmei/gen/schemas/`). Change the authoritative input and rerun the generator.
 
 ## Module Structure (follows with M0)
 
 - `crates/senmei` — entry, Tauri app shell (`tauri.conf.json`, `build.rs`, `main.rs`), logging
 - `crates/senmei-app` — Tauri commands, state, IPC (`Channel<PreviewFrame>`), specta builder (lib)
 - `crates/senmei-pipeline` — orchestration, queue, events
-- `crates/senmei-ml` — `InferenceEngine` trait, `BurnEngine` (Vulkan fp16), model registry
+- `crates/senmei-ml` — `InferenceEngine` trait, `BurnEngine` (Vulkan fp16), burn archs (`burn/realesrgan`, `burn/rife`, `burn/upcunet`, `burn/warp`), model registry
 - `crates/senmei-media` — FFmpeg process, frame pipe, encoder profiles
 - `packages/app` — React frontend (3-panel + timeline)
 - `packages/ui` — reusable UI kit
@@ -64,7 +64,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Keep it small:** if a commit would touch many unrelated files or topics, split it.
 - **Trivial follow-ups** (typo fixes, small moves, version pins) get squashed into the related commit — don't create standalone micro-commits.
 - **`Co-authored-by:` trailer** for the AI assistant on every commit.
-- Keep `docs/PLAN.md` §15 in sync with the change in the same commit.
+- Keep `docs/CHANGELOG.md` in sync with the change in the same commit.
 
 ## Check
 
