@@ -18,6 +18,7 @@ import {
   loadProjectSettings,
   openProject,
   render,
+  pruneSamples,
   saveProjectSettings,
   saveSettings,
   type ProjectEntry,
@@ -342,7 +343,23 @@ export default function App() {
     if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
   };
 
-  const desiredPath = (input: string, lastOut?: PipelineStep, up?: PipelineStep): string => {
+  const fmtTs = (ms: number): string => {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h) return `${h}h${m}m${sec}s`;
+    if (m) return `${m}m${sec}s`;
+    return `${sec}s`;
+  };
+
+  const desiredPath = (
+    input: string,
+    lastOut?: PipelineStep,
+    up?: PipelineStep,
+    range?: { inMs: number; outMs: number } | null,
+    projectDir?: string | null,
+  ): string => {
     const container = lastOut?.params?.container || "mkv";
     const outMode = lastOut?.params?.outputMode ?? "input";
     const customFolder = lastOut?.params?.outputFolder ?? "";
@@ -351,10 +368,20 @@ export default function App() {
     const label = lastOut?.params?.label?.trim();
     const marker = label || "senmei";
     const info = up?.params?.modelId && up.params?.scale ? `_${up.params.modelId}_x${up.params.scale}` : "";
-    const base =
-      input.split("/").pop()?.replace(/\.[^.]+$/, `_${marker}${info}.${container}`) ??
-      `output_${marker}${info}.${container}`;
-    return targetDir ? `${targetDir}/${base}` : input.replace(/\.[^.]+$/, `_${marker}${info}.${container}`);
+    // Sample renders are scratch/preview files: keep them out of the output
+    // folder root (in the project's `sample/` folder) and tag them with their
+    // time range so repeated samples don't differ only by a collision counter.
+    const isSample = !!(range && range.outMs > range.inMs);
+    const rangeTag = isSample && range ? `_${fmtTs(range.inMs)}-${fmtTs(range.outMs)}` : "";
+    const name =
+      input
+        .split("/")
+        .pop()
+        ?.replace(/\.[^.]+$/, `_${marker}${info}${rangeTag}.${container}`) ??
+      `output_${marker}${info}${rangeTag}.${container}`;
+    const dir = targetDir ?? input.split("/").slice(0, -1).join("/");
+    if (isSample) return [projectDir ?? dir, "sample", name].join("/");
+    return [dir, name].join("/");
   };
 
   // Batch render: one render per file, sequentially. A single file is just a
@@ -434,7 +461,7 @@ export default function App() {
 
     const initial: BatchJob[] = inputs.map((f) => ({
       input: f,
-      output: desiredPath(f, lastOut, up),
+      output: desiredPath(f, lastOut, up, range, projectDir),
       status: "queued",
       progress: null,
     }));
@@ -473,6 +500,10 @@ export default function App() {
           }
           patch(i, { status: "done" });
           setRenderedFile(output);
+          if (range) {
+            // Sample renders live in the project's sample/ folder: keep only the newest.
+            void pruneSamples(output.split("/").slice(0, -1).join("/"), 5);
+          }
         } catch (e) {
           const msg = String(e);
           if (msg.toLowerCase().includes("cancelled")) {
@@ -563,6 +594,7 @@ export default function App() {
                   renderedFile={renderedFile}
                   rendering={rendering}
                   progress={progress}
+                  projectDir={projectDir}
                   sampleInMs={sampleRange?.inMs ?? 0}
                   sampleOutMs={sampleRange?.outMs ?? 0}
                   onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}

@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **Sample output + compare sync (2026-08-18)** — sample renders go into the
+  project's `sample/` folder with a time-range tag in the name (pruned to the 5
+  newest); the sample window follows the playhead (scrub outside it repositions
+  it) and snaps to frame boundaries so the rendered result starts on the exact
+  source frame; compare updates both sides together (never one ahead) and the
+  result/compare timeline shows the sample window in source coordinates.
+
 - **read_frame: async + project preview frames (2026-08-18)** — `read_frame` is
   now async (decode off the main thread) and accepts `project_dir`; preview
   PNGs land in `<project>/preview/`, namespaced per input file with zero-padded
