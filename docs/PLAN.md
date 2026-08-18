@@ -303,6 +303,14 @@ sequenceDiagram
 | inference runtime | **burn (`burn-wgpu`), Vulkan fp16** — no libtorch / no ONNX Runtime / no candle / no ncnn |
 | Engine (2026-08-17) | burn-Vulkan fp16 is the shipped default; ncnn C++ shim dropped; libtorch deferred |
 
+**Open evaluation — Tauri CEF backend (`feat/cef`).** The official
+`tauri-apps/tauri` branch `feat/cef` (active 2026-08) adds CEF as a webview
+backend; Koharu already installs the CLI from it. Would give Chromium rendering
++ VAAPI hardware video decode in the native `<video>` preview (WebKitGTK lacks
+that). Pre-release and adds the Chromium footprint — revisit the §1 "no CEF"
+decision when it matures. Interim: VAAPI is available on the FFmpeg decode path
+(`-hwaccel vaapi`), which is under our control.
+
 ---
 
 ## 13. Next Steps
