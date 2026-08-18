@@ -85,6 +85,11 @@ pub async fn download_model(
         .find(|m| m.id == model_id)
         .ok_or_else(|| format!("model not found: {model_id}"))?
         .clone();
+    // Central num_block default lives in the registry resolve.
+    let num_block = registry
+        .resolve(&model_id, &dir)
+        .map(|m| m.num_block)
+        .unwrap_or(4);
     if !meta.loadable {
         return Err(format!("model {model_id} has no loadable arch yet"));
     }
@@ -116,11 +121,6 @@ pub async fn download_model(
             },
         )
         .map_err(|e| e.to_string())?;
-        let num_block = meta
-            .metadata
-            .get("num_block")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(4) as u32;
         senmei_ml::convert_pth_to_bpk(&meta.arch, &pth, &bpk_path, meta.scale, num_block)
             .map_err(|e| e.to_string())?;
         let _ = std::fs::remove_file(&pth);
@@ -328,12 +328,6 @@ pub fn create_project(name: String) -> Result<String, String> {
 #[specta::specta]
 pub fn delete_project(path: String) -> Result<(), String> {
     store::delete_project(&path)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn remember_project(path: String) -> Result<(), String> {
-    store::remember_project(&path)
 }
 
 #[tauri::command]

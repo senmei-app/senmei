@@ -12,7 +12,6 @@ export const commands = {
 	listProjects: () => __TAURI_INVOKE<ProjectEntry[]>("list_projects"),
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
-	rememberProject: (path: string) => __TAURI_INVOKE<null>("remember_project", { path }),
 	exportProject: (src: string, dest: string) => __TAURI_INVOKE<null>("export_project", { src, dest }),
 	openProject: (file: string) => __TAURI_INVOKE<string>("open_project", { file }),
 	loadProjectSettings: (path: string) => __TAURI_INVOKE<ProjectSettings>("load_project_settings", { path }),
@@ -33,7 +32,7 @@ export const commands = {
 	pauseRender: (paused: boolean) => __TAURI_INVOKE<void>("pause_render", { paused }),
 	/**
 	 *  Keep only the `keep` newest sample render files in `dir` (deletes older
-	 *  video files so the samples/ folder never grows unbounded).
+	 *  video files so the sample folder never grows unbounded).
 	 */
 	pruneSamples: (dir: string, keep: number) => __TAURI_INVOKE<null>("prune_samples", { dir, keep }),
 	/**
