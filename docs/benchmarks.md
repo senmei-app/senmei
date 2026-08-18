@@ -82,6 +82,15 @@ Bug 1+3). **Fix:** tile `infer_rgb8` (512px) so no full-frame matmul reaches
 autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
 autotune also works but is ~5× slower.
 
+### Tile size — 512px stays (2026-08-18)
+
+The 512px tiled-fused path (329 ms / 3.0 FPS fallin-soft) is ~2× slower than the
+pre-tiling full-frame fused path (176 ms) — that drop is the price of avoiding
+the autotune OOM (Bug 3). Tried **1024px tiles** (6 tiles @1080p vs 15 @512,
+fewer u8 readbacks + less stitch work): **regression to 762 ms / 1.3 FPS** — the
+larger per-tile matmul is pathologically slower on this backend. Conclusion:
+512px is the sweet spot; no dynamic/`per-settings` tile size needed.
+
 ## Fallin vs real-cugan (2026-08-18)
 
 `bench.rs`, 1080p→2160p x2, Vulkan fp16, autotune + fusion on. Fused step =
