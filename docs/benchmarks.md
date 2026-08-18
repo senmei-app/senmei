@@ -68,9 +68,10 @@ Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
   `(x*255+0.5) as u8`; `frame_to_tensor` uses a `x/255` LUT (3.7→1.9 ms).
 - Decode/encode run on threads so CPU I/O hides behind GPU inference; encode uses
   x264 `-preset veryfast` (was medium — the 2160p bottleneck at 4.7 FPS).
-- **`infer_rgb8`:** NCHW→NHWC, clamp 0..1, scale 0..255, cast to u8 **on GPU**
-  per 512px tile; only packed u8 crosses back; tiles overlap-averaged. The
-  full-frame variant OOM'd autotune + panicked — tiling avoids it (below).
+- **`infer_rgb8`:** NCHW→NHWC, clamp 0..1, scale 0..255, cast to u8 **on GPU**;
+  tiles accumulated on the GPU (overlap-averaged) and read back as one packed
+  frame. The full-frame variant OOM'd autotune + panicked — tiling avoids it
+  (below).
 - 157 ms is burn-Vulkan's floor on RDNA4 (GPU 100 % / 3.2 GHz, no throttling);
   torch-ROCm fp16 runs the same model at 111.5 ms / 9.0 FPS.
 
@@ -78,7 +79,7 @@ Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
 
 Full-frame fused `infer_rgb8` OOM'd autotune on a large matmul (m=1024, n=4M,
 f16), then panicked `Ordering is bigger than operations` (docs/burn-bugs.md
-Bug 1+3). **Fix:** tile `infer_rgb8` (512px) so no full-frame matmul reaches
+Bug 1+3). **Fix:** tile `infer_rgb8` (640px) so no full-frame matmul reaches
 autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
 autotune also works but is ~5× slower.
 
@@ -87,21 +88,35 @@ autotune also works but is ~5× slower.
 The 512px tiled-fused path (329 ms / 3.0 FPS fallin-soft) was ~2× slower than
 the pre-tiling full-frame fused path (176 ms) — that drop was the price of
 avoiding the autotune OOM (Bug 3). Tried **1024px tiles** (6 tiles @1080p vs 15
-@512, fewer u8 readbacks + less stitch work): **regression to 762 ms / 1.3 FPS**
-— the larger per-tile matmul is pathologically slower on this backend.
+@512): **regression to 762 ms / 1.3 FPS** — the larger per-tile matmul is
+pathologically slower on this backend.
 
-**GPU stitch (2026-08-18):** instead of reading each 512px tile's u8 bytes back
-and stitching on the CPU, tiles are accumulated into one f16 canvas on the GPU
+**GPU stitch (2026-08-18):** instead of reading each tile's u8 bytes back and
+stitching on the CPU, tiles are accumulated into one f16 canvas on the GPU
 (`slice_assign` overlap averaging) and read back as a single packed frame — one
 readback instead of 15 plus a CPU stitch. `bench_upscale_step` (fallin-soft):
-329 → **234.7 ms / 4.3 FPS**. 512px stays; no dynamic/`per-settings` tile size
-needed.
+329 → **234.7 ms / 4.3 FPS** (512px).
+
+**640px default (2026-08-18):** re-tuned tile size after the GPU stitch (the
+old cost model — 15 u8 readbacks + CPU stitch — is gone). `bench_upscale_step`
+(fallin-soft):
+
+| tile | tiles @1080p | step |
+|---|---|---|
+| 512 | 15 | 247.8 ms / 4.0 FPS |
+| **640** | **8** | **186.1 ms / 5.4 FPS** |
+| 768 | 6 | 210.2 ms / 4.8 FPS |
+
+640 is the sweet spot: halved tile count (15→8) before the per-tile matmul gets
+pathological (768 already regresses). Default is 640, override via `SENMEI_TILE`.
+Full-frame fused path (176 ms) is the floor once the autotune OOM is fixed
+upstream.
 
 ## Fallin vs real-cugan (2026-08-18)
 
 `bench.rs`, 1080p→2160p x2, Vulkan fp16, autotune + fusion on. Fused step =
 `Upscale` + `infer_rgb8`. **Table = earlier full-frame fused step**; the current
-tiled-fused step measures ~235 ms / 4.3 FPS (fallin-soft), full threaded
+tiled-fused step measures ~186 ms / 5.4 FPS (fallin-soft), full threaded
 pipeline 2.8 FPS.
 
 | Model | infer | total | FPS | fused step | step FPS | VRAM peak |

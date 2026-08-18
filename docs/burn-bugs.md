@@ -37,7 +37,7 @@ pass) fails — historically intermittently with the ordering panic, and since
 2026-08-18 **deterministically with an OOM** (Bug 3) that then cascades into
 the ordering/tuner panics. Both are symptoms of the same broken cubecl-autotune
 async machinery under full-frame load. `infer_rgb8` is now **tiled internally**
-(512px tiles) and reliable — the fix.
+(640px tiles) and reliable — the fix.
 
 **Root cause.** `OrderedExecution::execute_optimization` compares an
 optimization's `ordering` (an `Arc<Vec<usize>>` of operation indices captured
@@ -64,7 +64,7 @@ cubecl-autotune's async tuning.
 | Read back f32 instead of f16/u8 (`into_data().convert::<f32>().to_vec()`) | Helps in isolation; does not eliminate under load. |
 | Move permute/clamp/scale to CPU (plain forward + f32 readback) | Does not eliminate. |
 | Pure `infer_rgb8` only (no tiled prefix) | Still fails (Bug 3) — deterministic OOM on a huge autotune matmul. |
-| **`infer_rgb8` tiled internally (512px)** | **Reliable** (48-frame loop, correctness vs reference within fp16) — the shipped fix. |
+| **`infer_rgb8` tiled internally (640px)** | **Reliable** (48-frame loop, correctness vs reference within fp16) — the shipped fix. |
 | Autotune OFF (feature flag off, fusion ON) | Reliable but ~5× slower (1025 ms vs ~195 ms/frame). |
 | Fusion OFF (autotune ON) | Panics in the cubecl tuner (Bug 2). |
 
@@ -72,12 +72,12 @@ cubecl-autotune's async tuning.
 kept, only the message got more verbose (adds `ordering len`, `operations
 len`, `num_executed`, `optimization len`). No fix upstream.
 
-**Impact on Senmei.** Fixed: `infer_rgb8` now tiles internally (512px) so no
+**Impact on Senmei.** Fixed: `infer_rgb8` now tiles internally (640px) so no
 full-frame matmul reaches autotune — structurally immune to the OOM. Tiles are
 accumulated into one f16 canvas on the GPU (`slice_assign` overlap averaging)
 and read back as a single packed frame, so the earlier per-tile u8 readback +
-CPU stitch cost is gone: `bench_upscale_step` (fallin-soft) 329 → **234.7 ms /
-4.3 FPS**. The `senmei-pipeline` bench isolates the two measurements
+CPU stitch cost is gone: `bench_upscale_step` (fallin-soft) 329 → **186.1 ms /
+5.4 FPS**. The `senmei-pipeline` bench isolates the two measurements
 (`bench_upscaler_1080p_fullframe` = tiled infer, `bench_upscale_step` = fused
 step, fresh engine each). Tiling still re-computes ~2× pixels (overlap) — the
 remaining gap to the full-frame CPU-convert path (227 ms) is overlap re-compute,

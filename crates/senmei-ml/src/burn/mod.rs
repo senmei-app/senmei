@@ -157,10 +157,11 @@ impl InferenceEngine for BurnEngine {
     }
 
     /// Fused RGB8 path: hands back packed rgb24 bytes. The model runs on the
-    /// GPU (autotuned, f16) in 512px tiles (avoids the full-frame im2col OOM,
-    /// see docs/burn-bugs.md Bug 3). Tiles are accumulated into one f16 canvas
-    /// on the GPU (overlap averaging) and read back as a single packed frame —
-    /// one readback instead of one u8 readback per tile plus a CPU stitch.
+    /// GPU (autotuned, f16) in 640px tiles (avoids the full-frame im2col OOM,
+    /// see docs/burn-bugs.md Bug 3; 640 beats 512 and 768 — docs/benchmarks.md).
+    /// Tiles are accumulated into one f16 canvas on the GPU (overlap averaging)
+    /// and read back as a single packed frame — one readback instead of one u8
+    /// readback per tile plus a CPU stitch.
     /// Only used when the requested scale matches the model.
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         if self.scale != scale {
@@ -173,7 +174,10 @@ impl InferenceEngine for BurnEngine {
         let c = input.shape[1];
         let h = input.shape[2];
         let w = input.shape[3];
-        let tile = 512usize;
+        let tile = std::env::var("SENMEI_TILE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(640);
         let overlap = tile / 4;
         let step = tile - overlap;
         let num_y = (h.saturating_sub(tile)).div_ceil(step) + 1;
@@ -776,10 +780,10 @@ mod tests {
         let mut engine = BurnEngine::new();
         engine.load(&mref).unwrap();
 
-        // Correctness: single 512 tile, so tiled == full pass -> exact match.
-        let (h, w): (usize, usize) = (512, 512);
+        // Correctness: single 640 tile, so tiled == full pass -> exact match.
+        let (h, w): (usize, usize) = (640, 640);
         let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
-        let out = engine.infer(&input, &InferOptions { tile_size: Some(512) }).unwrap();
+        let out = engine.infer(&input, &InferOptions { tile_size: Some(640) }).unwrap();
         let (_, _, oh, ow) = (out.shape[0], out.shape[1], out.shape[2], out.shape[3]);
         let hw = oh * ow;
         let mut ref_bytes = Vec::with_capacity(3 * hw);
@@ -806,7 +810,7 @@ mod tests {
             / bytes.len() as f32;
         assert!(max_diff <= 2, "max diff {max_diff}, mean diff {mean_diff:.2}");
 
-        // Reliability: 48 frames of 1080p (5x3 tiles, real stitch path).
+        // Reliability: 48 frames of 1080p (4x2 tiles, real stitch path).
         let (h, w): (usize, usize) = (1080, 1920);
         let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
         for _ in 0..48 {
