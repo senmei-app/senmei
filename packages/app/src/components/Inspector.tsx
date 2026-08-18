@@ -664,13 +664,6 @@ export default function Inspector({
 
   return (
     <aside className="h-full w-full overflow-y-auto border-l border-slate-200 bg-slate-100/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
-      <div className="mb-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          {t("stack.title")}
-        </h2>
-        <p className="text-[10px] text-slate-500">{t("stack.subtitle")}</p>
-      </div>
-
       {steps.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700">
           {t("stack.empty")}

@@ -7577,7 +7577,6 @@ dependencies = [
 name = "senmei"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "log",
  "senmei-app",
  "specta-typescript",
@@ -7591,6 +7590,7 @@ dependencies = [
 name = "senmei-app"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "liblzma",
  "log",
  "senmei-media",

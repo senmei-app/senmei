@@ -39,7 +39,7 @@ import {
 import TopBar from "./components/TopBar";
 import MediaLibrary from "./components/MediaLibrary";
 import Monitor from "./components/Monitor";
-import Inspector from "./components/Inspector";
+import RightPanel from "./components/RightPanel";
 import StatusBar from "./components/StatusBar";
 import ProjectScreen from "./components/ProjectScreen";
 import SettingsPage from "./components/SettingsPage";
@@ -644,7 +644,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
-                <Inspector steps={steps} outputDir={outputDir} onChange={setSteps} />
+                <RightPanel steps={steps} outputDir={outputDir} onChange={setSteps} />
               </Panel>
             </PanelGroup>
             <StatusBar
