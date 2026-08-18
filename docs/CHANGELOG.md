@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: NAFNet-GoPro als Deblur-Kandidat hochgestuft (2026-08-18)** —
+  offizielle NAFNet-Weights sind via `nyanko7/nafnet-models` (Hugging Face)
+  mit direkten, sha256-pinnbaren URLs verfügbar (kein GDrive nötig);
+  GoPro-width32 (68.7 MB) als leichte Option. Damit ist NAFNet-GoPro der
+  erste ML-Deblur-Kandidat (Deblur-Stack ist bisher CPU-only); der
+  NAFBlock-Arch-Port bleibt offen.
+
 - **docs: KAIR v1.0 + NAFNet Modelle gesichtet (2026-08-18)** — weitere
   permissive Weights im Backlog: DRUNet/DnCNN/FFDNet/IRCNN/BSRGAN/IMDN
   (alle MIT via KAIR v1.0, direkte Download-URLs), NAFNet SIDD/GoPro/REDS
