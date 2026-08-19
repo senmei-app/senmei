@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: senmei-server visual sample frames (2026-08-20)** — `render_sample`
+  now returns the before/after PNGs as MCP image content blocks (base64) next
+  to the text summary, so multimodal clients can visually compare the sample
+  against the source.
+
 - **test: senmei-server agent-loop e2e (2026-08-20)** — ignored integration
   test `tests/agent_loop.rs` drives the full MCP loop over stdio (probe →
   render_sample → compare_sample → propose_render → confirm_render → poll

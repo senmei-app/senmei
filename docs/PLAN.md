@@ -429,7 +429,7 @@ sequenceDiagram
 | # | Piece | Status | Notes |
 |---|---|---|---|
 | 1 | **Headless entry point** | ✅ done | `crates/senmei-server`: transport-agnostic `core` + MCP stdio adapter (rmcp), no Tauri/GUI dep |
-| 2 | **Sample-compare tool** | ✅ done | `render_sample` (range render + before/after PNGs) + `compare_sample` (PSNR/SSIM on the original res); VMAF deferred (libvmaf build) |
+| 2 | **Sample-compare tool** | ✅ done | `render_sample` (range render + before/after PNGs as MCP image blocks) + `compare_sample` (PSNR/SSIM on the original res); VMAF deferred (libvmaf build) |
 | 3 | **Settings JSON Schema** | ✅ done | `get_settings_schema` tool: schemars render-config schema (documented + ranged) + model slots + constraints |
 | 4 | **Confirmation gate** | ✅ done | `propose_render` (validate+park) / `confirm_render` / `cancel_render`; async + `get_render_status` |
 | 5 | **Tool allowlist + ranges** | ✅ done | `validate()` enforces the schema ranges on every param; tool set is whitelist-only (fixed tools, render behind the `render` feature) |

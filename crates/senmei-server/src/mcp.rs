@@ -8,6 +8,9 @@ use rmcp::{
 };
 use serde::Deserialize;
 
+#[cfg(feature = "render")]
+use base64::Engine as _;
+
 use crate::core;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -74,7 +77,7 @@ impl SenmeiServer {
         json_ok(&core::settings_schema())
     }
 
-    #[tool(description = "Render a short sample clip (range render, no confirm gate); returns output + before/after frame paths")]
+    #[tool(description = "Render a short sample clip (range render, no confirm gate); returns output path + before/after frames as images")]
     async fn render_sample(
         &self,
         Parameters(args): Parameters<core::RenderConfig>,
@@ -82,7 +85,7 @@ impl SenmeiServer {
         #[cfg(feature = "render")]
         {
             return match tokio::task::spawn_blocking(move || core::render_sample(args)).await {
-                Ok(Ok(v)) => json_ok(&v),
+                Ok(Ok(v)) => render_sample_result(v),
                 Ok(Err(e)) => json_err(e),
                 Err(e) => json_err(format!("render_sample join failed: {e}")),
             };
@@ -167,4 +170,29 @@ fn json_ok<T: serde::Serialize>(value: &T) -> Result<CallToolResult, McpError> {
 
 fn json_err(message: String) -> Result<CallToolResult, McpError> {
     Ok(CallToolResult::error(vec![ContentBlock::text(message)]))
+}
+
+/// Attach a PNG file as an MCP image content block (base64) — lets multimodal
+/// clients show the before/after frames directly.
+#[cfg(feature = "render")]
+fn image_block(path: &str) -> Option<ContentBlock> {
+    let bytes = std::fs::read(path).ok()?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Some(ContentBlock::image(b64, "image/png"))
+}
+
+/// `render_sample` result: text summary (paths) + before/after image blocks.
+#[cfg(feature = "render")]
+fn render_sample_result(v: serde_json::Value) -> Result<CallToolResult, McpError> {
+    let text = serde_json::to_string(&v)
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    let mut blocks = vec![ContentBlock::text(text)];
+    for key in ["beforeFrame", "afterFrame"] {
+        if let Some(path) = v.get(key).and_then(serde_json::Value::as_str) {
+            if let Some(b) = image_block(path) {
+                blocks.push(b);
+            }
+        }
+    }
+    Ok(CallToolResult::success(blocks))
 }
