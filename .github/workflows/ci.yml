@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -112,6 +115,11 @@ jobs:
           $env:PATH = $sys -join ';'
           & $exe.FullName --list
           Write-Host "retry LASTEXITCODE: $LASTEXITCODE"
+
+          Write-Host '--- application event log (entry point errors) ---'
+          Get-WinEvent -LogName Application -MaxEvents 30 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'entry point|0xc0000139' } |
+            ForEach-Object { Write-Host $_.Message }
 
       # Debug artifacts from check+test + the release build exceed the runner
       # disk; drop the debug profile before the release bundle build.
