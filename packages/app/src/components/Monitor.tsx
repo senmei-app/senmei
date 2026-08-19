@@ -145,10 +145,26 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
+  // Preview volume shared by the extracted <audio> and the native <video>.
+  const [volume, setVolume] = useState(() => {
+    const saved = Number(localStorage.getItem("senmei.volume"));
+    return Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
+  });
+  const changeVolume = (v: number) => {
+    setVolume(v);
+    localStorage.setItem("senmei.volume", String(v));
+  };
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
+
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
     setPosMs(v.currentTime * 1000);
     if (v.paused) return; // don't loop while scrubbing
+    // Only result/compare loop the sample window; the original plays to the end.
+    if (mode === "source") return;
     const endSec = outMs / 1000;
     if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
   };
@@ -339,7 +355,8 @@ export default function Monitor({
   useEffect(() => {
     if (!playing || nativeSrc || !info || (info.duration ?? 0) <= 0) return;
     const durMs = (info.duration ?? 0) * 1000;
-    const endMs = Math.max(inMs, Math.min(outMs || durMs, durMs));
+    // Original plays the whole file; result/compare loop the sample window.
+    const endMs = mode === "source" ? durMs : Math.max(inMs, Math.min(outMs || durMs, durMs));
     const stepMs = info.fps && info.fps > 0 ? Math.max(33, Math.round(1000 / info.fps)) : 100;
     let last = performance.now();
     let busy = false;
@@ -350,6 +367,12 @@ export default function Monitor({
       const prev = posRef.current;
       let next = prev + elapsed;
       if (next >= endMs) {
+        if (mode === "source") {
+          // End of the video: stop instead of looping the sample window.
+          setPlaying(false);
+          if (audioRef.current) audioRef.current.pause();
+          return;
+        }
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
@@ -500,7 +523,10 @@ export default function Monitor({
         ) : nativeSrc ? (
           <video
             key={nativeSrc}
-            ref={videoRef}
+            ref={(el) => {
+              videoRef.current = el;
+              if (el) el.volume = volume;
+            }}
             src={nativeSrc}
             muted={!!audioUrl}
             onError={() => setNativeFailed(true)}
@@ -595,6 +621,20 @@ export default function Monitor({
             <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
               {fmt(tlPos)} / {fmt(tlMax)}
             </span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs leading-none" title={t("monitor.volume")}>
+                {volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={volume}
+                onChange={(e) => changeVolume(Number(e.target.value))}
+                className="h-1 w-16 cursor-pointer accent-indigo-500"
+              />
+            </div>
           </div>
         </div>
         <div className="mb-2 flex items-center space-x-1">
@@ -726,7 +766,17 @@ export default function Monitor({
         )}
       </div>
       {audioUrl && (
-        <audio ref={audioRef} src={audioUrl} preload="metadata" className="hidden" />
+        /* WebKitGTK won't play media with display:none; keep it rendered
+           but off-screen so the AAC track actually produces sound. */
+        <audio
+          ref={(el) => {
+            audioRef.current = el;
+            if (el) el.volume = volume;
+          }}
+          src={audioUrl}
+          preload="auto"
+          className="pointer-events-none absolute -left-[9999px] h-px w-px"
+        />
       )}
     </main>
   );
