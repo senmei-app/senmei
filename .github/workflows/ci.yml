@@ -75,6 +75,18 @@ jobs:
       # GPU tests are #[ignore] (need Vulkan + downloaded models), so this
       # runs the CPU/unit tests everywhere; on macOS there is no Metal path
       # exercised on hosted runners either.
+      # Windows: the senmei-app lib test exe cannot load in a bare harness
+      # (no app manifest -> comctl32 v5 -> missing v6 exports); its tests run
+      # on Linux/macOS instead.
+      - name: cargo test --workspace
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cargo test --workspace --exclude senmei-app
+          else
+            cargo test --workspace
+          fi2 v5 -> missing v6 exports); its tests run
+      # on Linux/macOS instead.
       - name: cargo test --workspace
         run: cargo test --workspace
 
