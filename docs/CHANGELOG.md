@@ -4,6 +4,16 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: ONNX-Reader liest auch `Constant`-Node-Weights (2026-08-19)** — der
+  eigene protobuf-Reader (`senmei_ml::onnx`, kein ONNX-Runtime) las bisher nur
+  `graph.initializer`; Modelle, deren Weights nur in `Constant`-Nodes stecken
+  (Value-Attribut), ergaben still ein leeres bpk. Liest jetzt zusätzlich
+  `Constant`-Nodes (geteikt per Node-Output-Name, da das innere
+  `TensorProto.name` `"value"`/leer ist), meldet ein leeres Ergebnis als
+  Fehler und lehnt External Data (`data_location == EXTERNAL`) ab — die
+  drei Punkte aus dem `onnx-ir`-Issue-Kommentar (tracel-ai/burn-onnx#456).
+  4 neue Unit-Tests.
+
 - **feat: tile size configurable in Settings (2026-08-19)** — the fused RGB8
   upscale tile size (default 640, previously `SENMEI_TILE` env only) is now a
   Settings value (`tileSize`), applied per render via `senmei_ml::set_tile_size`

@@ -1,12 +1,15 @@
 //! Minimal ONNX weight reader.
 //!
-//! Parses only the `initializer` tensors (ModelProto -> GraphProto ->
-//! TensorProto) from the protobuf wire format, so ONNX-only sources (e.g.
-//! Fallin) convert to burnpacks without an ONNX Runtime dependency. The graph
-//! is ignored; the initializer names already match the app's state-dict keys.
+//! Parses the `initializer` tensors (ModelProto -> GraphProto -> TensorProto)
+//! plus any `Constant` node tensors (tensor in the `value` attribute, keyed by
+//! the node's output name — some ONNX sources keep weights only in constants).
+//! External data (`data_location == EXTERNAL`) is rejected: the sidecar path is
+//! relative to the model file and not reachable from a `&[u8]` API. The graph
+//! is ignored; the names already match the app's state-dict keys.
 
-/// One ONNX initializer tensor. `data` holds the little-endian raw bytes
-/// (f16 for `FLOAT16`, f32 for `FLOAT`, ...) as stored in the file.
+/// One ONNX tensor. `data` holds the little-endian raw bytes (f16 for
+/// `FLOAT16`, f32 for `FLOAT`, ...) as stored in the file.
+#[derive(Debug)]
 pub struct OnnxTensor {
     pub name: String,
     pub dims: Vec<i64>,
@@ -14,7 +17,8 @@ pub struct OnnxTensor {
     pub data: Vec<u8>,
 }
 
-/// Read all `initializer` tensors from an ONNX model file.
+/// Read all weight tensors (initializers + `Constant` node values) from an
+/// ONNX model file. Errors when nothing is found or a tensor uses external data.
 pub fn read_initializers(bytes: &[u8]) -> Result<Vec<OnnxTensor>, String> {
     let graph = first_length_delimited(bytes, 7)
         .ok_or_else(|| "ModelProto has no graph field".to_string())?;
@@ -22,10 +26,45 @@ pub fn read_initializers(bytes: &[u8]) -> Result<Vec<OnnxTensor>, String> {
     for tensor in length_delimited_fields(graph, 5) {
         out.push(parse_tensor(tensor)?);
     }
+    // Constant nodes: weights can live only in constants. The tensor sits in
+    // the `value` attribute; key it by the node's output name (the inner
+    // TensorProto.name is usually "value"/empty, so keying by it collides).
+    for node in length_delimited_fields(graph, 1) {
+        if first_string(node, 4) != Some("Constant") {
+            continue; // op_type
+        }
+        let out_name = length_delimited_fields(node, 2)
+            .first()
+            .and_then(|b| std::str::from_utf8(b).ok())
+            .map(str::to_string);
+        for attr in length_delimited_fields(node, 5) {
+            if first_string(attr, 1) != Some("value") {
+                continue; // attribute name
+            }
+            if first_varint(attr, 20) != Some(4) {
+                continue; // AttributeType::TENSOR
+            }
+            if let Some(t) = first_length_delimited(attr, 5) {
+                let mut tensor = parse_tensor(t)?;
+                if let Some(n) = &out_name {
+                    tensor.name = n.clone();
+                }
+                out.push(tensor);
+            }
+        }
+    }
+    if out.is_empty() {
+        return Err("no weight tensors found (no initializers or Constant nodes)".to_string());
+    }
     Ok(out)
 }
 
 fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
+    // External data is unreachable from a `&[u8]` reader (the sidecar path is
+    // relative to the model file) — reject instead of yielding empty data.
+    if first_varint(msg, 14) == Some(1) {
+        return Err("TensorProto uses external data, not supported by the byte reader".to_string());
+    }
     let name = first_string(msg, 8)
         .ok_or_else(|| "TensorProto missing name".to_string())?
         .to_string();
@@ -251,5 +290,80 @@ mod tests {
         let tensors = read_initializers(&m).unwrap();
         assert_eq!(tensors.len(), 1);
         assert_eq!(tensors[0].name, "x.weight");
+    }
+
+    fn constant_node(out_name: &str, tensor: &[u8]) -> Vec<u8> {
+        let mut attr = len_field(1, b"value"); // AttributeProto.name
+        attr.extend_from_slice(&varint_field(20, 0, 4)); // AttributeProto.type = TENSOR
+        attr.extend_from_slice(&len_field(5, tensor)); // AttributeProto.t
+        let mut node = len_field(4, b"Constant"); // NodeProto.op_type
+        node.extend_from_slice(&len_field(2, out_name.as_bytes())); // NodeProto.output
+        node.extend_from_slice(&len_field(5, &attr)); // NodeProto.attribute
+        node
+    }
+
+    #[test]
+    fn reads_constant_node_tensors_keyed_by_output() {
+        // Weights only in a Constant node (no initializer) — must be found and
+        // keyed by the node's output name, not the inner "value" tensor name.
+        let mut t = packed_dims(&[2, 2]);
+        t.extend_from_slice(&varint_field(2, 0, 10)); // FLOAT16
+        t.extend_from_slice(&name_field("value")); // inner name (ignored)
+        t.extend_from_slice(&raw_field(&[0, 0x3c, 0, 0x3c, 0, 0x3c, 0, 0x3c]));
+        let node = constant_node("unet.conv.weight", &t);
+        let graph = len_field(1, &node); // GraphProto.node
+        let model = len_field(7, &graph);
+
+        let tensors = read_initializers(&model).unwrap();
+        assert_eq!(tensors.len(), 1);
+        assert_eq!(tensors[0].name, "unet.conv.weight");
+        assert_eq!(tensors[0].dims, vec![2, 2]);
+        assert_eq!(tensors[0].data.len(), 8);
+    }
+
+    #[test]
+    fn merges_initializers_and_constants() {
+        let mut init = packed_dims(&[1]);
+        init.extend_from_slice(&varint_field(2, 0, 10));
+        init.extend_from_slice(&name_field("w1"));
+        init.extend_from_slice(&raw_field(&[0, 0x3c]));
+        let mut t = packed_dims(&[1]);
+        t.extend_from_slice(&varint_field(2, 0, 10));
+        t.extend_from_slice(&name_field("value"));
+        t.extend_from_slice(&raw_field(&[0, 0x3c]));
+        let node = constant_node("w2", &t);
+        let mut g = len_field(5, &init); // initializer
+        g.extend_from_slice(&len_field(1, &node)); // node
+        let model = len_field(7, &g);
+
+        let tensors = read_initializers(&model).unwrap();
+        assert_eq!(tensors.len(), 2);
+        assert_eq!(tensors[0].name, "w1");
+        assert_eq!(tensors[1].name, "w2");
+    }
+
+    #[test]
+    fn rejects_external_data() {
+        // data_location (field 14) = EXTERNAL (1): unreachable from bytes.
+        let mut t = packed_dims(&[1]);
+        t.extend_from_slice(&varint_field(2, 0, 10));
+        t.extend_from_slice(&name_field("w"));
+        t.extend_from_slice(&varint_field(14, 0, 1)); // EXTERNAL
+        let graph = len_field(5, &t);
+        let model = len_field(7, &graph);
+
+        let err = read_initializers(&model).unwrap_err();
+        assert!(err.contains("external"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn errors_when_no_weights_found() {
+        // Graph with no initializers and only a non-Constant node.
+        let node = len_field(4, b"Conv");
+        let graph = len_field(1, &node);
+        let model = len_field(7, &graph);
+
+        let err = read_initializers(&model).unwrap_err();
+        assert!(err.contains("no weight tensors"), "unexpected: {err}");
     }
 }
