@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: F11 fullscreen hotkey + Esc closes settings (2026-08-19)** — new
+  configurable `toggleFullscreen` hotkey (default `F11`, in Settings →
+  Hotkeys) drives the Monitor's native fullscreen; the Settings page now
+  closes with `Esc` (while capturing a hotkey, `Esc` only cancels the capture).
+
 - **fix: no console window on Windows release (2026-08-19)** — the `senmei` bin
   was built as a console-subsystem exe, so a terminal popped up on launch.
   Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`;

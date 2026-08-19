@@ -14,6 +14,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   { id: "render", labelKey: "hotkeys.render", default: "Ctrl+R" },
   { id: "exportProject", labelKey: "hotkeys.exportProject", default: "Ctrl+E" },
   { id: "togglePlay", labelKey: "hotkeys.togglePlay", default: "Space" },
+  { id: "toggleFullscreen", labelKey: "hotkeys.toggleFullscreen", default: "F11" },
 ];
 
 export function defaultHotkey(id: string): string {

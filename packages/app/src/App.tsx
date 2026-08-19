@@ -389,6 +389,10 @@ export default function App() {
           e.preventDefault();
           void handleExportProject();
           break;
+        case hotkeys.toggleFullscreen:
+          e.preventDefault();
+          setFullscreenSignal((n) => n + 1);
+          break;
       }
     };
     document.addEventListener("keydown", onKey);

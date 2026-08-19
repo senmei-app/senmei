@@ -62,6 +62,21 @@ export default function SettingsPage({
   useEffect(() => {
     onHotkeyChangeRef.current = onHotkeyChange;
   }, [onHotkeyChange]);
+  // Esc closes the page; while recording hotkeys, Esc only cancels the capture.
+  const onBackRef = useRef(onBack);
+  useEffect(() => {
+    onBackRef.current = onBack;
+  }, [onBack]);
+  useEffect(() => {
+    if (recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onBackRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recording]);
   // While recording, swallow the next key combo and bind it (Esc cancels).
   useEffect(() => {
     if (!recording) return;
