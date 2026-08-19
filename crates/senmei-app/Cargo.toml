@@ -6,9 +6,6 @@ license.workspace = true
 repository.workspace = true
 description = "Tauri application shell for Senmei: commands, state, and IPC."
 
-[build-dependencies]
-embed-resource = "3"
-
 [dependencies]
 # tar.xz like senmei-media: reuse the liblzma already in the graph (a zip dep
 # would pull xz2 and conflict on the native `lzma` link).

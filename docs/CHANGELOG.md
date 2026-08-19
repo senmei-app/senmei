@@ -16,12 +16,6 @@
   `senmei` build script now copies the catalog to `resources/metadata.json`
   (gitignored, `..`-free) and `ensure_catalog` finds it by recursive search.
 
-- **fix: embed common-controls v6 manifest into senmei-app tests (2026-08-19)** —
-  the `senmei_app` lib test exe loaded comctl32 v5 (no app manifest), so the
-  v6-only `SetWindowSubclass` imports failed with 0xc0000139 on Windows CI;
-  `embed-resource::compile_for_tests` now gives test binaries the manifest
-  (bin keeps tauri-build's manifest, no double embed).
-
 - **docs: add release process doc (2026-08-19)** — `docs/RELEASING.md` documents
   how to cut a release (version bump → pre-flight → tag → CI build + publish →
   post-release) and is linked from the root README's docs index.
