@@ -307,8 +307,11 @@ sequenceDiagram
 - **Status:** active branch (2026-08); Koharu already installs the CLI from it.
 - **Gain:** Chromium rendering + VAAPI decode in the native `<video>` preview (WebKitGTK lacks it).
 - **Cost:** pre-release; Chromium footprint.
-- **Action:** revisit §1 „no CEF" when it matures.
-- **Interim:** VAAPI on the FFmpeg decode path (`-hwaccel vaapi`), under our control.
+- **Action:** revisit §1 „no CEF" when it matures. Not ruled out long-term, but no current need.
+- **Interim (media):** WebKitGTK can't play media over Tauri's `asset://` scheme at all
+  (GStreamer backend, `error 4` for every codec) — audio is played natively via **rodio**
+  (FFmpeg-extracted MP3), video via native `<video>` where possible + FFmpeg frame fallback.
+- **Interim (decode):** VAAPI on the FFmpeg decode path (`-hwaccel vaapi`), under our control.
 
 ---
 
