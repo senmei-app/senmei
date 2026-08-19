@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: senmei-server scaffold — MCP stdio (2026-08-20)** — headless
+  `senmei-server` crate (PLAN §16): transport-agnostic `core` (data/models
+  dirs, registry, ffmpeg, probe, list_models) + MCP stdio adapter on the
+  official `rmcp` SDK (v3, Apache-2.0). Read-only tools: `health`,
+  `probe_video`, `list_models`, `get_ffmpeg_status`. HTTP stays an optional
+  feature (YAGNI); license gate lives in core so every transport gets it.
+
 - **ml: SPAN burn port (gated — f16/bf16-blocked) (2026-08-19)** — clean burn
   port of SPAN (Apache-2.0 BasicSR) with Conv3XC/SPAB, `(x−mean)·255`
   normalization and `no_norm` handling; torch-verified (matches f32 up to f16
@@ -85,6 +92,11 @@
   bundles for deb/rpm/AppImage/dmg/msi/nsis, model catalog bundled without
   tauri `_up_` mangling, GitHub Release publishing on version tags. Docs:
   `docs/RELEASING.md`.
+
+- **feat: Metal backend on macOS (no Vulkan SDK) (2026-08-19)** — the burn
+  macOS scaffold landed as a real backend: `senmei-ml` picks `burn_wgpu::Metal`
+  on macOS (`Vulkan` everywhere else); macOS runs in CI (no GPU on hosted
+  runners — experimental, see RELEASING.md).
 
 - **fix: bundle model catalog cleanly in packaged builds (2026-08-19)** —
   `bundle.resources` referenced `../../models/metadata.json`, which tauri
