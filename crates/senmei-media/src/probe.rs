@@ -96,8 +96,8 @@ fn stream_rotation(stream: &Stream) -> u32 {
     }
 }
 
-pub fn probe(path: &Path) -> Result<VideoInfo> {
-    let output = Command::new("ffprobe")
+pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
+    let output = Command::new(ffprobe)
         .args([
             "-v",
             "error",

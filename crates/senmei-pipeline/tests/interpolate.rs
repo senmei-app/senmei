@@ -45,7 +45,7 @@ fn interpolation_doubles_frame_rate() {
 
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
-    let info = senmei_media::probe(&output).unwrap();
+    let info = senmei_media::probe(&senmei_media::ffprobe_next_to(&ffmpeg), &output).unwrap();
     assert!(
         (info.fps - 20.0).abs() < 1.0,
         "expected ~20 fps, got {}",
@@ -104,7 +104,7 @@ fn rife_interpolates_real_model_e2e() {
 
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
-    let info = senmei_media::probe(&output).unwrap();
+    let info = senmei_media::probe(&senmei_media::ffprobe_next_to(&ffmpeg), &output).unwrap();
     assert!(
         (info.fps - 20.0).abs() < 1.0,
         "expected ~20 fps, got {}",
@@ -112,7 +112,7 @@ fn rife_interpolates_real_model_e2e() {
     );
 
     // Input had 10 frames; factor-2 interpolation emits 10 + 9 = 19 frames.
-    let count = Command::new("ffprobe")
+    let count = Command::new(senmei_media::ffprobe_next_to(&ffmpeg))
         .args([
             "-v",
             "error",

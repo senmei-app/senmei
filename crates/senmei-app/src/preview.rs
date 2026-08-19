@@ -11,7 +11,9 @@ static PREVIEW_CACHE: OnceLock<Mutex<Option<senmei_media::PreviewCache>>> = Once
 static PREVIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
-    senmei_media::probe(std::path::Path::new(input)).map_err(|e| {
+    let ffmpeg = senmei_media::resolve(&store::data_dir());
+    let ffprobe = senmei_media::ffprobe_next_to(&ffmpeg);
+    senmei_media::probe(&ffprobe, std::path::Path::new(input)).map_err(|e| {
         log::warn!("probe_video failed: {e}");
         e.to_string()
     })

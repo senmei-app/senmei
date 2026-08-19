@@ -19,8 +19,32 @@ const WINDOWS_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/d
 const WINDOWS_LGPL_SHA256: &str =
     "fdf4fcb4797762e8b4cc3eccdedfedad1e4a345fe9bd8f6a44a20ebf57718c7a";
 
+pub const fn ffmpeg_bin_name() -> &'static str {
+    if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    }
+}
+
+pub const fn ffprobe_bin_name() -> &'static str {
+    if cfg!(windows) {
+        "ffprobe.exe"
+    } else {
+        "ffprobe"
+    }
+}
+
+/// `ffprobe` binary next to the resolved `ffmpeg` (portable builds ship both).
+pub fn ffprobe_next_to(ffmpeg: &Path) -> PathBuf {
+    match ffmpeg.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(ffprobe_bin_name()),
+        _ => PathBuf::from(ffprobe_bin_name()),
+    }
+}
+
 fn system_ffmpeg_works() -> bool {
-    Command::new("ffmpeg")
+    Command::new(ffmpeg_bin_name())
         .arg("-version")
         .output()
         .map(|o| o.status.success())
@@ -35,13 +59,13 @@ pub fn resolve(data_dir: &Path) -> PathBuf {
         }
     }
     if system_ffmpeg_works() {
-        return PathBuf::from("ffmpeg");
+        return PathBuf::from(ffmpeg_bin_name());
     }
-    let bundled = data_dir.join("bin").join("ffmpeg");
+    let bundled = data_dir.join("bin").join(ffmpeg_bin_name());
     if bundled.exists() {
         return bundled;
     }
-    PathBuf::from("ffmpeg")
+    PathBuf::from(ffmpeg_bin_name())
 }
 
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
@@ -127,23 +151,22 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
 
     let bin_dir = data_dir.join("bin");
     fs::create_dir_all(&bin_dir).map_err(Error::from)?;
-    let bin_name = if std::env::consts::OS == "windows" {
-        "ffmpeg.exe"
-    } else {
-        "ffmpeg"
-    };
-    let out = bin_dir.join(bin_name);
-    downloader::extract_binary(&archive, &out, &format!("/bin/{bin_name}"))?;
+    let ffmpeg_bin = bin_dir.join(ffmpeg_bin_name());
+    downloader::extract_binary(&archive, &ffmpeg_bin, &format!("/bin/{}", ffmpeg_bin_name()))?;
+    let ffprobe_bin = bin_dir.join(ffprobe_bin_name());
+    downloader::extract_binary(&archive, &ffprobe_bin, &format!("/bin/{}", ffprobe_bin_name()))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&out, fs::Permissions::from_mode(0o755)).map_err(Error::from)?;
+        for bin in [&ffmpeg_bin, &ffprobe_bin] {
+            fs::set_permissions(bin, fs::Permissions::from_mode(0o755)).map_err(Error::from)?;
+        }
     }
 
     let _ = fs::remove_file(&archive);
-    log::info!("ffmpeg installed to {}", out.display());
-    Ok(out)
+    log::info!("ffmpeg installed to {}", ffmpeg_bin.display());
+    Ok(ffmpeg_bin)
 }
 
 #[cfg(test)]

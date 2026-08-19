@@ -45,7 +45,7 @@ fn upscale_and_resize_produce_expected_dims() {
 
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
-    let info = senmei_media::probe(&output).unwrap();
+    let info = senmei_media::probe(&senmei_media::ffprobe_next_to(&ffmpeg), &output).unwrap();
     assert_eq!((info.width, info.height), (320, 240));
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -98,7 +98,7 @@ fn burn_engine_upscales_real_model() {
 
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
-    let info = senmei_media::probe(&output).unwrap();
+    let info = senmei_media::probe(&senmei_media::ffprobe_next_to(&ffmpeg), &output).unwrap();
     assert_eq!((info.width, info.height), (320, 240));
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -139,7 +139,7 @@ fn resize_factor_produces_expected_dims() {
 
     pipeline.run(&ffmpeg, &input, &output, |_| {}).unwrap();
 
-    let info = senmei_media::probe(&output).unwrap();
+    let info = senmei_media::probe(&senmei_media::ffprobe_next_to(&ffmpeg), &output).unwrap();
     assert_eq!((info.width, info.height), (80, 60));
 
     let _ = std::fs::remove_dir_all(&dir);

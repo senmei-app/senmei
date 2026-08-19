@@ -2,6 +2,11 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+fn ffprobe() -> std::path::PathBuf {
+    let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    senmei_media::ffprobe_next_to(std::path::Path::new(&ffmpeg))
+}
+
 #[test]
 fn preview_backend_functions_work() {
     let dir = std::env::temp_dir().join("senmei-preview-smoke");
@@ -24,7 +29,7 @@ fn preview_backend_functions_work() {
         .success();
     assert!(ok, "ffmpeg input generation failed");
 
-    let info = senmei_media::probe(&input).expect("probe failed");
+    let info = senmei_media::probe(&ffprobe(), &input).expect("probe failed");
     assert!(info.width > 0 && info.duration > 0.0);
 
     let rgb = vec![128u8; (info.width * info.height * 3) as usize];
@@ -76,7 +81,7 @@ fn hdr_source_is_detected_and_tonemapped() {
         .success();
     assert!(ok, "HDR generation failed");
 
-    let info = senmei_media::probe(&input).expect("probe failed");
+    let info = senmei_media::probe(&ffprobe(), &input).expect("probe failed");
     assert!(info.is_hdr(), "HDR10 source should be detected as HDR");
 
     let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
@@ -142,7 +147,7 @@ fn probe_and_decode_apply_rotation() {
         .success();
     assert!(ok, "ffmpeg rotated generation failed");
 
-    let info = senmei_media::probe(&input).expect("probe failed");
+    let info = senmei_media::probe(&ffprobe(), &input).expect("probe failed");
     assert_eq!(info.rotation, 90, "rotation should be detected");
     assert_eq!(
         (info.width, info.height),

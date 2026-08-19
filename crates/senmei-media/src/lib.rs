@@ -11,7 +11,7 @@ mod process;
 pub use decoder::{Decoder, Tonemap};
 pub use downloader::download_to_temp;
 pub use encoder::Encoder;
-pub use ffmpeg::{download, probe as probe_ffmpeg, resolve, FfmpegInfo};
+pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
 pub use preview::encode_png;
 pub use preview_stream::PreviewCache;

@@ -41,7 +41,7 @@ impl Decoder {
         end_ms: Option<u64>,
         tonemap: Tonemap,
     ) -> Result<Self> {
-        let info = crate::probe::probe(path)?;
+        let info = crate::probe::probe(&crate::ffprobe_next_to(ffmpeg), path)?;
         let fps = info.fps;
 
         let mut cmd = Command::new(ffmpeg);
