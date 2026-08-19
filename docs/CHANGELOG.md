@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: SPAN SPAB head concat must use the SiLU'd out1 (2026-08-20)** — the
+  head concat `[feat, b6, b1, b5_2]` feeds the post-SiLU `out1` in
+  span_arch/ONNX (`SiLU(inplace=True)`); the port returned the raw conv output,
+  so every SPAN model rendered washed-out/inverted (burn out mean ~2.3 vs
+  torch/ONNX ~0.56). Now matches (HFA2k mean 143 vs ONNX 142). Also adds
+  no_norm support (`Span::set_no_norm` + `ModelRef.no_norm`) for norm-off
+  checkpoints (ModernSpanimation V2, 2xBHI_small, DeH264_SPAN).
+
 - **feat: senmei-server visual sample frames (2026-08-20)** — `render_sample`
   now returns the before/after PNGs as MCP image content blocks (base64) next
   to the text summary, so multimodal clients can visually compare the sample

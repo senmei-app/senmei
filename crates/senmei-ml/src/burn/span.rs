@@ -65,16 +65,16 @@ impl<B: Backend> Spab<B> {
         }
     }
 
-    /// `(out, out1, att)`; `out1` (pre-SiLU) feeds the head concat.
+    /// `(out, out1_act, att)`; `out1_act` (post-SiLU) feeds the head concat.
     pub fn forward(&self, x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
         let out1 = self.c1_r.forward(x.clone());
         let out1_act = silu(out1.clone());
-        let out2 = self.c2_r.forward(out1_act);
+        let out2 = self.c2_r.forward(out1_act.clone());
         let out2_act = silu(out2);
         let out3 = self.c3_r.forward(out2_act);
         let att = sigmoid(out3.clone()).sub_scalar(0.5);
         let out = (out3 + x) * att.clone();
-        (out, out1, att)
+        (out, out1_act, att)
     }
 }
 
@@ -101,6 +101,7 @@ pub struct Span<B: Backend> {
     conv_cat: Conv2d<B>,
     upsampler: Conv2d<B>,
     scale: usize,
+    no_norm: bool,
 }
 
 impl<B: Backend> Span<B> {
@@ -117,14 +118,24 @@ impl<B: Backend> Span<B> {
             conv_cat: conv2d(ch * 4, ch, 1, 0, device),
             upsampler: conv2d(ch, 3 * scale * scale, 3, 1, device),
             scale,
+            no_norm: false,
         }
     }
 
+    /// `no_norm` checkpoints feed [0,1] input directly (norm=False).
+    pub fn set_no_norm(&mut self, no_norm: bool) {
+        self.no_norm = no_norm;
+    }
+
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        // (x - mean) * 255 — Phhofm trains with norm on; mean (0.4488, 0.4371, 0.4040).
-        let mean = Tensor::<B, 1>::from_floats([0.4488, 0.4371, 0.4040], &x.device())
-            .reshape([1, 3, 1, 1]);
-        let x = (x - mean).mul_scalar(255.0);
+        // (x - mean) * 255 — norm-on checkpoints; mean (0.4488, 0.4371, 0.4040).
+        let x = if self.no_norm {
+            x
+        } else {
+            let mean = Tensor::<B, 1>::from_floats([0.4488, 0.4371, 0.4040], &x.device())
+                .reshape([1, 3, 1, 1]);
+            (x - mean).mul_scalar(255.0)
+        };
 
         let feat = self.conv_1.forward(x);
         let (b1, _, _) = self.block_1.forward(feat.clone());

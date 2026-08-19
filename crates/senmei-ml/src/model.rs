@@ -73,6 +73,8 @@ pub struct ModelRef {
     pub num_block: u32,
     /// SPAN feature channels (48 Phhofm 2×, 64 TNTwise ModernSpanimation).
     pub feature_channels: u32,
+    /// SPAN `no_norm` checkpoints feed [0,1] input directly (norm=False).
+    pub no_norm: bool,
     pub path: PathBuf,
 }
 
@@ -128,6 +130,11 @@ impl Registry {
                         .get("feature_channels")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(48) as u32,
+                    no_norm: m
+                        .metadata
+                        .get("no_norm")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                     path: dir.join(f),
                 })
         })

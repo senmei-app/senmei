@@ -151,6 +151,7 @@ impl BurnEngine {
                     model.scale as usize,
                     &self.device,
                 );
+                m.set_no_norm(model.no_norm);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Span(m))
             }
@@ -726,6 +727,7 @@ mod tests {
             scale: 2,
             num_block: 4,
             feature_channels: 48,
+            no_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -767,6 +769,7 @@ mod tests {
             scale: 4,
             num_block: 4,
             feature_channels: 48,
+            no_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -830,6 +833,7 @@ mod tests {
             scale: 1,
             num_block: 4,
             feature_channels: 48,
+            no_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -882,6 +886,7 @@ mod tests {
             scale: 1,
             num_block: 4,
             feature_channels: 48,
+            no_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
