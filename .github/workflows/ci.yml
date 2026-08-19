@@ -70,6 +70,24 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace
 
+      # senmei_app test exe died with 0xc0000139 at load; dump its imports and
+      # retry with the choco-ffmpeg dirs scrubbed from PATH to find the culprit.
+      - name: Diagnose test exe load failure (Windows)
+        if: runner.os == 'Windows' && failure()
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem target\debug\deps\senmei_app-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { $exe = Get-ChildItem target\debug\deps\*.exe | Select-Object -First 1 }
+          Write-Host "EXE: $($exe.FullName)"
+          $dumpbin = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($dumpbin) { & $dumpbin.FullName /dependents $exe.FullName } else { Write-Host 'dumpbin not found' }
+          Write-Host '--- choco ffmpeg dlls ---'
+          Get-ChildItem 'C:\ProgramData\chocolatey\lib\ffmpeg\tools' -Recurse -Filter *.dll -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          $scrub = ($env:PATH -split ';') | Where-Object { $_ -notmatch 'chocolatey' }
+          $env:PATH = $scrub -join ';'
+          Write-Host '--- retry with scrubbed PATH ---'
+          & $exe.FullName --list
+
       # Debug artifacts from check+test + the release build exceed the runner
       # disk; drop the debug profile before the release bundle build.
       - name: Free disk for release build
