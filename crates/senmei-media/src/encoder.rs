@@ -28,14 +28,16 @@ fn kvazaar_preset() -> &'static str {
 
 /// Pick the best video encoder available in `ffmpeg`, preferring LGPL-safe
 /// codecs: libkvazaar (HEVC, BSD — ships in the bundled LGPL builds; better
-/// compression than H.264 at 2160p), then libopenh264 (H.264), then hardware
-/// (h264_nvenc), then libx264 (GPL-only — present in system GPL builds), then
-/// the native fallback. kvazaar/x264 default to quality-based rate control;
+/// compression than H.264 at 2160p), then libopenh264 (H.264), then libx264
+/// (GPL-only software, works on GPU-less runners), then hardware (h264_nvenc,
+/// NVIDIA-only), then the native fallback. Hardware comes last because it is
+/// listed in `-encoders` even without a GPU and then fails at runtime.
+/// kvazaar/x264 default to quality-based rate control;
 /// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
 /// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
 /// later and can override it.
 fn pick_from_caps(caps: &[String], width: u32, height: u32) -> (String, Vec<String>) {
-    for codec in ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"] {
+    for codec in ["libkvazaar", "libopenh264", "libx264", "h264_nvenc", "h264"] {
         if caps.iter().any(|e| e == codec) {
             return match codec {
                 "libkvazaar" => (
