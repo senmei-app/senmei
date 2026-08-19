@@ -34,3 +34,11 @@ version tags — no manual packaging. Process fits `.github/workflows/ci.yml`.
   (Linux/Windows); macOS relies on system/Homebrew FFmpeg.
 - **Weights never bundled**: downloaded on demand from `models/metadata.json`.
 - **macOS is experimental** (Metal backend, no GPU tests on hosted runners).
+
+## crates.io
+
+Publishing to crates.io is **optional and deferred** — not every release goes
+there. Do it once the API is considered stable (no downstream consumers yet,
+pre-1.0, and `senmei-ml`/`senmei-app` carry a `gpu-allocator` fork caveat for
+Windows downstream builds). When ready: `cargo publish` in dependency order
+`senmei-media → senmei-ml → senmei-pipeline → senmei-app → senmei`.
