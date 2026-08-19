@@ -8,6 +8,12 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **docs: note RVE-hosted SPAN weights are license-blocked (2026-08-19)** —
+  `models.md` Notes: `TNTwise/real-video-enhancer-models` SPAN variants (e.g.
+  `2x_BHI_SpanPlusDynamic_Light.pth`) have no license metadata and no verifiable
+  source → blocked; the SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays
+  adoptable via a clean port.
+
 - **ui: slim fullscreen control bar + 320k preview audio (2026-08-19)** — in
   fullscreen the media fills the screen and a minimal overlay (play/pause,
   position, scrubber, volume) sits at the bottom instead of the full timeline.

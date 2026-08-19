@@ -72,6 +72,12 @@ Candidates per stack; each needs a clean burn port + permissive license before
 ## Notes
 
 - License is per artifact (code ≠ weight); adopt permissive only.
+- RVE-hosted SPAN weights are **license-blocked**: `TNTwise/real-video-enhancer-models`
+  ships many community SPAN variants (e.g. `2x_BHI_SpanPlusDynamic_Light.pth`)
+  with **no license metadata and no verifiable source** — the creator handle
+  "BHI" is undocumented, not on HF/GitHub (2026-08-19). The underlying SPAN arch
+  (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port; these
+  weights are not.
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
   LayerNorm2d computes the channel reduction in a scaled `x/S` (S≈128) domain
