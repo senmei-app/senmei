@@ -70,6 +70,12 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace
 
+      # Debug artifacts from check+test + the release build exceed the runner
+      # disk; drop the debug profile before the release bundle build.
+      - name: Free disk for release build
+        shell: bash
+        run: rm -rf target/debug
+
       - name: Build app bundle
         run: bunx @tauri-apps/cli@^2 build
 
