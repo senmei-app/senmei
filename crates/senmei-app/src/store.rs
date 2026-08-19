@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -241,6 +244,22 @@ pub fn remember_project(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Allowlist guard for IPC file ops: refuse paths outside the app data dir
+/// (same pattern as `delete_project`). Canonicalizes so relative paths or
+/// symlinks cannot escape the managed dir.
+pub fn ensure_within_data_dir(path: &Path) -> Result<(), String> {
+    let dir = data_dir();
+    let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if resolved.starts_with(&dir) {
+        Ok(())
+    } else {
+        Err(format!(
+            "refusing to operate outside the app data dir: {}",
+            path.display()
+        ))
+    }
+}
+
 pub fn create_project(name: &str) -> Result<String, String> {
     let safe: String = name
         .trim()
@@ -326,7 +345,14 @@ pub fn open_project(archive: &str) -> Result<String, String> {
     let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
     let xz = liblzma::read::XzDecoder::new(file);
     let mut ar = tar::Archive::new(xz);
-    ar.unpack(&target).map_err(|e| e.to_string())?;
+    // unpack_in refuses absolute paths / symlink escapes and *skips* `..`
+    // entries (returns Ok(false)) — treat a skip as a refusal of the archive.
+    for entry in ar.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        if !entry.unpack_in(&target).map_err(|e| e.to_string())? {
+            return Err("archive contains a path outside the project dir".into());
+        }
+    }
     remember_project(&target.to_string_lossy())?;
     Ok(target.to_string_lossy().into_owned())
 }
@@ -374,10 +400,8 @@ pub fn delete_project(path: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = super::TEST_ENV_LOCK.lock().unwrap();
         let base =
             std::env::temp_dir().join(format!("senmei-store-test-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
@@ -443,6 +467,51 @@ mod tests {
             let err = delete_project(&outside.to_string_lossy()).unwrap_err();
             assert!(err.contains("refusing"), "unexpected error: {err}");
             let _ = std::fs::remove_dir_all(&outside);
+        });
+    }
+
+    #[test]
+    fn ensure_within_data_dir_refuses_outside() {
+        with_temp_data_dir("allowlist", || {
+            ensure_within_data_dir(&data_dir().join("projects")).unwrap();
+            let outside = std::env::temp_dir().join("senmei-allowlist-outside");
+            let err = ensure_within_data_dir(&outside).unwrap_err();
+            assert!(err.contains("refusing"), "unexpected error: {err}");
+        });
+    }
+
+    #[test]
+    fn open_project_refuses_tar_slip() {
+        with_temp_data_dir("tarslip", || {
+            // Hand-craft a raw tar entry with a `..` path: the tar Builder
+            // refuses to write these, so this exercises the unpack guard.
+            let mut h = [0u8; 512];
+            h[..13].copy_from_slice(b"../escape.txt");
+            h[100..108].copy_from_slice(b"0000644\0");
+            h[108..116].copy_from_slice(b"0000000\0");
+            h[116..124].copy_from_slice(b"0000000\0");
+            h[124..136].copy_from_slice(b"00000000000\0"); // size 0
+            h[136..148].copy_from_slice(b"00000000000\0"); // mtime 0
+            h[148..156].copy_from_slice(b"        "); // checksum placeholder
+            h[156] = b'0'; // typeflag: regular file
+            h[257..263].copy_from_slice(b"ustar\0");
+            h[263..265].copy_from_slice(b"00");
+            let sum: u32 = h.iter().map(|&b| b as u32).sum();
+            h[148..156].copy_from_slice(format!("{sum:06o}\0 ").as_bytes());
+            let mut tar_bytes = h.to_vec();
+            tar_bytes.extend_from_slice(&[0u8; 1024]); // EOF blocks
+
+            let archive = std::env::temp_dir()
+                .join(format!("senmei-tarslip-{}.tar.xz", std::process::id()));
+            let file = std::fs::File::create(&archive).unwrap();
+            let mut xz = liblzma::write::XzEncoder::new(file, 6);
+            use std::io::Write;
+            xz.write_all(&tar_bytes).unwrap();
+            xz.finish().unwrap();
+
+            let err = open_project(&archive.to_string_lossy()).unwrap_err();
+            assert!(!err.is_empty(), "expected tar-slip refusal");
+            let _ = std::fs::remove_file(&archive);
         });
     }
 

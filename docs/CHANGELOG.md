@@ -4,6 +4,14 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: scope IPC file ops to the app data dir + block tar-slip on import (2026-08-19)** —
+  `prune_samples` and `export_project` now reject paths outside the app data dir
+  (the `delete_project` allowlist pattern, `store::ensure_within_data_dir`);
+  `open_project` refuses archives whose entries escape the project dir
+  (`unpack_in` silently skips `..` entries — treated as a refusal). New tests:
+  allowlist guard + tar-slip refusal; a shared test-env lock fixes the
+  `XDG_DATA_HOME` race between the store/models test modules.
+
 - **cleanup: remove the `SENMEI_FORCE_FFMPEG_MISSING` debug hook (2026-08-19)** —
   `get_ffmpeg_status` no longer simulates a missing FFmpeg via an env var.
 

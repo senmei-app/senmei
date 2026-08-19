@@ -93,12 +93,9 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = crate::store::TEST_ENV_LOCK.lock().unwrap();
         let base = std::env::temp_dir()
             .join(format!("senmei-models-test-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);

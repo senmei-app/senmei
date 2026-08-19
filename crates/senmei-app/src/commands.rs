@@ -178,6 +178,7 @@ pub async fn read_frame(
 #[tauri::command]
 #[specta::specta]
 pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
+    store::ensure_within_data_dir(std::path::Path::new(&dir))?;
     let keep = keep.max(1);
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .map_err(|e| e.to_string())?
@@ -265,6 +266,7 @@ pub fn delete_project(path: String) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn export_project(src: String, dest: String) -> Result<(), String> {
+    store::ensure_within_data_dir(std::path::Path::new(&src))?;
     store::export_project(&src, &dest)
 }
 
@@ -666,8 +668,12 @@ mod tests {
 
     #[test]
     fn prune_samples_keeps_newest_by_mtime() {
-        let dir = std::env::temp_dir().join("senmei-prune-smoke");
-        let _ = std::fs::remove_dir_all(&dir);
+        let _guard = crate::store::TEST_ENV_LOCK.lock().unwrap();
+        let base =
+            std::env::temp_dir().join(format!("senmei-prune-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::env::set_var("XDG_DATA_HOME", &base);
+        let dir = store::data_dir().join("samples");
         std::fs::create_dir_all(&dir).unwrap();
 
         // The newest file's name sorts first; a lexical prune would wrongly
@@ -692,6 +698,6 @@ mod tests {
         prune_samples(dir.to_string_lossy().into_owned(), 1).unwrap();
         assert!(newest.exists(), "newest sample was pruned");
         assert!(!oldest.exists(), "oldest sample kept");
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
