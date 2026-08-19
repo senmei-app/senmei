@@ -4,10 +4,10 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
-- **docs: add docs/README.md index, link upstream-issues.md (2026-08-19)** — new
-  landing page for the docs folder: one-truth-per-fact index, "where does X go"
-  quick reference, and per-file conventions; the root README's docs list now also
-  points to `upstream-issues.md`.
+- **docs: fold docs index into root README, link upstream-issues.md (2026-08-19)** —
+  no separate `docs/README.md`; the root README's Docs section now carries the
+  one-truth-per-fact index + "where does X go" quick reference and lists
+  `upstream-issues.md`.
 
 - **fix: make realesrgan BSRGAN test backend-agnostic (2026-08-19)** — the
   `bsrgan_matches_torch_reference` test imported `burn_wgpu::Vulkan` directly,
