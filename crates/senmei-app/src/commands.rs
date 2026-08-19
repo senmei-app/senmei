@@ -32,9 +32,6 @@ pub struct DownloadProgress {
 #[tauri::command]
 #[specta::specta]
 pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
-    if std::env::var_os("SENMEI_FORCE_FFMPEG_MISSING").is_some() {
-        return senmei_media::FfmpegInfo::default();
-    }
     let dir = store::data_dir();
     let ffmpeg = senmei_media::resolve(&dir);
     senmei_media::probe_ffmpeg(&ffmpeg)

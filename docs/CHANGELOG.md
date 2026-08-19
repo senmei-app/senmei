@@ -4,6 +4,9 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **cleanup: remove the `SENMEI_FORCE_FFMPEG_MISSING` debug hook (2026-08-19)** —
+  `get_ffmpeg_status` no longer simulates a missing FFmpeg via an env var.
+
 - **fix: replace production panics with `Err` in the burn engine + decoder (2026-08-19)** —
   `Model::forward`/`interp` now return `Result` (single-input forward on an
   interpolation model, or interpolation on an SR model, are `Err` instead of
