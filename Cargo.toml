@@ -13,3 +13,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/senmei-app/senmei"
+
+# Vendored upstream crates with local fixes (see third_party/).
+[patch.crates-io]
+gpu-allocator = { path = "third_party/gpu-allocator" }
