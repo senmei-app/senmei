@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: senmei-server sample-compare (2026-08-20)** — `render_sample`
+  (synchronous range render, no confirm gate; returns output + before/after
+  PNG frames at the range midpoint) and `compare_sample` (PSNR dB + SSIM on
+  the original resolution via FFmpeg psnr/ssim filters; VMAF deferred to a
+  libvmaf build). E2E-verified over stdio: testsrc2 320×240 → 2× fallin-soft
+  sample + PSNR/SSIM against the source.
+
 - **feat: SPAN family with per-model feature_channels (2026-08-20)** —
   `ModelRef`/registry carry `feature_channels` (default 48); the engine builds
   `Span::new(ch, …)` from it (64 for TNTwise ModernSpanimation V1) and the

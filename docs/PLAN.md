@@ -429,7 +429,7 @@ sequenceDiagram
 | # | Piece | Status | Notes |
 |---|---|---|---|
 | 1 | **Headless entry point** | ✅ done | `crates/senmei-server`: transport-agnostic `core` + MCP stdio adapter (rmcp), no Tauri/GUI dep |
-| 2 | **Sample-compare tool** | ⬜ open | render a short clip, compute PSNR/SSIM (+ VMAF via FFmpeg `libvmaf` if present), return metrics + before/after frames |
+| 2 | **Sample-compare tool** | ✅ done | `render_sample` (range render + before/after PNGs) + `compare_sample` (PSNR/SSIM on the original res); VMAF deferred (libvmaf build) |
 | 3 | **Settings JSON Schema** | ✅ done | `get_settings_schema` tool: schemars render-config schema (documented + ranged) + model slots + constraints |
 | 4 | **Confirmation gate** | ✅ done | `propose_render` (validate+park) / `confirm_render` / `cancel_render`; async + `get_render_status` |
 | 5 | **Tool allowlist + ranges** | 🟡 partial | ranges now in the schema; explicit tool whitelist still open |
@@ -457,9 +457,9 @@ require a refactor. Both gates live in `core`, so every transport gets them.
 
 1. ~~**Settings JSON schema** (§16.3 #3)~~ ✅ done — `get_settings_schema`
    exposes the render-config JSON Schema + model slots + constraints.
-2. **Sample-compare** (§16.3 #2) — `render_sample` + metrics tool
-   (`compare_sample`): PSNR/SSIM (+ VMAF if `libvmaf` present) + before/after
-   frames, reusing the existing `start_ms`/`end_ms` range render.
+2. ~~**Sample-compare** (§16.3 #2)~~ ✅ done — `render_sample` (range render +
+   before/after PNGs) + `compare_sample` (PSNR/SSIM on the original resolution;
+   VMAF deferred to a libvmaf build).
 3. **Tool allowlist + ranges** (§16.3 #5) — remaining: explicit tool whitelist
    (ranges already ship in the schema).
 4. **E2E agent loop** — MCP-client smoke test `probe → propose → sample →

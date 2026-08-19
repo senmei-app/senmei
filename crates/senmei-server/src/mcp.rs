@@ -16,6 +16,14 @@ struct ProbeParams {
     input: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CompareParams {
+    /// Original (source) video path.
+    original: String,
+    /// Rendered sample path (from render_sample).
+    rendered: String,
+}
+
 #[derive(Clone)]
 pub struct SenmeiServer;
 
@@ -64,6 +72,37 @@ impl SenmeiServer {
     #[tool(description = "Settings schema: render-config JSON Schema + model slots (which models fill which field) + hard constraints")]
     async fn get_settings_schema(&self) -> Result<CallToolResult, McpError> {
         json_ok(&core::settings_schema())
+    }
+
+    #[tool(description = "Render a short sample clip (range render, no confirm gate); returns output + before/after frame paths")]
+    async fn render_sample(
+        &self,
+        Parameters(args): Parameters<core::RenderConfig>,
+    ) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            return match tokio::task::spawn_blocking(move || core::render_sample(args)).await {
+                Ok(Ok(v)) => json_ok(&v),
+                Ok(Err(e)) => json_err(e),
+                Err(e) => json_err(format!("render_sample join failed: {e}")),
+            };
+        }
+        #[cfg(not(feature = "render"))]
+        {
+            let _ = args;
+            json_err("render not compiled in (build with --features render)".to_string())
+        }
+    }
+
+    #[tool(description = "Compare a rendered sample against its original: PSNR (dB) + SSIM on the original resolution")]
+    async fn compare_sample(
+        &self,
+        Parameters(args): Parameters<CompareParams>,
+    ) -> Result<CallToolResult, McpError> {
+        match core::compare_sample(&args.original, &args.rendered) {
+            Ok(metrics) => json_ok(&metrics),
+            Err(e) => json_err(e),
+        }
     }
 
     #[tool(description = "Propose a render (validates, does NOT start); confirm with confirm_render")]
