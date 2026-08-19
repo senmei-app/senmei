@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: de-dup model tables (2026-08-19)** — PLAN.md §14.2 no longer keeps its
+  own model matrix (it was a stale subset of `docs/models.md`); models.md's
+  backlog no longer repeats adopted items (DRUNet, BSRGAN, NAFNet-GoPro width32)
+  — only the not-yet-adopted parts (BSRNet, width64) remain as candidates.
+
 - **docs: fold docs index into root README, link upstream-issues.md (2026-08-19)** —
   no separate `docs/README.md`; the root README's Docs section now carries the
   one-truth-per-fact index + "where does X go" quick reference and lists

@@ -340,18 +340,7 @@ sequenceDiagram
 
 ### 14.2 Models (weights — separately published, permissive)
 
-RVE itself is AGPL-3.0, but the models it runs are published independently under permissive licenses — we adopt only the **weights + architecture definitions**, never RVE code. **Adopted archs are clean Rust ports** (never translated from AGPL or unclear-license code); TAS's vendored code stays off-limits. `models/metadata.json` is the source of truth; see [`docs/models.md`](models.md) for the full matrix.
-
-| Model | Kind | License | Source |
-|---|---|---|---|
-| RIFE v4.6 | interpolate | **MIT** | `nihui/rife-ncnn-vulkan` (weights) — clean burn port |
-| Real-CUGAN up2x no-denoise | upscale | **Apache-2.0** | `bilibili/ailab` / VSGAN — clean UpCunet2x port |
-| Real-ESRGAN animevideo x2/x4 + x4plus-anime 6B | upscale | **BSD-3-Clause** | `xinntao/Real-ESRGAN` |
-| Fallin Soft/Strong | upscale | **CC-BY-4.0** | `renarchi/Re-SISR` — UpCunet2x_fast port |
-| 4x_Alchemy | upscale | **CC-BY-4.0** | `renarchi/Re-SISR` — RealPLKSR_Dysample port |
-| Real-PLKSr DeJPG/DeH264 | decompress | verify (Phhofm) | `Phhofm/models` — loadable, download gated |
-
-**Candidates** (not adopted yet), e.g. **SPAN** (`hongyuanyu/SPAN`, Apache-2.0), are tracked in the `docs/models.md` backlog.
+RVE itself is AGPL-3.0, but the models it runs are published independently under permissive licenses — we adopt only the **weights + architecture definitions**, never RVE code. **Adopted archs are clean Rust ports** (never translated from AGPL or unclear-license code); TAS's vendored code stays off-limits. `models/metadata.json` is the source of truth; the adopted-models matrix and the candidate backlog live in [`docs/models.md`](models.md).
 
 Weights are **never committed** — only downloaded on demand; `metadata.json` holds id/kind/arch/scale + license/source_url.
 

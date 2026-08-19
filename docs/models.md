@@ -52,14 +52,13 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Interpolation | FILM | Apache-2.0 repo · TF weights | maybe (TF conversion) |
 | Interpolation | AMT | MIT · weights verify | no (transformer) |
 | Denoise | SCUNet (GAN/PSNR) | Apache-2.0 | adopt (Swin port) |
-| Denoise | DRUNet (DPIR) | MIT (KAIR) | **adopted** — loadable (UNetRes, in_nc=4 sigma-map), Denoise-step wiring pending |
 | Denoise | DnCNN / FFDNet | MIT (KAIR) | adopt (trivial) |
 | Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
 | Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
-| Restoration | BSRGAN / BSRNet | MIT (KAIR) | **adopted** — BSRGAN loadable (RRDBNet 23, BasicSR key remap); BSRNet port open |
+| Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
@@ -68,7 +67,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
-| Deblur | NAFNet-GoPro (width32/64) | MIT (HF mirror) | **adopted** — loadable (NafNet, width32); width64 untested in fp16 |
+| Deblur | NAFNet-GoPro width64 | MIT (HF mirror) | maybe (width32 adopted; width64 untested in fp16) |
 
 ## Notes
 
