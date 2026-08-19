@@ -34,6 +34,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             audio::audio_load,
             audio::audio_play,
             audio::audio_pause,
+            audio::audio_clear,
             audio::audio_seek,
             audio::audio_set_volume,
             commands::cancel_render,

@@ -74,6 +74,17 @@ pub fn audio_pause() -> Result<(), String> {
     })
 }
 
+/// Drop the current audio source so a stale track can't play while the next
+/// one is being extracted.
+#[tauri::command]
+#[specta::specta]
+pub fn audio_clear() -> Result<(), String> {
+    with_player(|p| {
+        p.sink = None;
+        Ok(())
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn audio_seek(position_ms: f64) -> Result<(), String> {

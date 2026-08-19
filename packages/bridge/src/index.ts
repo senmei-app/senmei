@@ -62,6 +62,7 @@ export const extractAudio = (input: string, projectDir: string | null = null) =>
 export const audioLoad = (path: string) => commands.audioLoad(path);
 export const audioPlay = () => commands.audioPlay();
 export const audioPause = () => commands.audioPause();
+export const audioClear = () => commands.audioClear();
 export const audioSeek = (positionMs: number) => commands.audioSeek(positionMs);
 export const audioSetVolume = (volume: number) => commands.audioSetVolume(volume);
 

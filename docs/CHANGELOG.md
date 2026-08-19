@@ -8,6 +8,11 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **fix: stale preview audio after switching videos (2026-08-19)** — on a file
+  change the rodio sink is now cleared (`audio_clear`) instead of only paused, so
+  the previous track can't play while the new one is extracted; a ref guard drops
+  a stale `extractAudio` promise so it can't load the old track after a switch.
+
 - **docs: record Phhofm/models as a model source + backlog update (2026-08-19)** —
   `models.md`: Phhofm GitHub releases (CC-BY-4.0) as canonical source; SPAN gets
   concrete weights (`2xNomosUni_span_multijpg_ldl`, `2xBHI_small_span_pretrain`);

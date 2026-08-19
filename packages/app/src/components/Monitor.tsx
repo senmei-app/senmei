@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import {
+  audioClear,
   audioLoad,
   audioPause,
   audioPlay,
@@ -143,16 +144,21 @@ export default function Monitor({
   // Tauri's asset:// scheme, so audio is decoded/played natively and driven
   // over IPC. The native <video> stays muted (its audio would double up).
   const [audioReady, setAudioReady] = useState(false);
+  // A stale extraction after a file switch must not load the old track.
+  const audioFileRef = useRef<string | null>(null);
   useEffect(() => {
-    void audioPause().catch(() => {});
+    // Drop the previous track so a stale sink can't play during extraction.
+    void audioClear().catch(() => {});
     setAudioReady(false);
     if (!isTauri() || !file) return;
+    audioFileRef.current = file;
     extractAudio(file, projectDir ?? null)
-      .then((p) =>
-        audioLoad(p)
+      .then((p) => {
+        if (audioFileRef.current !== file) return;
+        return audioLoad(p)
           .then(() => setAudioReady(true))
-          .catch((e) => console.error("audio load failed:", e)),
-      )
+          .catch((e) => console.error("audio load failed:", e));
+      })
       .catch((e) => console.error("preview extractAudio failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);

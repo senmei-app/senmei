@@ -31,6 +31,11 @@ export const commands = {
 	audioLoad: (path: string) => __TAURI_INVOKE<null>("audio_load", { path }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
+	/**
+	 *  Drop the current audio source so a stale track can't play while the next
+	 *  one is being extracted.
+	 */
+	audioClear: () => __TAURI_INVOKE<null>("audio_clear"),
 	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
