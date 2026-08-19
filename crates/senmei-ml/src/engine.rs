@@ -1,6 +1,6 @@
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
-use crate::Result;
+use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EngineCaps {
@@ -40,6 +40,19 @@ pub trait InferenceEngine: Send + Sync {
         let _ = (a, b, t, opts);
         None
     }
+
+    /// Optional single-input denoise: 3-channel NCHW `[0,1]` → 3-channel
+    /// estimate, `sigma` = noise level in `[0,1]` (fed as the model's constant
+    /// noise-level map). Returns `None` to fall back to the CPU reference.
+    fn infer_denoise(
+        &mut self,
+        input: &Tensor,
+        sigma: f32,
+        opts: &InferOptions,
+    ) -> Option<Result<Tensor>> {
+        let _ = (input, sigma, opts);
+        None
+    }
 }
 
 /// Run an engine over a full input, tiling when the engine advertises tile support
@@ -54,25 +67,48 @@ pub fn infer_tiled(
     input: &Tensor,
     opts: &InferOptions,
 ) -> Result<Tensor> {
+    run_tiled(engine, input, opts, |e, t, o| e.infer(t, o))
+}
+
+/// Tiled `infer_denoise` (same tiling/stitching as `infer_tiled`; the engine
+/// must implement `infer_denoise`).
+pub fn infer_denoise_tiled(
+    engine: &mut dyn InferenceEngine,
+    input: &Tensor,
+    sigma: f32,
+    opts: &InferOptions,
+) -> Result<Tensor> {
+    run_tiled(engine, input, opts, |e, t, o| {
+        e.infer_denoise(t, sigma, o)
+            .unwrap_or_else(|| Err(Error::new("engine has no denoise path")))
+    })
+}
+
+fn run_tiled(
+    engine: &mut dyn InferenceEngine,
+    input: &Tensor,
+    opts: &InferOptions,
+    infer: impl Fn(&mut dyn InferenceEngine, &Tensor, &InferOptions) -> Result<Tensor>,
+) -> Result<Tensor> {
     let caps = engine.capabilities();
     let Some(tile_size) = opts.tile_size else {
-        return engine.infer(input, opts);
+        return infer(engine, input, opts);
     };
     if !caps.tiles {
-        return engine.infer(input, opts);
+        return infer(engine, input, opts);
     }
     let tile = tile_size as usize;
     let h = input.shape[2];
     let w = input.shape[3];
     if h <= tile && w <= tile {
-        return engine.infer(input, opts);
+        return infer(engine, input, opts);
     }
 
     // Full-frame single pass keeps the GPU saturated (matches TensorRT-style
     // whole-frame inference); tile only for very large inputs.
     const FULL_FRAME_PIXELS: usize = 1920 * 1080;
     if h * w <= FULL_FRAME_PIXELS {
-        return engine.infer(input, opts);
+        return infer(engine, input, opts);
     }
 
     let overlap = tile / 4;
@@ -97,7 +133,7 @@ pub fn infer_tiled(
             data.extend_from_slice(&t.data);
         }
         let batch = Tensor::new(vec![n, c, tile, tile], data);
-        let out_batch = engine.infer(&batch, opts)?;
+        let out_batch = infer(engine, &batch, opts)?;
         let oc = out_batch.shape[1];
         let oh = out_batch.shape[2];
         let ow = out_batch.shape[3];

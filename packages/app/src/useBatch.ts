@@ -104,6 +104,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     const outTonemap = lastOut?.params?.tonemap ?? null;
     const outFilter = {
       denoiseRadius: dn ? (dn.params?.radius ?? null) : null,
+      denoiseModelId: dn ? (dn.params?.modelId ?? null) : null,
       deblurAmount: db ? (db.params?.amount ?? null) : null,
       dedupThreshold: dd ? (dd.params?.threshold ?? null) : null,
     };

@@ -20,8 +20,7 @@ export default function Inspector({
 }) {
   const { t } = useI18n();
   const [models, setModels] = useState<ModelMetadata[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(steps[0]?.id ?? null);  const [menuOpen, setMenuOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -80,6 +79,12 @@ export default function Inspector({
           changed = true;
           return { ...s, params: { ...s.params, modelId: m.id } };
         }
+      } else if (s.stepType === "denoise") {
+        const m = models.find((x) => x.kind === "denoise" && x.loadable);
+        if (m) {
+          changed = true;
+          return { ...s, params: { ...s.params, modelId: m.id } };
+        }
       }
       return s;
     });
@@ -89,6 +94,7 @@ export default function Inspector({
 
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
+  const denoiseModels = models.filter((m) => m.kind === "denoise");
 
   const update = (id: string, patch: Partial<PipelineStep>) =>
     onChange(steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -313,6 +319,7 @@ export default function Inspector({
                       outputDir={outputDir}
                       interpolateModels={interpolateModels}
                       upscaleModels={upscaleModels}
+                      denoiseModels={denoiseModels}
                       downloading={downloading}
                       dlPct={dlPct}
                       folderMenu={folderMenu}

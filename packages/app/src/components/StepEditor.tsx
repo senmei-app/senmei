@@ -24,6 +24,7 @@ export interface StepEditorProps {
   outputDir?: string | null;
   interpolateModels: ModelMetadata[];
   upscaleModels: ModelMetadata[];
+  denoiseModels: ModelMetadata[];
   downloading: string | null;
   dlPct: number;
   folderMenu: string | null;
@@ -43,6 +44,7 @@ export default function StepEditor(props: StepEditorProps) {
     outputDir,
     interpolateModels,
     upscaleModels,
+    denoiseModels,
     downloading,
     dlPct,
     folderMenu,
@@ -139,19 +141,27 @@ export default function StepEditor(props: StepEditorProps) {
         />,
       );
     case "denoise":
-      return field(
-        t("denoise.radius"),
-        <select
-          value={s.params?.radius ?? 1}
-          onChange={(e) => updateParams(s.id, { radius: Number(e.target.value) })}
-          className={inputCls}
-        >
-          {[1, 2, 3, 4].map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>,
+      return (
+        <>
+          {field(
+            t("fi.model"),
+            modelSelect(denoiseModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+          )}
+          {field(
+            t("denoise.radius"),
+            <select
+              value={s.params?.radius ?? 1}
+              onChange={(e) => updateParams(s.id, { radius: Number(e.target.value) })}
+              className={inputCls}
+            >
+              {[1, 2, 3, 4].map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>,
+          )}
+        </>
       );
     case "deblur":
       return field(

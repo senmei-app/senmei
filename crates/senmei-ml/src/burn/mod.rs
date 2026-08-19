@@ -295,6 +295,56 @@ impl InferenceEngine for BurnEngine {
         };
         Some(Ok(Tensor::new(vec![n, c, h, w], data)))
     }
+
+    /// DRUNet denoise: appends a constant noise-level map (sigma in [0,1]) to
+    /// the 3-channel input, pads the spatial dims to multiples of 8 (the UNet
+    /// downsamples 3× stride-2), runs the model, and crops back. Other models
+    /// return `None` so the caller falls back to the CPU reference.
+    fn infer_denoise(
+        &mut self,
+        input: &Tensor,
+        sigma: f32,
+        _opts: &InferOptions,
+    ) -> Option<Result<Tensor>> {
+        let model = self.model.as_ref()?;
+        if !matches!(model, Model::Drunet(_)) {
+            return None;
+        }
+        if input.shape.len() != 4 || input.shape[1] != 3 {
+            return Some(Err(Error::new("expected 3-channel NCHW input")));
+        }
+        let [n, c, h, w] = [
+            input.shape[0],
+            input.shape[1],
+            input.shape[2],
+            input.shape[3],
+        ];
+        let device = &self.device;
+        let rgb = BurnTensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>(),
+            device,
+        );
+        let sigma_map = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], device) * sigma;
+        let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
+        // UNetRes needs multiples of 8 (3× stride-2 downsample); pad + crop.
+        let pad_h = (h + 7) / 8 * 8;
+        let pad_w = (w + 7) / 8 * 8;
+        let mut x = x;
+        if pad_h > h {
+            let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, 4, pad_h - h, w], device);
+            x = BurnTensor::cat(vec![x, z], 2);
+        }
+        if pad_w > w {
+            let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, 4, pad_h, pad_w - w], device);
+            x = BurnTensor::cat(vec![x, z], 3);
+        }
+        let out = model.forward(x).slice([0..n, 0..3, 0..h, 0..w]);
+        let data = match out.into_data().convert::<f32>().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
+        Some(Ok(Tensor::new(vec![n, 3, h, w], data)))
+    }
 }
 
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
@@ -920,5 +970,34 @@ mod tests {
             assert_eq!(rh, (h * 2) as u32);
             assert_eq!(bytes.len(), (rw * rh * 3) as usize);
         }
+    }
+
+    /// The DRUNet denoise path appends the sigma map, pads to multiples of 8,
+    /// and crops back — output must be 3ch at the input size. Uses a height
+    /// that is *not* a multiple of 8 to exercise the pad/crop.
+    #[test]
+    #[ignore = "requires Vulkan + drunet bpk; needs RUST_MIN_STACK=33554432"]
+    fn infer_denoise_drunet_pads_and_crops() {
+        let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+        let mut registry = crate::model::Registry::new();
+        registry.load_dir(&dir).unwrap();
+        let mref = registry.resolve("drunet-color", &dir).unwrap();
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let (h, w): (usize, usize) = (66, 64); // not a multiple of 8
+        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+        let out = engine
+            .infer_denoise(
+                &input,
+                0.05,
+                &InferOptions {
+                    tile_size: Some(640),
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, h, w]);
+        assert!(out.data.iter().all(|v| v.is_finite()));
     }
 }

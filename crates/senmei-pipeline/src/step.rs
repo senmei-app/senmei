@@ -21,16 +21,23 @@ impl Step for Passthrough {
     }
 }
 
-/// Reference denoise: box blur of the luma-ish planar RGB. A cheap, tunable
-/// stand-in until a real denoiser model is ported.
+/// Denoise: runs the frame through an ML denoiser engine (DRUNet) when one is
+/// available, else falls back to a box blur of the planar RGB.
 pub struct Denoise {
     radius: u32,
+    sigma: f32,
+    engine: Option<Box<dyn InferenceEngine>>,
 }
 
 impl Denoise {
-    pub fn new(radius: u32) -> Self {
+    /// `radius`: box-blur radius for the CPU fallback; also the base ML noise
+    /// level (`sigma = radius/20`). `engine`: ML denoiser (DRUNet) when the
+    /// user selected a denoise model, else `None` → box blur.
+    pub fn new(radius: u32, engine: Option<Box<dyn InferenceEngine>>) -> Self {
         Self {
             radius: radius.max(1),
+            sigma: (radius as f32 * 0.05).clamp(0.0, 1.0),
+            engine,
         }
     }
 }
@@ -41,6 +48,19 @@ impl Step for Denoise {
     }
 
     fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        if let Some(engine) = self.engine.as_mut() {
+            let input = frame_to_tensor(frame);
+            let opts = InferOptions {
+                tile_size: Some(TILE_SIZE),
+            };
+            match senmei_ml::infer_denoise_tiled(engine.as_mut(), &input, self.sigma, &opts) {
+                Ok(out) => {
+                    *frame = tensor_to_frame(&out, frame.width, frame.height);
+                    return Ok(true);
+                }
+                Err(e) => log::warn!("denoise engine failed, using box blur: {e}"),
+            }
+        }
         let r = self.radius as usize;
         let h = frame.height as usize;
         let w = frame.width as usize;
@@ -458,7 +478,7 @@ mod tests {
             data: vec![100u8; 3 * 8 * 8],
         };
         frame.data[0] = 255; // salt noise in the top-left pixel
-        Denoise::new(1).process(&mut frame).unwrap();
+        Denoise::new(1, None).process(&mut frame).unwrap();
         // The isolated bright pixel is pulled toward the surrounding value.
         assert!(frame.data[0] < 255 && frame.data[0] > 100);
         assert_eq!((frame.width, frame.height), (8, 8));
@@ -493,7 +513,7 @@ mod tests {
         for px in frame.data.chunks_exact_mut(3) {
             px[0] = 255;
         }
-        Denoise::new(1).process(&mut frame).unwrap();
+        Denoise::new(1, None).process(&mut frame).unwrap();
         assert_eq!(frame.data[1], 0, "G contaminated");
         assert_eq!(frame.data[2], 0, "B contaminated");
     }

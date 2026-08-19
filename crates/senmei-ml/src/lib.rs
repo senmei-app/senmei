@@ -33,7 +33,9 @@ mod burn;
 
 #[cfg(feature = "burn")]
 pub use burn::{convert_onnx_to_bpk, convert_pth_to_bpk, BurnEngine};
-pub use engine::{engine_for_model, infer_tiled, EngineCaps, InferOptions, InferenceEngine};
+pub use engine::{
+    engine_for_model, infer_denoise_tiled, infer_tiled, EngineCaps, InferOptions, InferenceEngine,
+};
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;

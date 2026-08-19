@@ -301,6 +301,9 @@ pub struct RenderProgress {
 #[serde(rename_all = "camelCase", default)]
 pub struct FilterParams {
     pub denoise_radius: Option<u32>,
+    /// Optional ML denoiser model (DRUNet); when set the denoise step runs the
+    /// model instead of the CPU box blur.
+    pub denoise_model_id: Option<String>,
     pub deblur_amount: Option<f32>,
     pub dedup_threshold: Option<f32>,
 }
@@ -378,7 +381,19 @@ pub async fn render(
         if let Some(f) = filter {
             if let Some(r) = f.denoise_radius {
                 if r > 0 {
-                    steps.push(Box::new(senmei_pipeline::Denoise::new(r)));
+                    // A selected denoise model that cannot be loaded falls back
+                    // to the CPU box blur (engine stays None).
+                    let engine = match f.denoise_model_id.as_deref() {
+                        Some(id) => match engine_for_model(id) {
+                            Ok(e) => Some(e),
+                            Err(err) => {
+                                log::warn!("denoise model {id} unavailable, using box blur: {err}");
+                                None
+                            }
+                        },
+                        None => None,
+                    };
+                    steps.push(Box::new(senmei_pipeline::Denoise::new(r, engine)));
                 }
             }
             if let Some(a) = f.deblur_amount {

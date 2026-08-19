@@ -4,6 +4,17 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: DRUNet in Denoise-Step verdrahtet (ML-Denoise) (2026-08-19)** — der
+  Denoise-Step nutzt jetzt einen ML-Denoise (DRUNet), wenn ein Denoise-Modell
+  gewählt ist, sonst Box-Blur als Fallback. Neu: `InferenceEngine::infer_denoise`
+  (+ `infer_denoise_tiled` über das geteilte `run_tiled`); `BurnEngine` hängt
+  für DRUNet die Sigma-Map an (4. Kanal), padet auf Vielfache von 8 und croppt
+  zurück. `FilterParams.denoise_model_id` → `render()` baut die Engine;
+  Frontend: Denoise-Step hat jetzt einen Modell-Dropdown (kind `denoise`),
+  `steps.ts`-Default, `useBatch` sendet `denoiseModelId`; bindings regeneriert.
+  Sigma = Radius/20 (das bestehende Radius-Setting steuert die Noise-Level).
+  GPU-Test `infer_denoise_drunet_pads_and_crops` (66×64).
+
 - **fix: ONNX-Reader liest auch `Constant`-Node-Weights (2026-08-19)** — der
   eigene protobuf-Reader (`senmei_ml::onnx`, kein ONNX-Runtime) las bisher nur
   `graph.initializer`; Modelle, deren Weights nur in `Constant`-Nodes stecken

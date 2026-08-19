@@ -61,6 +61,11 @@ export type FfmpegInfo = {
 /**  Optional reference filter steps (denoise/deblur/dedup) for a render. */
 export type FilterParams = {
 	denoiseRadius?: number | null,
+	/**
+	 *  Optional ML denoiser model (DRUNet); when set the denoise step runs the
+	 *  model instead of the CPU box blur.
+	 */
+	denoiseModelId?: string | null,
 	deblurAmount?: number | null,
 	dedupThreshold?: number | null,
 };

@@ -67,7 +67,7 @@ export const STEP_ORDER: StepType[] = [
 const DEFAULTS: Record<StepType, StepParams> = {
   interpolation: { modelId: null, fpsMultiplier: 2 },
   upscale: { modelId: null, scale: 2 },
-  denoise: { radius: 1 },
+  denoise: { radius: 1, modelId: null },
   deblur: { amount: 0.5 },
   deduplication: { threshold: 0.02 },
   resize: { factor: "" },
