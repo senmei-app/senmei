@@ -397,7 +397,20 @@ pub fn convert_pth_to_bpk(
             }
         }
         "realesrgan" => {
-            let mut store = PytorchStore::from_file(pth_path);
+            // Also handles BSRGAN (KAIR): same RRDBNet, but its keys use the
+            // older BasicSR naming (`RRDB_trunk.{i}.RDB{j}.conv{k}`, `trunk_conv`,
+            // `upconv1/2`, `HRconv`); the rules only match those, so standard
+            // Real-ESRGAN pths (`body.{i}.rdb{j}.conv{k}`, `conv_body`,
+            // `conv_up1/2`, `conv_hr`) pass through unchanged.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(
+                    r"^RRDB_trunk\.(\d+)\.RDB(\d+)\.conv(\d+)\.",
+                    "body.$1.rdb$2.conv$3.",
+                )
+                .with_key_remapping(r"^trunk_conv\.", "conv_body.")
+                .with_key_remapping(r"^upconv1\.", "conv_up1.")
+                .with_key_remapping(r"^upconv2\.", "conv_up2.")
+                .with_key_remapping(r"^HRconv\.", "conv_hr.");
             let mut m = RrdbNet::<BurnBackend>::new(scale as usize, num_block as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;

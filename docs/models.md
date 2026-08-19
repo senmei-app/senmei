@@ -17,6 +17,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | 4x_Alchemy | upscale | CC-BY-4.0 | 4 | loadable (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `.pth` |
 | Real-ESRGAN animevideo x2/x4 | upscale | BSD-3-Clause | 2/4 | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| BSRGAN | upscale (restoration) | MIT | 4 | loadable (RRDBNet, 23 blocks; torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
 | DRUNet color (DPIR) | denoise | MIT | 1 | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
@@ -58,7 +59,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
-| Restoration | BSRGAN / BSRNet | MIT (KAIR) | adopt (RRDBNet exists) |
+| Restoration | BSRGAN / BSRNet | MIT (KAIR) | **adopted** — BSRGAN loadable (RRDBNet 23, BasicSR key remap); BSRNet port open |
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |

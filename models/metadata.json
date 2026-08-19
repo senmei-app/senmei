@@ -4,194 +4,312 @@
     "kind": "upscale",
     "scale": 2,
     "arch": "fallin-cugan",
-    "weights": ["2x_Fallin_soft_renarchi_fp16.f16.bpk"],
+    "weights": [
+      "2x_Fallin_soft_renarchi_fp16.f16.bpk"
+    ],
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_soft_renarchi_fp16.onnx",
     "sha256": "17a4c0c6af5a187389f52a9bd026553a8819f148b70dea1a242d1517a352dfec",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); UpCunet2x_fast arch (pad 38) + ONNX initializer import via built-in parser" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "CUGAN retrain (renarchi, CC-BY-4.0); UpCunet2x_fast arch (pad 38) + ONNX initializer import via built-in parser"
+    }
   },
   {
     "id": "fallin-strong",
     "kind": "upscale",
     "scale": 2,
     "arch": "fallin-cugan",
-    "weights": ["2x_Fallin_strong_renarchi_fp16.f16.bpk"],
+    "weights": [
+      "2x_Fallin_strong_renarchi_fp16.f16.bpk"
+    ],
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_strong_renarchi_fp16.onnx",
     "sha256": "f3d636e298a22fd54ad66571e74f6c91afc6cc7929799d224dc6ebb864c128df",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; UpCunet2x_fast arch (pad 38) + ONNX initializer import" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; UpCunet2x_fast arch (pad 38) + ONNX initializer import"
+    }
   },
   {
     "id": "4x-alchemy",
     "kind": "upscale",
     "scale": 4,
     "arch": "real-plksr",
-    "weights": ["4x_Alchemy.pth.f16.bpk"],
+    "weights": [
+      "4x_Alchemy.pth.f16.bpk"
+    ],
     "license": "CC-BY-4.0",
     "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/4x_Alchemy",
     "download_url": "https://github.com/renarchi/Re-SISR/releases/download/4x_Alchemy/4x_Alchemy.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "dysample": true, "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0); clean burn port verified vs torch (mae ~0.002). The raw .pth stores weights channels-last (non-contiguous) — convert from a .contiguous()-fixed copy (see senmei-ml-convert)." }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0); clean burn port verified vs torch (mae ~0.002). The raw .pth stores weights channels-last (non-contiguous) — convert from a .contiguous()-fixed copy (see senmei-ml-convert)."
+    }
   },
   {
     "id": "real-cugan-x2",
     "kind": "upscale",
     "scale": 2,
     "arch": "upcunet2x",
-    "weights": ["up2x-no-denoise.pth.f16.bpk"],
+    "weights": [
+      "up2x-no-denoise.pth.f16.bpk"
+    ],
     "license": "Apache-2.0",
     "source_url": "https://github.com/bilibili/ailab",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_up2x-latest-no-denoise.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "clean re-impl (upcunet_v3, MIT reference); f16 burnpack via convert-f16" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "clean re-impl (upcunet_v3, MIT reference); f16 burnpack via convert-f16"
+    }
   },
   {
     "id": "realesrgan-animevideo-x2",
     "kind": "upscale",
     "scale": 2,
     "arch": "realesrgan",
-    "weights": ["RealESRGANv2-animevideo-xsx2.pth.f16.bpk"],
+    "weights": [
+      "RealESRGANv2-animevideo-xsx2.pth.f16.bpk"
+    ],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx2.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "num_block": 4 }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "num_block": 4
+    }
   },
   {
     "id": "realesrgan-animevideo-x4",
     "kind": "upscale",
     "scale": 4,
     "arch": "realesrgan",
-    "weights": ["RealESRGANv2-animevideo-xsx4.pth.f16.bpk"],
+    "weights": [
+      "RealESRGANv2-animevideo-xsx4.pth.f16.bpk"
+    ],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx4.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "num_block": 4 }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "num_block": 4
+    }
   },
   {
     "id": "realesrgan-x4plus-anime",
     "kind": "upscale",
     "scale": 4,
     "arch": "realesrgan",
-    "weights": ["RealESRGAN_x4plus_anime_6B.pth.f16.bpk"],
+    "weights": [
+      "RealESRGAN_x4plus_anime_6B.pth.f16.bpk"
+    ],
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGAN_x4plus_anime_6B.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "num_block": 6 }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "num_block": 6
+    }
+  },
+  {
+    "id": "bsrgan",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "realesrgan",
+    "weights": [
+      "BSRGAN.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/cszn/KAIR",
+    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/BSRGAN.pth",
+    "loadable": true,
+    "metadata": {
+      "num_block": 23,
+      "input_range": "0..1",
+      "half": true,
+      "note": "BSRGAN (KAIR v1.0, MIT) RRDBNet 23 restoration (denoise/deblur/SR), scale 4; torch-verified mae 0.001; BasicSR key remap (RRDB_trunk/RDB/trunk_conv/upconv1-2/HRconv)"
+    }
   },
   {
     "id": "scunet-denoise",
     "kind": "denoise",
     "scale": 1,
     "arch": "scunet",
-    "weights": ["scunet_color_15.pth"],
+    "weights": [
+      "scunet_color_15.pth"
+    ],
     "license": "Apache-2.0",
     "source_url": "https://github.com/cszn/SCUNet",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/scunet_color_15.pth",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "license confirmed Apache-2.0; arch port pending" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "license confirmed Apache-2.0; arch port pending"
+    }
   },
   {
     "id": "real-plksr-deh264",
     "kind": "decompress",
     "scale": 1,
     "arch": "real-plksr",
-    "weights": ["1xDeH264_realplksr.pth.f16.bpk"],
+    "weights": [
+      "1xDeH264_realplksr.pth.f16.bpk"
+    ],
     "license": "verify (Phhofm)",
     "source_url": "https://github.com/Phhofm/models",
     "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeH264_realplksr.pth",
     "sha256": "92829754924fbcf944acf5d09e9cfd1cb3d1f2ee67a208a9921c1c0e4d74d6e7",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "dysample": false, "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); license still pending review so download stays gated" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": false,
+      "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); license still pending review so download stays gated"
+    }
   },
   {
     "id": "real-plksr-dejpg",
     "kind": "decompress",
     "scale": 1,
     "arch": "real-plksr",
-    "weights": ["1xDeJPG_realplksr_otf.pth.f16.bpk"],
+    "weights": [
+      "1xDeJPG_realplksr_otf.pth.f16.bpk"
+    ],
     "license": "verify (Phhofm)",
     "source_url": "https://github.com/Phhofm/models",
     "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeJPG_realplksr_otf.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "dysample": false, "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); license still pending review so download stays gated" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": false,
+      "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); license still pending review so download stays gated"
+    }
   },
   {
     "id": "anime1080fixer",
     "kind": "denoise",
     "scale": 1,
     "arch": "anime1080fixer",
-    "weights": ["1x_Anime1080Fixer_SuperUltraCompact.pth"],
+    "weights": [
+      "1x_Anime1080Fixer_SuperUltraCompact.pth"
+    ],
     "license": "verify (Zarxrax)",
     "source_url": "https://github.com/Zarxrax/Anime1080Fixer",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/1x_Anime1080Fixer_SuperUltraCompact.pth",
     "loadable": false,
-    "metadata": { "input_range": "0..1", "half": true, "note": "arch port pending; license check required" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "arch port pending; license check required"
+    }
   },
   {
     "id": "drunet-color",
     "kind": "denoise",
     "scale": 1,
     "arch": "drunet",
-    "weights": ["drunet_color.pth.f16.bpk"],
+    "weights": [
+      "drunet_color.pth.f16.bpk"
+    ],
     "license": "MIT",
     "source_url": "https://github.com/cszn/KAIR",
     "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/drunet_color.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "in_nc": 4, "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "in_nc": 4,
+      "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending"
+    }
   },
   {
     "id": "nafnet-gopro-width32",
     "kind": "deblur",
     "scale": 1,
     "arch": "nafnet",
-    "weights": ["NAFNet-GoPro-width32.pth.f16.bpk"],
+    "weights": [
+      "NAFNet-GoPro-width32.pth.f16.bpk"
+    ],
     "license": "MIT",
     "source_url": "https://github.com/megvii-research/NAFNet",
     "download_url": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width32.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/burn-bugs.md Bug 7); Deblur-step wiring pending" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/burn-bugs.md Bug 7); Deblur-step wiring pending"
+    }
   },
   {
     "id": "rife-v4.6",
     "kind": "interpolate",
     "scale": 1,
     "arch": "rife46",
-    "weights": ["flownet.bin"],
+    "weights": [
+      "flownet.bin"
+    ],
     "license": "MIT",
     "source_url": "https://github.com/nihui/rife-ncnn-vulkan",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin"
+    }
   },
   {
     "id": "ifrnet-vimeo90k",
     "kind": "interpolate",
     "scale": 1,
     "arch": "ifrnet",
-    "weights": ["IFRNet_Vimeo90K.pth.f16.bpk"],
+    "weights": [
+      "IFRNet_Vimeo90K.pth.f16.bpk"
+    ],
     "license": "MIT",
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix)" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix)"
+    }
   },
   {
     "id": "ifrnet-gopro",
     "kind": "interpolate",
     "scale": 1,
     "arch": "ifrnet",
-    "weights": ["IFRNet_GoPro.pth.f16.bpk"],
+    "weights": [
+      "IFRNet_GoPro.pth.f16.bpk"
+    ],
     "license": "MIT",
     "source_url": "https://github.com/ltkong218/IFRNet",
     "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
     "loadable": true,
-    "metadata": { "input_range": "0..1", "half": true, "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded" }
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded"
+    }
   }
 ]
-

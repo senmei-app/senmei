@@ -135,3 +135,68 @@ impl<B: Backend> RrdbNet<B> {
             .forward(leaky_relu(self.conv_hr.forward(feat), 0.2))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn::tensor::{f16, TensorData};
+    use burn_store::{BurnpackStore, ModuleSnapshot};
+    use burn_wgpu::{Vulkan, WgpuDevice};
+
+    /// Numerical check of the BSRGAN (RRDBNet 23, scale 4) port against the
+    /// official weights: `tools/bsrgan_verify.py` writes `x.bin`/`ref.bin`
+    /// (f32, 32×32 → 128×128). Loads the f16 burnpack, runs the same input, and
+    /// asserts a small mean abs error.
+    #[test]
+    #[ignore = "needs Vulkan + models/BSRGAN.f16.bpk + torch ref bins (tools/bsrgan_verify.py); needs RUST_MIN_STACK=33554432"]
+    fn bsrgan_matches_torch_reference() {
+        let device = WgpuDevice::DiscreteGpu(0);
+        let dir = std::env::var("SENMEI_BSRGAN_VERIFY_DIR")
+            .unwrap_or_else(|_| "/tmp/bsrgan_verify".into());
+        let read = |name: &str, n: usize| -> Vec<f32> {
+            let data = std::fs::read(format!("{dir}/{name}")).expect("missing ref bin");
+            assert_eq!(data.len(), n * 4, "bad {name} size");
+            data.chunks_exact(4)
+                .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                .collect()
+        };
+
+        let [n, c, h, w] = [1usize, 3, 32, 32];
+        let x_v = read("x.bin", n * c * h * w);
+        let ref_v = read("ref.bin", n * c * 128 * 128);
+
+        let mut m = RrdbNet::<Vulkan<f16>>::new(4, 23, &device);
+        let mut store = BurnpackStore::from_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../models/BSRGAN.f16.bpk"
+        ));
+        let res = m.load_from(&mut store).unwrap();
+        println!(
+            "load: applied={} missing={} unused={}",
+            res.applied.len(),
+            res.missing.len(),
+            res.unused.len()
+        );
+        for (p, c) in &res.missing {
+            println!("  missing {p} ({c})");
+        }
+        for u in &res.unused {
+            println!("  unused {u}");
+        }
+
+        let x = Tensor::<Vulkan<f16>, 4>::from_data(
+            TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
+            &device,
+        );
+        let out = m.forward(x);
+        let out_v = out.into_data().convert::<f32>().to_vec().unwrap();
+        let mae: f32 = out_v
+            .iter()
+            .zip(&ref_v)
+            .map(|(a, b): (&f32, &f32)| (a - b).abs())
+            .sum::<f32>()
+            / ref_v.len() as f32;
+        println!("mae vs torch = {mae}");
+        assert!(mae < 0.01, "mae too large: {mae}");
+    }
+}

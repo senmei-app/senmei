@@ -4,6 +4,15 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: BSRGAN loadable (RRDBNet 23, restoration) (2026-08-19)** — BSRGAN
+  (KAIR v1.0, MIT) reuses the existing `RrdbNet` arch (RRDBNet, 23 blocks,
+  scale 4); the converter now also maps its older BasicSR key naming
+  (`RRDB_trunk.{i}.RDB{j}.conv{k}`, `trunk_conv`, `upconv1/2`, `HRconv`), which
+  leaves standard Real-ESRGAN pths (`body.*`, `conv_body`, `conv_up*`, `conv_hr`)
+  untouched. Torch-verified (applied=702, mae 0.001). Registry `bsrgan`
+  (kind upscale/restoration, num_block 23), `tools/bsrgan_verify.py`. Works as a
+  restoration upscaler through the existing Upscale step.
+
 - **feat: wire NAFNet into the Deblur step (ML deblur) (2026-08-19)** — the
   Deblur step now runs an ML model (NAFNet) when a deblur model is selected,
   otherwise falls back to the unsharp mask (engine errors also fall back).
