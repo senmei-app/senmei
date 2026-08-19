@@ -34,6 +34,10 @@ converted once to f16 `.bpk`.
 - `pavlichenko/ifrnet_vimeo` / `ifrnet_gopro` (HF) — IFRNet weights, MIT (re-uploads of `ltkong218/IFRNet`).
 - `cszn/KAIR` v1.0 — DRUNet/DnCNN/FFDNet/BSRGAN weights, MIT (direct release URLs).
 - `NevermindNilas/TAS-Models-Host` — host only; TAS arch code is AGPL (off-limits).
+- `Phhofm/models` GitHub releases — <https://github.com/Phhofm/models/releases> —
+  the canonical Phhofm (Philip Hofmann) model source: SPAN / DAT2 / RealPLKSR /
+  Real-ESRGAN weights, all **CC-BY-4.0**, `.pth` + `.safetensors`; also mirrored
+  on HF as `Phips/…`.
 
 ## Backlog
 
@@ -62,9 +66,11 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
-| Restoration | SPAN | Apache-2.0 | adopt |
+| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — weights: `2xNomosUni_span_multijpg_ldl` (JPG-degrad, sharp) + `2xBHI_small_span_pretrain` (clean; arch-verify target); burn port in progress (2026-08-19) |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
+| Restoration | 4x BHI RealPLKSR-dysample (`_real`/`_multi`/`_otf`…) | CC-BY-4.0 | adopt (arch exists, quick; 5 variants in one release) |
+| Restoration | 4x BHI DAT2 (`_real`, `_multiblurjpg`) | CC-BY-4.0 | maybe (best 4× quality, but **transformer port** = high cost; separate milestone) |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
 | Deblur | NAFNet-GoPro width64 | MIT (HF mirror) | maybe (width32 adopted; width64 untested in fp16) |
@@ -74,10 +80,11 @@ Candidates per stack; each needs a clean burn port + permissive license before
 - License is per artifact (code ≠ weight); adopt permissive only.
 - RVE-hosted SPAN weights are **license-blocked**: `TNTwise/real-video-enhancer-models`
   ships many community SPAN variants (e.g. `2x_BHI_SpanPlusDynamic_Light.pth`)
-  with **no license metadata and no verifiable source** — the creator handle
-  "BHI" is undocumented, not on HF/GitHub (2026-08-19). The underlying SPAN arch
-  (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port; these
-  weights are not.
+  with **no license metadata**. "BHI" is Phhofm's (Philip Hofmann's) model series
+  (CC-BY-4.0, e.g. `2xBHI_small_span_pretrain`), but the exact
+  `SpanPlusDynamic_Light` checkpoint is not published under that name on
+  HF/Phhofm, so the RVE-hosted copy stays **unverified → blocked** (2026-08-19).
+  The SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port.
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
   LayerNorm2d computes the channel reduction in a scaled `x/S` (S≈128) domain

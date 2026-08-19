@@ -8,6 +8,12 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **docs: record Phhofm/models as a model source + backlog update (2026-08-19)** —
+  `models.md`: Phhofm GitHub releases (CC-BY-4.0) as canonical source; SPAN gets
+  concrete weights (`2xNomosUni_span_multijpg_ldl`, `2xBHI_small_span_pretrain`);
+  4x BHI RealPLKSR-dysample marked quick-adopt (arch exists); 4x BHI DAT2 marked
+  high-cost transformer milestone; BHI note corrected (BHI = Phhofm series, the
+  RVE-hosted `SpanPlusDynamic_Light` copy stays unverified → blocked).
 - **docs: note RVE-hosted SPAN weights are license-blocked (2026-08-19)** —
   `models.md` Notes: `TNTwise/real-video-enhancer-models` SPAN variants (e.g.
   `2x_BHI_SpanPlusDynamic_Light.pth`) have no license metadata and no verifiable
