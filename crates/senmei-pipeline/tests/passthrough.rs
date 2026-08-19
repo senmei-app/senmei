@@ -170,12 +170,20 @@ fn passthrough_pause_resume() {
             .expect("render failed");
     });
 
-    // Let the pipeline reach the frame loop, then pause and verify no progress.
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Wait until the pipeline reaches the frame loop (some frames produced),
+    // then pause and verify no progress while paused. Polling instead of a
+    // fixed sleep keeps this deterministic on slow CI runners.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    while frames.load(std::sync::atomic::Ordering::Relaxed) == 0
+        && std::time::Instant::now() < deadline
+    {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
     pause.store(true, std::sync::atomic::Ordering::Relaxed);
-    std::thread::sleep(std::time::Duration::from_millis(250));
+    // Let in-flight frames drain, then sample the paused count twice.
+    std::thread::sleep(std::time::Duration::from_millis(300));
     let during = frames.load(std::sync::atomic::Ordering::Relaxed);
-    std::thread::sleep(std::time::Duration::from_millis(250));
+    std::thread::sleep(std::time::Duration::from_millis(300));
     let during2 = frames.load(std::sync::atomic::Ordering::Relaxed);
     pause.store(false, std::sync::atomic::Ordering::Relaxed);
 
