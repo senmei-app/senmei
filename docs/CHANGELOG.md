@@ -4,49 +4,49 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
-- **feat: NAFNet in Deblur-Step verdrahtet (ML-Deblur) (2026-08-19)** — der
-  Deblur-Step nutzt jetzt ein ML-Modell (NAFNet), wenn ein Deblur-Modell
-  gewählt ist, sonst Unsharp-Mask als Fallback (Engine-Fehler fallen ebenfalls
-  zurück). NAFNet ist Single-Input (scale 1, 3ch→3ch) und padet intern auf
-  Vielfache von 16 — der Step nutzt daher den generischen `infer_tiled`-Pfad,
-  kein neues Trait-Method. `FilterParams.deblur_model_id` → `render()` baut die
-  Engine; Frontend: Deblur-Step hat jetzt einen Modell-Dropdown (kind
-  `deblur`), `steps.ts`-Default, `useBatch` sendet `deblurModelId`; bindings
-  regeneriert. GPU-Test `infer_nafnet_deblurs_via_generic_infer`.
+- **feat: wire NAFNet into the Deblur step (ML deblur) (2026-08-19)** — the
+  Deblur step now runs an ML model (NAFNet) when a deblur model is selected,
+  otherwise falls back to the unsharp mask (engine errors also fall back).
+  NAFNet is single-input (scale 1, 3ch→3ch) and pads internally to multiples of
+  16 — the step reuses the generic `infer_tiled` path, no new trait method.
+  `FilterParams.deblur_model_id` → `render()` builds the engine; frontend: the
+  Deblur step now has a model dropdown (kind `deblur`), `steps.ts` default,
+  `useBatch` sends `deblurModelId`; bindings regenerated. GPU test
+  `infer_nafnet_deblurs_via_generic_infer`.
 
-- **feat: NAFNet-GoPro burn-Arch-Port (Deblur, 2026-08-19)** —
-  `burn/nafnet.rs`: NAFNet-GoPro-width32 (megvii, MIT) als sauberer Nachbau —
-  NAFBlock (LayerNorm2d, SimpleGate, SCA `x·conv(avgpool(x))` ohne Sigmoid,
-  Depthwise-Conv, FFN mit beta/gamma-Skalen), Encoder/Down-Pyramide, Middle,
-  Decoder mit Conv1×1+PixelShuffle(2)-Ups, `ending+inp`. LayerNorm2d rechnet
-  die Kanalreduktion fp16-sicher in `x/S` (S=128). Torch-verifiziert (mae
-  0.0007 auf realistischem Input; Encoder blockweise exakt) — **erster
-  ML-Deblur, loadable**. `senmei-ml-convert` `nafnet`-Arch (Capture-Group-
-  Key-Remap), Registry `nafnet-gopro-width32` (MIT, nyanko7-Mirror),
-  `tools/nafnet_verify.py`. Neuer burn-bugs.md Fund (Bug 7): die internen
-  Aktivierungen überlaufen fp16 nur bei pathologischem Rausch-Input (~70000);
-  torch-fp16s LayerNorm überläuft dort still zu 0 (keine treue fp16-Referenz).
+- **feat: NAFNet-GoPro burn arch port (deblur, 2026-08-19)** —
+  `burn/nafnet.rs`: NAFNet-GoPro-width32 (megvii, MIT) as a clean
+  re-implementation — NAFBlock (LayerNorm2d, SimpleGate, SCA `x·conv(avgpool(x))`
+  without sigmoid, depthwise conv, FFN with beta/gamma scales), encoder/down
+  pyramid, middle, decoder with Conv1×1+PixelShuffle(2) ups, `ending+inp`.
+  LayerNorm2d computes the channel reduction fp16-safely in `x/S` (S=128).
+  Torch-verified (mae 0.0007 on a realistic input; encoder block-exact) —
+  **first ML deblur, loadable**. `senmei-ml-convert` `nafnet` arch
+  (capture-group key remap), Registry `nafnet-gopro-width32` (MIT,
+  nyanko7 mirror), `tools/nafnet_verify.py`. New burn-bugs.md finding (Bug 7):
+  the internal activations only overflow fp16 on pathological noise input
+  (~70000); torch-fp16's LayerNorm silently overflows to 0 there (not a
+  faithful fp16 reference).
 
-- **feat: DRUNet in Denoise-Step verdrahtet (ML-Denoise) (2026-08-19)** — der
-  Denoise-Step nutzt jetzt einen ML-Denoise (DRUNet), wenn ein Denoise-Modell
-  gewählt ist, sonst Box-Blur als Fallback. Neu: `InferenceEngine::infer_denoise`
-  (+ `infer_denoise_tiled` über das geteilte `run_tiled`); `BurnEngine` hängt
-  für DRUNet die Sigma-Map an (4. Kanal), padet auf Vielfache von 8 und croppt
-  zurück. `FilterParams.denoise_model_id` → `render()` baut die Engine;
-  Frontend: Denoise-Step hat jetzt einen Modell-Dropdown (kind `denoise`),
-  `steps.ts`-Default, `useBatch` sendet `denoiseModelId`; bindings regeneriert.
-  Sigma = Radius/20 (das bestehende Radius-Setting steuert die Noise-Level).
-  GPU-Test `infer_denoise_drunet_pads_and_crops` (66×64).
+- **feat: wire DRUNet into the Denoise step (ML denoise) (2026-08-19)** — the
+  Denoise step now runs an ML denoiser (DRUNet) when a denoise model is
+  selected, otherwise falls back to box blur. New: `InferenceEngine::infer_denoise`
+  (+ `infer_denoise_tiled` over the shared `run_tiled`); `BurnEngine` appends
+  DRUNet's sigma map (4th channel), pads to multiples of 8, and crops back.
+  `FilterParams.denoise_model_id` → `render()` builds the engine; frontend: the
+  Denoise step now has a model dropdown (kind `denoise`), `steps.ts` default,
+  `useBatch` sends `denoiseModelId`; bindings regenerated. Sigma = radius/20
+  (the existing radius setting drives the noise level). GPU test
+  `infer_denoise_drunet_pads_and_crops` (66×64).
 
-- **fix: ONNX-Reader liest auch `Constant`-Node-Weights (2026-08-19)** — der
-  eigene protobuf-Reader (`senmei_ml::onnx`, kein ONNX-Runtime) las bisher nur
-  `graph.initializer`; Modelle, deren Weights nur in `Constant`-Nodes stecken
-  (Value-Attribut), ergaben still ein leeres bpk. Liest jetzt zusätzlich
-  `Constant`-Nodes (geteikt per Node-Output-Name, da das innere
-  `TensorProto.name` `"value"`/leer ist), meldet ein leeres Ergebnis als
-  Fehler und lehnt External Data (`data_location == EXTERNAL`) ab — die
-  drei Punkte aus dem `onnx-ir`-Issue-Kommentar (tracel-ai/burn-onnx#456).
-  4 neue Unit-Tests.
+- **fix: ONNX reader reads `Constant`-node weights (2026-08-19)** — the
+  dependency-free protobuf reader (`senmei_ml::onnx`, no ONNX Runtime) only read
+  `graph.initializer`; models whose weights live only in `Constant` nodes (value
+  attribute) silently yielded an empty bpk. Now also reads `Constant` nodes
+  (keyed by the node's output name, since the inner `TensorProto.name` is
+  `"value"`/empty), reports an empty result as an error, and rejects external
+  data (`data_location == EXTERNAL`) — the three points from the `onnx-ir`
+  issue comment (tracel-ai/burn-onnx#456). 4 new unit tests.
 
 - **feat: tile size configurable in Settings (2026-08-19)** — the fused RGB8
   upscale tile size (default 640, previously `SENMEI_TILE` env only) is now a
@@ -55,24 +55,23 @@
   still works as a bench-only fallback. Also removed the top-right settings
   gear (Settings remain reachable via the status bar and menu).
 
-- **fix: IFRNet ResBlock c5-Conv + Bug-6-Diagnose zurückgezogen (2026-08-19)** —
-  der ResBlock-`forward` ließ die `conv5`-Conv weg (`pl(out4 + x)` statt
-  `pl(c5(out4) + x)`; Referenz: `x + self.conv5(out)`). Das war die echte
-  Ursache der angeblichen burn-Fusion-Bug-6-Abweichung — kein Backend-Bug.
-  Mit der Korrektur lädt IFRNet sauber (applied=104, missing=0) und der
-  Torch-Referenz-Test besteht auf gefusetem `Vulkan<f16>` (mae 0.005).
-  `ifrnet-vimeo90k`/`ifrnet-gopro` sind jetzt `loadable: true`;
-  docs/burn-bugs.md Bug 6 entfernt. (Review von PR #1, copilot-swe-agent.)
+- **fix: IFRNet ResBlock c5 conv + Bug-6 diagnosis withdrawn (2026-08-19)** —
+  the ResBlock `forward` omitted the `conv5` conv (`pl(out4 + x)` instead of
+  `pl(c5(out4) + x)`; reference: `x + self.conv5(out)`). That was the real
+  cause of the alleged burn-fusion Bug-6 deviation — not a backend bug. With
+  the fix IFRNet loads cleanly (applied=104, missing=0) and the torch reference
+  test passes on fused `Vulkan<f16>` (mae 0.005).
+  `ifrnet-vimeo90k`/`ifrnet-gopro` are now `loadable: true`;
+  docs/burn-bugs.md Bug 6 removed. (Review of PR #1, copilot-swe-agent.)
 
-- **feat: DRUNet burn-Arch-Port (2026-08-19)** — `burn/drunet.rs`: `UNetRes`
-  (DPIR, MIT) als sauberer Nachbau — 3× Stride-2-Downsample, 4 ResBlocks pro
-  Ebene (Conv→ReLU→Conv + Skip), 3× ConvTranspose2d-Upsample, alle Convs
-  `bias=false`, `in_nc=4` (RGB + konstante Noise-Level-Map). Torch-verifiziert
-  (mae 0.001, alle 64 Weights geladen) — als erster ML-Denoise **loadable**,
-  ohne Fusion-Bug (keine Channel-Slices). `senmei-ml-convert` `drunet`-Arch
-  (Capture-Group-Key-Remap), Registry `drunet-color` (MIT, KAIR v1.0),
-  `tools/drunet_verify.py`. Pipeline-Denoise-Step-Verdrahtung (4ch-Sigma-Map)
-  noch offen.
+- **feat: DRUNet burn arch port (2026-08-19)** — `burn/drunet.rs`: `UNetRes`
+  (DPIR, MIT) as a clean re-implementation — 3× stride-2 downsample, 4 ResBlocks
+  per level (Conv→ReLU→Conv + skip), 3× ConvTranspose2d upsamples, all convs
+  `bias=false`, `in_nc=4` (RGB + constant noise-level map). Torch-verified
+  (mae 0.001, all 64 weights loaded) — first ML denoise **loadable**, no fusion
+  bug (no channel slices). `senmei-ml-convert` `drunet` arch (capture-group key
+  remap), Registry `drunet-color` (MIT, KAIR v1.0), `tools/drunet_verify.py`.
+  Wired into the Denoise step (4ch sigma map).
 
 - **fix: surface the real encode error instead of "encode channel closed" (2026-08-19)** —
   the encoder discarded ffmpeg's stderr (`Stdio::null()`), so a failed encode
@@ -82,185 +81,177 @@
   error (cancellation and step errors still win). Render failures now show the
   actual ffmpeg reason in the Logs panel.
 
-- **docs: IFRNet torch-verifiziert (2026-08-19)** —
-  `tools/ifrnet_verify.py` + vendorte torch-Referenz (`ref/ifrnet/`, MIT) erzeugen
-  Referenz-Bins; Encoder + Weights sind exakt (mae ~0.0001). Der ResBlock
-  (Side-Channel split/cat) wich zwischen Methode und inline ab (mae 0.0525 vs
-  ~0.0001) — als burn-Fusion-Bug 6 fehldiagnostiziert; die echte Ursache war
-  eine im `forward` fehlende `conv5`-Conv (siehe fix-Entry oben; Bug 6
-  zurückgezogen, IFRNet `loadable: true`).
+- **docs: IFRNet torch-verified (2026-08-19)** —
+  `tools/ifrnet_verify.py` + vendored torch reference (`ref/ifrnet/`, MIT)
+  generate reference bins; encoder + weights are exact (mae ~0.0001). The
+  ResBlock (side-channel split/cat) diverged between method and inline (mae
+  0.0525 vs ~0.0001) — misdiagnosed as burn-fusion Bug 6; the real cause was a
+  `conv5` conv missing in `forward` (see fix entry above; Bug 6 withdrawn,
+  IFRNet `loadable: true`).
 
-- **feat: HDR→SDR tonemapping (2026-08-18)** — `probe` liest `color_transfer`/
-  `color_primaries` und `VideoInfo::is_hdr()` erkennt PQ/HLG/DCI. Der Decoder
-  wendet bei HDR (oder `always`) eine zscale+tonemap-Filterkette an und
-  konvertiert korrekt nach SDR, bevor `rgb24` ausgegeben wird — vorher wurde
-  HDR beim Decode unkontrolliert geclippt. Neues Output-Step-Setting `tonemap`
-  (auto/always/off), durchgereicht über `RenderConfig` → `Pipeline::set_tonemap`
-  → `Decoder`. Tests: `hdr_detection` (Unit) + `hdr_source_is_detected_and_tonemapped`
-  (Integration, libx265-gated).
+- **feat: HDR→SDR tonemapping (2026-08-18)** — `probe` reads `color_transfer`/
+  `color_primaries` and `VideoInfo::is_hdr()` detects PQ/HLG/DCI. The decoder
+  applies a zscale+tonemap filter chain for HDR (or `always`) and converts
+  correctly to SDR before outputting `rgb24` — previously HDR was clipped
+  uncontrolled on decode. New output-step setting `tonemap` (auto/always/off),
+  threaded through `RenderConfig` → `Pipeline::set_tonemap` → `Decoder`.
+  Tests: `hdr_detection` (unit) + `hdr_source_is_detected_and_tonemapped`
+  (integration, libx265-gated).
 
-- **feat: IFRNet burn-Arch-Port (2026-08-18)** — `burn/ifrnet.rs`: Base-Variante
-  (ltkong218, MIT) als sauberer Nachbau — 2× geteilter 4-Level-Encoder, vier
-  coarse-to-fine Decoder (bilinear, kein GRU), Side-Channel-ResBlock, eigene
-  PReLU-Implementierung (fehlt in burn 0.21), geteiltes `warp`/`grid_sample`.
-  Engine-Dispatch (`Model::IfrNet`, Interp-Pfad pad 16), `senmei-ml-convert`
-  `ifrnet`-Arch (Capture-Group-Key-Remap), Registry-Einträge
-  `ifrnet-vimeo90k`/`ifrnet-gopro` (MIT, HF-URLs). `loadable: true` nach der
-  ResBlock-c5-Korrektur (siehe fix-Entry oben).
+- **feat: IFRNet burn arch port (2026-08-18)** — `burn/ifrnet.rs`: base variant
+  (ltkong218, MIT) as a clean re-implementation — 2× shared 4-level encoder, four
+  coarse-to-fine decoders (bilinear, no GRU), side-channel ResBlock, own PReLU
+  implementation (missing in burn 0.21), shared `warp`/`grid_sample`.
+  Engine dispatch (`Model::IfrNet`, interp path pad 16), `senmei-ml-convert`
+  `ifrnet` arch (capture-group key remap), registry entries
+  `ifrnet-vimeo90k`/`ifrnet-gopro` (MIT, HF URLs). `loadable: true` after the
+  ResBlock c5 fix (see fix entry above).
 
-- **docs: IFRNet-Weights verifiziert (2026-08-18)** — offizielle Checkpoints
-  (Vimeo90K + GoPro, je 19.9 MB, MIT) via `pavlichenko/ifrnet_*` auf Hugging
-  Face mit direkten resolve-URLs; „Weights verify / Repo-URL verify" im
-  Backlog aufgelöst.
+- **docs: IFRNet weights verified (2026-08-18)** — official checkpoints
+  (Vimeo90K + GoPro, 19.9 MB each, MIT) via `pavlichenko/ifrnet_*` on Hugging
+  Face with direct resolve URLs; "Weights verify / Repo-URL verify" resolved
+  from the backlog.
 
-- **ci: GitHub Actions Matrix-Build (2026-08-18)** — `.github/workflows/ci.yml`:
-  Windows/Linux/macOS — System-Deps, Frontend-Build, `cargo check` +
-  `cargo test --workspace` (GPU-Tests sind `#[ignore]`), App-Bundle via
-  `tauri build`, Artifact-Upload.
+- **ci: GitHub Actions matrix build (2026-08-18)** — `.github/workflows/ci.yml`:
+  Windows/Linux/macOS — system deps, frontend build, `cargo check` +
+  `cargo test --workspace` (GPU tests are `#[ignore]`), app bundle via
+  `tauri build`, artifact upload.
 
-- **docs: NAFNet fp16-Port-Hinweise notiert (2026-08-18)** — litert-community-
-  Konversion (NAFNet-GoPro-width32) bestätigt MIT + liefert Port-Details für
-  den burn-Nachbau: SimpleGate (kein Activation), Channel-Attention = mean×2,
-  Upsample = Conv1×1 + PixelShuffle, und die fp16-LayerNorm-Overflow-Falle
-  (Kanalreduktion in skaliertem Bereich rechnen). In `models.md` Notes.
+- **docs: NAFNet fp16 porting notes (2026-08-18)** — litert-community
+  conversion (NAFNet-GoPro-width32) confirms MIT + provides port details for
+  the burn re-implementation: SimpleGate (no activation), channel attention =
+  mean×2, upsample = Conv1×1 + PixelShuffle, and the fp16 LayerNorm overflow
+  trap (compute the channel reduction in a scaled domain). In `models.md` Notes.
 
-- **docs: NAFNet-GoPro als Deblur-Kandidat hochgestuft (2026-08-18)** —
-  offizielle NAFNet-Weights sind via `nyanko7/nafnet-models` (Hugging Face)
-  mit direkten, sha256-pinnbaren URLs verfügbar (kein GDrive nötig);
-  GoPro-width32 (68.7 MB) als leichte Option. Damit ist NAFNet-GoPro der
-  erste ML-Deblur-Kandidat (Deblur-Stack ist bisher CPU-only); der
-  NAFBlock-Arch-Port bleibt offen.
+- **docs: NAFNet-GoPro promoted to deblur candidate (2026-08-18)** — official
+  NAFNet weights are available via `nyanko7/nafnet-models` (Hugging Face) with
+  direct, sha256-pinnable URLs (no GDrive needed); GoPro-width32 (68.7 MB) as
+  the light option. This makes NAFNet-GoPro the first ML-deblur candidate (the
+  deblur stack is CPU-only so far); the NAFBlock arch port remains open.
 
-- **docs: KAIR v1.0 + NAFNet Modelle gesichtet (2026-08-18)** — weitere
-  permissive Weights im Backlog: DRUNet/DnCNN/FFDNet/IRCNN/BSRGAN/IMDN
-  (alle MIT via KAIR v1.0, direkte Download-URLs), NAFNet SIDD/GoPro/REDS
-  (MIT). Erster neuronaler Deblur-Kandidat (NAFNet-GoPro) notiert.
+- **docs: KAIR v1.0 + NAFNet models surveyed (2026-08-18)** — more permissive
+  weights in the backlog: DRUNet/DnCNN/FFDNet/IRCNN/BSRGAN/IMDN (all MIT via
+  KAIR v1.0, direct download URLs), NAFNet SIDD/GoPro/REDS (MIT). First neural
+  deblur candidate (NAFNet-GoPro) noted.
 
-- **docs: Lizenzen für Denoise/Restoration geklärt (2026-08-18)** — SCUNet
-  **Apache-2.0** (in `metadata.json` + `models.md` eingetragen → nicht mehr
-  lizenz-geblockt; Arch-Port bleibt offen), DRUNet (DPIR) **MIT** via KAIR
-  v1.0, NAFNet **MIT**, USRNet/USRGAN **MIT** (Backlog ergänzt).
+- **docs: licenses for denoise/restoration clarified (2026-08-18)** — SCUNet
+  **Apache-2.0** (entered in `metadata.json` + `models.md` → no longer
+  license-blocked; arch port stays open), DRUNet (DPIR) **MIT** via KAIR
+  v1.0, NAFNet **MIT**, USRNet/USRGAN **MIT** (backlog added).
 
-- **refactor: `Inspector.tsx` aufgeteilt (2026-08-18)** — der komplette
-  Step-Editor (alle Typen inkl. großem Output-Editor) nach `StepEditor.tsx`
-  extrahiert; `Inspector.tsx` von ~800 auf ~370 Zeilen reduziert (Stack-Liste,
-  Drag&Drop, Add-Menü). Damit sind alle drei Groß-Dateien aufgeteilt
-  (App.tsx, commands.rs, Inspector.tsx).
+- **refactor: `Inspector.tsx` split (2026-08-18)** — the whole step editor
+  (all types incl. the large output editor) extracted to `StepEditor.tsx`;
+  `Inspector.tsx` reduced from ~800 to ~370 lines (stack list, drag&drop, add
+  menu). All three large files are now split (App.tsx, commands.rs,
+  Inspector.tsx).
 
-- **refactor: `commands.rs` aufgeteilt (2026-08-18)** — Modell-Helfer nach
-  `models.rs` (`models_dir`/`load_registry`/`engine_for_model`), Preview-Helfer
-  nach `preview.rs` (decode-Streams, `read_frame_inner`, PNG-Prune).
-  `commands.rs` von ~800 auf ~636 Zeilen reduziert; nur noch Tauri-Commands.
+- **refactor: `commands.rs` split (2026-08-18)** — model helpers moved to
+  `models.rs` (`models_dir`/`load_registry`/`engine_for_model`), preview helpers
+  to `preview.rs` (decode streams, `read_frame_inner`, PNG prune).
+  `commands.rs` reduced from ~800 to ~636 lines; only Tauri commands remain.
 
-- **security: Asset-Scope verengt + CSP gesetzt (2026-08-18)** — der statische
-  Asset-Protocol-Scope war `["$DATA/**", "$HOME/**"]` (ganzes Home lesbar).
-  Alle Media-Loads laufen ohnehin über `probe_video`/`read_frame`, die die
-  Datei per `allow_file` zur Laufzeit freigeben (dieselbe Scope, die der
-  Asset-Protocol prüft), also reicht `["$DATA/**"]` (App-Datadir für
-  Previews/Samples/Projekte). Dazu eine CSP für Produktion (dev bleibt
-  unberührt).
+- **security: asset scope narrowed + CSP set (2026-08-18)** — the static
+  asset-protocol scope was `["$DATA/**", "$HOME/**"]` (whole home readable).
+  All media loads go through `probe_video`/`read_frame` anyway, which release
+  the file at runtime via `allow_file` (the same scope the asset protocol
+  checks), so `["$DATA/**"]` suffices (app data dir for previews/samples/
+  projects). Plus a CSP for production (dev untouched).
 
-- **refactor: App.tsx aufgeteilt — Batch-Logik in `useBatch`-Hook (2026-08-18)** —
-  Render-State + `startBatch`/`cancel`/`togglePause` + `desiredPath` aus
-  `App.tsx` in `useBatch.ts` extrahiert (~150 Zeilen weniger). Verhalten
-  unverändert (Demo-Render + Cancel verifiziert).
+- **refactor: App.tsx split — batch logic into `useBatch` hook (2026-08-18)** —
+  render state + `startBatch`/`cancel`/`togglePause` + `desiredPath` extracted
+  from `App.tsx` into `useBatch.ts` (~150 lines fewer). Behavior unchanged
+  (demo render + cancel verified).
 
-- **ui: Logs-Tab neben dem Processing Stack (2026-08-18)** — das rechte Panel
-  hat jetzt einen Tab-Umschalter „Processing Stack“ / „Logs“ (`RightPanel`).
-  Neuer `LogHub`-Logger leitet `log`-Records als Tauri-Event an die UI
-  (Ringbuffer 500, `get_logs` beim Öffnen); das Panel hat Level-Filter
-  (ALL/ERROR/WARN/INFO), Clear und Auto-Scroll. Das Konsolenverhalten von
-  `env_logger` bleibt unverändert (error + `wgpu_hal=off`), das Panel fängt
-  Info+.
+- **ui: Logs tab next to the Processing Stack (2026-08-18)** — the right panel
+  now has a tab toggle "Processing Stack" / "Logs" (`RightPanel`). New
+  `LogHub` logger forwards `log` records to the UI as a Tauri event (ring buffer
+  500, `get_logs` on open); the panel has a level filter (ALL/ERROR/WARN/INFO),
+  clear and auto-scroll. The `env_logger` console behavior stays unchanged
+  (error + `wgpu_hal=off`), the panel catches Info+.
 
-- **refactor: Frontend-Pfade plattformsicher (2026-08-18)** — alle manuellen
-  `split("/")`-Stellen durch `paths.ts`-Helfer ersetzt (`basename`/`dirname`/
-  `joinPath`), die sowohl `/` als auch `\` (Windows) verarbeiten; Joins nutzen
-  `/`, das Windows-APIs ebenfalls akzeptieren. Betrifft Output-Pfadbau,
-  Sample-Ordner und Dateinamen-Anzeige.
+- **refactor: platform-safe frontend paths (2026-08-18)** — all manual
+  `split("/")` spots replaced with `paths.ts` helpers (`basename`/`dirname`/
+  `joinPath`) that handle both `/` and `\` (Windows); joins use `/`, which
+  Windows APIs also accept. Affects output path building, the sample folder and
+  filename display.
 
-- **refactor: FFmpeg-Args einheitlich geparst (2026-08-18)** — das Frontend
-  sendet die Encoder-Args jetzt als vorgesplittetes Array
-  (`RenderConfig.ffmpegArgs: string[]`); der doppelte Rust-Parser
-  `split_ffmpeg_args` wurde entfernt. Es gibt nur noch einen Parser
-  (`splitArgs` in `steps.ts`), geteilt für Vorschau und Render.
+- **refactor: unified FFmpeg-arg parsing (2026-08-18)** — the frontend now
+  sends the encoder args as a pre-split array (`RenderConfig.ffmpegArgs:
+  string[]`); the duplicate Rust parser `split_ffmpeg_args` was removed. Only
+  one parser remains (`splitArgs` in `steps.ts`), shared for preview and render.
 
-- **ui: Hotkey-Einstellungen auf der Settings-Seite (2026-08-18)** — neue
-  Sektion „Tastenkürzel“ (Koharu-Stil): Aktionen anzeigen, per Klick neu
-  belegen (nächster Tastendruck), auf Standard zurücksetzen. Overrides werden
-  in den App-Settings persistiert (`Settings.hotkeys`), Defaults bleiben im
-  Code; App-Hotkeys + Monitor-Space nutzen die konfigurierten Combos.
+- **ui: hotkey settings on the Settings page (2026-08-18)** — new "Shortcuts"
+  section (Koharu-style): show actions, reassign on click (next key press),
+  reset to default. Overrides persist in the app settings (`Settings.hotkeys`),
+  defaults stay in code; app hotkeys + monitor space use the configured combos.
 
-- **ui: About-Dialog folgt dem Dark-Theme (2026-08-18)** — der Dialog wurde
-  außerhalb des `dark`-Wrappers gerendert, seine `dark:`-Styles griffen nie
-  (immer hell). In den Wrapper verschoben.
+- **ui: About dialog follows the dark theme (2026-08-18)** — the dialog
+  rendered outside the `dark` wrapper, so its `dark:` styles never applied
+  (always light). Moved into the wrapper.
 
-- **ui: Menü „View“ mit Full-Video-Modus (2026-08-18)** — neues Menü „View“
-  (Ansicht) mit „Full Video Mode“; togglet denselben Fullscreen wie der
-  Doppelklick auf den Monitor (Signal an `Monitor.toggleFullscreenSignal`).
-  DE/EN übersetzt.
+- **ui: "View" menu with full-video mode (2026-08-18)** — new "View" menu with
+  "Full Video Mode"; toggles the same fullscreen as double-clicking the monitor
+  (signal to `Monitor.toggleFullscreenSignal`). Translated DE/EN.
 
-- **fix: Codec-Mapping LGPL-safe (2026-08-18)** — der Encoder-Dropdown mappte
-  H.264→`libx264`/H.265→`libx265` (beide GPL, fehlen in den gepinnten
-  BtbN-LGPL-Builds), wodurch H.264/H.265-Outputs mit dem LGPL-FFmpeg
-  fehlschlugen. Jetzt H.264→`libopenh264`, H.265→`libkvazaar` (beide BSD) und
-  die Args sind codec-bewusst: CRF nur für svtav1/vpx, Preset für kvazaar,
-  openh264 ist ABR und bekommt sein `-b:v` vom Backend. `Encoder::open`
-  verwirft beim `-c:v`-Override die Default-Args des Basis-Codecs. Test
+- **fix: LGPL-safe codec mapping (2026-08-18)** — the encoder dropdown mapped
+  H.264→`libx264`/H.265→`libx265` (both GPL, missing in the pinned
+  BtbN-LGPL builds), so H.264/H.265 outputs failed with the LGPL FFmpeg. Now
+  H.264→`libopenh264`, H.265→`libkvazaar` (both BSD) and the args are
+  codec-aware: CRF only for svtav1/vpx, preset for kvazaar, openh264 is ABR and
+  gets its `-b:v` from the backend. `Encoder::open` drops the base codec's
+  default args on a `-c:v` override. Test
   `override_codec_sets_bitrate_for_openh264_only`.
 
-- **perf: Tile-Größe 512→640 nach GPU-Stitch (2026-08-18)** — das alte
-  Kostenmodell (15 u8-Readbacks + CPU-Stitch) galt nicht mehr, daher neu
-  gemessen (`bench_upscale_step`, fallin-soft, 1080p→2160p): 512px 247.8 ms,
-  **640px 186.1 ms / 5.4 FPS**, 768px 210.2 ms. 640 halbiert die Tile-Zahl
-  (15→8), bevor der per-Tile-Matmul pathologisch wird. Default 640,
-  Override via `SENMEI_TILE`; Korrektheitstest auf ein einzelnes 640-Tile
-  umgestellt. Full-Frame (176 ms) bleibt der Floor bis zum upstream
-  Autotune-OOM-Fix.
+- **perf: tile size 512→640 after GPU stitch (2026-08-18)** — the old cost model
+  (15 u8 readbacks + CPU stitch) no longer held, so re-measured
+  (`bench_upscale_step`, fallin-soft, 1080p→2160p): 512px 247.8 ms,
+  **640px 186.1 ms / 5.4 FPS**, 768px 210.2 ms. 640 halves the tile count
+  (15→8) before the per-tile matmul becomes pathological. Default 640, override
+  via `SENMEI_TILE`; correctness test switched to a single 640 tile. Full-frame
+  (176 ms) stays the floor until the upstream autotune-OOM fix.
 
-- **fix: Dedup kollabiert statisches Material nicht mehr (2026-08-18)** —
-  Dedup droppte unbegrenzt aufeinanderfolgende Duplikate; bei statischem/
-  nahezu statischem Material blieb nur ein Frame übrig („Render Sample“ mit
-  nur Dedup ergab ~0,05 s). Jetzt max. 5 aufeinanderfolgende Drops, danach
-  wird ein Frame erzwungen (statische 3 s → ~0,5 s statt 0,05 s). Test
-  `dedup_never_collapses_static_run`.
+- **fix: dedup no longer collapses static material (2026-08-18)** — dedup
+  dropped unlimited consecutive duplicates; with static/near-static material
+  only one frame remained ("Render Sample" with only dedup gave ~0.05 s). Now
+  max 5 consecutive drops, then a frame is forced (static 3 s → ~0.5 s instead
+  of 0.05 s). Test `dedup_never_collapses_static_run`.
 
-- **perf: GPU-Stitching im tiled-fused RGB8-Pfad (2026-08-18)** — statt jedes
-  512px-Tile als u8 zurückzulesen und auf der CPU zu stitchen, akkumuliert
-  `infer_rgb8` die Tiles jetzt auf der GPU in einem f16-Canvas
-  (`slice_assign`-Overlap-Averaging) und liest einmal ein packed Frame zurück —
-  ein Readback statt 15 plus CPU-Stitch. `bench_upscale_step` (1080p→2160p,
-  fallin-soft): 329 → **234.7 ms / 4.3 FPS**. Der dadurch tote CPU-Stitch
-  `stitch_rgb24` wurde entfernt. Korrektheit + 48-Frame-Reliability via
+- **perf: GPU stitching in the tiled-fused RGB8 path (2026-08-18)** — instead
+  of reading each 512px tile back as u8 and stitching on the CPU, `infer_rgb8`
+  now accumulates the tiles on the GPU in an f16 canvas (`slice_assign` overlap
+  averaging) and reads back one packed frame — one readback instead of 15 plus
+  CPU stitch. `bench_upscale_step` (1080p→2160p, fallin-soft): 329 →
+  **234.7 ms / 4.3 FPS**. The now-dead CPU stitch `stitch_rgb24` was removed.
+  Correctness + 48-frame reliability via
   `infer_rgb8_tiled_is_reliable_and_correct`.
 
-- **fix: CPU-Steps verarbeiten packed `rgb24` statt planar (2026-08-18)** —
-  `Denoise`/`Deblur`/`Resize` sliceten `Frame.data` als planare RGB-Ebenen,
-  aber Decoder/Encoder arbeiten mit packed `rgb24`. Dadurch mischte der
-  Denoiser die Kanäle: „Render Sample" driftete mit aktivem Upscaler
-  auseinander, Denoiser-only ergab Müll. Die Steps bluren/schärfen/resamplen
-  jetzt kanalgetrennt auf packed Daten; Regressionstests
-  `denoise_keeps_channels_separate`, `deblur_keeps_channels_separate`,
-  `resize_keeps_channels_separate` (schließt Maintainability-TODO).
+- **fix: CPU steps process packed `rgb24` instead of planar (2026-08-18)** —
+  `Denoise`/`Deblur`/`Resize` sliced `Frame.data` as planar RGB planes, but
+  decoder/encoder work with packed `rgb24`. This mixed the channels in the
+  denoiser: "Render Sample" drifted apart with an active upscaler, denoiser-only
+  produced garbage. The steps now blur/sharpen/resample channel-separately on
+  packed data; regression tests `denoise_keeps_channels_separate`,
+  `deblur_keeps_channels_separate`, `resize_keeps_channels_separate` (closes the
+  maintainability TODO).
 
-- **fix: `prune_samples` löscht nach mtime statt Dateiname (2026-08-18)** —
-  Sample-Renderings wurden lexikalisch nach Pfad sortiert gelöscht; durch die
-  Range-Tags im Namen konnte so das gerade gerenderte Sample verschwinden.
-  Löscht jetzt die ältesten (mtime), behält die `keep` neuesten. Test
+- **fix: `prune_samples` deletes by mtime instead of filename (2026-08-18)** —
+  sample renders were deleted sorted lexically by path; due to the range tags in
+  the name the just-rendered sample could disappear. Now deletes the oldest
+  (mtime), keeps the newest `keep`. Test
   `prune_samples_keeps_newest_by_mtime`.
 
-- **ui: „Render Sample" rendert nur das aktuelle Video (2026-08-18)** — der
-  Sample-Button rief `startBatch(false, …)` auf und erzeugte Samples für die
-  **ganze Queue** statt für das Video im Monitor. `startBatch` akzeptiert jetzt
-  eine explizite Dateiliste; `onRenderSample` übergibt `[currentFile]`.
+- **ui: "Render Sample" renders only the current video (2026-08-18)** — the
+  sample button called `startBatch(false, …)` and created samples for the
+  **whole queue** instead of the video in the monitor. `startBatch` now accepts
+  an explicit file list; `onRenderSample` passes `[currentFile]`.
 
-- **media: Video-Rotation wird verarbeitet (2026-08-18)** — `probe` liest die
-  Rotation (DisplayMatrix side-data oder case-insensitives `rotate`-Tag), meldet
-  Display-Maße + `VideoInfo.rotation`; `Decoder` setzt `-noautorotate` und wendet
-  die Rotation explizit an (90→`transpose=2`, 180→`hflip,vflip`, 270→`transpose=1`),
-  byte-identisch zu ffmpegs Autorotation verifiziert (Test
-  `probe_and_decode_apply_rotation`). Vorher wurden 90°/270°-Videos
-  fehlbeschriftet/verzerrt verarbeitet (autorotierte Ausgabe ≠ probed Maße).
+- **media: video rotation is handled (2026-08-18)** — `probe` reads the
+  rotation (DisplayMatrix side-data or case-insensitive `rotate` tag), reports
+  display dims + `VideoInfo.rotation`; `Decoder` sets `-noautorotate` and applies
+  the rotation explicitly (90→`transpose=2`, 180→`hflip,vflip`, 270→`transpose=1`),
+  verified byte-identical to ffmpeg's autorotation (test
+  `probe_and_decode_apply_rotation`). Previously 90°/270° videos were
+  mislabeled/distorted (autorotated output ≠ probed dims).
 
 - **docs: PLAN §14/§15 restructure + maintainability backlog (2026-08-18)** —
   `PLAN.md` §14 split into subsections (own code & libs, models, codecs, AGPL
