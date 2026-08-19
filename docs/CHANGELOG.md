@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: bundle model catalog cleanly in packaged builds (2026-08-19)** —
+  `bundle.resources` referenced `../../models/metadata.json`, which tauri
+  mangles to `_up_/_up_/` dirs; the model list was empty in deb/rpm. The
+  `senmei` build script now copies the catalog to `resources/metadata.json`
+  (gitignored, `..`-free) and `ensure_catalog` finds it by recursive search.
+
 - **fix: embed common-controls v6 manifest into senmei-app tests (2026-08-19)** —
   the `senmei_app` lib test exe loaded comctl32 v5 (no app manifest), so the
   v6-only `SetWindowSubclass` imports failed with 0xc0000139 on Windows CI;

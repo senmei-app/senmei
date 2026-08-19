@@ -30,6 +30,27 @@ pub fn models_dir() -> PathBuf {
     data_models
 }
 
+/// Find `metadata.json` under a resource dir. Tauri bundles resource paths
+/// with `..` components as `_up_` dirs, so the catalog may be nested.
+fn find_metadata_json(root: &Path) -> Option<PathBuf> {
+    let mut stack: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
+    while let Some((dir, depth)) = stack.pop() {
+        if depth > 8 {
+            continue;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push((p, depth + 1));
+            } else if p.file_name().map(|n| n == "metadata.json").unwrap_or(false) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 /// Materialize the model catalog (`metadata.json`) into the writable data dir
 /// so a packaged app finds it without a repo checkout. Source: bundled resource
 /// dir (release) or the dev repo checkout. Idempotent.
@@ -40,11 +61,7 @@ pub fn ensure_catalog(resource_dir: Option<&Path>) -> Result<PathBuf, String> {
         return Ok(dir);
     }
     let source = resource_dir
-        .and_then(|r| {
-            [r.join("models/metadata.json"), r.join("metadata.json")]
-                .into_iter()
-                .find(|p| p.is_file())
-        })
+        .and_then(find_metadata_json)
         .or_else(|| {
             let anchored =
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
@@ -119,5 +136,21 @@ mod tests {
             let dir = ensure_catalog(None).unwrap();
             assert!(dir.join("metadata.json").is_file());
         });
+    }
+
+    #[test]
+    fn find_catalog_handles_tauri_up_mangling() {
+        // Tauri bundles resource paths with `..` as `_up_` dirs; the recursive
+        // find must still locate the catalog there.
+        let res = std::env::temp_dir().join(format!("senmei-res-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&res);
+        let nested = res.join("_up_").join("_up_").join("models");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("metadata.json"), b"{}").unwrap();
+
+        let found = find_metadata_json(&res);
+        assert!(found.is_some(), "nested catalog not found");
+        assert_eq!(found.unwrap().file_name().unwrap(), "metadata.json");
+        let _ = std::fs::remove_dir_all(&res);
     }
 }
