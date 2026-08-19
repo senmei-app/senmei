@@ -75,6 +75,10 @@ static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 #[cfg(feature = "render")]
 static PENDING_RENDER: OnceLock<Mutex<Option<RenderConfig>>> = OnceLock::new();
 
+/// Shared status of the active render, updated from the worker thread.
+#[cfg(feature = "render")]
+static RENDER_STATUS: OnceLock<Arc<Mutex<RenderStatus>>> = OnceLock::new();
+
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FilterConfig {
@@ -288,6 +292,8 @@ pub fn propose_render(config: RenderConfig) -> Result<String, String> {
 }
 
 /// Run the previously proposed render (confirmation gate).
+/// Starts it on a worker thread and returns immediately — poll
+/// [`render_status`] for progress; [`cancel_render`] aborts it.
 #[cfg(feature = "render")]
 pub fn confirm_render() -> Result<String, String> {
     let slot = PENDING_RENDER.get_or_init(|| Mutex::new(None));
@@ -296,8 +302,68 @@ pub fn confirm_render() -> Result<String, String> {
         .unwrap()
         .take()
         .ok_or_else(|| "no pending render; propose_render first".to_string())?;
-    render(&config, |_| {})?;
-    Ok("ok".into())
+    let status = RENDER_STATUS
+        .get_or_init(|| Arc::new(Mutex::new(RenderStatus::default())))
+        .clone();
+    {
+        let mut s = status.lock().unwrap();
+        if s.state == "running" {
+            return Err("a render is already running".into());
+        }
+        *s = RenderStatus {
+            state: "running".into(),
+            ..Default::default()
+        };
+    }
+    std::thread::spawn(move || {
+        let progress_status = status.clone();
+        let result = render(&config, move |p| {
+            let mut s = progress_status.lock().unwrap();
+            s.frames_processed = p.frames_processed;
+            s.total_frames = p.total_frames;
+        });
+        let mut s = status.lock().unwrap();
+        match result {
+            Ok(()) => s.state = "done".into(),
+            Err(e) => {
+                s.state = "failed".into();
+                s.error = Some(e);
+            }
+        }
+    });
+    Ok("render started — poll render_status".into())
+}
+
+/// Render lifecycle status (polled over MCP; no push notifications yet).
+#[cfg(feature = "render")]
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderStatus {
+    /// idle | running | done | failed
+    pub state: String,
+    pub frames_processed: u64,
+    pub total_frames: u64,
+    pub error: Option<String>,
+}
+
+impl Default for RenderStatus {
+    fn default() -> Self {
+        Self {
+            state: "idle".into(),
+            frames_processed: 0,
+            total_frames: 0,
+            error: None,
+        }
+    }
+}
+
+/// Current render status (idle when nothing has run yet).
+#[cfg(feature = "render")]
+pub fn render_status() -> RenderStatus {
+    RENDER_STATUS
+        .get()
+        .map(|s| s.lock().unwrap().clone())
+        .unwrap_or_default()
 }
 
 /// Abort the active render (pipeline checks the flag between frames).

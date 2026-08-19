@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **feat: senmei-server async render + status polling (2026-08-20)** —
+  `confirm_render` now starts the render on a worker thread and returns
+  immediately (the stdio loop stays responsive, so `cancel_render` works
+  mid-render); new `get_render_status` tool polls
+  `{state: idle|running|done|failed, framesProcessed, totalFrames, error}`.
+  E2E-verified over stdio: 320×240 testsrc2 → 2× upscale (fallin-soft,
+  burn/Vulkan) → 640×480 h264+aac in ~27 s.
+
 - **feat: senmei-server render — confirm gate (2026-08-20)** — new `render`
   cargo feature pulls `senmei-pipeline` + `senmei-ml/burn`. `core` gains
   `RenderConfig`/`validate` (path/ranges + permissive-license model

@@ -103,6 +103,16 @@ impl SenmeiServer {
         #[cfg(not(feature = "render"))]
         json_err("render not compiled in (build with --features render)".to_string())
     }
+
+    #[tool(description = "Poll render status (idle/running/done/failed + frame counts)")]
+    async fn get_render_status(&self) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            return json_ok(&core::render_status());
+        }
+        #[cfg(not(feature = "render"))]
+        json_err("render not compiled in (build with --features render)".to_string())
+    }
 }
 
 fn json_ok<T: serde::Serialize>(value: &T) -> Result<CallToolResult, McpError> {
