@@ -54,7 +54,6 @@ pub fn read_frame_inner(
 ) -> Result<String, String> {
     let dir = preview_dir(project_dir);
     let ns = frame_ns(input);
-    prune_preview_frames(&dir, &ns, 60);
 
     let ffmpeg = senmei_media::resolve(&store::data_dir());
     // Decode under the lock (fast pipe read) but encode outside it, so the two
@@ -82,6 +81,11 @@ pub fn read_frame_inner(
     let seq = PREVIEW_SEQ.fetch_add(1, Ordering::Relaxed);
     let path = dir.join(format!("frame_{ns}_{seq:08}.png"));
     std::fs::write(&path, &png).map_err(|e| e.to_string())?;
+    // Prune rarely and keep more frames so a just-written frame is never
+    // deleted before the webview fetches it (playback reads ~24 files/sec).
+    if seq % 20 == 0 {
+        prune_preview_frames(&dir, &ns, 120);
+    }
     Ok(path.to_string_lossy().into_owned())
 }
 
