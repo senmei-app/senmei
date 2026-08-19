@@ -134,7 +134,7 @@ Fallin Soft/Strong ~2× faster than real-cugan-x2 at ~half the VRAM. VRAM via
 
 The 2026-08-16 "fp16 impossible on RDNA4" verdict was a **ROCm-7.1 software
 gap** — the machine runs the **7.14 RDNA4 port**. The 7.14-built nightly
-(`2.15.0.dev+rocm7.14`, `$HOME/torch714-venv`) unlocks RDNA4 fp16
+(`2.15.0.dev+rocm7.14`, dedicated 7.14 venv) unlocks RDNA4 fp16
 kernels: WMMA is present; the earlier `LLVM Cannot select` was cubecl-hip/7.1.
 
 | Test | torch 2.13 (7.1-built) | **torch 2.15 (7.14-built)** |
