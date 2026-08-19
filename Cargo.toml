@@ -16,4 +16,7 @@ repository = "https://github.com/senmei-app/senmei"
 
 # Vendored upstream crates with local fixes (see third_party/).
 [patch.crates-io]
-gpu-allocator = { path = "third_party/gpu-allocator" }
+# Windows DX12 build: wgpu-hal 29 needs windows 0.62; upstream 0.28.0 range
+# unifies to 0.61 with tauri. Fork pins windows = 0.62 (see
+# github.com/senmei-app/gpu-allocator).
+gpu-allocator = { git = "https://github.com/senmei-app/gpu-allocator", tag = "v0.28.0-windows-0.62" }

@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **build: move the gpu-allocator windows-0.62 pin into a fork repo (2026-08-19)** —
+  the Windows DX12 fix (wgpu-hal 29 needs windows 0.62; upstream 0.28.0's range
+  `>=0.53, <=0.62` unified to 0.61 with tauri) no longer vendors the whole crate
+  into `third_party/`. The one-line pin now lives in
+  `senmei-app/gpu-allocator` (tag `v0.28.0-windows-0.62`), referenced via
+  `[patch.crates-io]` as a git dependency; `third_party/gpu-allocator/` removed.
+
 - **feat: BSRGAN loadable (RRDBNet 23, restoration) (2026-08-19)** — BSRGAN
   (KAIR v1.0, MIT) reuses the existing `RrdbNet` arch (RRDBNet, 23 blocks,
   scale 4); the converter now also maps its older BasicSR key naming
