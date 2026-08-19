@@ -3,10 +3,20 @@
 > Open items only — completed items move to `docs/CHANGELOG.md`.
 
 ## Backend
-- [ ] burn macOS scaffold as an experiment (no guarantees)
 - [ ] Autotune default: keep ON vs OFF vs vendor-patch (see `docs/upstream-issues.md` §2)
-- [ ] SPAN: re-evaluate once the tch/libtorch f32 engine lands (f16 overflows,
-      bf16 broken on RADV — port done, gated in `senmei-ml/src/burn/span.rs`)
+- [ ] SPAN: verify burn f16 end-to-end (f16-safe on real frames; bf16 broken on
+      RADV — port done, gated in `senmei-ml/src/burn/span.rs`)
+
+## Models
+
+- [ ] RealPLKSR batch (weights-only, dim 64): 1× DeNoise otf + DeJPG _60,
+      4× BHI otf/real, 4× Nomos2, 4× Nature/HFA2k/mssim — dl+sha256, verify
+- [ ] RealPLKSR 2× Public layernorm (realistic 2×): port LayerNorm PLKBlock
+      variant (verify dim), then weights
+- [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant
+      (SPAN-Nachfolger)
+- [ ] RealPLKSR 2× BHI large + 4xArtFaces: skip unless needed
+      (dim-96 port; faces niche)
 
 ## Release review (2026-08-19)
 

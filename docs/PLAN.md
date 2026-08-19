@@ -276,10 +276,10 @@ sequenceDiagram
 | **M2** | **Upscaling** | SPAN/Real-ESRGAN via burn-Vulkan, tiling, progress | ✅ real upscale via **burn-Vulkan** (real-cugan-x2, e2e verified 1080p→2160p); NCNN plan superseded |
 | **M3** | **Interpolation** | RIFE, scene-change detection, interpolation factor | ✅ RIFE v4.6 wired (burn port, ncnn `.bin` weights) |
 | **M4** | **Settings** | FFmpeg profile system, command preview, audio/subtitles/HDR | ✅ profiles + preview + audio/subtitles + color metadata + HDR→SDR tonemapping done |
-| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ✅ live monitor + compare + timeline in/out sample presets done; native `<video>` incl. audio; FFmpeg-frame fallback preview is silent (audio only on the native path) |
+| **M5** | **Sample/Preview** | timeline in/out, 10–60 s sample, before/after, live monitor | ✅ live monitor + compare + timeline in/out sample presets done; native `<video>` + FFmpeg-frame fallback; audio via rodio (every codec) |
 | **M6** | **Engine** | decided 2026-08-17: **burn-Vulkan fp16 is the shipped default**; no C++/ncnn shim | ✅ burn default, ncnn engine dropped |
-| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks done; more models/backends pending |
-| **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | ⬜ pending |
+| **M7** | **Advanced** | GMFSS/GIMM/IFRNet, model downloader, batch queue, reference filter stacks | 🟡 batch queue + filter stacks + model downloader/IFRNet done; more models/backends pending (todos) |
+| **M8** | **Packaging** | model bundling/download, static FFmpeg, installer, auto-updater | 🟡 bundles (deb/rpm/AppImage/dmg/msi/nsis) + model catalog + release CI done (v0.1.1); auto-updater + static FFmpeg bundle pending |
 
 > The M-numbers are stable feature labels, not a strict build sequence. The engine decision (2026-08-17) made **burn-Vulkan fp16 the shipped default**; the ncnn C++ shim was dropped. macOS is experimental (MoltenVK).
 
@@ -431,6 +431,12 @@ sequenceDiagram
 | 3 | **Settings JSON Schema** | derive from the specta/schemars types; enrich `///` doc comments with trade-offs (e.g. HDR → `tonemap: "auto"`) |
 | 4 | **Confirmation gate** | the agent proposes a config; the full render starts only after explicit user confirm |
 | 5 | **Tool allowlist + ranges** | agent can only call whitelisted tools; params constrained to valid ranges (same validation as the GUI) |
+
+**Decision (2026-08-19):** headless crate = **`senmei-server`** — thin, transport-agnostic
+`core` service (probe/render/models/queue + license/confirm gates) with adapters:
+**MCP (stdio) first**; REST/HTTP as an optional cargo feature, added only when a real
+consumer exists (YAGNI). MCP is a transport, not the core — an HTTP API later must not
+require a refactor. Both gates live in `core`, so every transport gets them.
 
 ### 16.4 Constraints (from AGENTS.md)
 

@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **docs: update milestones + record senmei-server decision (2026-08-20)** —
+  PLAN.md: M5 audio is rodio-based (every codec), M7 model downloader/IFRNet
+  done, M8 bundles + release CI done (auto-updater + static FFmpeg bundle
+  pending); §16 records the `senmei-server` decision. todos.md: close the burn
+  macOS scaffold todo (Metal backend landed, 0.1.1), add the RealPLKSR
+  adoption batch, align the SPAN entry with the f16-safe finding.
+
 - **feat: senmei-server scaffold — MCP stdio (2026-08-20)** — headless
   `senmei-server` crate (PLAN §16): transport-agnostic `core` (data/models
   dirs, registry, ffmpeg, probe, list_models) + MCP stdio adapter on the
