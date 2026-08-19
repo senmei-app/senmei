@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **v0.1.1 — first public release (2026-08-19)** — 3-OS CI green (Linux/macOS
+  full tests; Windows skips the `senmei-app` unit-test harness, see ci.yml),
+  bundles for deb/rpm/AppImage/dmg/msi/nsis, model catalog bundled without
+  tauri `_up_` mangling, GitHub Release publishing on version tags. Docs:
+  `docs/RELEASING.md`.
+
 - **fix: bundle model catalog cleanly in packaged builds (2026-08-19)** —
   `bundle.resources` referenced `../../models/metadata.json`, which tauri
   mangles to `_up_/_up_/` dirs; the model list was empty in deb/rpm. The
