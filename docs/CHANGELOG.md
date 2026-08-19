@@ -8,6 +8,13 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **fix: plain-click on a media-library video now previews it (2026-08-19)** — the
+  monitor used `files[0]` as its current file, so selecting another video only
+  highlighted it without changing the preview. A dedicated `currentFile` state is
+  set on plain click (multi-select/toggle unchanged); a sync effect keeps it
+  valid (falls back to the first file when removed/cleared), and the queue order
+  (`files`) is untouched.
+
 - **fix: stale preview audio after switching videos (2026-08-19)** — on a file
   change the rodio sink is now cleared (`audio_clear`) instead of only paused, so
   the previous track can't play while the new one is extracted; a ref guard drops

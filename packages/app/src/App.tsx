@@ -58,7 +58,12 @@ export default function App() {
   const [fullscreenSignal, setFullscreenSignal] = useState(0);
   const [hotkeyOverrides, setHotkeyOverrides] = useState<Record<string, string>>({});
 
-  const currentFile = files[0];
+  const [currentFile, setCurrentFile] = useState<string | null>(null);
+  // Keep the preview on a valid file: drop removed/cleared paths, default to the
+  // first when the current one is gone (new imports preview the first file).
+  useEffect(() => {
+    setCurrentFile((cur) => (cur && files.includes(cur) ? cur : (files[0] ?? null)));
+  }, [files]);
 
   const batch = useBatch({ files, selected, steps, outputDir, projectDir, onError: setHealth });
 
@@ -343,14 +348,17 @@ export default function App() {
   };
 
   // Plain click selects only that file; toggle (multi-select mode or Ctrl/Cmd) adds/removes.
-  const selectFile = (path: string, toggle: boolean) =>
-    setSelected((prev) =>
-      toggle
-        ? prev.includes(path)
-          ? prev.filter((p) => p !== path)
-          : [...prev, path]
-        : [path],
-    );
+  const selectFile = (path: string, toggle: boolean) => {
+    if (toggle) {
+      setSelected((prev) =>
+        prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path],
+      );
+      return;
+    }
+    // Plain click selects AND previews the file.
+    setSelected([path]);
+    setCurrentFile(path);
+  };
   const selectAll = () => setSelected(files);
   const deleteSelected = () => {
     setFiles((prev) => prev.filter((f) => !selected.includes(f)));
@@ -426,7 +434,7 @@ export default function App() {
         ) : (
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
             <TopBar
-              file={currentFile}
+              file={currentFile ?? undefined}
               projectName={projectDir ? basename(projectDir) : undefined}
               rendering={batch.rendering}
               onImportFile={openFiles}
@@ -472,7 +480,7 @@ export default function App() {
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={55} minSize={35}>
                 <Monitor
-                  file={currentFile}
+                  file={currentFile ?? undefined}
                   renderedFile={batch.renderedFile}
                   rendering={batch.rendering}
                   progress={batch.progress}
