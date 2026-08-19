@@ -17,4 +17,5 @@
 - [ ] Project website
 - [ ] MCP server: AI agents auto-tune settings → sample → compare vs original →
       confirm → full render (PLAN.md §16)
+- [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
 
