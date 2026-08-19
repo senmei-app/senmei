@@ -658,18 +658,19 @@ mod tests {
     #[test]
     #[ignore = "requires Vulkan"]
     fn rife_net_forward_preserves_shape() {
-        use burn_wgpu::{Vulkan, WgpuDevice};
+        use crate::BurnBackend;
+        use burn_wgpu::WgpuDevice;
         let device = WgpuDevice::DiscreteGpu(0);
-        let net = RifeNet::<Vulkan<f32>>::new(&device);
-        let in0 = Tensor::<Vulkan<f32>, 4>::from_data(
+        let net = RifeNet::<BurnBackend<f32>>::new(&device);
+        let in0 = Tensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(vec![0.5f32; 3 * 64 * 64], [1, 3, 64, 64]),
             &device,
         );
-        let in1 = Tensor::<Vulkan<f32>, 4>::from_data(
+        let in1 = Tensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(vec![0.6f32; 3 * 64 * 64], [1, 3, 64, 64]),
             &device,
         );
-        let t = Tensor::<Vulkan<f32>, 4>::from_data(
+        let t = Tensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(vec![0.5f32; 64 * 64], [1, 1, 64, 64]),
             &device,
         );

@@ -146,19 +146,20 @@ mod tests {
     #[test]
     #[ignore = "requires Vulkan"]
     fn gather_corners_select_expected_pixels() {
+        use crate::BurnBackend;
         use burn::tensor::Int;
-        use burn_wgpu::{Vulkan, WgpuDevice};
+        use burn_wgpu::WgpuDevice;
         let device = WgpuDevice::DiscreteGpu(0);
-        let input = BurnTensor::<Vulkan<f32>, 4>::from_data(
+        let input = BurnTensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(vec![0.0f32, 1.0, 2.0, 3.0], [1, 1, 2, 2]),
             &device,
         );
         // all indices constant: y0=0, y1=1, x0=0, x1=1
         let idx = |v: i32| TensorData::new(vec![v; 4], [1, 1, 2, 2]);
-        let y0 = BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(0), &device);
-        let y1 = BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(1), &device);
-        let x0 = BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(0), &device);
-        let x1 = BurnTensor::<Vulkan<f32>, 4, Int>::from_ints(idx(1), &device);
+        let y0 = BurnTensor::<BurnBackend<f32>, 4, Int>::from_ints(idx(0), &device);
+        let y1 = BurnTensor::<BurnBackend<f32>, 4, Int>::from_ints(idx(1), &device);
+        let x0 = BurnTensor::<BurnBackend<f32>, 4, Int>::from_ints(idx(0), &device);
+        let x1 = BurnTensor::<BurnBackend<f32>, 4, Int>::from_ints(idx(1), &device);
 
         let check = |name: &str, v: &[f32], expected: f32| {
             assert!(
@@ -182,7 +183,7 @@ mod tests {
         let input_flat = input.reshape([1, 4]); // [1*1, 2*2]
         let flat = |y: i32, x: i32| TensorData::new(vec![y * 2 + x; 4], [1, 4]);
         let idx =
-            |y: i32, x: i32| BurnTensor::<Vulkan<f32>, 2, Int>::from_ints(flat(y, x), &device);
+            |y: i32, x: i32| BurnTensor::<BurnBackend<f32>, 2, Int>::from_ints(flat(y, x), &device);
         let i00 = input_flat.clone().gather(1, idx(0, 0));
         let i01 = input_flat.clone().gather(1, idx(0, 1));
         let i10 = input_flat.clone().gather(1, idx(1, 0));
@@ -196,7 +197,8 @@ mod tests {
     #[test]
     #[ignore = "requires Vulkan"]
     fn grid_sample_matches_reference() {
-        use burn_wgpu::{Vulkan, WgpuDevice};
+        use crate::BurnBackend;
+        use burn_wgpu::WgpuDevice;
         let device = WgpuDevice::DiscreteGpu(0);
         let (n, c, h, w) = (1usize, 3usize, 6usize, 8usize);
         let input: Vec<f32> = (0..n * c * h * w)
@@ -212,11 +214,11 @@ mod tests {
             .flatten()
             .collect();
 
-        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(
+        let x = BurnTensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(input.clone(), [n, c, h, w]),
             &device,
         );
-        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(
+        let g = BurnTensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(grid.clone(), [n, h, w, 2]),
             &device,
         );
@@ -236,7 +238,8 @@ mod tests {
     #[test]
     #[ignore = "requires Vulkan"]
     fn grid_sample_align_false_upsamples() {
-        use burn_wgpu::{Vulkan, WgpuDevice};
+        use crate::BurnBackend;
+        use burn_wgpu::WgpuDevice;
         let device = WgpuDevice::DiscreteGpu(0);
         let (n, c, h, w) = (1usize, 3usize, 6usize, 8usize);
         let (gh, gw) = (2 * h, 2 * w); // upsampled grid -> larger output
@@ -253,11 +256,11 @@ mod tests {
             .flatten()
             .collect();
 
-        let x = BurnTensor::<Vulkan<f32>, 4>::from_data(
+        let x = BurnTensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(input.clone(), [n, c, h, w]),
             &device,
         );
-        let g = BurnTensor::<Vulkan<f32>, 4>::from_data(
+        let g = BurnTensor::<BurnBackend<f32>, 4>::from_data(
             TensorData::new(grid.clone(), [n, gh, gw, 2]),
             &device,
         );

@@ -193,17 +193,18 @@ impl<B: Backend> Drunet<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BurnBackend;
     use burn::tensor::{f16, TensorData};
     use burn_store::{BurnpackStore, ModuleSnapshot};
-    use burn_wgpu::{Vulkan, WgpuDevice};
+    use burn_wgpu::WgpuDevice;
 
     #[test]
     #[ignore = "requires Vulkan; needs RUST_MIN_STACK=33554432 (burn autotune stack overflow on RADV)"]
     fn drunet_output_shape_matches_input() {
         let device = WgpuDevice::DiscreteGpu(0);
-        let m = Drunet::<Vulkan>::new(&device);
+        let m = Drunet::<BurnBackend>::new(&device);
         let [n, c, h, w] = [1, 4, 64, 64];
-        let x = Tensor::<Vulkan, 4>::from_data(
+        let x = Tensor::<BurnBackend, 4>::from_data(
             TensorData::new(vec![0.5f32; n * c * h * w], [n, c, h, w]),
             &device,
         );
@@ -231,7 +232,7 @@ mod tests {
         let x_v = read("x.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * 3 * h * w);
 
-        let mut m = Drunet::<Vulkan<f16>>::new(&device);
+        let mut m = Drunet::<BurnBackend<f16>>::new(&device);
         let mut store = BurnpackStore::from_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../models/drunet_color.pth.f16.bpk"
@@ -244,7 +245,7 @@ mod tests {
             res.unused.len()
         );
 
-        let x = Tensor::<Vulkan<f16>, 4>::from_data(
+        let x = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
             &device,
         );

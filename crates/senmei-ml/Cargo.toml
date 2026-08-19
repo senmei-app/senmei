@@ -12,9 +12,14 @@ serde_json = "1"
 specta = { version = "2.0.0-rc.25", features = ["serde_json", "derive"] }
 thiserror = "2"
 
-# burn inference (Vulkan fp16) behind the `burn` feature.
+# burn inference (Vulkan fp16; Metal on macOS) behind the `burn` feature.
 burn = { version = "=0.21.0", optional = true }
 burn-store = { version = "=0.21.0", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+burn-wgpu = { version = "=0.21.0", features = ["metal"], optional = true }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
 burn-wgpu = { version = "=0.21.0", features = ["vulkan"], optional = true }
 
 [features]

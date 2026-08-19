@@ -66,12 +66,11 @@ impl<B: Backend> LayerNorm2d<B> {
         let d = x - mu;
         let ds = d.clone() / s;
         let m = (ds.clone() * ds).mean_dim(1); // var / s^2
-        // fp16 loses `eps/s^2` (6e-11 underflows), so clamp m to a small
-        // representable floor; near-constant channels (m≈0 ⇒ d≈0) then get a
-        // finite reciprocal and contribute ~0, matching torch's `var+eps`.
+                                               // fp16 loses `eps/s^2` (6e-11 underflows), so clamp m to a small
+                                               // representable floor; near-constant channels (m≈0 ⇒ d≈0) then get a
+                                               // finite reciprocal and contribute ~0, matching torch's `var+eps`.
         let inv = (m.clamp_min(1e-7) + eps / (s * s)).sqrt().recip() / s; // 1/sqrt(var+eps)
-        (d * inv) * self.weight.val().reshape([1, c, 1, 1])
-            + self.bias.val().reshape([1, c, 1, 1])
+        (d * inv) * self.weight.val().reshape([1, c, 1, 1]) + self.bias.val().reshape([1, c, 1, 1])
     }
 }
 
@@ -110,14 +109,8 @@ impl<B: Backend> NafBlock<B> {
             conv5: conv1x1(c, c, true, device),
             norm1: LayerNorm2d::new(c, device),
             norm2: LayerNorm2d::new(c, device),
-            beta: Param::initialized(
-                ParamId::new(),
-                Tensor::<B, 4>::zeros([1, c, 1, 1], device),
-            ),
-            gamma: Param::initialized(
-                ParamId::new(),
-                Tensor::<B, 4>::zeros([1, c, 1, 1], device),
-            ),
+            beta: Param::initialized(ParamId::new(), Tensor::<B, 4>::zeros([1, c, 1, 1], device)),
+            gamma: Param::initialized(ParamId::new(), Tensor::<B, 4>::zeros([1, c, 1, 1], device)),
         }
     }
 
@@ -296,17 +289,18 @@ fn conv2s2<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BurnBackend;
     use burn::tensor::{f16, TensorData};
     use burn_store::{BurnpackStore, ModuleSnapshot};
-    use burn_wgpu::{Vulkan, WgpuDevice};
+    use burn_wgpu::WgpuDevice;
 
     #[test]
     #[ignore = "requires Vulkan; needs RUST_MIN_STACK=33554432 (burn autotune stack overflow on RADV)"]
     fn nafnet_output_shape_matches_input() {
         let device = WgpuDevice::DiscreteGpu(0);
-        let m = NafNet::<Vulkan>::new(&device);
+        let m = NafNet::<BurnBackend>::new(&device);
         let [n, c, h, w] = [1, 3, 64, 66]; // h not a multiple of 16 → pad/crop
-        let x = Tensor::<Vulkan, 4>::from_data(
+        let x = Tensor::<BurnBackend, 4>::from_data(
             TensorData::new(vec![0.5f32; n * c * h * w], [n, c, h, w]),
             &device,
         );
@@ -335,7 +329,7 @@ mod tests {
         let x_v = read("x.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * c * h * w);
 
-        let mut m = NafNet::<Vulkan<f16>>::new(&device);
+        let mut m = NafNet::<BurnBackend<f16>>::new(&device);
         let mut store = BurnpackStore::from_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../models/NAFNet-GoPro-width32.pth.f16.bpk"
@@ -354,7 +348,7 @@ mod tests {
             println!("  unused {u}");
         }
 
-        let x = Tensor::<Vulkan<f16>, 4>::from_data(
+        let x = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
             &device,
         );

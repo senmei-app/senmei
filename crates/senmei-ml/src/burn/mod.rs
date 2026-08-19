@@ -1,10 +1,10 @@
-//! burn (Vulkan) inference engine.
+//! burn inference engine (Vulkan, Metal on macOS).
 //!
-//! Runs clean re-implementations of the adopted SR archs on the `Vulkan<f16>`
-//! backend. Weights are loaded from a pre-converted f16 burnpack (`.bpk`) —
-//! `PytorchStore` cannot cast f32→f16 at load, so the app consumes the
-//! converted format (see `rust-sr-bench`'s `convert-f16` for the one-time
-//! conversion). The arch is chosen from `ModelRef::arch`.
+//! Runs clean re-implementations of the adopted SR archs on the GPU backend
+//! (`Vulkan<f16>` everywhere, `Metal<f16>` on macOS). Weights are loaded from a
+//! pre-converted f16 burnpack (`.bpk`) — `PytorchStore` cannot cast f32→f16 at
+//! load, so the app consumes the converted format (see `rust-sr-bench`'s
+//! `convert-f16` for the one-time conversion). The arch is chosen from `ModelRef::arch`.
 
 mod drunet;
 mod ifrnet;
@@ -18,6 +18,7 @@ mod warp;
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
+use crate::BurnBackend;
 use crate::{Error, Result};
 use burn::module::ParamId;
 use burn::tensor::backend::Backend;
@@ -25,7 +26,7 @@ use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
 use burn_store::{
     BurnpackStore, HalfPrecisionAdapter, KeyRemapper, ModuleSnapshot, PytorchStore, TensorSnapshot,
 };
-use burn_wgpu::{Vulkan, WgpuDevice};
+use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
 use drunet::Drunet;
@@ -43,18 +44,18 @@ pub struct BurnEngine {
 }
 
 enum Model {
-    UpCunet2x(UpCunet2x<Vulkan<f16>>),
-    UpCunet2xFast(UpCunet2xFast<Vulkan<f16>>),
-    RrdbNet(RrdbNet<Vulkan<f16>>),
-    RifeNet(RifeNet<Vulkan<f16>>),
-    IfrNet(IfrNet<Vulkan<f16>>),
-    Drunet(Drunet<Vulkan<f16>>),
-    NafNet(NafNet<Vulkan<f16>>),
-    RealPlk(RealPlk<Vulkan<f16>>),
+    UpCunet2x(UpCunet2x<BurnBackend<f16>>),
+    UpCunet2xFast(UpCunet2xFast<BurnBackend<f16>>),
+    RrdbNet(RrdbNet<BurnBackend<f16>>),
+    RifeNet(RifeNet<BurnBackend<f16>>),
+    IfrNet(IfrNet<BurnBackend<f16>>),
+    Drunet(Drunet<BurnBackend<f16>>),
+    NafNet(NafNet<BurnBackend<f16>>),
+    RealPlk(RealPlk<BurnBackend<f16>>),
 }
 
 impl Model {
-    fn forward(&self, x: BurnTensor<Vulkan<f16>, 4>) -> BurnTensor<Vulkan<f16>, 4> {
+    fn forward(&self, x: BurnTensor<BurnBackend<f16>, 4>) -> BurnTensor<BurnBackend<f16>, 4> {
         match self {
             Model::UpCunet2x(m) => m.forward(x),
             Model::UpCunet2xFast(m) => m.forward(x),
@@ -68,10 +69,10 @@ impl Model {
 
     fn interp(
         &self,
-        a: BurnTensor<Vulkan<f16>, 4>,
-        b: BurnTensor<Vulkan<f16>, 4>,
-        t: BurnTensor<Vulkan<f16>, 4>,
-    ) -> BurnTensor<Vulkan<f16>, 4> {
+        a: BurnTensor<BurnBackend<f16>, 4>,
+        b: BurnTensor<BurnBackend<f16>, 4>,
+        t: BurnTensor<BurnBackend<f16>, 4>,
+    ) -> BurnTensor<BurnBackend<f16>, 4> {
         match self {
             Model::RifeNet(m) => m.forward(a, b, t),
             Model::IfrNet(m) => m.forward(a, b, t),
@@ -173,7 +174,7 @@ impl InferenceEngine for BurnEngine {
         let w = input.shape[3];
 
         let data = TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>();
-        let x = BurnTensor::<Vulkan<f16>, 4>::from_data(data, &self.device);
+        let x = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, &self.device);
         let out = model.forward(x);
         let [_, _, oh, ow] = out.dims();
         let data = out
@@ -217,11 +218,11 @@ impl InferenceEngine for BurnEngine {
         let out_h = (ph as f32 * scale_f).round() as usize;
         let out_w = (pw as f32 * scale_f).round() as usize;
         // Accumulate tiles into one f16 canvas (overlap averaging) on the GPU.
-        let mut acc = BurnTensor::<Vulkan<f16>, 4>::zeros([1, c, out_h, out_w], device);
-        let mut cov = BurnTensor::<Vulkan<f16>, 4>::zeros([1, 1, out_h, out_w], device);
+        let mut acc = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, c, out_h, out_w], device);
+        let mut cov = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, 1, out_h, out_w], device);
         for (x, y, t) in &tiles {
             let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<f16>();
-            let xt = BurnTensor::<Vulkan<f16>, 4>::from_data(data, device);
+            let xt = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, device);
             let out = model.forward(xt);
             let [_, _, oh, ow] = out.dims();
             let sx = (*x as f32 * scale_f).round() as usize;
@@ -230,7 +231,7 @@ impl InferenceEngine for BurnEngine {
             // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
             let out = out.clamp(0.0, 1.0);
             acc = acc.slice_assign([0..1, 0..c, sy..sy + oh, sx..sx + ow], out);
-            let ones = BurnTensor::<Vulkan<f16>, 4>::ones([1, 1, oh, ow], device);
+            let ones = BurnTensor::<BurnBackend<f16>, 4>::ones([1, 1, oh, ow], device);
             cov = cov.slice_assign([0..1, 0..1, sy..sy + oh, sx..sx + ow], ones);
         }
         let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
@@ -267,11 +268,11 @@ impl InferenceEngine for BurnEngine {
             _ => unreachable!(),
         };
         let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
-        let a_t = BurnTensor::<Vulkan<f16>, 4>::from_data(
+        let a_t = BurnTensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(a.data.clone(), [n, c, h, w]).convert::<f16>(),
             &self.device,
         );
-        let b_t = BurnTensor::<Vulkan<f16>, 4>::from_data(
+        let b_t = BurnTensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(b.data.clone(), [n, c, h, w]).convert::<f16>(),
             &self.device,
         );
@@ -280,14 +281,18 @@ impl InferenceEngine for BurnEngine {
         // crop the output back to the original dims.
         let pad_h = (h + pad - 1) / pad * pad;
         let pad_w = (w + pad - 1) / pad * pad;
-        let pad = |x: BurnTensor<Vulkan<f16>, 4>| {
+        let pad = |x: BurnTensor<BurnBackend<f16>, 4>| {
             let mut x = x;
             if pad_h > h {
-                let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, c, pad_h - h, w], &self.device);
+                let z =
+                    BurnTensor::<BurnBackend<f16>, 4>::zeros([n, c, pad_h - h, w], &self.device);
                 x = BurnTensor::cat(vec![x, z], 2);
             }
             if pad_w > w {
-                let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, c, pad_h, pad_w - w], &self.device);
+                let z = BurnTensor::<BurnBackend<f16>, 4>::zeros(
+                    [n, c, pad_h, pad_w - w],
+                    &self.device,
+                );
                 x = BurnTensor::cat(vec![x, z], 3);
             }
             x
@@ -295,7 +300,7 @@ impl InferenceEngine for BurnEngine {
         let a_t = pad(a_t);
         let b_t = pad(b_t);
         // ncnn broadcasts the scalar timestep over the (padded) spatial grid.
-        let t_t = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, pad_h, pad_w], &self.device) * t;
+        let t_t = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, pad_h, pad_w], &self.device) * t;
         let out = model.interp(a_t, b_t, t_t);
         let out = out.slice([0..n, 0..c, 0..h, 0..w]);
         let data = match out.into_data().convert::<f32>().to_vec() {
@@ -329,22 +334,22 @@ impl InferenceEngine for BurnEngine {
             input.shape[3],
         ];
         let device = &self.device;
-        let rgb = BurnTensor::<Vulkan<f16>, 4>::from_data(
+        let rgb = BurnTensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>(),
             device,
         );
-        let sigma_map = BurnTensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], device) * sigma;
+        let sigma_map = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, h, w], device) * sigma;
         let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
         // UNetRes needs multiples of 8 (3× stride-2 downsample); pad + crop.
         let pad_h = (h + 7) / 8 * 8;
         let pad_w = (w + 7) / 8 * 8;
         let mut x = x;
         if pad_h > h {
-            let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, 4, pad_h - h, w], device);
+            let z = BurnTensor::<BurnBackend<f16>, 4>::zeros([n, 4, pad_h - h, w], device);
             x = BurnTensor::cat(vec![x, z], 2);
         }
         if pad_w > w {
-            let z = BurnTensor::<Vulkan<f16>, 4>::zeros([n, 4, pad_h, pad_w - w], device);
+            let z = BurnTensor::<BurnBackend<f16>, 4>::zeros([n, 4, pad_h, pad_w - w], device);
             x = BurnTensor::cat(vec![x, z], 3);
         }
         let out = model.forward(x).slice([0..n, 0..3, 0..h, 0..w]);
@@ -375,7 +380,7 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"\.conv\.2\.", ".conv2.");
             match arch {
                 "upcunet2x" => {
-                    let mut m = UpCunet2x::<Vulkan>::new(&device);
+                    let mut m = UpCunet2x::<BurnBackend>::new(&device);
                     m.load_from(&mut store)
                         .map_err(|e| Error::new(e.to_string()))?;
                     m.save_into(&mut save)
@@ -383,7 +388,7 @@ pub fn convert_pth_to_bpk(
                 }
                 _ => {
                     // upcunet2x-fast and fallin-cugan share the module layout.
-                    let mut m = UpCunet2xFast::<Vulkan>::new(&device);
+                    let mut m = UpCunet2xFast::<BurnBackend>::new(&device);
                     m.load_from(&mut store)
                         .map_err(|e| Error::new(e.to_string()))?;
                     m.save_into(&mut save)
@@ -393,7 +398,7 @@ pub fn convert_pth_to_bpk(
         }
         "realesrgan" => {
             let mut store = PytorchStore::from_file(pth_path);
-            let mut m = RrdbNet::<Vulkan>::new(scale as usize, num_block as usize, &device);
+            let mut m = RrdbNet::<BurnBackend>::new(scale as usize, num_block as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -420,7 +425,7 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"decoder(\d)\.convblock\.1\.conv5\.", "decoder$1.cb1.c5.")
                 .with_key_remapping(r"decoder(\d)\.convblock\.1\.prelu\.", "decoder$1.cb1.pl.")
                 .with_key_remapping(r"decoder(\d)\.convblock\.2\.", "decoder$1.cb2.");
-            let mut m = IfrNet::<Vulkan>::new(&device);
+            let mut m = IfrNet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -441,7 +446,7 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"m_up(\d)\.(\d)\.res\.0\.", "m_up$1.b$2.c1.")
                 .with_key_remapping(r"m_up(\d)\.(\d)\.res\.2\.", "m_up$1.b$2.c2.")
                 .with_key_remapping(r"m_up(\d)\.0\.", "m_up$1.up.");
-            let mut m = Drunet::<Vulkan>::new(&device);
+            let mut m = Drunet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -467,7 +472,7 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"^middle_blks\.(\d+)\.", "middle.$1.")
                 .with_key_remapping(r"^ups\.(\d+)\.0\.", "ups.$1.conv.")
                 .with_key_remapping(r"sca\.1\.", "sca_conv.");
-            let mut m = NafNet::<Vulkan>::new(&device);
+            let mut m = NafNet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -496,7 +501,7 @@ pub fn convert_pth_to_bpk(
                 s.with_key_remapping(format!(r"^feats\.{i}\."), format!("blocks.{}.", i - 1))
             });
             let mut store = store;
-            let mut m = RealPlk::<Vulkan>::new(scale as usize, &device);
+            let mut m = RealPlk::<BurnBackend>::new(scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -547,15 +552,15 @@ pub fn convert_onnx_to_bpk(
     let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
     match arch {
         "upcunet2x" => {
-            let mut m = UpCunet2x::<Vulkan>::new(&device);
+            let mut m = UpCunet2x::<BurnBackend>::new(&device);
             apply_and_save(&mut m, snapshots, &mut save)?;
         }
         "upcunet2x-fast" | "fallin-cugan" => {
-            let mut m = UpCunet2xFast::<Vulkan>::new(&device);
+            let mut m = UpCunet2xFast::<BurnBackend>::new(&device);
             apply_and_save(&mut m, snapshots, &mut save)?;
         }
         "realesrgan" => {
-            let mut m = RrdbNet::<Vulkan>::new(scale as usize, num_block as usize, &device);
+            let mut m = RrdbNet::<BurnBackend>::new(scale as usize, num_block as usize, &device);
             apply_and_save(&mut m, snapshots, &mut save)?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
@@ -1050,8 +1055,8 @@ mod tests {
         engine.load(&mref).unwrap();
 
         let (h, w): (usize, usize) = (66, 64); // not a multiple of 16
-        // Smooth gradient (fp16-safe; constant/flat inputs overflow the model's
-        // deepest activations — see docs/burn-bugs.md Bug 7).
+                                               // Smooth gradient (fp16-safe; constant/flat inputs overflow the model's
+                                               // deepest activations — see docs/burn-bugs.md Bug 7).
         let data: Vec<f32> = (0..3 * h * w)
             .map(|i| ((i % w) as f32 / (w - 1) as f32) * 0.5 + 0.25)
             .collect();

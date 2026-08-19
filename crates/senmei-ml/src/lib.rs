@@ -31,6 +31,14 @@ pub(crate) fn current_tile_size() -> usize {
 #[cfg(feature = "burn")]
 mod burn;
 
+/// GPU backend: Vulkan everywhere, Metal on macOS (MoltenVK needs the SDK).
+#[cfg(feature = "burn")]
+#[cfg(target_os = "macos")]
+pub(crate) use burn_wgpu::Metal as BurnBackend;
+#[cfg(feature = "burn")]
+#[cfg(not(target_os = "macos"))]
+pub(crate) use burn_wgpu::Vulkan as BurnBackend;
+
 #[cfg(feature = "burn")]
 pub use burn::{convert_onnx_to_bpk, convert_pth_to_bpk, BurnEngine};
 pub use engine::{

@@ -2359,6 +2359,7 @@ dependencies = [
  "cfg_aliases",
  "cubecl-common",
  "cubecl-core",
+ "cubecl-cpp",
  "cubecl-ir",
  "cubecl-runtime",
  "cubecl-spirv",

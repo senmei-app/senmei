@@ -323,25 +323,26 @@ impl<B: Backend> IfrNet<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BurnBackend;
     use burn::tensor::f16;
     use burn_store::{BurnpackStore, ModuleSnapshot};
-    use burn_wgpu::{Vulkan, WgpuDevice};
+    use burn_wgpu::WgpuDevice;
 
     #[test]
     #[ignore = "requires Vulkan; needs RUST_MIN_STACK=33554432 (burn autotune stack overflow on RADV)"]
     fn ifrnet_output_shape_matches_input() {
         let device = WgpuDevice::DiscreteGpu(0);
-        let m = IfrNet::<Vulkan>::new(&device);
+        let m = IfrNet::<BurnBackend>::new(&device);
         let [n, c, h, w] = [1, 3, 64, 64];
-        let a = Tensor::<Vulkan, 4>::from_data(
+        let a = Tensor::<BurnBackend, 4>::from_data(
             TensorData::new(vec![0.5f32; n * c * h * w], [n, c, h, w]),
             &device,
         );
-        let b = Tensor::<Vulkan, 4>::from_data(
+        let b = Tensor::<BurnBackend, 4>::from_data(
             TensorData::new(vec![0.6f32; n * c * h * w], [n, c, h, w]),
             &device,
         );
-        let t = Tensor::<Vulkan, 4>::from_data(
+        let t = Tensor::<BurnBackend, 4>::from_data(
             TensorData::new(vec![0.5f32; h * w], [1, 1, h, w]),
             &device,
         );
@@ -371,7 +372,7 @@ mod tests {
         let b_v = read("b.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * c * h * w);
 
-        let mut m = IfrNet::<Vulkan<f16>>::new(&device);
+        let mut m = IfrNet::<BurnBackend<f16>>::new(&device);
         let mut store = BurnpackStore::from_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../models/IFRNet_Vimeo90K.pth.f16.bpk"
@@ -390,15 +391,15 @@ mod tests {
             println!("  unused {u}");
         }
 
-        let a = Tensor::<Vulkan<f16>, 4>::from_data(
+        let a = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(a_v, [n, c, h, w]).convert::<f16>(),
             &device,
         );
-        let b = Tensor::<Vulkan<f16>, 4>::from_data(
+        let b = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(b_v, [n, c, h, w]).convert::<f16>(),
             &device,
         );
-        let t = Tensor::<Vulkan<f16>, 4>::ones([n, 1, h, w], &device) * 0.5;
+        let t = Tensor::<BurnBackend<f16>, 4>::ones([n, 1, h, w], &device) * 0.5;
         let out = m.forward(a, b, t);
         let out_v = out.into_data().convert::<f32>().to_vec().unwrap();
         let mae: f32 = out_v
