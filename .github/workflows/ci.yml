@@ -33,12 +33,21 @@ jobs:
       - name: Install Linux system deps
         if: runner.os == 'Linux'
         run: |
-          # apt occasionally hangs on fresh ubuntu runners (lock/mirror);
-          # retry the update and bound the lock/network waits.
-          sudo apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=120 \
-            -o Acquire::https::Timeout=120
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            -o DPkg::Lock::Timeout=300 \
+          # apt occasionally hangs on fresh ubuntu runners (stale lock from the
+          # image's background update). Clear stale locks, bound every apt call
+          # with timeouts, and retry the update.
+          sudo pkill -f 'apt-get|unattended-upgr' 2>/dev/null || true
+          sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock \
+            /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock 2>/dev/null || true
+          for i in 1 2 3; do
+            if timeout 240 sudo apt-get update -o Acquire::Retries=3 \
+              -o Acquire::http::Timeout=90 -o Acquire::https::Timeout=90; then
+              break
+            fi
+            echo "apt update attempt $i failed; retrying"; sleep 10
+          done
+          sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get install -y \
+            -o DPkg::Lock::Timeout=300 -o Acquire::Retries=3 \
             libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
             libssl-dev libayatana-appindicator3-dev librsvg2-dev ffmpeg
 
