@@ -8,6 +8,9 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **docs: notes stay short — kurz, bündig, knackig, no novels (2026-08-19)** —
+  AGENTS.md now caps todos at ~135 chars and mandates concise notes; long
+  entries in `docs/todos.md` trimmed, detail stays in PLAN/CHANGELOG.
 - **docs: defer the CEF webview switch, keep WebKitGTK + rodio (2026-08-19)** —
   re-evaluate Tauri's CEF backend (`feat/cef`) in a few months; the
   audio-streaming/kira milestone is deferred with it (a CEF switch would
