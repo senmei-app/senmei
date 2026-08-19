@@ -1,3 +1,6 @@
+// Release builds run as GUI app (no console window); debug keeps the console for logs.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use tauri::Manager;
 
 fn main() {

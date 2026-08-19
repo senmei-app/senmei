@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: no console window on Windows release (2026-08-19)** — the `senmei` bin
+  was built as a console-subsystem exe, so a terminal popped up on launch.
+  Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`;
+  debug builds keep the console for logs.
+
 - **v0.1.1 — first public release (2026-08-19)** — 3-OS CI green (Linux/macOS
   full tests; Windows skips the `senmei-app` unit-test harness, see ci.yml),
   bundles for deb/rpm/AppImage/dmg/msi/nsis, model catalog bundled without
