@@ -7,9 +7,13 @@
 - [ ] Autotune default: keep ON vs OFF vs vendor-patch (see `docs/upstream-issues.md` §2)
 
 ## Release review (2026-08-19)
-- [ ] Add macOS portable-FFmpeg fallback (system FFmpeg only today)
 - [ ] CI: fix `setup-bun@v2` `cache` input; bump checkout/upload-artifact to v5
 - [ ] Release step: publish bundles to GitHub Releases on version tags
+
+> macOS portable FFmpeg: **system-only** — no LGPL-compatible macOS prebuilt
+> exists (evermeet.cx/osxexperts are GPL, conflicting with the LGPL-only
+> policy). `download_ffmpeg` tells the user to `brew install ffmpeg`; revisit if
+> the LGPL rule is ever relaxed.
 
 ## after release
 - [ ] Project website

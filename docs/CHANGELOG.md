@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: clarify macOS FFmpeg support (2026-08-19)** — macOS stays on system
+  FFmpeg (Homebrew); `download_ffmpeg` now reports there is no LGPL-compatible
+  portable macOS build and points to `brew install ffmpeg` (the only macOS
+  prebuilts, evermeet.cx/osxexperts, are GPL and conflict with the LGPL-only
+  policy).
+
 - **cleanup: split mock.ts out of the production bundle + drop tiling dead-code (2026-08-19)** —
   the demo backend loads lazily via `loadDemo()` (dynamic import → its own chunk,
   never fetched in Tauri); `crop_rgb24` is `cfg(feature = "burn")`-gated, dropping

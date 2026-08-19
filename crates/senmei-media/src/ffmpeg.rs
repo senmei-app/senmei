@@ -137,7 +137,16 @@ fn archive() -> Option<(&'static str, &'static str)> {
 
 pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Result<PathBuf> {
     let (url, sha256) = archive().ok_or_else(|| {
-        Error::Command("no prebuilt FFmpeg for this platform yet (macOS: TODO)".into())
+        Error::Command(if cfg!(target_os = "macos") {
+            "no LGPL-compatible portable FFmpeg for macOS; install it via Homebrew (brew install ffmpeg)"
+                .into()
+        } else {
+            format!(
+                "no prebuilt FFmpeg for {}-{}",
+                std::env::consts::OS,
+                std::env::consts::ARCH
+            )
+        })
     })?;
     log::info!("ffmpeg download from {url}");
 
