@@ -25,7 +25,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux system deps
         if: runner.os == 'Linux'
@@ -47,7 +47,8 @@ jobs:
       - name: Install bun
         uses: oven-sh/setup-bun@v2
         with:
-          cache: true
+          cache: node_modules
+          cache-dependency-path: ./bun.lock
 
       - name: Install frontend deps
         run: bun install --frozen-lockfile
@@ -108,8 +109,31 @@ jobs:
         run: bunx @tauri-apps/cli@^2 build
 
       - name: Upload bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: senmei-${{ matrix.os }}
           path: target/release/bundle/**/*
           if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download bundles
+        uses: actions/download-artifact@v5
+        with:
+          path: bundles
+          pattern: senmei-*
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bundles/**/*
+          generate_release_notes: true

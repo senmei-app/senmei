@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ci: fix bun cache, bump actions to v5, publish bundles on version tags (2026-08-19)** —
+  `setup-bun@v2` now caches `node_modules` keyed on `./bun.lock`; checkout and
+  upload-artifact bumped to v5; a new `release` job publishes the built bundles
+  to GitHub Releases when a version tag is pushed.
+
 - **docs: clarify macOS FFmpeg support (2026-08-19)** — macOS stays on system
   FFmpeg (Homebrew); `download_ffmpeg` now reports there is no LGPL-compatible
   portable macOS build and points to `brew install ffmpeg` (the only macOS
