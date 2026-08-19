@@ -71,27 +71,41 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace
 
-      # senmei_app test exe died with 0xc0000139 at load; dump its import table
-      # and retry with a system-only PATH to isolate the culprit DLL.
+      # senmei_app test exe died with 0xc0000139 at load; dump imports at the
+      # function level and compare with the working senmei bin exe.
       - name: Diagnose test exe load failure (Windows)
         if: runner.os == 'Windows' && failure()
         shell: pwsh
         run: |
           $exe = Get-ChildItem target\debug\deps\senmei_app-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { $exe = Get-ChildItem target\debug\deps\*.exe | Select-Object -First 1 }
+          $bin = Get-ChildItem target\debug\deps\senmei-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           Write-Host "EXE: $($exe.FullName) ($([Math]::Round($exe.Length/1MB,1)) MB)"
+          Write-Host "BIN: $($bin.FullName) ($([Math]::Round($bin.Length/1MB,1)) MB)"
 
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = $null
           if (Test-Path $vswhere) {
             $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
-            if ($vs) {
-              $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($dumpbin) { Write-Host "DUMPBIN: $($dumpbin.FullName)"; & $dumpbin.FullName /dependents $exe.FullName } else { Write-Host 'dumpbin not found under vswhere path' }
-            } else { Write-Host 'vswhere found no VS' }
-          } else { Write-Host 'vswhere not found' }
+            if ($vs) { $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 }
+          }
+          if (-not $dumpbin) { $dumpbin = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 }
+          if ($dumpbin) {
+            Write-Host "DUMPBIN: $($dumpbin.FullName)"
+            Write-Host '--- FAILING exe dependents ---'
+            & $dumpbin.FullName /dependents $exe.FullName
+            if ($bin) {
+              Write-Host '--- WORKING bin dependents ---'
+              & $dumpbin.FullName /dependents $bin.FullName
+            }
+            Write-Host '--- FAILING exe imports ---'
+            & $dumpbin.FullName /imports $exe.FullName
+          } else { Write-Host 'dumpbin not found' }
 
-          Write-Host '--- PATH entries ---'
-          $env:PATH -split ';' | Where-Object { $_ }
+          Write-Host '--- suspect DLL versions ---'
+          foreach ($d in 'C:\Windows\System32\opengl32.dll','C:\Windows\System32\VCRUNTIME140.dll','C:\Windows\System32\msvcp140.dll','C:\Windows\System32\setupapi.dll','C:\Windows\System32\comctl32.dll') {
+            if (Test-Path $d) { $v = (Get-Item $d).VersionInfo; Write-Host "$d : $($v.FileVersion) $($v.ProductVersion)" } else { Write-Host "$d : MISSING" }
+          }
 
           Write-Host '--- retry with system-only PATH ---'
           $sys = @('C:\Windows\System32','C:\Windows','C:\Windows\System32\Wbem','C:\Windows\System32\WindowsPowerShell\v1.0', (Split-Path $exe.FullName))
