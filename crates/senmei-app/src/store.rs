@@ -248,9 +248,17 @@ pub fn remember_project(path: &str) -> Result<(), String> {
 /// (same pattern as `delete_project`). Canonicalizes so relative paths or
 /// symlinks cannot escape the managed dir.
 pub fn ensure_within_data_dir(path: &Path) -> Result<(), String> {
-    let dir = data_dir();
-    let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    if resolved.starts_with(&dir) {
+    // Canonicalize the data dir too: on macOS /var -> /private/var, so a
+    // canonicalized child would not start_with the raw base.
+    let base = data_dir().canonicalize().unwrap_or_else(|_| data_dir());
+    let resolved = match path.parent() {
+        Some(parent) => match parent.canonicalize() {
+            Ok(parent_c) => parent_c.join(path.file_name().unwrap_or_default()),
+            Err(_) => path.to_path_buf(),
+        },
+        None => path.to_path_buf(),
+    };
+    if resolved.starts_with(&base) {
         Ok(())
     } else {
         Err(format!(
