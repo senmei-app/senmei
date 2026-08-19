@@ -7590,7 +7590,6 @@ dependencies = [
 name = "senmei-app"
 version = "0.1.1"
 dependencies = [
- "embed-resource",
  "env_logger",
  "liblzma",
  "log",
