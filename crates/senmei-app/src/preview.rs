@@ -79,61 +79,70 @@ pub fn read_frame_inner(
         .map_err(|e| e.to_string())?;
 
     let seq = PREVIEW_SEQ.fetch_add(1, Ordering::Relaxed);
-    let path = dir.join(format!("frame_{ns}_{seq:08}.png"));
-    std::fs::write(&path, &png).map_err(|e| e.to_string())?;
-    // Prune rarely and keep more frames so a just-written frame is never
-    // deleted before the webview fetches it (playback reads ~24 files/sec).
-    if seq % 20 == 0 {
-        prune_preview_frames(&dir, &ns, 120);
-    }
+    // Stable filename + atomic overwrite: the webview re-fetches on a new query
+    // string (see Monitor) and never hits a pruned/mid-write file.
+    let path = dir.join(format!("frame_{ns}.png"));
+    let tmp = dir.join(format!("frame_{ns}.{seq}.tmp"));
+    std::fs::write(&tmp, &png).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    cap_preview_dir(&dir);
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// Best-effort cap on leftover preview frames for one namespace (keep the
-/// newest `keep`). Zero-padded counters make name order equal to write order.
-fn prune_preview_frames(dir: &std::path::Path, ns: &str, keep: usize) {
-    let prefix = format!("frame_{ns}_");
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        let mut old: Vec<_> = entries
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .map(|n| n.to_string_lossy().starts_with(&prefix))
-                    .unwrap_or(false)
-            })
-            .collect();
-        old.sort();
-        for p in old.iter().take(old.len().saturating_sub(keep)) {
-            let _ = std::fs::remove_file(p);
-        }
+/// Keep the preview dir bounded: drop the oldest files (any namespace) beyond
+/// a cap. Frames now use a stable name, so only cross-file leftovers remain.
+fn cap_preview_dir(dir: &std::path::Path) {
+    const MAX_FILES: usize = 400;
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut files: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+    if files.len() <= MAX_FILES {
+        return;
+    }
+    files.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+    for p in files.iter().take(files.len() - MAX_FILES) {
+        let _ = std::fs::remove_file(p);
     }
 }
 
-/// Extract the source audio once as AAC (M4A) for the preview `<audio>` — the
+/// Extract the source audio once as WebM/Opus for the preview `<audio>` — the
 /// webview can't always decode the source's audio codec (e.g. AC3 in anime
-/// files), but every webview plays AAC/M4A. One active track at a time; stale
-/// tracks are dropped when a new one is extracted.
+/// files), but every webview plays WebM/Opus. One active track at a time;
+/// stale tracks (incl. old .m4a) are dropped when a new one is extracted.
 pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
     let dir = preview_dir(project_dir);
     let ns = frame_ns(input);
-    let path = dir.join(format!("audio_{ns}.m4a"));
-    if path.exists() {
+    let path = dir.join(format!("audio_{ns}.mp3"));
+    // Cache only complete tracks; a failed run must not leave a 0-byte file
+    // that later looks "done".
+    if path.exists() && std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
         return Ok(path.to_string_lossy().into_owned());
     }
+    let _ = std::fs::remove_file(&path);
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for e in entries.flatten() {
-            let name = e.file_name();
-            let name = name.to_string_lossy();
-            if name.starts_with("audio_") && name.ends_with(".m4a") && e.path() != path {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let stale = name.starts_with("audio_")
+                && (name.ends_with(".mp3") || name.ends_with(".webm") || name.ends_with(".m4a"))
+                && e.path() != path;
+            if stale {
                 let _ = std::fs::remove_file(e.path());
             }
         }
     }
     let ffmpeg = senmei_media::resolve(&store::data_dir());
-    senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &path).map_err(|e| {
+    // Extract to a temp name and rename only on success so a failure never
+    // leaves a partial track at the cached path. The .mp3 suffix lets ffmpeg
+    // infer the muxer (it can't from a bare .tmp).
+    let tmp = dir.join(format!("audio_{ns}.tmp.mp3"));
+    let _ = std::fs::remove_file(&tmp);
+    senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &tmp).map_err(|e| {
         log::warn!("audio extraction failed: {e}");
         e.to_string()
     })?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }

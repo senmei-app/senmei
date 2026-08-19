@@ -1,3 +1,4 @@
+mod audio;
 mod commands;
 pub mod log_hub;
 pub mod models;
@@ -30,6 +31,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::probe_video,
             commands::read_frame,
             commands::extract_audio,
+            audio::audio_load,
+            audio::audio_play,
+            audio::audio_pause,
+            audio::audio_seek,
+            audio::audio_set_volume,
             commands::cancel_render,
             commands::pause_render,
             commands::prune_samples,

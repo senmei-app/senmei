@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { extractAudio, probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
+import {
+  audioLoad,
+  audioPause,
+  audioPlay,
+  audioSeek,
+  audioSetVolume,
+  extractAudio,
+  probeVideo,
+  readFrame,
+  type RenderProgress,
+  type VideoInfo,
+} from "@senmei/bridge";
 import { loadDemo } from "../demo";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
@@ -117,6 +128,7 @@ export default function Monitor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
+  const frameBustRef = useRef(0);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   const name = src ? basename(src) : null;
@@ -127,25 +139,35 @@ export default function Monitor({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const nativeSrc = isTauri() && !nativeFailed && file && mode === "source" ? convertFileSrc(file) : null;
 
-  // Sound always comes from an FFmpeg-extracted AAC track: the webview can't
-  // decode every audio codec (e.g. AC3 in anime files). The native <video> is
-  // muted while this track is present so the two don't double up.
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  // Sound comes from the backend (rodio): WebKitGTK can't play media over
+  // Tauri's asset:// scheme, so audio is decoded/played natively and driven
+  // over IPC. The native <video> stays muted (its audio would double up).
+  const [audioReady, setAudioReady] = useState(false);
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    setAudioUrl(null);
+    void audioPause().catch(() => {});
+    setAudioReady(false);
     if (!isTauri() || !file) return;
     extractAudio(file, projectDir ?? null)
-      .then((p) => setAudioUrl(convertFileSrc(p)))
-      .catch(() => setAudioUrl(null));
+      .then((p) =>
+        audioLoad(p)
+          .then(() => setAudioReady(true))
+          .catch((e) => console.error("audio load failed:", e)),
+      )
+      .catch((e) => console.error("preview extractAudio failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
-  // Preview volume shared by the extracted <audio> and the native <video>.
+  // Audio arrives async (extraction takes seconds); if playback already
+  // started, join it at the current position instead of staying silent.
+  useEffect(() => {
+    if (audioReady && playing) {
+      void audioSeek(posRef.current).catch(() => {});
+      void audioPlay().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioReady]);
+
+  // Preview volume.
   const [volume, setVolume] = useState(() => {
     const saved = Number(localStorage.getItem("senmei.volume"));
     return Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
@@ -155,8 +177,7 @@ export default function Monitor({
     localStorage.setItem("senmei.volume", String(v));
   };
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-    if (videoRef.current) videoRef.current.volume = volume;
+    void audioSetVolume(volume).catch(() => {});
   }, [volume]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
@@ -171,27 +192,23 @@ export default function Monitor({
 
   const togglePlay = () => {
     if (!info) return;
-    const a = audioRef.current;
-    const audioActive = !!a && !!audioUrl;
     if (nativeSrc && videoRef.current) {
       const v = videoRef.current;
-      const start = audioActive ? a!.paused : v.paused;
-      if (audioActive) {
-        if (a!.paused) void a!.play();
-        else a!.pause();
-        // muted video still needs play() to advance its timeline
-        if (start) void v.play();
-        else v.pause();
-      } else if (v.paused) void v.play();
-      else v.pause();
+      if (v.paused) {
+        void v.play();
+        void audioPlay();
+      } else {
+        v.pause();
+        void audioPause();
+      }
       return;
     }
-    // Frame-fallback: the audio element carries the sound, the timer drives frames.
-    if (audioActive) {
-      if (a!.paused) void a!.play();
-      else a!.pause();
-    }
-    setPlaying((p) => !p);
+    // Frame-fallback: rodio carries the sound, the timer drives frames.
+    setPlaying((p) => {
+      if (!p) void audioPlay();
+      else void audioPause();
+      return !p;
+    });
   };
 
   // togglePlayHotkey (default Space) toggles play/pause (ignored while typing
@@ -255,10 +272,11 @@ export default function Monitor({
     )
       .then((results) => {
         // Update every side together so compare never shows one ahead of the
-        // other (the result decode is slower than the source decode).
+        // other (the result decode is slower than the source decode). Frames
+        // reuse a stable file per source; a query forces the webview to re-fetch.
         const updates: Record<string, string> = {};
         for (const r of results) {
-          if (r) updates[r.path] = convertFileSrc(r.filePath);
+          if (r) updates[r.path] = convertFileSrc(r.filePath) + "?v=" + ++frameBustRef.current;
         }
         if (Object.keys(updates).length) {
           setFrames((prev) => ({ ...prev, ...updates }));
@@ -301,7 +319,7 @@ export default function Monitor({
     setInfo(null);
     setPosMs(next);
     setPlaying(false);
-    if (audioRef.current) audioRef.current.pause();
+    void audioPause().catch(() => {});
     setFrames({});
     setError(null);
     setNativeFailed(false);
@@ -339,7 +357,7 @@ export default function Monitor({
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
-    if (audioRef.current) audioRef.current.currentTime = ms / 1000;
+    void audioSeek(ms).catch(() => {});
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -370,13 +388,13 @@ export default function Monitor({
         if (mode === "source") {
           // End of the video: stop instead of looping the sample window.
           setPlaying(false);
-          if (audioRef.current) audioRef.current.pause();
+          void audioPause().catch(() => {});
           return;
         }
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
-        if (audioRef.current) audioRef.current.currentTime = inMs / 1000;
+        void audioSeek(inMs).catch(() => {});
         if (!busy) {
           busy = true;
           loadFrame(inMs).finally(() => {
@@ -477,7 +495,7 @@ export default function Monitor({
       : "rounded-md bg-black/50 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur hover:bg-black/60";
 
   return (
-    <main ref={rootRef} className={"flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (isFull ? "" : " p-4")}>
+    <main ref={rootRef} className={"relative flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (isFull ? "" : " p-4")}>
       <div
         onDoubleClick={toggleFullscreen}
         className={
@@ -528,7 +546,7 @@ export default function Monitor({
               if (el) el.volume = volume;
             }}
             src={nativeSrc}
-            muted={!!audioUrl}
+            muted
             onError={() => setNativeFailed(true)}
             onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
             onTimeUpdate={onVideoTime}
@@ -765,19 +783,6 @@ export default function Monitor({
           </div>
         )}
       </div>
-      {audioUrl && (
-        /* WebKitGTK won't play media with display:none; keep it rendered
-           but off-screen so the AAC track actually produces sound. */
-        <audio
-          ref={(el) => {
-            audioRef.current = el;
-            if (el) el.volume = volume;
-          }}
-          src={audioUrl}
-          preload="auto"
-          className="pointer-events-none absolute -left-[9999px] h-px w-px"
-        />
-      )}
     </main>
   );
 }

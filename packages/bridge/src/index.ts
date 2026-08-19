@@ -59,6 +59,12 @@ export const readFrame = (input: string, positionMs: number | null, projectDir: 
 export const extractAudio = (input: string, projectDir: string | null = null) =>
   commands.extractAudio(input, projectDir);
 
+export const audioLoad = (path: string) => commands.audioLoad(path);
+export const audioPlay = () => commands.audioPlay();
+export const audioPause = () => commands.audioPause();
+export const audioSeek = (positionMs: number) => commands.audioSeek(positionMs);
+export const audioSetVolume = (volume: number) => commands.audioSetVolume(volume);
+
 export const cancelRender = () => commands.cancelRender();
 export const pruneSamples = (dir: string, keep: number) => commands.pruneSamples(dir, keep);
 

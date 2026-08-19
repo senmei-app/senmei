@@ -27,6 +27,12 @@ export const commands = {
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
 	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
+	/**  Load an extracted audio file (MP3); playback stays paused until `audio_play`. */
+	audioLoad: (path: string) => __TAURI_INVOKE<null>("audio_load", { path }),
+	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
+	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
+	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
+	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
 	/**  Pause/resume the active render (the pipeline waits between frames). */

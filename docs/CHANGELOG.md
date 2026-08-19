@@ -4,6 +4,18 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: preview audio via native playback + stable frames (2026-08-19)** —
+  WebKitGTK can't play media over Tauri's `asset://` scheme at all (its
+  GStreamer backend doesn't know the scheme), so the webview `<audio>` was
+  always silent regardless of codec. Audio is now decoded to MP3 and played
+  natively through rodio, driven by IPC (`audio_load/play/pause/seek/
+  set_volume`), with a volume slider in the timeline. Frames are written to a
+  stable per-source file with atomic overwrite and re-fetched via a cache-
+  busting query (no more mid-fetch prune races), and the preview dir is capped
+  at 400 files. Adds `libasound2-dev`/`alsa-lib-devel` as a Linux build dep.
+
+- **ui: fullscreen fills the screen (2026-08-19)** — the single-view media used
+
 - **feat: preview audio for every codec (2026-08-19)** — the webview can't
   decode all audio codecs (e.g. AC3 in anime files), so the monitor now plays
   an FFmpeg-extracted AAC/M4A track via `<audio>` for any source; the native

@@ -18,8 +18,10 @@ pub fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Extract the source audio track as AAC (M4A) for the fallback preview
-/// `<audio>`: webviews can't play the source but play AAC/M4A natively.
+/// Extract the source audio track as MP3 for the fallback preview `<audio>`:
+/// webviews can't play the source, but every webview plays MP3 (`audio/mpeg`).
+/// WebM/Opus failed with MEDIA_ERR_SRC_NOT_SUPPORTED in WebKitGTK `<audio>`
+/// (video/* mime), so stick to a native audio container.
 pub fn extract_audio(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,
@@ -28,7 +30,7 @@ pub fn extract_audio(
     let status = std::process::Command::new(ffmpeg)
         .args(["-y", "-i"])
         .arg(input)
-        .args(["-vn", "-c:a", "aac", "-b:a", "160k"])
+        .args(["-vn", "-c:a", "libmp3lame", "-b:a", "128k"])
         .arg(out)
         .status()?;
     if status.success() {

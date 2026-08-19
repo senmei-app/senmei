@@ -49,7 +49,8 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get install -y \
             -o DPkg::Lock::Timeout=300 -o Acquire::Retries=3 \
             libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
-            libssl-dev libayatana-appindicator3-dev librsvg2-dev ffmpeg
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev ffmpeg \
+            libasound2-dev
 
       - name: Install ffmpeg (macOS tests)
         if: runner.os == 'macOS'
