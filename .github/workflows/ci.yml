@@ -1,10 +1,11 @@
 name: CI
 
 on:
-  # Not on push to main: pushes are frequent and would burn the full 3-OS
-  # matrix (incl. app bundle) on every one. Run on PRs, or manually from the
-  # Actions tab.
+  # PRs, release tags, manual; not push-to-main (too frequent).
   pull_request:
+  push:
+    tags:
+      - '*'
   workflow_dispatch:
 
 concurrency:
