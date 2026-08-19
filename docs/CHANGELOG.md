@@ -6,6 +6,14 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **ml: SPAN burn port (gated — f16/bf16-blocked) (2026-08-19)** — clean burn
+  port of SPAN (Apache-2.0 BasicSR) with Conv3XC/SPAB, `(x−mean)·255`
+  normalization and `no_norm` handling; torch-verified (matches f32 up to f16
+  limits). Not registered: intermediates reach ~1e5 and overflow f16; bf16 is
+  all-NaN on RADV. Re-evaluate with the tch/libtorch f32 engine.
+
 ## 0.1.2 (2026-08-19)
 
 - **docs: notes stay short — kurz, bündig, knackig, no novels (2026-08-19)** —

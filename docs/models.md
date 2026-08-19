@@ -66,7 +66,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
-| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — weights: `2xNomosUni_span_multijpg_ldl` (JPG-degrad, sharp) + `2xBHI_small_span_pretrain` (clean; arch-verify target); burn port in progress (2026-08-19) |
+| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — burn port done + torch-verified, **f16/bf16-blocked** (see Notes); Phhofm `2xNomosUni_span_multijpg_ldl` + `2xBHI_small_span_pretrain`, TNTwise `ModernSpanimation` V1/V1.5/V2 + `DeH264_SPAN` |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
 | Restoration | 4x BHI RealPLKSR-dysample (`_real`/`_multi`/`_otf`…) | CC-BY-4.0 | adopt (arch exists, quick; 5 variants in one release) |
@@ -85,6 +85,11 @@ Candidates per stack; each needs a clean burn port + permissive license before
   `SpanPlusDynamic_Light` checkpoint is not published under that name on
   HF/Phhofm, so the RVE-hosted copy stays **unverified → blocked** (2026-08-19).
   The SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port.
+- SPAN is **not f16-safe**: torch-verified intermediates reach ~1e5 (block_3
+  out2 ≈ 7.4e4, c2_r ≈ 1.1e5) > f16 max 65504 → NaN; bf16 is all-NaN on RADV.
+  The burn port matches torch (f32) exactly but stays **gated** (no registry
+  entry) until a precision-safe backend exists — re-evaluate with the deferred
+  tch/libtorch f32 engine. V1/V1.5 use 64 feature channels (V2: 48).
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
   LayerNorm2d computes the channel reduction in a scaled `x/S` (S≈128) domain

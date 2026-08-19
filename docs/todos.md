@@ -5,6 +5,8 @@
 ## Backend
 - [ ] burn macOS scaffold as an experiment (no guarantees)
 - [ ] Autotune default: keep ON vs OFF vs vendor-patch (see `docs/upstream-issues.md` §2)
+- [ ] SPAN: re-evaluate once the tch/libtorch f32 engine lands (f16 overflows,
+      bf16 broken on RADV — port done, gated in `senmei-ml/src/burn/span.rs`)
 
 ## Release review (2026-08-19)
 

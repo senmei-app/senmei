@@ -12,6 +12,7 @@ mod nafnet;
 mod real_plksr;
 mod realesrgan;
 mod rife;
+mod span;
 mod upcunet;
 mod warp;
 
@@ -35,6 +36,7 @@ use nafnet::NafNet;
 use real_plksr::RealPlk;
 use realesrgan::RrdbNet;
 use rife::RifeNet;
+use span::Span;
 use upcunet::{UpCunet2x, UpCunet2xFast};
 
 pub struct BurnEngine {
@@ -52,6 +54,7 @@ enum Model {
     Drunet(Drunet<BurnBackend<f16>>),
     NafNet(NafNet<BurnBackend<f16>>),
     RealPlk(RealPlk<BurnBackend<f16>>),
+    Span(Span<BurnBackend<f16>>),
 }
 
 impl Model {
@@ -66,6 +69,7 @@ impl Model {
             Model::RealPlk(m) => Ok(m.forward(x)),
             Model::Drunet(m) => Ok(m.forward(x)),
             Model::NafNet(m) => Ok(m.forward(x)),
+            Model::Span(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) => Err(Error::new("no single-input forward")),
         }
     }
@@ -140,6 +144,11 @@ impl BurnEngine {
                 let mut m = RealPlk::new(model.scale as usize, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RealPlk(m))
+            }
+            "span" => {
+                let mut m = Span::new(48, model.scale as usize, &self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Span(m))
             }
             other => Err(Error::new(format!("unsupported arch: {other}"))),
         }
@@ -524,6 +533,22 @@ pub fn convert_pth_to_bpk(
             });
             let mut store = store;
             let mut m = RealPlk::<BurnBackend>::new(scale as usize, &device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "span" => {
+            // `params` wrapper + the Conv3XC training branch (`conv.0/1/2` +
+            // `sk`); the stale fused `eval_conv.*` and `no_norm` buffer are
+            // ignored by `load_from`.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_top_level_key("params")
+                .with_key_remapping(r"\.conv\.0\.", ".conv0.")
+                .with_key_remapping(r"\.conv\.1\.", ".conv1.")
+                .with_key_remapping(r"\.conv\.2\.", ".conv2.")
+                .with_key_remapping(r"^upsampler\.0\.", "upsampler.");
+            let mut m = Span::<BurnBackend>::new(48, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
