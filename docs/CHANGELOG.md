@@ -4,6 +4,19 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: NAFNet-GoPro burn-Arch-Port (Deblur, 2026-08-19)** —
+  `burn/nafnet.rs`: NAFNet-GoPro-width32 (megvii, MIT) als sauberer Nachbau —
+  NAFBlock (LayerNorm2d, SimpleGate, SCA `x·conv(avgpool(x))` ohne Sigmoid,
+  Depthwise-Conv, FFN mit beta/gamma-Skalen), Encoder/Down-Pyramide, Middle,
+  Decoder mit Conv1×1+PixelShuffle(2)-Ups, `ending+inp`. LayerNorm2d rechnet
+  die Kanalreduktion fp16-sicher in `x/S` (S=128). Torch-verifiziert (mae
+  0.0007 auf realistischem Input; Encoder blockweise exakt) — **erster
+  ML-Deblur, loadable**. `senmei-ml-convert` `nafnet`-Arch (Capture-Group-
+  Key-Remap), Registry `nafnet-gopro-width32` (MIT, nyanko7-Mirror),
+  `tools/nafnet_verify.py`. Neuer burn-bugs.md Fund (Bug 7): die internen
+  Aktivierungen überlaufen fp16 nur bei pathologischem Rausch-Input (~70000);
+  torch-fp16s LayerNorm überläuft dort still zu 0 (keine treue fp16-Referenz).
+
 - **feat: DRUNet in Denoise-Step verdrahtet (ML-Denoise) (2026-08-19)** — der
   Denoise-Step nutzt jetzt einen ML-Denoise (DRUNet), wenn ein Denoise-Modell
   gewählt ist, sonst Box-Blur als Fallback. Neu: `InferenceEngine::infer_denoise`

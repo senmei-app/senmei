@@ -8,6 +8,7 @@
 
 mod drunet;
 mod ifrnet;
+mod nafnet;
 mod real_plksr;
 mod realesrgan;
 mod rife;
@@ -29,6 +30,7 @@ use std::path::Path;
 
 use drunet::Drunet;
 use ifrnet::IfrNet;
+use nafnet::NafNet;
 use real_plksr::RealPlk;
 use realesrgan::RrdbNet;
 use rife::RifeNet;
@@ -47,6 +49,7 @@ enum Model {
     RifeNet(RifeNet<Vulkan<f16>>),
     IfrNet(IfrNet<Vulkan<f16>>),
     Drunet(Drunet<Vulkan<f16>>),
+    NafNet(NafNet<Vulkan<f16>>),
     RealPlk(RealPlk<Vulkan<f16>>),
 }
 
@@ -58,6 +61,7 @@ impl Model {
             Model::RrdbNet(m) => m.forward(x),
             Model::RealPlk(m) => m.forward(x),
             Model::Drunet(m) => m.forward(x),
+            Model::NafNet(m) => m.forward(x),
             Model::RifeNet(_) | Model::IfrNet(_) => panic!("no single-input forward"),
         }
     }
@@ -122,6 +126,11 @@ impl BurnEngine {
                 let mut m = Drunet::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Drunet(m))
+            }
+            "nafnet" => {
+                let mut m = NafNet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::NafNet(m))
             }
             "real-plksr" => {
                 let mut m = RealPlk::new(model.scale as usize, &self.device);
@@ -433,6 +442,32 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"m_up(\d)\.(\d)\.res\.2\.", "m_up$1.b$2.c2.")
                 .with_key_remapping(r"m_up(\d)\.0\.", "m_up$1.up.");
             let mut m = Drunet::<Vulkan>::new(&device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "nafnet" => {
+            // Torch NAFBlock keys (encoders.0.0.conv1, sca.1, middle_blks.0,
+            // ups.0.0, downs.0) map onto the burn field paths
+            // (encoders.0.blocks.0.conv1, sca_conv, middle.0, ups.0.conv,
+            // downs.0) with capture-group rules. The checkpoint wraps the
+            // state dict under `params`. The custom `NafBlock`/`LayerNorm2d`
+            // structs hold `beta`/`gamma`/norm params that aren't in the
+            // default half-precision set, so add them for the f16 conversion.
+            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(
+                HalfPrecisionAdapter::new()
+                    .with_module("NafBlock")
+                    .with_module("LayerNorm2d"),
+            );
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_top_level_key("params")
+                .with_key_remapping(r"^encoders\.(\d+)\.(\d+)\.", "encoders.$1.blocks.$2.")
+                .with_key_remapping(r"^decoders\.(\d+)\.(\d+)\.", "decoders.$1.blocks.$2.")
+                .with_key_remapping(r"^middle_blks\.(\d+)\.", "middle.$1.")
+                .with_key_remapping(r"^ups\.(\d+)\.0\.", "ups.$1.conv.")
+                .with_key_remapping(r"sca\.1\.", "sca_conv.");
+            let mut m = NafNet::<Vulkan>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)

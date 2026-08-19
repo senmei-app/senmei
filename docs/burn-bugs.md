@@ -177,6 +177,34 @@ in `rebuild_tensor_impl`.
 
 ---
 
+## Bug 7 — NAFNet-GoPro fp16: activations overflow on pathological input, torch-fp16's LayerNorm silently overflows to 0
+
+**Symptom.** A clean burn port of `NAFNet-GoPro-width32` (deblur) that matches
+torch **f32** block-by-block (encoder `enc3` max 576/2017/3345/10976…, LayerNorm
+mae 0.0001, gate/SCA mae ≤0.06) produces **NaN** on a random `[0,1]` input: the
+f32 reference's own internal activations grow to ~70000 at `enc3` block 26
+(256 ch, 28 blocks) and `down3`/`middle` ~49000 — past fp16's 65504.
+
+**Reproducer.** `crates/senmei-ml/src/burn/nafnet.rs` —
+`nafnet_matches_torch_reference` with `torch.rand` input → mae NaN; with a
+realistic/structured input (gradient, photo, σ≤0.05 noise) enc3 max stays
+~2000, bottleneck ~175, full-model mae 0.0007.
+
+**Root cause.** The overflow is **inherent to the weights + input**, not a port
+bug: the f32 model genuinely reaches ~70000 at the deepest encoder on high-noise
+input (film-grain-grade σ ≥ ~0.1). Any fp16 backend must either accept the
+overflow (NaN) or keep activations small by breaking the LayerNorm — which is
+exactly what **torch-fp16 does**: its `(x-mu)²` overflows to `inf`, so the layer
+outputs 0 and activations stay ≤~700 (hence torch-fp16 "works" but is **not** a
+faithful fp16 reference; only f32 is).
+
+**Workaround / status.** Keep the fp16 port; it is numerically correct and
+fp16-safe for real video (measured margin ~30×). Guard the engine input against
+pathological noise is not needed for the deblur use case. For a fully
+input-agnostic fp16 path the model would need f32 or a smaller variant.
+
+---
+
 ## Repo-side action items
 
 - [x] Filed upstream (2026-08-18, author zachelnet):

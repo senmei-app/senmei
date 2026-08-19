@@ -19,7 +19,8 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
-| DRUNet color (DPIR) | denoise | MIT | 1 | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); Denoise-step wiring pending | `cszn/KAIR` · `drunet_color.pth` |
+| DRUNet color (DPIR) | denoise | MIT | 1 | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
+| NAFNet-GoPro width32 | deblur | MIT | 1 | loadable (NafNet; torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 | Real-PLKSr DeJPG / DeH264 | decompress | verify (Phhofm) | 1 | loadable, download gated | `Phhofm/models` · TAS host |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
@@ -66,14 +67,19 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
-| Deblur | NAFNet-GoPro (width32/64) | MIT (HF mirror) | adopt (first ML deblur; NAFBlock) |
+| Deblur | NAFNet-GoPro (width32/64) | MIT (HF mirror) | **adopted** — loadable (NafNet, width32); width64 untested in fp16 |
 
 ## Notes
 
 - License is per artifact (code ≠ weight); adopt permissive only.
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
-  LayerNorm2d in fp16 overflows — compute channel reduction in scaled `x/S`
-  (S≈128) and back; channel attention = `mean(3).mean(2)`, upsample =
-  Conv1×1 + PixelShuffle(2). MIT confirmed (GoPro width32 weights).
+  LayerNorm2d computes the channel reduction in a scaled `x/S` (S≈128) domain
+  and back (fp16-safe); channel attention = `mean(3).mean(2)` (no sigmoid),
+  decoder up = Conv1×1 + PixelShuffle(2). Verified against torch on a
+  realistic input (mae 0.0007) and on the encoder block-by-block. The internal
+  activations are fp16-safe on real images (enc3 max ~2000, bottleneck ~175),
+  but **overflow fp16 (~70000) on pathological high-noise input** (σ ≥ ~0.1) —
+  torch-fp16's LayerNorm silently overflows to 0 there, so it is not a faithful
+  fp16 reference (only f32 is). MIT confirmed (GoPro width32 weights).
 - f32→f16: pre-convert to `.bpk` (BurnpackStore + HalfPrecisionAdapter).

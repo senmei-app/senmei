@@ -147,6 +147,18 @@
     "metadata": { "input_range": "0..1", "half": true, "in_nc": 4, "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending" }
   },
   {
+    "id": "nafnet-gopro-width32",
+    "kind": "deblur",
+    "scale": 1,
+    "arch": "nafnet",
+    "weights": ["NAFNet-GoPro-width32.pth.f16.bpk"],
+    "license": "MIT",
+    "source_url": "https://github.com/megvii-research/NAFNet",
+    "download_url": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width32.pth",
+    "loadable": true,
+    "metadata": { "input_range": "0..1", "half": true, "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/burn-bugs.md Bug 7); Deblur-step wiring pending" }
+  },
+  {
     "id": "rife-v4.6",
     "kind": "interpolate",
     "scale": 1,
