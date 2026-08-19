@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: harden the ONNX reader against malformed input (2026-08-19)** —
+  `onnx.rs` no longer panics on out-of-bounds varints, oversized
+  length-delimited fields, or length overflow; the low-level helpers are now
+  bounds-checked and return `Result`/`Option`, so corrupt bytes surface as an
+  `Err` instead of a crash. New tests: truncated length-delimited field +
+  truncated varint.
+
 - **feat: make the model catalog work in packaged apps (2026-08-19)** —
   `models_dir()` now prefers the writable data dir in a packaged app; the catalog
   (`models/metadata.json`) is bundled via `bundle.resources` and materialized to

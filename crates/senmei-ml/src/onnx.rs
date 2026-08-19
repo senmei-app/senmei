@@ -20,31 +20,31 @@ pub struct OnnxTensor {
 /// Read all weight tensors (initializers + `Constant` node values) from an
 /// ONNX model file. Errors when nothing is found or a tensor uses external data.
 pub fn read_initializers(bytes: &[u8]) -> Result<Vec<OnnxTensor>, String> {
-    let graph = first_length_delimited(bytes, 7)
+    let graph = first_length_delimited(bytes, 7)?
         .ok_or_else(|| "ModelProto has no graph field".to_string())?;
     let mut out = Vec::new();
-    for tensor in length_delimited_fields(graph, 5) {
+    for tensor in length_delimited_fields(graph, 5)? {
         out.push(parse_tensor(tensor)?);
     }
     // Constant nodes: weights can live only in constants. The tensor sits in
     // the `value` attribute; key it by the node's output name (the inner
     // TensorProto.name is usually "value"/empty, so keying by it collides).
-    for node in length_delimited_fields(graph, 1) {
-        if first_string(node, 4) != Some("Constant") {
+    for node in length_delimited_fields(graph, 1)? {
+        if first_string(node, 4)? != Some("Constant") {
             continue; // op_type
         }
-        let out_name = length_delimited_fields(node, 2)
+        let out_name = length_delimited_fields(node, 2)?
             .first()
             .and_then(|b| std::str::from_utf8(b).ok())
             .map(str::to_string);
-        for attr in length_delimited_fields(node, 5) {
-            if first_string(attr, 1) != Some("value") {
+        for attr in length_delimited_fields(node, 5)? {
+            if first_string(attr, 1)? != Some("value") {
                 continue; // attribute name
             }
-            if first_varint(attr, 20) != Some(4) {
+            if first_varint(attr, 20)? != Some(4) {
                 continue; // AttributeType::TENSOR
             }
-            if let Some(t) = first_length_delimited(attr, 5) {
+            if let Some(t) = first_length_delimited(attr, 5)? {
                 let mut tensor = parse_tensor(t)?;
                 if let Some(n) = &out_name {
                     tensor.name = n.clone();
@@ -62,54 +62,61 @@ pub fn read_initializers(bytes: &[u8]) -> Result<Vec<OnnxTensor>, String> {
 fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
     // External data is unreachable from a `&[u8]` reader (the sidecar path is
     // relative to the model file) — reject instead of yielding empty data.
-    if first_varint(msg, 14) == Some(1) {
+    if first_varint(msg, 14)? == Some(1) {
         return Err("TensorProto uses external data, not supported by the byte reader".to_string());
     }
-    let name = first_string(msg, 8)
+    let name = first_string(msg, 8)?
         .ok_or_else(|| "TensorProto missing name".to_string())?
         .to_string();
-    let dtype =
-        first_varint(msg, 2).ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
+    let dtype = first_varint(msg, 2)?
+        .ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
 
     // dims: field 1, packed (length-delimited) or repeated varints.
     let mut dims = Vec::new();
     let mut pos = 0;
     while pos < msg.len() {
-        let (tag, next) = varint(msg, pos);
+        let (tag, next) = varint(msg, pos).ok_or_else(|| "malformed dims field".to_string())?;
         let (num, wire) = (tag >> 3, tag & 7);
         match (num, wire) {
             (1, 2) => {
-                let (len, mut p) = varint(msg, next);
-                let end = p + len as usize;
+                let (len, mut p) =
+                    varint(msg, next).ok_or_else(|| "malformed packed dims".to_string())?;
+                let end = p
+                    .checked_add(len as usize)
+                    .ok_or_else(|| "packed dims overflow".to_string())?;
+                if end > msg.len() {
+                    return Err("packed dims exceeds buffer".to_string());
+                }
                 while p < end {
-                    let (v, np) = varint(msg, p);
+                    let (v, np) = varint(msg, p).ok_or_else(|| "malformed dim".to_string())?;
                     dims.push(v as i64);
                     p = np;
                 }
                 pos = end;
             }
             (1, 0) => {
-                dims.push(varint(msg, next).0 as i64);
-                pos = skip(msg, next, wire);
+                let (v, _) = varint(msg, next).ok_or_else(|| "malformed dim".to_string())?;
+                dims.push(v as i64);
+                pos = skip(msg, next, wire).ok_or_else(|| "malformed field".to_string())?;
             }
-            _ => pos = skip(msg, next, wire),
+            _ => pos = skip(msg, next, wire).ok_or_else(|| "malformed field".to_string())?,
         }
     }
 
     // Data: raw_data (field 9), else the packed typed arrays. int32/int64 are
     // varint-packed, so re-encode to little-endian fixed-width.
-    let data = if let Some(raw) = first_length_delimited(msg, 9) {
+    let data = if let Some(raw) = first_length_delimited(msg, 9)? {
         raw.to_vec()
-    } else if let Some(f) = first_length_delimited(msg, 4) {
+    } else if let Some(f) = first_length_delimited(msg, 4)? {
         f.to_vec() // packed float32
-    } else if let Some(d) = first_length_delimited(msg, 10) {
+    } else if let Some(d) = first_length_delimited(msg, 10)? {
         d.to_vec() // packed double64
-    } else if let Some(i) = first_length_delimited(msg, 5) {
-        packed_varints_to_bytes(i, 4)
-    } else if let Some(i) = first_length_delimited(msg, 7) {
-        packed_varints_to_bytes(i, 8)
-    } else if let Some(u) = first_length_delimited(msg, 11) {
-        packed_varints_to_bytes(u, 8)
+    } else if let Some(i) = first_length_delimited(msg, 5)? {
+        packed_varints_to_bytes(i, 4)?
+    } else if let Some(i) = first_length_delimited(msg, 7)? {
+        packed_varints_to_bytes(i, 8)?
+    } else if let Some(u) = first_length_delimited(msg, 11)? {
+        packed_varints_to_bytes(u, 8)?
     } else {
         Vec::new()
     };
@@ -123,87 +130,100 @@ fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
 }
 
 /// Re-encode varint-packed ints as little-endian fixed-width bytes.
-fn packed_varints_to_bytes(msg: &[u8], width: usize) -> Vec<u8> {
+fn packed_varints_to_bytes(msg: &[u8], width: usize) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(msg.len() * width);
     let mut pos = 0;
     while pos < msg.len() {
-        let (v, next) = varint(msg, pos);
-        out.extend_from_slice(&v.to_le_bytes()[..width]);
+        let (v, next) = varint(msg, pos)
+            .ok_or_else(|| "malformed varint in packed ints".to_string())?;
+        out.extend_from_slice(&v.to_le_bytes()[..width.min(8)]);
         pos = next;
     }
-    out
+    Ok(out)
 }
 
-/// Decode a base-128 varint; returns `(value, next_position)`.
-fn varint(b: &[u8], mut pos: usize) -> (u64, usize) {
+/// Decode a base-128 varint; returns `(value, next_position)`. `None` when
+/// `pos` is out of bounds or the varint overruns the buffer.
+fn varint(b: &[u8], mut pos: usize) -> Option<(u64, usize)> {
     let mut value = 0u64;
     let mut shift = 0;
     loop {
-        let byte = b[pos];
+        let byte = *b.get(pos)?;
         pos += 1;
         value |= u64::from(byte & 0x7f) << shift;
         if byte & 0x80 == 0 {
             break;
         }
         shift += 7;
+        if shift >= 64 {
+            return None; // overlong varint
+        }
     }
-    (value, pos)
+    Some((value, pos))
 }
 
-/// Skip a field's payload of the given wire type.
-fn skip(msg: &[u8], pos: usize, wire: u64) -> usize {
+/// Skip a field's payload of the given wire type; `None` when malformed.
+fn skip(msg: &[u8], pos: usize, wire: u64) -> Option<usize> {
     match wire {
-        0 => varint(msg, pos).1,
-        1 => pos + 8,
+        0 => varint(msg, pos).map(|(_, p)| p),
+        1 => pos.checked_add(8).filter(|&p| p <= msg.len()),
         2 => {
-            let (len, next) = varint(msg, pos);
-            next + len as usize
+            let (len, next) = varint(msg, pos)?;
+            next.checked_add(len as usize).filter(|&p| p <= msg.len())
         }
-        5 => pos + 4,
-        _ => pos,
+        5 => pos.checked_add(4).filter(|&p| p <= msg.len()),
+        _ => Some(pos),
     }
 }
 
 /// First length-delimited (wire type 2) field payload with the given number.
-fn first_length_delimited<'a>(msg: &'a [u8], want: u64) -> Option<&'a [u8]> {
-    length_delimited_fields(msg, want).into_iter().next()
+fn first_length_delimited<'a>(msg: &'a [u8], want: u64) -> Result<Option<&'a [u8]>, String> {
+    Ok(length_delimited_fields(msg, want)?.into_iter().next())
 }
 
 /// All length-delimited (wire type 2) field payloads with the given number.
-fn length_delimited_fields<'a>(msg: &'a [u8], want: u64) -> Vec<&'a [u8]> {
+fn length_delimited_fields<'a>(msg: &'a [u8], want: u64) -> Result<Vec<&'a [u8]>, String> {
     let mut out = Vec::new();
     let mut pos = 0;
     while pos < msg.len() {
-        let (tag, next) = varint(msg, pos);
+        let (tag, next) = varint(msg, pos).ok_or_else(|| "malformed field tag".to_string())?;
         let (num, wire) = (tag >> 3, tag & 7);
         if num == want && wire == 2 {
-            let (len, next) = varint(msg, next);
-            out.push(&msg[next..next + len as usize]);
-            pos = next + len as usize;
+            let (len, next) =
+                varint(msg, next).ok_or_else(|| "malformed field length".to_string())?;
+            let end = next
+                .checked_add(len as usize)
+                .ok_or_else(|| "field length overflow".to_string())?;
+            if end > msg.len() {
+                return Err("length-delimited field exceeds buffer".to_string());
+            }
+            out.push(&msg[next..end]);
+            pos = end;
         } else {
-            pos = skip(msg, next, wire);
+            pos = skip(msg, next, wire).ok_or_else(|| "malformed field".to_string())?;
         }
     }
-    out
+    Ok(out)
 }
 
 /// First varint (wire type 0) value with the given field number.
-fn first_varint(msg: &[u8], want: u64) -> Option<u64> {
+fn first_varint(msg: &[u8], want: u64) -> Result<Option<u64>, String> {
     let mut pos = 0;
     while pos < msg.len() {
-        let (tag, next) = varint(msg, pos);
+        let (tag, next) = varint(msg, pos).ok_or_else(|| "malformed field tag".to_string())?;
         let (num, wire) = (tag >> 3, tag & 7);
         if num == want && wire == 0 {
-            return Some(varint(msg, next).0);
+            let (v, _) = varint(msg, next).ok_or_else(|| "malformed varint".to_string())?;
+            return Ok(Some(v));
         }
-        pos = skip(msg, next, wire);
+        pos = skip(msg, next, wire).ok_or_else(|| "malformed field".to_string())?;
     }
-    None
+    Ok(None)
 }
 
 /// First string (length-delimited UTF-8) payload with the given field number.
-fn first_string<'a>(msg: &'a [u8], want: u64) -> Option<&'a str> {
-    first_length_delimited(msg, want).and_then(|b| std::str::from_utf8(b).ok())
+fn first_string<'a>(msg: &'a [u8], want: u64) -> Result<Option<&'a str>, String> {
+    Ok(first_length_delimited(msg, want)?.and_then(|b| std::str::from_utf8(b).ok()))
 }
 
 #[cfg(test)]
@@ -365,5 +385,28 @@ mod tests {
 
         let err = read_initializers(&model).unwrap_err();
         assert!(err.contains("no weight tensors"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn errors_on_truncated_length_delimited_field() {
+        // initializer field (5) claims 100 bytes but only 2 are present.
+        let mut bad = encode_varint((5 << 3) | 2);
+        bad.extend_from_slice(&encode_varint(100));
+        bad.extend_from_slice(&[0u8; 2]);
+        let model = len_field(7, &bad);
+
+        let err = read_initializers(&model).unwrap_err();
+        assert!(err.contains("exceeds buffer"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn errors_on_truncated_varint() {
+        // initializer length varint has the continuation bit set, then EOF.
+        let mut bad = encode_varint((5 << 3) | 2);
+        bad.push(0x80);
+        let model = len_field(7, &bad);
+
+        let err = read_initializers(&model).unwrap_err();
+        assert!(err.contains("malformed"), "unexpected: {err}");
     }
 }
