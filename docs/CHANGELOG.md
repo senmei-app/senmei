@@ -3,6 +3,10 @@
 > Implementation log (was §15 of PLAN.md). Newest on top.
 
 > Kept in sync with actual implementation. Update on every significant change.
+> Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
+> generated from the section above the latest heading.
+
+## 0.1.2 (2026-08-19)
 
 - **ui: slim fullscreen control bar + 320k preview audio (2026-08-19)** — in
   fullscreen the media fills the screen and a minimal overlay (play/pause,
@@ -21,14 +25,6 @@
   at 400 files. Adds `libasound2-dev`/`alsa-lib-devel` as a Linux build dep.
 
 - **ui: fullscreen fills the screen (2026-08-19)** — the single-view media used
-
-- **feat: preview audio for every codec (2026-08-19)** — the webview can't
-  decode all audio codecs (e.g. AC3 in anime files), so the monitor now plays
-  an FFmpeg-extracted AAC/M4A track via `<audio>` for any source; the native
-  `<video>` is muted while the track is present (extraction is cached in the
-  preview dir and synced on scrub/play/loop).
-
-- **ui: fullscreen fills the screen (2026-08-19)** — the single-view media used
   `max-h-full max-w-full` and stayed small in fullscreen; it now uses
   `h-full w-full` like Compare. Fullscreen also drops the monitor padding/
   border and hides the timeline bar, so the image/video fills the whole screen.
@@ -42,6 +38,8 @@
   was built as a console-subsystem exe, so a terminal popped up on launch.
   Added `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`;
   debug builds keep the console for logs.
+
+## 0.1.1 (2026-08-19)
 
 - **v0.1.1 — first public release (2026-08-19)** — 3-OS CI green (Linux/macOS
   full tests; Windows skips the `senmei-app` unit-test harness, see ci.yml),

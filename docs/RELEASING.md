@@ -6,8 +6,9 @@ version tags — no manual packaging. Process fits `.github/workflows/ci.yml`.
 ## Process
 
 1. **Bump the version** in `crates/senmei/tauri.conf.json` and the workspace
-   `Cargo.toml` (crate version tracks the app), and add a release entry to
-   `docs/CHANGELOG.md` (newest on top).
+   `Cargo.toml` (crate version tracks the app), and add a
+   `## x.y.z (YYYY-MM-DD)` heading + entry to the top of `docs/CHANGELOG.md`.
+   The GitHub release notes are generated from that section (step 4).
 2. **Pre-flight** (all green before tagging):
    - `cargo check --workspace` + `cargo test --workspace` (CPU/unit tests).
    - Frontend: `bun install --frozen-lockfile` + `bun run build` (tsc + vite).
@@ -23,7 +24,7 @@ version tags — no manual packaging. Process fits `.github/workflows/ci.yml`.
    ```
 4. **CI** builds `bundle/*` for Linux/Windows/macOS, uploads them as artifacts,
    and the `release` job publishes a GitHub Release (bundles attached, notes
-   auto-generated from the tag).
+   generated from the CHANGELOG section above the latest `## x.y.z` heading).
 5. **Post-release**: verify the downloaded bundles run on each platform; log any
    follow-ups in `docs/todos.md`.
 

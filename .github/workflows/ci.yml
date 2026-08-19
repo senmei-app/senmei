@@ -179,6 +179,9 @@ jobs:
 
       # Only the final installers are published; bundle dirs also hold build
       # intermediates (extracted libs, deb/rpm control files, AppImage glue).
+      - name: Build release notes from CHANGELOG
+        run: awk '/^## /{ c++ } c==1 { print } c==2 { exit }' docs/CHANGELOG.md > release-notes.md
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -189,4 +192,4 @@ jobs:
             bundles/**/*.dmg
             bundles/**/*.exe
             bundles/**/*.msi
-          generate_release_notes: true
+          body_path: release-notes.md
