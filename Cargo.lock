@@ -7744,7 +7744,7 @@ dependencies = [
 
 [[package]]
 name = "senmei"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "log",
  "senmei-app",
@@ -7757,7 +7757,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "env_logger",
  "liblzma",
@@ -7777,7 +7777,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-media"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "liblzma",
  "log",
@@ -7794,7 +7794,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-ml"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "burn",
  "burn-store",
@@ -7807,7 +7807,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-pipeline"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "log",
  "senmei-media",
