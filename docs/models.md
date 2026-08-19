@@ -14,7 +14,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Interpolation | RIFE v4.6 | 1 | MIT | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | Interpolation | IFRNet (Vimeo90K / GoPro) | 1 | MIT | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
 | Denoise | DRUNet color (DPIR) | 1 | MIT | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
-| Denoise | Real-PLKSr DeJPG / DeH264 | 1 | verify (Phhofm) | loadable, download gated | `Phhofm/models` · TAS host |
+| Denoise | RealPLKSR 1× DeJPG (otf/_60) / DeH264 (otf) | 1 | CC-BY-4.0 | loadable, download gated | `Phhofm/models` releases |
 | Restoration | Real-CUGAN up2x no-denoise | 2 | Apache-2.0 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
 | Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Fallin Strong | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
@@ -60,16 +60,17 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
 | Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
+| Denoise | RealPLKSR 1× family (DeNoise otf, DeJPG otf/_60, DeH264) | CC-BY-4.0 | adopt (DeJPG/DeH264 adopted; +DeNoise/_60) |
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
 | Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
-| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — burn port done + torch-verified, **f16/bf16-blocked** (see Notes); Phhofm `2xNomosUni_span_multijpg_ldl` + `2xBHI_small_span_pretrain`, TNTwise `ModernSpanimation` V1/V1.5/V2 + `DeH264_SPAN` |
+| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — burn port done + torch-verified, **f16-safe on real images** (bf16 broken on RADV; see Notes); Phhofm `2xNomosUni_span_multijpg_ldl` + `2xBHI_small_span_pretrain`, TNTwise `ModernSpanimation` V1/V1.5/V2 + `DeH264_SPAN` |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
-| Restoration | 4x BHI RealPLKSR-dysample (`_real`/`_multi`/`_otf`…) | CC-BY-4.0 | adopt (arch exists, quick; 5 variants in one release) |
+| Restoration | RealPLKSR_Dysample family — 2× Public layernorm (4), 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, NomosWebPhoto, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large/layernorm need an arch variant first |
 | Restoration | 4x BHI DAT2 (`_real`, `_multiblurjpg`) | CC-BY-4.0 | maybe (best 4× quality, but **transformer port** = high cost; separate milestone) |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
@@ -78,6 +79,8 @@ Candidates per stack; each needs a clean burn port + permissive license before
 ## Notes
 
 - License is per artifact (code ≠ weight); adopt permissive only.
+- Synthetic input = worst case (max high-frequency): re-test numeric issues on
+  real frames before deeming a model unsafe.
 - RVE-hosted SPAN weights are **license-blocked**: `TNTwise/real-video-enhancer-models`
   ships many community SPAN variants (e.g. `2x_BHI_SpanPlusDynamic_Light.pth`)
   with **no license metadata**. "BHI" is Phhofm's (Philip Hofmann's) model series
@@ -85,11 +88,16 @@ Candidates per stack; each needs a clean burn port + permissive license before
   `SpanPlusDynamic_Light` checkpoint is not published under that name on
   HF/Phhofm, so the RVE-hosted copy stays **unverified → blocked** (2026-08-19).
   The SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port.
-- SPAN is **not f16-safe**: torch-verified intermediates reach ~1e5 (block_3
-  out2 ≈ 7.4e4, c2_r ≈ 1.1e5) > f16 max 65504 → NaN; bf16 is all-NaN on RADV.
-  The burn port matches torch (f32) exactly but stays **gated** (no registry
-  entry) until a precision-safe backend exists — re-evaluate with the deferred
-  tch/libtorch f32 engine. V1/V1.5 use 64 feature channels (V2: 48).
+- SPAN is f16-safe on real frames (intermediates ~2e4–3e4; the earlier ~1e5
+  "overflow" was synthetic `torch.rand`, 2026-08-19). bf16 all-NaN on RADV.
+  V1/V1.5 = 64 channels, V2 = 48.
+- RealPLKSR_Dysample family (CC-BY-4.0, `Phhofm/models` releases; arch ported via
+  4x_Alchemy = dim 64 / 28 blocks / GroupNorm4 → **weights-only only for that config**):
+  1× DeNoise/DeJPG/DeH264 + 4× BHI/Nomos2/NomosWebPhoto/Nature/HFA2k/mssim fit.
+  Anime-first: BHI (4×) + Nomos. Realistic: 4xNature/HFA2k/mssim + 1× DeNoise/DeJPG/DeH264.
+  ArtFaces = faces only (skip). 2× BHI small (dim 32), large (dim 96) and 2× Public
+  layernorm (realistic 2×) need an arch variant first — not weights-only (todos).
+  Skip redundant BHI sub-variants (otf_nn/multiblur).
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);
   LayerNorm2d computes the channel reduction in a scaled `x/S` (S≈128) domain

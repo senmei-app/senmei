@@ -1,15 +1,7 @@
 //! SPAN (Swift Parameter-free Attention Network) — clean burn port from the
-//! Apache-2.0 BasicSR reference (hongyuanyu/SPAN) via spandrel.
-//!
-//! TNTwise checkpoints (`ModernSpanimation`, `DeH264_SPAN`) store the Conv3XC
-//! training branch (`sk` + a 1×1→3×3→1×1 chain); the fused `eval_conv` is
-//! stale, so the multi-branch path runs directly (numerically identical).
-//! Input normalization is `(x - mean) * 255`, mean (0.4488, 0.4371, 0.4040);
-//! V2 carries `no_norm=0` (= normalize), V1/V1.5 (64 channels) always normalize.
-//!
-//! NOT f16-safe: torch-verified intermediates reach ~1e5 (> f16 max 65504 →
-//! NaN); bf16 is all-NaN on RADV. Port is torch-verified but gated (not in the
-//! registry) until a precision-safe backend (e.g. tch f32) lands.
+//! Apache-2.0 BasicSR reference (hongyuanyu/SPAN). Load: TNTwise checkpoints
+//! keep the Conv3XC training branch (stale fused `eval_conv` ignored). f16-safe
+//! on real frames (overflow only on synthetic noise); bf16 broken on RADV.
 
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
@@ -72,8 +64,7 @@ impl<B: Backend> Spab<B> {
         }
     }
 
-    /// `(out, out1, att)` — `out1` is the raw c1 output (pre-SiLU), used by the
-    /// SPAN head's channel concat.
+    /// `(out, out1, att)`; `out1` (pre-SiLU) feeds the head concat.
     pub fn forward(&self, x: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
         let out1 = self.c1_r.forward(x.clone());
         let out1_act = silu(out1.clone());
@@ -129,9 +120,7 @@ impl<B: Backend> Span<B> {
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        // BasicSR SPAN normalizes its [0,1] input: (x - mean) * img_range with
-        // mean (0.4488, 0.4371, 0.4040), img_range 255. The adopted checkpoints
-        // carry `no_norm=0`, i.e. normalization active.
+        // (x - mean) * 255, mean (0.4488, 0.4371, 0.4040) — checkpoints carry no_norm=0.
         let mean = Tensor::<B, 1>::from_floats([0.4488, 0.4371, 0.4040], &x.device())
             .reshape([1, 3, 1, 1]);
         let x = (x - mean).mul_scalar(255.0);
