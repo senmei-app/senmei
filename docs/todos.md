@@ -13,6 +13,12 @@
 > osxexperts are GPL, conflicting with the LGPL-only policy); `download_ffmpeg`
 > points to `brew install ffmpeg`. Revisit if the LGPL rule is ever relaxed.
 
+## gpu-allocator / windows 0.62 pin (revisit ~2026-02)
+- [ ] Drop the `senmei-app/gpu-allocator` fork (`[patch.crates-io]`) once the
+      Tauri webview stack (webview2-com-sys/tao) moves `windows` to 0.62 —
+      then gpu-allocator + wgpu-hal 29 unify on 0.62 with no fork. Tracked
+      upstream: gpu-allocator #310 (closed "not planned"); no Tauri issue yet.
+
 ## after release
 - [ ] Project website
 - [ ] MCP server: AI agents auto-tune settings → sample → compare vs original →
