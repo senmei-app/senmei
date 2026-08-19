@@ -24,7 +24,7 @@ import { I18nProvider, type Lang } from "./i18n";
 import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
 import { defaultHotkey, comboFromEvent, resolveHotkeys } from "./hotkeys";
 import { basename } from "./paths";
-import { demoProjects, demoVideos } from "./mock";
+import { loadDemo } from "./demo";
 import { useBatch } from "./useBatch";
 import TopBar from "./components/TopBar";
 import MediaLibrary from "./components/MediaLibrary";
@@ -66,6 +66,7 @@ export default function App() {
 
   const reloadProjects = async () => {
     if (!isTauri()) {
+      const { demoProjects } = await loadDemo();
       setProjects([...demoProjects]);
       return;
     }
@@ -202,6 +203,7 @@ export default function App() {
 
   const openFiles = async () => {
     if (!isTauri()) {
+      const { demoVideos } = await loadDemo();
       setFiles((prev) => [...prev, ...demoVideos]);
       return;
     }
@@ -216,6 +218,7 @@ export default function App() {
 
   const importFolderFiles = async () => {
     if (!isTauri()) {
+      const { demoVideos } = await loadDemo();
       setFiles((prev) => [...prev, ...demoVideos]);
       return;
     }
@@ -227,6 +230,7 @@ export default function App() {
 
   const handleCreateProject = async (name: string) => {
     if (!isTauri()) {
+      const { demoProjects } = await loadDemo();
       const p: ProjectEntry = { name, path: `/demo/${name.toLowerCase().replace(/\s+/g, "-")}` };
       demoProjects.push(p);
       setProjectDir(p.path);
@@ -242,12 +246,15 @@ export default function App() {
     setOutputDir(null);
   };
 
-  const handleOpenProject = (path: string) => {
+  const handleOpenProject = async (path: string) => {
     setProjectDir(path);
     setFiles([]);
     batch.setRenderedFile(null);
     setOutputDir(null);
-    if (!isTauri()) setFiles([...demoVideos]);
+    if (!isTauri()) {
+      const { demoVideos } = await loadDemo();
+      setFiles([...demoVideos]);
+    }
   };
 
   // Open an exported project archive (.tar.xz); import it into the app
@@ -319,6 +326,7 @@ export default function App() {
   const handleDeleteProject = async (path: string) => {
     try {
       if (!isTauri()) {
+        const { demoProjects } = await loadDemo();
         const i = demoProjects.findIndex((p) => p.path === path);
         if (i >= 0) demoProjects.splice(i, 1);
       } else {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isTauri, Channel } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
-import { demoDownloadModel, demoModels } from "../mock";
+import { loadDemo } from "../demo";
 import { useI18n } from "../i18n";
 import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
 import StepEditor from "./StepEditor";
@@ -55,7 +55,7 @@ export default function Inspector({
 
   useEffect(() => {
     if (!isTauri()) {
-      setModels(demoModels);
+      loadDemo().then(({ demoModels }) => setModels(demoModels));
       return;
     }
     listModels().then(setModels).catch(() => {});
@@ -228,7 +228,12 @@ export default function Inspector({
     setDownloading(modelId);
     setDlPct(0);
     if (!isTauri()) {
-      demoDownloadModel((p) => setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0))
+      loadDemo()
+        .then(({ demoDownloadModel }) =>
+          demoDownloadModel((p) =>
+            setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0),
+          ),
+        )
         .catch((e) => console.error(e))
         .finally(() => setDownloading(null));
       return;

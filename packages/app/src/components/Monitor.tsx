@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
-import { demoFrame, demoProbe } from "../mock";
+import { loadDemo } from "../demo";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
 import { basename } from "../paths";
@@ -186,8 +186,10 @@ export default function Monitor({
     }
     if (targets.length === 0) return Promise.resolve();
     if (!isTauri()) {
-      targets.forEach(({ path }) =>
-        setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${demoFrame()}` })),
+      loadDemo().then(({ demoFrame }) =>
+        targets.forEach(({ path }) =>
+          setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${demoFrame()}` })),
+        ),
       );
       return Promise.resolve();
     }
@@ -257,7 +259,7 @@ export default function Monitor({
     if (!isTauri()) {
       const probeTarget = file;
       if (probeTarget) {
-        setInfo(demoProbe());
+        loadDemo().then(({ demoProbe }) => setInfo(demoProbe()));
         if (fileChanged) onSampleChange?.(0, 10000);
       }
       loadFrame(next);

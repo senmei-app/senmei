@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **cleanup: split mock.ts out of the production bundle + drop tiling dead-code (2026-08-19)** —
+  the demo backend loads lazily via `loadDemo()` (dynamic import → its own chunk,
+  never fetched in Tauri); `crop_rgb24` is `cfg(feature = "burn")`-gated, dropping
+  the `#[allow(dead_code)]`.
+
 - **fix: scope IPC file ops to the app data dir + block tar-slip on import (2026-08-19)** —
   `prune_samples` and `export_project` now reject paths outside the app data dir
   (the `delete_project` allowlist pattern, `store::ensure_within_data_dir`);

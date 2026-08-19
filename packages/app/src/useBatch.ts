@@ -15,7 +15,7 @@ import {
 } from "@senmei/bridge";
 import { buildEncoderArgs, type BatchJob, type PipelineStep } from "./steps";
 import { basename, dirname, joinPath } from "./paths";
-import { startDemoRender, stopDemoRender } from "./mock";
+import { loadDemo } from "./demo";
 
 function fmtTs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -157,6 +157,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
             };
             await render(initial[i].input, output, config, ch);
           } else {
+            const { startDemoRender } = await loadDemo();
             await startDemoRender((p) => {
               patch(i, { progress: p });
               setProgress(p);
@@ -188,7 +189,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   };
 
   const cancel = () => {
-    if (!isTauri()) stopDemoRender();
+    if (!isTauri()) loadDemo().then(({ stopDemoRender }) => stopDemoRender());
     setRendering(false);
     setPaused(false);
     setJobs((prev) =>

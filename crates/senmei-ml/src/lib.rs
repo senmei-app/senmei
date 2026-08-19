@@ -48,7 +48,9 @@ pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
 pub use tensor::Tensor;
-pub use tiling::{crop, crop_rgb24, pad_to, stitch, uniform_tile};
+pub use tiling::{crop, pad_to, stitch, uniform_tile};
+#[cfg(feature = "burn")]
+pub use tiling::crop_rgb24;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
