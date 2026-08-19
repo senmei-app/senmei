@@ -384,9 +384,9 @@ Weights are **never committed** — only downloaded on demand; `metadata.json` h
 
 ## 16. MCP / AI-Agent Control (2026-08-19, status 2026-08-20)
 
-> Status: **in progress** — `senmei-server` scaffold, read-only tools and the
-> confirm-gated async render are done (e2e render verified); sample-compare,
-> settings schema and tool ranges are open (§16.3, next steps §16.6).
+> Status: **core loop done** — scaffold, settings schema, sample-compare, tool
+> ranges and the e2e agent loop are all in (§16.3, §16.6); a real client
+> (Claude/ChatGPT) remains a manual follow-up.
 > Goal: let AI assistants (ChatGPT, Gemini, Claude, …) drive Senmei over
 > **MCP**: analyze a video, propose settings, render a sample, compare it
 > against the original, then start the full render after user confirmation.
@@ -464,5 +464,6 @@ require a refactor. Both gates live in `core`, so every transport gets them.
    enforces the schema ranges (scale/fps/tonemap/dedup/resize/range); the tool
    set is already whitelist-only (fixed tools; render tools behind the
    `render` feature).
-4. **E2E agent loop** — MCP-client smoke test `probe → propose → sample →
-   compare → confirm → full render`, then a real client (Claude/ChatGPT).
+4. ~~**E2E agent loop**~~ ✅ done — ignored integration test `tests/agent_loop.rs`
+   drives the full loop over stdio (probe → sample → compare → propose →
+   confirm → poll); a real Claude/ChatGPT client remains a manual follow-up.

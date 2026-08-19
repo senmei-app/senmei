@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **test: senmei-server agent-loop e2e (2026-08-20)** — ignored integration
+  test `tests/agent_loop.rs` drives the full MCP loop over stdio (probe →
+  render_sample → compare_sample → propose_render → confirm_render → poll
+  status → assert output). Needs Vulkan + converted fallin-soft .bpk.
+
 - **feat: senmei-server validate ranges + tool allowlist (2026-08-20)** —
   `validate()` now enforces the full schema ranges (scale 1..=4, fps 1..=16,
   tonemap enum, dedup 0..=1, resize/output_resize > 0, end > start). The tool

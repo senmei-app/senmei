@@ -35,6 +35,5 @@
 
 ## after release
 - [ ] Project website
-- [ ] MCP server: e2e agent loop (probe→sample→compare→confirm→render) (PLAN.md §16.6)
 - [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
 
