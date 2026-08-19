@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **feat: senmei-server render — confirm gate (2026-08-20)** — new `render`
+  cargo feature pulls `senmei-pipeline` + `senmei-ml/burn`. `core` gains
+  `RenderConfig`/`validate` (path/ranges + permissive-license model
+  allowlist), `engine_for_model` (license gate, hard), and `render` mirroring
+  the GUI's pipeline assembly. MCP tools: `propose_render` (validates + parks,
+  does NOT start), `confirm_render` (runs the pending render), `cancel_render`.
+  Default build stays light; the tools report "render not compiled in" without
+  the feature. Verified over stdio: handshake, tools/list, validation errors,
+  and a real pipeline run (burn/Vulkan up, ffmpeg stage).
+
 - **docs: update milestones + record senmei-server decision (2026-08-20)** —
   PLAN.md: M5 audio is rodio-based (every codec), M7 model downloader/IFRNet
   done, M8 bundles + release CI done (auto-updater + static FFmpeg bundle

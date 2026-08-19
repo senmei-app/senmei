@@ -60,6 +60,49 @@ impl SenmeiServer {
     async fn get_ffmpeg_status(&self) -> Result<CallToolResult, McpError> {
         json_ok(&core::ffmpeg_status())
     }
+
+    #[tool(description = "Propose a render (validates, does NOT start); confirm with confirm_render")]
+    async fn propose_render(
+        &self,
+        Parameters(args): Parameters<core::RenderConfig>,
+    ) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            return match core::propose_render(args) {
+                Ok(msg) => json_ok(&msg),
+                Err(e) => json_err(e),
+            };
+        }
+        #[cfg(not(feature = "render"))]
+        {
+            let _ = args;
+            json_err("render not compiled in (build with --features render)".to_string())
+        }
+    }
+
+    #[tool(description = "Run the previously proposed render (confirmation gate)")]
+    async fn confirm_render(&self) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            return match core::confirm_render() {
+                Ok(msg) => json_ok(&msg),
+                Err(e) => json_err(e),
+            };
+        }
+        #[cfg(not(feature = "render"))]
+        json_err("render not compiled in (build with --features render)".to_string())
+    }
+
+    #[tool(description = "Cancel the active render")]
+    async fn cancel_render(&self) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            core::cancel_render();
+            return json_ok(&"ok");
+        }
+        #[cfg(not(feature = "render"))]
+        json_err("render not compiled in (build with --features render)".to_string())
+    }
 }
 
 fn json_ok<T: serde::Serialize>(value: &T) -> Result<CallToolResult, McpError> {
