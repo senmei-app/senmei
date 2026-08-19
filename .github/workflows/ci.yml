@@ -85,10 +85,7 @@ jobs:
             cargo test --workspace --exclude senmei-app
           else
             cargo test --workspace
-          fi2 v5 -> missing v6 exports); its tests run
-      # on Linux/macOS instead.
-      - name: cargo test --workspace
-        run: cargo test --workspace
+          fi
 
       # senmei_app test exe died with 0xc0000139 at load; dump imports at the
       # function level and compare with the working senmei bin exe.
