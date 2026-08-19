@@ -52,11 +52,11 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 
 - **Language:** English everywhere (no German fragments).
 - **Date everything** that can change: findings, decisions, eval notes get `(YYYY-MM-DD)`.
-- **One truth per fact** — cross-reference, don't duplicate. PLAN.md = decisions & architecture; CHANGELOG.md = implementation log; benchmarks.md = numbers; models.md = model matrix; burn-bugs.md = upstream findings; todos.md = open backlog only.
+- **One truth per fact** — cross-reference, don't duplicate. PLAN.md = decisions & architecture; CHANGELOG.md = implementation log; benchmarks.md = numbers; models.md = model matrix; upstream-issues.md = upstream findings + paste-ready texts; todos.md = open backlog only.
 - **Fixed per-file structure:**
   - `models.md`: rule → Adopted table → Backlog table → Sources → Notes.
   - `benchmarks.md`: decision + key numbers + environment at top; dated findings below; tables over prose.
-  - `burn-bugs.md`: one `## Bug N` section per finding (Symptom / Reproducer / Root cause / Workaround / Status).
+  - `upstream-issues.md`: one `## N` section per upstream issue (Finding + paste-ready text).
   - `todos.md`: only open items; completed items move to CHANGELOG.
 
 ## ML

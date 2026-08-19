@@ -78,8 +78,8 @@ Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
 ### Autotune failures — root cause & fix (2026-08-18)
 
 Full-frame fused `infer_rgb8` OOM'd autotune on a large matmul (m=1024, n=4M,
-f16), then panicked `Ordering is bigger than operations` (docs/burn-bugs.md
-Bug 1+3). **Fix:** tile `infer_rgb8` (640px) so no full-frame matmul reaches
+f16), then panicked `Ordering is bigger than operations` (docs/upstream-issues.md
+§1+2). **Fix:** tile `infer_rgb8` (640px) so no full-frame matmul reaches
 autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
 autotune also works but is ~5× slower.
 

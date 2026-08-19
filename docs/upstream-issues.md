@@ -1,19 +1,34 @@
-# Upstream reports (ready to paste)
+# Upstream reports
 
-Draft texts for the burn/cubecl issues tracked in `docs/burn-bugs.md` plus the
-ONNX feature request from `docs/todos.md`. Written for upstream (English). Copy
-each block as-is into the linked issue or new-issue form.
+Consolidated tracking for upstream burn/cubecl/onnx findings — the former
+`docs/burn-bugs.md` was merged here (2026-08-19). Each section is one upstream
+issue: the **Finding** (symptom / root cause / workaround / status) plus the
+**paste-ready text** to file or post upstream. Copy the text block as-is into
+the linked issue or comment form.
 
-Section numbers ≠ bug numbers: Bug 2 (tuner panic without fusion) is a secondary
-manifestation of the same autotune machinery and is folded into Bug 3's context,
-not filed separately.
+Filed 2026-08-18 (author zachelnet): Bug 1 → comment on `tracel-ai/burn#4950`,
+Bug 3 → `tracel-ai/cubecl#1531`, Bug 4 → `tracel-ai/burn#5382`, Bug 5 →
+`tracel-ai/burn#5383`. Section numbers ≠ old bug numbers; Bug 2 (tuner panic
+without fusion) is a secondary manifestation of the same autotune machinery and
+is folded into §2; Bug 7 (NAFNet fp16 overflow) is inherent to the weights +
+input, not an upstream bug — its finding is in `docs/models.md` (Notes).
 
 ---
 
-## 1. burn-fusion "Ordering is bigger than operations" — comment on tracel-ai/burn#4950 (Bug 1)
+## 1. burn-fusion "Ordering is bigger than operations" — Bug 1 (burn#4950)
 
-Link: <https://github.com/tracel-ai/burn/issues/4950> (same panic, thin report).
-Filed 2026-08-18 as a comment (author zachelnet). Post the following as a comment.
+**Finding.** A fused tensor readback panics on the fusion server's worker thread
+at `burn-fusion/src/stream/execution/ordering.rs:49` ("Ordering is bigger than
+operations") after many readbacks under autotune on Vulkan (AMD RADV/RDNA4);
+single calls never panic. Root cause: `execute_optimization` compares the
+optimization's plan-time `ordering` against the execution-time `operations`
+queue; a drain between plan and execute leaves a stale ordering → panic.
+Workaround: `infer_rgb8` is tiled internally (640 px) so no full-frame matmul
+reaches autotune — reliable, 186 ms / 5.4 FPS; autotune OFF is reliable but ~5×
+slower. Upstream status: still present on `main` (2026-08-18), only the message
+got more verbose.
+
+**Paste-ready text** — post as a comment on burn#4950:
 
 ```text
 We hit the same panic deterministically under autotune on Vulkan
@@ -44,12 +59,19 @@ fall back to executing the available operations unfused. That keeps correctness
 
 ---
 
-## 2. cubecl-wgpu: autotune OOMs the device on an oversized matmul, then corrupts the server (Bug 3)
+## 2. cubecl-wgpu: autotune OOMs the device on an oversized matmul, then corrupts the server — Bug 3 (cubecl#1531)
 
-Filed: `tracel-ai/cubecl#1531`. Links: #1384, #1401 (same stale-page symptom,
-different trigger).
+**Finding.** With autotune ON, a full-frame fused `infer_rgb8` fails
+deterministically (~4.6 s in, 4/4 runs, 2026-08-18):
+`cubecl-wgpu .../compute/server.rs:270: can't allocate buffer of size: 4395368448`
+— autotune benchmarks `MatmulAutotuneKey { m: 1024, n: 4194304, k: 64, f16 }`, a
+shape only a full-frame forward produces. The failed 4.4 GB allocation leaves
+the server invalid ("Memory page 0 doesn't exist"), surfacing as the tuner panic
+(Bug 2) and/or the ordering panic (Bug 1). Workaround: the tiled path (640 px)
+avoids the 4M-column matmul. No upstream fix. Related: `#1384` closed, `#1401`
+CUDA.
 
-Title:
+**Paste-ready text** (Title + Body):
 
 ```text
 cubecl-wgpu: autotune OOMs the device benchmarking an oversized matmul, then corrupts the server
@@ -87,11 +109,16 @@ Tile the input so no full-frame matmul reaches autotune (we run 640px tiles).
 
 ---
 
-## 3. burn-nn GroupNorm: f16 div_scalar underflows for large per-group element counts (Bug 4)
+## 3. burn-nn GroupNorm: f16 div_scalar underflows for large per-group element counts — Bug 4 (burn#5382)
 
-Filed: `tracel-ai/burn#5382`.
+**Finding.** `GroupNorm` on `Vulkan<f16>` divides the channel-sum by the
+per-group element count via `div_scalar`; for counts ≥ 2¹⁴ the f16 reciprocal
+1/N is subnormal and the fused kernel flushes it to 0 → normalized output
+explodes (observed ±318 vs torch ±1.3). `mean_dim` (native scaled kernel) stays
+accurate. Workaround: compute the norm with `mean_dim` instead of
+`sum + div_scalar` (`crates/senmei-ml/src/burn/real_plksr.rs::group_norm`).
 
-Title:
+**Paste-ready text** (Title + Body):
 
 ```text
 burn-nn GroupNorm: f16 div_scalar underflows for large per-group element counts
@@ -129,11 +156,15 @@ Workaround: compute the normalization with mean_dim instead of sum + div_scalar.
 
 ---
 
-## 4. burn-store PytorchReader ignores tensor strides (non-contiguous .pth loads scrambled) (Bug 5)
+## 4. burn-store PytorchReader ignores tensor strides — Bug 5 (burn#5383)
 
-Filed: `tracel-ai/burn#5383`.
+**Finding.** The pickle reader parses `args[3]` (stride) in `rebuild_tensor_v2`
+but discards it, reading storage linearly — a non-contiguous `.pth`
+(channels-last, e.g. `4x_Alchemy`: shape `[o,i,k,k]`, strides `(27,1,9,3)`)
+loads silently scrambled (head weight correlation 0.24). Workaround: preprocess
+the state dict with `{k: v.contiguous() for k, v in sd.items()}`.
 
-Title:
+**Paste-ready text** (Title + Body):
 
 ```text
 burn-store PytorchReader ignores tensor strides (non-contiguous .pth loads scrambled)
@@ -170,12 +201,14 @@ Workaround: pre-process the state dict with
 
 ---
 
-## 5. burn-onnx: runtime API to load ONNX initializer tensors (feature request)
+## 5. burn-onnx: runtime API to load ONNX initializer tensors — feature request (burn-onnx#456)
 
-Filed: `tracel-ai/burn-onnx#456`. No duplicate found — existing issues cover
-operator coverage / codegen, not a weight-only initializer reader.
+**Finding.** Feature request, not a bug: projects using ONNX only as a weight
+container (hand-ported architecture) need a runtime initializer reader without
+the codegen step. No duplicate found — existing issues cover operator coverage /
+codegen, not a weight-only initializer reader.
 
-Title:
+**Paste-ready text** (Title + Body):
 
 ```text
 feat: runtime API to load ONNX initializer tensors (weight-container use case)

@@ -159,7 +159,7 @@ def main() -> None:
     # Deterministic, structured input (smooth sinusoid rings + gradient) that is
     # fp16-safe for this model: random noise drives the GoPro-width32 encoder
     # activations past fp16 max (65504), but real image content stays far below
-    # (see docs/burn-bugs.md). 66 is not a multiple of 16 → exercises pad/crop.
+    # (see docs/upstream-issues.md §6). 66 is not a multiple of 16 → exercises pad/crop.
     n, c, h, w = 1, 3, 64, 66
     yy, xx = np.mgrid[0:h, 0:w]
     r = np.sqrt((xx - (w - 1) / 2) ** 2 + (yy - (h - 1) / 2) ** 2)

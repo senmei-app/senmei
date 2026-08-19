@@ -187,7 +187,7 @@ impl InferenceEngine for BurnEngine {
 
     /// Fused RGB8 path: hands back packed rgb24 bytes. The model runs on the
     /// GPU (autotuned, f16) in 640px tiles (avoids the full-frame im2col OOM,
-    /// see docs/burn-bugs.md Bug 3; 640 beats 512 and 768 — docs/benchmarks.md).
+    /// see docs/upstream-issues.md §2; 640 beats 512 and 768 — docs/benchmarks.md).
     /// Tiles are accumulated into one f16 canvas on the GPU (overlap averaging)
     /// and read back as a single packed frame — one readback instead of one u8
     /// readback per tile plus a CPU stitch.
@@ -499,7 +499,7 @@ pub fn convert_pth_to_bpk(
             // are indexed (`channel_mixer.0`/`.2`, `attn.f.0`) rather than named.
             //
             // NOTE: the pth must have contiguous tensors — burn-store's reader
-            // ignores strides (docs/burn-bugs.md Bug 5), so a channels-last
+            // ignores strides (docs/upstream-issues.md §4), so a channels-last
             // state dict (e.g. the raw `4x_Alchemy.pth`) loads scrambled.
             // Preprocess with `{k: v.contiguous() for k, v in sd.items()}`.
             let store = PytorchStore::from_file(pth_path)
@@ -962,7 +962,7 @@ mod tests {
     }
 
     /// The tiled-fused RGB8 path must be reliable over many frames (the
-    /// full-frame variant OOM'd autotune — docs/burn-bugs.md Bug 3) and match
+    /// full-frame variant OOM'd autotune — docs/upstream-issues.md §2) and match
     /// the reference (`infer` + NCHW→rgb24 interleave).
     #[test]
     #[ignore = "requires Vulkan + fallin-soft bpk"]
@@ -1069,7 +1069,7 @@ mod tests {
 
         let (h, w): (usize, usize) = (66, 64); // not a multiple of 16
                                                // Smooth gradient (fp16-safe; constant/flat inputs overflow the model's
-                                               // deepest activations — see docs/burn-bugs.md Bug 7).
+                                               // deepest activations — see docs/upstream-issues.md §6).
         let data: Vec<f32> = (0..3 * h * w)
             .map(|i| ((i % w) as f32 / (w - 1) as f32) * 0.5 + 0.25)
             .collect();

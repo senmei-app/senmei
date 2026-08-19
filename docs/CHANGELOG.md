@@ -4,6 +4,17 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: consolidate burn-bugs.md into upstream-issues.md (2026-08-19)** — the
+  findings doc is merged into `docs/upstream-issues.md` (one section per issue:
+  Finding + paste-ready text); `burn-bugs.md` deleted and all references updated;
+  the open autotune-default decision moved to `docs/todos.md`, which now holds
+  open items only (done items live in CHANGELOG).
+
+- **docs: trim further duplication (2026-08-19)** — burn-bugs.md Bug 1's embedded
+  suggested-issue text now points to the paste-ready copy in `upstream-issues.md`
+  §1; PLAN.md §15 status snapshot no longer re-lists adopted models or the LGPL
+  encoder chain (cross-references `models.md` / §14.3).
+
 - **docs: de-dup model tables (2026-08-19)** — PLAN.md §14.2 no longer keeps its
   own model matrix (it was a stale subset of `docs/models.md`); models.md's
   backlog no longer repeats adopted items (DRUNet, BSRGAN, NAFNet-GoPro width32)

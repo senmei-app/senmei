@@ -21,7 +21,7 @@ pub trait InferenceEngine: Send + Sync {
     /// bypassing the CPU f32 intermediate + `tensor_to_frame`. Returns `None`
     /// to fall back to `infer` + `tensor_to_frame`. `scale` is the requested
     /// upscale factor. Implementations must tile internally — a full-frame
-    /// pass OOMs autotune on large matmuls (see docs/burn-bugs.md Bug 3).
+    /// pass OOMs autotune on large matmuls (see docs/upstream-issues.md §2).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let _ = (input, scale);
         None

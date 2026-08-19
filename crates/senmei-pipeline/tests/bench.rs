@@ -6,7 +6,7 @@
 //! path; `bench_upscale_step` measures the whole `Upscale` step end to end
 //! (frame → tiles → RGB8 frame). Both use tiled inference — the fused
 //! full-frame path was removed because it OOMs autotune on large matmuls
-//! (see docs/burn-bugs.md).
+//! (see docs/upstream-issues.md).
 
 use std::time::Instant;
 

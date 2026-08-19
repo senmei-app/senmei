@@ -74,14 +74,13 @@ marked loadable; weights are recorded per artifact with license + source.
 
 One truth per fact — cross-reference, don't duplicate. New decision → `PLAN.md`;
 model added → `models.md` (numbers → `benchmarks.md`); upstream bug →
-`burn-bugs.md` (paste-ready text → `upstream-issues.md`); implemented work →
+`upstream-issues.md`; implemented work →
 `CHANGELOG.md`; still open → `todos.md`.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — decisions & architecture (source of truth)
 - [`docs/models.md`](docs/models.md) — model matrix & backlog
 - [`docs/benchmarks.md`](docs/benchmarks.md) — perf numbers
-- [`docs/burn-bugs.md`](docs/burn-bugs.md) — upstream burn/cubecl findings
-- [`docs/upstream-issues.md`](docs/upstream-issues.md) — paste-ready texts for upstream issues
+- [`docs/upstream-issues.md`](docs/upstream-issues.md) — upstream burn/cubecl findings + paste-ready texts
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — implementation log (newest on top)
 - [`docs/todos.md`](docs/todos.md) — open backlog only
 

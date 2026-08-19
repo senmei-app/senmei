@@ -10,7 +10,7 @@
 //!          (scale: 1 for the decompress models, 4 for 4x-alchemy).
 //!
 //! `real-plksr` pths must have contiguous tensors (burn-store ignores strides,
-//! see docs/burn-bugs.md Bug 5) — preprocess channels-last state dicts with
+//! see docs/upstream-issues.md §4 — preprocess channels-last state dicts with
 //! `{k: v.contiguous() for k, v in sd.items()}`.
 
 fn main() -> senmei_ml::Result<()> {

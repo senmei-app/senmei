@@ -317,7 +317,7 @@ sequenceDiagram
 1. **End-to-end RIFE render** through the app (interpolate with `rife-v4.6`, verify the output).
 2. **Numeric verification** of RIFE against the ncnn reference binary.
 3. More upscalers/interpolators as clean burn ports; mac backend marked experimental.
-4. Port + license-verify the backlog models (SCUNet, Anime1080Fixer) — tracked in `docs/models.md` / `docs/todos.md`.
+4. Port + license-verify the backlog models — tracked in `docs/models.md` / `docs/todos.md`.
 
 ---
 
@@ -360,15 +360,17 @@ Weights are **never committed** — only downloaded on demand; `metadata.json` h
 
 ## 15. Current Status
 
-> Short status snapshot — the full implementation log lives in [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top).
+> Short status snapshot — the full implementation log lives in
+> [`docs/CHANGELOG.md`](CHANGELOG.md) (newest on top), the adopted model matrix in
+> [`docs/models.md`](models.md), numbers in [`docs/benchmarks.md`](benchmarks.md).
 
 - **Engine:** burn (`burn-wgpu`) **Vulkan fp16** (shipped default) — see `docs/benchmarks.md`.
-- **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end (clean burn port, `flownet.bin` weights; 10 fps → 19 frames @ 20 fps pipeline test).
-- **Upscaling (M2):** real models on burn-Vulkan fp16 with tiling — real-cugan-x2, Fallin Soft/Strong, 4x-Alchemy + Real-PLKSr decompress (loadable), Real-ESRGAN; verified 1080p→2160p.
+- **Interpolation (M3):** RIFE v4.6 wired and verified end-to-end (clean burn port, `flownet.bin` weights).
+- **Upscaling (M2):** real upscale on burn-Vulkan fp16 with tiling, verified 1080p→2160p (adopted models per `docs/models.md`).
 - **Stacks (M7):** interpolation, upscale, **denoise/deblur/dedup (reference CPU)**, resize, output — all work; batch queue + progress done.
 - **UI:** 3-panel + Inspector stack, drag&drop import, queue tab, monitor (native `<video>` + FFmpeg fallback, full-video mode), keyboard shortcuts, export/open project (`.tar.xz`).
 - **Sample preview (M5):** timeline in/out presets + "Render Sample" range render; compare/result views.
-- **Media/License (2026-08-18):** LGPL-only FFmpeg (BtbN `-lgpl` pinned) + LGPL-safe encoder chain; license gate for model download/use.
+- **Media/License:** LGPL-only FFmpeg + LGPL-safe encoder chain (§14.3); license gate for model download/use.
 - **Next:** end-to-end RIFE render in the app, more model ports — backlog in `docs/todos.md` / `docs/models.md`.
 
 ---
