@@ -139,16 +139,17 @@ impl<B: Backend> RrdbNet<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BurnBackend;
     use burn::tensor::{f16, TensorData};
     use burn_store::{BurnpackStore, ModuleSnapshot};
-    use burn_wgpu::{Vulkan, WgpuDevice};
+    use burn_wgpu::WgpuDevice;
 
     /// Numerical check of the BSRGAN (RRDBNet 23, scale 4) port against the
     /// official weights: `tools/bsrgan_verify.py` writes `x.bin`/`ref.bin`
     /// (f32, 32×32 → 128×128). Loads the f16 burnpack, runs the same input, and
     /// asserts a small mean abs error.
     #[test]
-    #[ignore = "needs Vulkan + models/BSRGAN.f16.bpk + torch ref bins (tools/bsrgan_verify.py); needs RUST_MIN_STACK=33554432"]
+    #[ignore = "needs GPU + models/BSRGAN.f16.bpk + torch ref bins (tools/bsrgan_verify.py); needs RUST_MIN_STACK=33554432"]
     fn bsrgan_matches_torch_reference() {
         let device = WgpuDevice::DiscreteGpu(0);
         let dir = std::env::var("SENMEI_BSRGAN_VERIFY_DIR")
@@ -165,7 +166,7 @@ mod tests {
         let x_v = read("x.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * c * 128 * 128);
 
-        let mut m = RrdbNet::<Vulkan<f16>>::new(4, 23, &device);
+        let mut m = RrdbNet::<BurnBackend<f16>>::new(4, 23, &device);
         let mut store = BurnpackStore::from_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../models/BSRGAN.f16.bpk"
@@ -184,7 +185,7 @@ mod tests {
             println!("  unused {u}");
         }
 
-        let x = Tensor::<Vulkan<f16>, 4>::from_data(
+        let x = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
             &device,
         );

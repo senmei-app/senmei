@@ -4,6 +4,16 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: add docs/README.md index, link upstream-issues.md (2026-08-19)** — new
+  landing page for the docs folder: one-truth-per-fact index, "where does X go"
+  quick reference, and per-file conventions; the root README's docs list now also
+  points to `upstream-issues.md`.
+
+- **fix: make realesrgan BSRGAN test backend-agnostic (2026-08-19)** — the
+  `bsrgan_matches_torch_reference` test imported `burn_wgpu::Vulkan` directly,
+  which broke the macOS (Metal) `cargo test` build; switch it to the crate's
+  `BurnBackend` alias like the other burn tests.
+
 - **build: move the gpu-allocator windows-0.62 pin into a fork repo (2026-08-19)** —
   the Windows DX12 fix (wgpu-hal 29 needs windows 0.62; upstream 0.28.0's range
   `>=0.53, <=0.62` unified to 0.61 with tauri) no longer vendors the whole crate
