@@ -432,7 +432,7 @@ sequenceDiagram
 | 2 | **Sample-compare tool** | ✅ done | `render_sample` (range render + before/after PNGs) + `compare_sample` (PSNR/SSIM on the original res); VMAF deferred (libvmaf build) |
 | 3 | **Settings JSON Schema** | ✅ done | `get_settings_schema` tool: schemars render-config schema (documented + ranged) + model slots + constraints |
 | 4 | **Confirmation gate** | ✅ done | `propose_render` (validate+park) / `confirm_render` / `cancel_render`; async + `get_render_status` |
-| 5 | **Tool allowlist + ranges** | 🟡 partial | ranges now in the schema; explicit tool whitelist still open |
+| 5 | **Tool allowlist + ranges** | ✅ done | `validate()` enforces the schema ranges on every param; tool set is whitelist-only (fixed tools, render behind the `render` feature) |
 
 **Decision (2026-08-19):** headless crate = **`senmei-server`** — thin, transport-agnostic
 `core` service (probe/render/models/queue + license/confirm gates) with adapters:
@@ -460,7 +460,9 @@ require a refactor. Both gates live in `core`, so every transport gets them.
 2. ~~**Sample-compare** (§16.3 #2)~~ ✅ done — `render_sample` (range render +
    before/after PNGs) + `compare_sample` (PSNR/SSIM on the original resolution;
    VMAF deferred to a libvmaf build).
-3. **Tool allowlist + ranges** (§16.3 #5) — remaining: explicit tool whitelist
-   (ranges already ship in the schema).
+3. ~~**Tool allowlist + ranges** (§16.3 #5)~~ ✅ done — `validate()` now
+   enforces the schema ranges (scale/fps/tonemap/dedup/resize/range); the tool
+   set is already whitelist-only (fixed tools; render tools behind the
+   `render` feature).
 4. **E2E agent loop** — MCP-client smoke test `probe → propose → sample →
    compare → confirm → full render`, then a real client (Claude/ChatGPT).

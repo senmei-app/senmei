@@ -278,19 +278,47 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     Ok(engine)
 }
 
-/// Validate a render config: required paths, sane ranges, and every referenced
-/// model must exist with a permissive license (never a blocked one).
+/// Validate a render config: required paths, sane ranges (mirrors the settings
+/// schema), and every referenced model must exist with a permissive license
+/// (never a blocked one).
 #[cfg(feature = "render")]
 pub fn validate(config: &RenderConfig) -> Result<(), String> {
     if config.input.is_empty() || config.output.is_empty() {
         return Err("input and output are required".into());
     }
-    if config.scale.unwrap_or(1) > 4 {
-        return Err("scale must be <= 4".into());
+    if !(1..=4).contains(&config.scale.unwrap_or(1)) {
+        return Err("scale must be in 1..=4".into());
+    }
+    if let Some(f) = config.resize {
+        if f <= 0.0 {
+            return Err("resize must be > 0".into());
+        }
+    }
+    if let Some(f) = config.output_resize {
+        if f <= 0.0 {
+            return Err("output_resize must be > 0".into());
+        }
     }
     if let Some(f) = config.fps_multiplier {
         if !(1..=16).contains(&f) {
             return Err("fps_multiplier must be in 1..=16".into());
+        }
+    }
+    if let Some(t) = config.tonemap.as_deref() {
+        if !matches!(t, "auto" | "always" | "off") {
+            return Err("tonemap must be one of auto|always|off".into());
+        }
+    }
+    if let (Some(s), Some(e)) = (config.start_ms, config.end_ms) {
+        if e <= s {
+            return Err("end_ms must be > start_ms".into());
+        }
+    }
+    if let Some(f) = config.filter.as_ref() {
+        if let Some(t) = f.dedup_threshold {
+            if !(0.0..=1.0).contains(&t) {
+                return Err("dedup_threshold must be in 0..=1".into());
+            }
         }
     }
     let mut ids: Vec<&str> = Vec::new();
@@ -618,5 +646,28 @@ mod tests {
         assert_eq!(parse_after(ssim, "All:"), Some(0.981234));
         // summary = LAST matching line
         assert_eq!(parse_after("All:0.1 (1)\nAll:0.9 (2)", "All:"), Some(0.9));
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn validate_rejects_bad_ranges() {
+        let base = || RenderConfig {
+            input: "in.mp4".into(),
+            output: "out.mp4".into(),
+            ..Default::default()
+        };
+        assert!(validate(&base()).is_ok());
+
+        let bad = |cfg: RenderConfig| validate(&cfg).unwrap_err();
+        assert!(bad(RenderConfig { scale: Some(5), ..base() }).contains("scale"));
+        assert!(bad(RenderConfig { scale: Some(0), ..base() }).contains("scale"));
+        assert!(bad(RenderConfig { fps_multiplier: Some(0), ..base() }).contains("fps_multiplier"));
+        assert!(bad(RenderConfig { tonemap: Some("weird".into()), ..base() }).contains("tonemap"));
+        assert!(bad(RenderConfig { resize: Some(0.0), ..base() }).contains("resize"));
+        assert!(bad(RenderConfig { start_ms: Some(2000), end_ms: Some(1000), ..base() }).contains("end_ms"));
+        assert!(bad(RenderConfig {
+            filter: Some(FilterConfig { dedup_threshold: Some(1.5), ..Default::default() }),
+            ..base()
+        }).contains("dedup"));
     }
 }

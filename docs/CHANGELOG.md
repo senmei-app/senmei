@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: senmei-server validate ranges + tool allowlist (2026-08-20)** —
+  `validate()` now enforces the full schema ranges (scale 1..=4, fps 1..=16,
+  tonemap enum, dedup 0..=1, resize/output_resize > 0, end > start). The tool
+  set is whitelist-only: fixed tools, render tools behind the `render` feature.
+
 - **feat: senmei-server sample-compare (2026-08-20)** — `render_sample`
   (synchronous range render, no confirm gate; returns output + before/after
   PNG frames at the range midpoint) and `compare_sample` (PSNR dB + SSIM on
