@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: SPAN family with per-model feature_channels (2026-08-20)** —
+  `ModelRef`/registry carry `feature_channels` (default 48); the engine builds
+  `Span::new(ch, …)` from it (64 for TNTwise ModernSpanimation V1) and the
+  convert CLI reuses the 5th arg as the channel count for `span`. Registered:
+  `span-2x-nomosuni-multijpg`, `span-2x-hfa2k-ludvae` (Phhofm 48ch,
+  CC-BY-4.0) and `span-2x-modern-spanimation-v1` (TNTwise 64ch, MIT) next to
+  `span-2x-nomosuni-ldl`; all converted to f16 `.bpk`. E2E render over MCP
+  stdio verified with the 64ch model (→ 640×480).
+
 - **feat: senmei-server settings schema tool (2026-08-20)** — new
   `get_settings_schema` MCP tool (works without the `render` feature): the
   render-config JSON Schema (schemars, fields now documented + ranged), the

@@ -146,7 +146,11 @@ impl BurnEngine {
                 Ok(Model::RealPlk(m))
             }
             "span" => {
-                let mut m = Span::new(48, model.scale as usize, &self.device);
+                let mut m = Span::new(
+                    model.feature_channels as usize,
+                    model.scale as usize,
+                    &self.device,
+                );
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Span(m))
             }
@@ -540,14 +544,16 @@ pub fn convert_pth_to_bpk(
         }
         "span" => {
             // Phhofm is flat; TNTwise wraps in `params` (stripped). Stale
-            // `eval_conv.*` and `no_norm` are ignored by `load_from`.
+            // `eval_conv.*` and `no_norm` are ignored by `load_from`. The 5th
+            // CLI arg (num_block slot) is the feature-channel count: 48 for
+            // the Phhofm 2× family, 64 for TNTwise ModernSpanimation V1/V1.5.
             let mut store = PytorchStore::from_file(pth_path)
                 .with_key_remapping(r"^params\.", "")
                 .with_key_remapping(r"\.conv\.0\.", ".conv0.")
                 .with_key_remapping(r"\.conv\.1\.", ".conv1.")
                 .with_key_remapping(r"\.conv\.2\.", ".conv2.")
                 .with_key_remapping(r"^upsampler\.0\.", "upsampler.");
-            let mut m = Span::<BurnBackend>::new(48, scale as usize, &device);
+            let mut m = Span::<BurnBackend>::new(num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -719,6 +725,7 @@ mod tests {
             arch: "fallin-cugan".into(),
             scale: 2,
             num_block: 4,
+            feature_channels: 48,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -759,6 +766,7 @@ mod tests {
             arch: "real-plksr".into(),
             scale: 4,
             num_block: 4,
+            feature_channels: 48,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -821,6 +829,7 @@ mod tests {
             arch: "real-plksr".into(),
             scale: 1,
             num_block: 4,
+            feature_channels: 48,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -872,6 +881,7 @@ mod tests {
             arch: "real-plksr".into(),
             scale: 1,
             num_block: 4,
+            feature_channels: 48,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();

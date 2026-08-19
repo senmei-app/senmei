@@ -328,7 +328,68 @@
     "metadata": {
       "input_range": "0..1",
       "half": true,
+      "feature_channels": 48,
       "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× multijpg+ldl; f16-safe on real frames"
+    }
+  },
+  {
+    "id": "span-2x-nomosuni-multijpg",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2xNomosUni_span_multijpg.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg/2xNomosUni_span_multijpg.pth",
+    "sha256": "1a981d0a11e2fcbb6cda7ac635f31b97d9903492ba7e4dda09b8be0b274f1ac5",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 48,
+      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× universal multijpg; f16-safe"
+    }
+  },
+  {
+    "id": "span-2x-hfa2k-ludvae",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2xHFA2k_LUDVAE_SPAN.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2k_LUDVAE_SPAN",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2k_LUDVAE_SPAN/2xHFA2k_LUDVAE_SPAN.pth",
+    "sha256": "1efe96d6729e82883618a01eca77a23eae873dd4f8a374aa5fe2e2f15f64d104",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 48,
+      "note": "Phhofm SPAN anime (HFA2k_LUDVAE), 48ch 2×, params-wrapped; f16-safe"
+    }
+  },
+  {
+    "id": "span-2x-modern-spanimation-v1",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2x_ModernSpanimationV1.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1",
+    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1/2x_ModernSpanimationV1.pth",
+    "sha256": "bc6ca08ab1eeb9884a5c43c025eda97a5aa9ccfaa567734f426aedf55cf78327",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 64,
+      "note": "TNTwise ModernSpanimation V1 (MIT), 64ch 2× anime, params-wrapped; f16-safe"
     }
   }
 ]

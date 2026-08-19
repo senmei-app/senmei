@@ -71,6 +71,8 @@ pub struct ModelRef {
     pub scale: u32,
     /// RRDB blocks for the `realesrgan` arch family.
     pub num_block: u32,
+    /// SPAN feature channels (48 Phhofm 2×, 64 TNTwise ModernSpanimation).
+    pub feature_channels: u32,
     pub path: PathBuf,
 }
 
@@ -121,6 +123,11 @@ impl Registry {
                         .get("num_block")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(4) as u32,
+                    feature_channels: m
+                        .metadata
+                        .get("feature_channels")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(48) as u32,
                     path: dir.join(f),
                 })
         })
@@ -164,7 +171,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 18);
+        assert_eq!(registry.models().len(), 21);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -212,6 +219,43 @@ mod tests {
         assert_eq!(registry.models()[17].arch, "span");
         assert!(registry.models()[17].loadable);
         assert_eq!(registry.models()[17].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(
+            registry.models()[17]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(48)
+        );
+        assert_eq!(registry.models()[18].id, "span-2x-nomosuni-multijpg");
+        assert_eq!(registry.models()[18].arch, "span");
+        assert_eq!(registry.models()[18].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(
+            registry.models()[18]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(48)
+        );
+        assert_eq!(registry.models()[19].id, "span-2x-hfa2k-ludvae");
+        assert_eq!(registry.models()[19].arch, "span");
+        assert_eq!(registry.models()[19].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(
+            registry.models()[19]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(48)
+        );
+        assert_eq!(registry.models()[20].id, "span-2x-modern-spanimation-v1");
+        assert_eq!(registry.models()[20].arch, "span");
+        assert_eq!(registry.models()[20].license.as_deref(), Some("MIT"));
+        assert_eq!(
+            registry.models()[20]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(64)
+        );
         assert!(matches!(registry.models()[15].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[15].arch, "ifrnet");
         assert!(registry.models()[15].loadable);

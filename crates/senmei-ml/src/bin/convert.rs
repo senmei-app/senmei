@@ -8,6 +8,8 @@
 //!          the built-in parser — no ONNX Runtime)
 //!   scale / num_block only matter for `realesrgan` (RRDBNet) and `real-plksr`
 //!          (scale: 1 for the decompress models, 4 for 4x-alchemy).
+//!   for `span`, the 5th arg is the feature-channel count: 48 for the Phhofm
+//!          2× family, 64 for TNTwise ModernSpanimation V1/V1.5.
 //!
 //! `real-plksr` pths must have contiguous tensors (burn-store ignores strides,
 //! see docs/upstream-issues.md §4 — preprocess channels-last state dicts with

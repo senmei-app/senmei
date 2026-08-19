@@ -23,6 +23,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Restoration | Real-ESRGAN x4plus-anime (6B) | 4 | BSD-3-Clause | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | BSRGAN | 4 | MIT | loadable (RRDBNet, 23 blocks; torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | Deblur | NAFNet-GoPro width32 | 1 | MIT | loadable (NafNet; torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
+| Restoration | SPAN 2× family (NomosUni multijpg, _ldl, HFA2k_LUDVAE, ModernSpanimation V1) | 2 | CC-BY-4.0 · MIT | loadable (Span; feature_channels 48/64, f16-safe) | `Phhofm/models` · `TNTwise/Models` |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.
@@ -67,7 +68,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
-| Restoration | SPAN | Apache-2.0 arch · CC-BY-4.0 weights | adopt — burn port done + torch-verified, **f16-safe on real images** (bf16 broken on RADV; see Notes); Phhofm `2xNomosUni_span_multijpg_ldl` + `2xBHI_small_span_pretrain`, TNTwise `ModernSpanimation` V1/V1.5/V2 + `DeH264_SPAN` |
+| Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, HFA2k_LUDVAE, ModernSpanimation V1 done |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
 | Restoration | RealPLKSR_Dysample family — 2× Public layernorm (4), 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, NomosWebPhoto, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large/layernorm need an arch variant first |

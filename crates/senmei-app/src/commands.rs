@@ -76,10 +76,10 @@ pub async fn download_model(
         .find(|m| m.id == model_id)
         .ok_or_else(|| format!("model not found: {model_id}"))?
         .clone();
-    // Central num_block default lives in the registry resolve.
-    let num_block = registry
+    // The 5th convert arg is num_block (realesrgan) or feature_channels (span).
+    let convert_arg = registry
         .resolve(&model_id, &dir)
-        .map(|m| m.num_block)
+        .map(|m| if m.arch == "span" { m.feature_channels } else { m.num_block })
         .unwrap_or(4);
     if meta.license_blocked() {
         return Err(format!(
@@ -125,10 +125,10 @@ pub async fn download_model(
         )
         .map_err(|e| e.to_string())?;
         if onnx {
-            senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, num_block)
+            senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
                 .map_err(|e| e.to_string())?;
         } else {
-            senmei_ml::convert_pth_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, num_block)
+            senmei_ml::convert_pth_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
                 .map_err(|e| e.to_string())?;
         }
         let _ = std::fs::remove_file(&source);
