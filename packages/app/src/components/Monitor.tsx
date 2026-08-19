@@ -605,6 +605,50 @@ export default function Monitor({
           </button>
         )}
 
+        {isFull && (
+          <div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-3">
+            <button
+              onClick={togglePlay}
+              disabled={!info}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25 disabled:opacity-40"
+            >
+              {playing ? "⏸" : "▶"}
+            </button>
+            <span className="shrink-0 font-mono text-xs text-slate-200">
+              {fmt(tlPos)} / {fmt(tlMax)}
+            </span>
+            <div className="relative flex-1">
+              <div className="pointer-events-none absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full bg-white/25" />
+              <div
+                className="pointer-events-none absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-indigo-400"
+                style={{ width: `${scrubPct}%` }}
+              />
+              <input
+                type="range"
+                min={tlMin}
+                max={tlMax}
+                step={50}
+                value={Math.min(Math.max(tlPos, tlMin), tlMax)}
+                onChange={(e) => onScrub(Number(e.target.value))}
+                disabled={!info}
+                className="scrubber relative z-10 w-full cursor-ew-resize"
+              />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="text-xs leading-none">{volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={volume}
+                onChange={(e) => changeVolume(Number(e.target.value))}
+                className="h-1 w-16 cursor-pointer accent-indigo-500"
+              />
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[10px] text-white backdrop-blur">
             {error}

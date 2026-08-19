@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: slim fullscreen control bar + 320k preview audio (2026-08-19)** — in
+  fullscreen the media fills the screen and a minimal overlay (play/pause,
+  position, scrubber, volume) sits at the bottom instead of the full timeline.
+  Preview audio is now transcoded at 320 kbps (was 128k); MP3 stays the target
+  because AAC/M4A crashes rodio 0.20.1 (symphonia isomp4 init SeekError).
+
 - **feat: preview audio via native playback + stable frames (2026-08-19)** —
   WebKitGTK can't play media over Tauri's `asset://` scheme at all (its
   GStreamer backend doesn't know the scheme), so the webview `<audio>` was

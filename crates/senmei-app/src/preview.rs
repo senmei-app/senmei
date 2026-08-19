@@ -108,10 +108,10 @@ fn cap_preview_dir(dir: &std::path::Path) {
     }
 }
 
-/// Extract the source audio once as WebM/Opus for the preview `<audio>` — the
-/// webview can't always decode the source's audio codec (e.g. AC3 in anime
-/// files), but every webview plays WebM/Opus. One active track at a time;
-/// stale tracks (incl. old .m4a) are dropped when a new one is extracted.
+/// Extract the source audio once as MP3 for the native preview player — the
+/// source's audio codec (e.g. AC3 in anime files) isn't always decodable, so
+/// the track is transcoded. One active track at a time; stale tracks (incl.
+/// old .webm/.m4a) are dropped when a new one is extracted.
 pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
     let dir = preview_dir(project_dir);
     let ns = frame_ns(input);

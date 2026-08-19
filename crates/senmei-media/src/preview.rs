@@ -18,10 +18,10 @@ pub fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Extract the source audio track as MP3 for the fallback preview `<audio>`:
-/// webviews can't play the source, but every webview plays MP3 (`audio/mpeg`).
-/// WebM/Opus failed with MEDIA_ERR_SRC_NOT_SUPPORTED in WebKitGTK `<audio>`
-/// (video/* mime), so stick to a native audio container.
+/// Extract the source audio track as MP3 for the native preview player (rodio).
+/// The source codec (e.g. AC3/FLAC/Opus in anime files) isn't always decodable
+/// by rodio, so the track is transcoded. MP3 is the most reliable rodio target;
+/// AAC/M4A crashes rodio 0.20.1 (symphonia isomp4 init SeekError).
 pub fn extract_audio(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,
@@ -30,7 +30,7 @@ pub fn extract_audio(
     let status = std::process::Command::new(ffmpeg)
         .args(["-y", "-i"])
         .arg(input)
-        .args(["-vn", "-c:a", "libmp3lame", "-b:a", "128k"])
+        .args(["-vn", "-c:a", "libmp3lame", "-b:a", "320k"])
         .arg(out)
         .status()?;
     if status.success() {
