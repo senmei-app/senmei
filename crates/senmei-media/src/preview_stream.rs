@@ -173,13 +173,15 @@ mod tests {
     #[test]
     #[ignore = "needs a locally rendered mkv with wrong container duration"]
     fn out_of_range_position_still_returns_a_frame() {
-        let f = "$HOME/Videos/Neo_Ranga_01_test1234_shuffle-cugan_x2_24.mkv";
-        if !Path::new(f).exists() {
+        let Some(f) = std::env::var("SENMEI_TEST_MKV").ok() else {
+            return;
+        };
+        if !Path::new(&f).exists() {
             return;
         }
         let mut cache = PreviewCache::new("ffmpeg".into());
         let frame = cache
-            .frame(f, 100_000.0)
+            .frame(&f, 100_000.0)
             .expect("frame at out-of-range pos");
         assert!(frame.width > 0 && frame.height > 0);
     }
