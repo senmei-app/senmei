@@ -305,6 +305,9 @@ pub struct FilterParams {
     /// model instead of the CPU box blur.
     pub denoise_model_id: Option<String>,
     pub deblur_amount: Option<f32>,
+    /// Optional ML deblur model (NAFNet); when set the deblur step runs the
+    /// model instead of the CPU unsharp mask.
+    pub deblur_model_id: Option<String>,
     pub dedup_threshold: Option<f32>,
 }
 
@@ -398,7 +401,19 @@ pub async fn render(
             }
             if let Some(a) = f.deblur_amount {
                 if a > 0.0 {
-                    steps.push(Box::new(senmei_pipeline::Deblur::new(a)));
+                    // A selected deblur model that cannot be loaded falls back
+                    // to the CPU unsharp mask (engine stays None).
+                    let engine = match f.deblur_model_id.as_deref() {
+                        Some(id) => match engine_for_model(id) {
+                            Ok(e) => Some(e),
+                            Err(err) => {
+                                log::warn!("deblur model {id} unavailable, using unsharp mask: {err}");
+                                None
+                            }
+                        },
+                        None => None,
+                    };
+                    steps.push(Box::new(senmei_pipeline::Deblur::new(a, engine)));
                 }
             }
             if let Some(t) = f.dedup_threshold {

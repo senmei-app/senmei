@@ -67,6 +67,11 @@ export type FilterParams = {
 	 */
 	denoiseModelId?: string | null,
 	deblurAmount?: number | null,
+	/**
+	 *  Optional ML deblur model (NAFNet); when set the deblur step runs the
+	 *  model instead of the CPU unsharp mask.
+	 */
+	deblurModelId?: string | null,
 	dedupThreshold?: number | null,
 };
 

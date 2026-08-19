@@ -4,6 +4,16 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: NAFNet in Deblur-Step verdrahtet (ML-Deblur) (2026-08-19)** — der
+  Deblur-Step nutzt jetzt ein ML-Modell (NAFNet), wenn ein Deblur-Modell
+  gewählt ist, sonst Unsharp-Mask als Fallback (Engine-Fehler fallen ebenfalls
+  zurück). NAFNet ist Single-Input (scale 1, 3ch→3ch) und padet intern auf
+  Vielfache von 16 — der Step nutzt daher den generischen `infer_tiled`-Pfad,
+  kein neues Trait-Method. `FilterParams.deblur_model_id` → `render()` baut die
+  Engine; Frontend: Deblur-Step hat jetzt einen Modell-Dropdown (kind
+  `deblur`), `steps.ts`-Default, `useBatch` sendet `deblurModelId`; bindings
+  regeneriert. GPU-Test `infer_nafnet_deblurs_via_generic_infer`.
+
 - **feat: NAFNet-GoPro burn-Arch-Port (Deblur, 2026-08-19)** —
   `burn/nafnet.rs`: NAFNet-GoPro-width32 (megvii, MIT) als sauberer Nachbau —
   NAFBlock (LayerNorm2d, SimpleGate, SCA `x·conv(avgpool(x))` ohne Sigmoid,

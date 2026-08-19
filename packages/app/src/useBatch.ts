@@ -106,6 +106,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       denoiseRadius: dn ? (dn.params?.radius ?? null) : null,
       denoiseModelId: dn ? (dn.params?.modelId ?? null) : null,
       deblurAmount: db ? (db.params?.amount ?? null) : null,
+      deblurModelId: db ? (db.params?.modelId ?? null) : null,
       dedupThreshold: dd ? (dd.params?.threshold ?? null) : null,
     };
     const config: RenderConfig = {

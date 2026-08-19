@@ -68,7 +68,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
   interpolation: { modelId: null, fpsMultiplier: 2 },
   upscale: { modelId: null, scale: 2 },
   denoise: { radius: 1, modelId: null },
-  deblur: { amount: 0.5 },
+  deblur: { amount: 0.5, modelId: null },
   deduplication: { threshold: 0.02 },
   resize: { factor: "" },
   output: {

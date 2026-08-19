@@ -25,6 +25,7 @@ export interface StepEditorProps {
   interpolateModels: ModelMetadata[];
   upscaleModels: ModelMetadata[];
   denoiseModels: ModelMetadata[];
+  deblurModels: ModelMetadata[];
   downloading: string | null;
   dlPct: number;
   folderMenu: string | null;
@@ -45,6 +46,7 @@ export default function StepEditor(props: StepEditorProps) {
     interpolateModels,
     upscaleModels,
     denoiseModels,
+    deblurModels,
     downloading,
     dlPct,
     folderMenu,
@@ -164,17 +166,25 @@ export default function StepEditor(props: StepEditorProps) {
         </>
       );
     case "deblur":
-      return field(
-        t("deblur.amount"),
-        <input
-          type="range"
-          min={0}
-          max={2}
-          step={0.1}
-          value={s.params?.amount ?? 0.5}
-          onChange={(e) => updateParams(s.id, { amount: Number(e.target.value) })}
-          className="w-full accent-indigo-500"
-        />,
+      return (
+        <>
+          {field(
+            t("fi.model"),
+            modelSelect(deblurModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+          )}
+          {field(
+            t("deblur.amount"),
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.1}
+              value={s.params?.amount ?? 0.5}
+              onChange={(e) => updateParams(s.id, { amount: Number(e.target.value) })}
+              className="w-full accent-indigo-500"
+            />,
+          )}
+        </>
       );
     case "deduplication": {
       const threshold = s.params?.threshold ?? 0.02;

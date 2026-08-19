@@ -90,15 +90,21 @@ impl Step for Denoise {
     }
 }
 
-/// Reference deblur: unsharp mask (sharpen), `amount` scales the high-pass.
+/// Deblur: runs the frame through an ML deblur engine (NAFNet) when one is
+/// available, else falls back to the unsharp-mask reference.
 pub struct Deblur {
     amount: f32,
+    engine: Option<Box<dyn InferenceEngine>>,
 }
 
 impl Deblur {
-    pub fn new(amount: f32) -> Self {
+    /// `amount`: unsharp-mask strength for the CPU fallback. `engine`: ML
+    /// deblur (NAFNet, scale 1, pads internally) when the user selected a
+    /// deblur model, else `None` → unsharp mask.
+    pub fn new(amount: f32, engine: Option<Box<dyn InferenceEngine>>) -> Self {
         Self {
             amount: amount.clamp(0.0, 2.0),
+            engine,
         }
     }
 }
@@ -109,6 +115,19 @@ impl Step for Deblur {
     }
 
     fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        if let Some(engine) = self.engine.as_mut() {
+            let input = frame_to_tensor(frame);
+            let opts = InferOptions {
+                tile_size: Some(TILE_SIZE),
+            };
+            match senmei_ml::infer_tiled(engine.as_mut(), &input, &opts) {
+                Ok(out) => {
+                    *frame = tensor_to_frame(&out, frame.width, frame.height);
+                    return Ok(true);
+                }
+                Err(e) => log::warn!("deblur engine failed, using unsharp mask: {e}"),
+            }
+        }
         if self.amount <= 0.0 {
             return Ok(true);
         }
@@ -497,7 +516,7 @@ mod tests {
                 frame.data[x * 3 + c] = 200;
             }
         }
-        Deblur::new(0.5).process(&mut frame).unwrap();
+        Deblur::new(0.5, None).process(&mut frame).unwrap();
         // The bright edge pixel is pushed past its original value (overshoot).
         assert!(frame.data[4 * 3] > 200);
     }
@@ -528,7 +547,7 @@ mod tests {
         for px in frame.data.chunks_exact_mut(3) {
             px[0] = 255;
         }
-        Deblur::new(0.5).process(&mut frame).unwrap();
+        Deblur::new(0.5, None).process(&mut frame).unwrap();
         assert_eq!(frame.data[1], 0, "G contaminated");
         assert_eq!(frame.data[2], 0, "B contaminated");
     }

@@ -1035,4 +1035,36 @@ mod tests {
         assert_eq!(out.shape, vec![1, 3, h, w]);
         assert!(out.data.iter().all(|v| v.is_finite()));
     }
+
+    /// NAFNet via the generic `infer` path (what the Deblur step uses): scale-1
+    /// 3ch→3ch, pads internally to multiples of 16. Height not a multiple of 16
+    /// exercises the internal pad/crop.
+    #[test]
+    #[ignore = "requires Vulkan + nafnet bpk; needs RUST_MIN_STACK=33554432"]
+    fn infer_nafnet_deblurs_via_generic_infer() {
+        let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+        let mut registry = crate::model::Registry::new();
+        registry.load_dir(&dir).unwrap();
+        let mref = registry.resolve("nafnet-gopro-width32", &dir).unwrap();
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let (h, w): (usize, usize) = (66, 64); // not a multiple of 16
+        // Smooth gradient (fp16-safe; constant/flat inputs overflow the model's
+        // deepest activations — see docs/burn-bugs.md Bug 7).
+        let data: Vec<f32> = (0..3 * h * w)
+            .map(|i| ((i % w) as f32 / (w - 1) as f32) * 0.5 + 0.25)
+            .collect();
+        let input = Tensor::new(vec![1, 3, h, w], data);
+        let out = engine
+            .infer(
+                &input,
+                &InferOptions {
+                    tile_size: Some(640),
+                },
+            )
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, h, w]);
+        assert!(out.data.iter().all(|v| v.is_finite()));
+    }
 }

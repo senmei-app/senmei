@@ -85,6 +85,12 @@ export default function Inspector({
           changed = true;
           return { ...s, params: { ...s.params, modelId: m.id } };
         }
+      } else if (s.stepType === "deblur") {
+        const m = models.find((x) => x.kind === "deblur" && x.loadable);
+        if (m) {
+          changed = true;
+          return { ...s, params: { ...s.params, modelId: m.id } };
+        }
       }
       return s;
     });
@@ -95,6 +101,7 @@ export default function Inspector({
   const interpolateModels = models.filter((m) => m.kind === "interpolate");
   const upscaleModels = models.filter((m) => m.kind === "upscale");
   const denoiseModels = models.filter((m) => m.kind === "denoise");
+  const deblurModels = models.filter((m) => m.kind === "deblur");
 
   const update = (id: string, patch: Partial<PipelineStep>) =>
     onChange(steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -320,6 +327,7 @@ export default function Inspector({
                       interpolateModels={interpolateModels}
                       upscaleModels={upscaleModels}
                       denoiseModels={denoiseModels}
+                      deblurModels={deblurModels}
                       downloading={downloading}
                       dlPct={dlPct}
                       folderMenu={folderMenu}
