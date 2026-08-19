@@ -17,3 +17,23 @@ pub fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>> {
     }
     Ok(out)
 }
+
+/// Extract the source audio track as AAC (M4A) for the fallback preview
+/// `<audio>`: webviews can't play the source but play AAC/M4A natively.
+pub fn extract_audio(
+    ffmpeg: &std::path::Path,
+    input: &std::path::Path,
+    out: &std::path::Path,
+) -> Result<()> {
+    let status = std::process::Command::new(ffmpeg)
+        .args(["-y", "-i"])
+        .arg(input)
+        .args(["-vn", "-c:a", "aac", "-b:a", "160k"])
+        .arg(out)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(Error::Command("ffmpeg audio extraction failed".into()))
+    }
+}

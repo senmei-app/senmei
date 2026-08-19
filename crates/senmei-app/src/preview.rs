@@ -27,6 +27,21 @@ fn frame_ns(input: &str) -> String {
     format!("{:016x}", h.finish())
 }
 
+/// Preview scratch dir: under the project (`preview/`) when one is open, else
+/// the app data dir; a non-writable project dir falls back to the data dir.
+fn preview_dir(project_dir: Option<&str>) -> std::path::PathBuf {
+    project_dir
+        .and_then(|p| {
+            let d = std::path::Path::new(p).join("preview");
+            std::fs::create_dir_all(&d).ok().map(|_| d)
+        })
+        .unwrap_or_else(|| {
+            let d = store::data_dir().join("preview");
+            let _ = std::fs::create_dir_all(&d);
+            d
+        })
+}
+
 /// Extract one frame at `position_ms` as a PNG file and return its path. Uses
 /// a persistent decode stream (one ffmpeg per file) so playback reads frames
 /// from the pipe instead of spawning a process per frame. Frames are written
@@ -37,16 +52,7 @@ pub fn read_frame_inner(
     position_ms: f64,
     project_dir: Option<&str>,
 ) -> Result<String, String> {
-    let dir = project_dir
-        .and_then(|p| {
-            let d = std::path::Path::new(p).join("preview");
-            std::fs::create_dir_all(&d).ok().map(|_| d)
-        })
-        .unwrap_or_else(|| {
-            let d = store::data_dir().join("preview");
-            let _ = std::fs::create_dir_all(&d);
-            d
-        });
+    let dir = preview_dir(project_dir);
     let ns = frame_ns(input);
     prune_preview_frames(&dir, &ns, 60);
 
@@ -98,4 +104,32 @@ fn prune_preview_frames(dir: &std::path::Path, ns: &str, keep: usize) {
             let _ = std::fs::remove_file(p);
         }
     }
+}
+
+/// Extract the source audio once as AAC (M4A) for the preview `<audio>` — the
+/// webview can't always decode the source's audio codec (e.g. AC3 in anime
+/// files), but every webview plays AAC/M4A. One active track at a time; stale
+/// tracks are dropped when a new one is extracted.
+pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
+    let dir = preview_dir(project_dir);
+    let ns = frame_ns(input);
+    let path = dir.join(format!("audio_{ns}.m4a"));
+    if path.exists() {
+        return Ok(path.to_string_lossy().into_owned());
+    }
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("audio_") && name.ends_with(".m4a") && e.path() != path {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
+    let ffmpeg = senmei_media::resolve(&store::data_dir());
+    senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &path).map_err(|e| {
+        log::warn!("audio extraction failed: {e}");
+        e.to_string()
+    })?;
+    Ok(path.to_string_lossy().into_owned())
 }

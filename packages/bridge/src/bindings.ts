@@ -26,6 +26,7 @@ export const commands = {
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
+	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
 	/**  Pause/resume the active render (the pipeline waits between frames). */

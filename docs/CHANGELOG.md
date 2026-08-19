@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: preview audio for every codec (2026-08-19)** — the webview can't
+  decode all audio codecs (e.g. AC3 in anime files), so the monitor now plays
+  an FFmpeg-extracted AAC/M4A track via `<audio>` for any source; the native
+  `<video>` is muted while the track is present (extraction is cached in the
+  preview dir and synced on scrub/play/loop).
+
 - **ui: fullscreen fills the screen (2026-08-19)** — the single-view media used
   `max-h-full max-w-full` and stayed small in fullscreen; it now uses
   `h-full w-full` like Compare. Fullscreen also drops the monitor padding/

@@ -29,6 +29,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::download_model,
             commands::probe_video,
             commands::read_frame,
+            commands::extract_audio,
             commands::cancel_render,
             commands::pause_render,
             commands::prune_samples,

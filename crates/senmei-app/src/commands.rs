@@ -8,7 +8,7 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::models::{engine_for_model, load_registry};
-use crate::preview::{probe_video_inner, read_frame_inner};
+use crate::preview::{extract_audio_inner, probe_video_inner, read_frame_inner};
 use crate::store;
 
 /// Shared cancellation flag for the active render (set by `cancel_render`).
@@ -164,6 +164,25 @@ pub async fn read_frame(
     // Decode off the main thread so the UI never freezes per frame.
     let path = tauri::async_runtime::spawn_blocking(move || {
         read_frame_inner(&input, position_ms, project_dir.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let _ = app
+        .state::<tauri::scope::Scopes>()
+        .allow_file(std::path::Path::new(&path));
+    Ok(path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn extract_audio(
+    input: String,
+    project_dir: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    log::info!("extract_audio: {input}");
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        extract_audio_inner(&input, project_dir.as_deref())
     })
     .await
     .map_err(|e| e.to_string())??;

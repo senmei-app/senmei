@@ -56,6 +56,9 @@ export const probeVideo = (input: string) => commands.probeVideo(input);
 export const readFrame = (input: string, positionMs: number | null, projectDir: string | null = null) =>
   commands.readFrame(input, positionMs, projectDir);
 
+export const extractAudio = (input: string, projectDir: string | null = null) =>
+  commands.extractAudio(input, projectDir);
+
 export const cancelRender = () => commands.cancelRender();
 export const pruneSamples = (dir: string, keep: number) => commands.pruneSamples(dir, keep);
 

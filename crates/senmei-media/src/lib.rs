@@ -13,7 +13,7 @@ pub use downloader::download_to_temp;
 pub use encoder::Encoder;
 pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
-pub use preview::encode_png;
+pub use preview::{encode_png, extract_audio};
 pub use preview_stream::PreviewCache;
 pub use probe::{probe, VideoInfo};
 

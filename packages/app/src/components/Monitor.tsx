@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
+import { extractAudio, probeVideo, readFrame, type RenderProgress, type VideoInfo } from "@senmei/bridge";
 import { loadDemo } from "../demo";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
@@ -127,6 +127,24 @@ export default function Monitor({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const nativeSrc = isTauri() && !nativeFailed && file && mode === "source" ? convertFileSrc(file) : null;
 
+  // Sound always comes from an FFmpeg-extracted AAC track: the webview can't
+  // decode every audio codec (e.g. AC3 in anime files). The native <video> is
+  // muted while this track is present so the two don't double up.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setAudioUrl(null);
+    if (!isTauri() || !file) return;
+    extractAudio(file, projectDir ?? null)
+      .then((p) => setAudioUrl(convertFileSrc(p)))
+      .catch(() => setAudioUrl(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
+
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
     setPosMs(v.currentTime * 1000);
@@ -137,11 +155,25 @@ export default function Monitor({
 
   const togglePlay = () => {
     if (!info) return;
+    const a = audioRef.current;
+    const audioActive = !!a && !!audioUrl;
     if (nativeSrc && videoRef.current) {
       const v = videoRef.current;
-      if (v.paused) void v.play();
+      const start = audioActive ? a!.paused : v.paused;
+      if (audioActive) {
+        if (a!.paused) void a!.play();
+        else a!.pause();
+        // muted video still needs play() to advance its timeline
+        if (start) void v.play();
+        else v.pause();
+      } else if (v.paused) void v.play();
       else v.pause();
       return;
+    }
+    // Frame-fallback: the audio element carries the sound, the timer drives frames.
+    if (audioActive) {
+      if (a!.paused) void a!.play();
+      else a!.pause();
     }
     setPlaying((p) => !p);
   };
@@ -253,6 +285,7 @@ export default function Monitor({
     setInfo(null);
     setPosMs(next);
     setPlaying(false);
+    if (audioRef.current) audioRef.current.pause();
     setFrames({});
     setError(null);
     setNativeFailed(false);
@@ -290,6 +323,7 @@ export default function Monitor({
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
+    if (audioRef.current) audioRef.current.currentTime = ms / 1000;
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -319,6 +353,7 @@ export default function Monitor({
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
+        if (audioRef.current) audioRef.current.currentTime = inMs / 1000;
         if (!busy) {
           busy = true;
           loadFrame(inMs).finally(() => {
@@ -467,6 +502,7 @@ export default function Monitor({
             key={nativeSrc}
             ref={videoRef}
             src={nativeSrc}
+            muted={!!audioUrl}
             onError={() => setNativeFailed(true)}
             onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
             onTimeUpdate={onVideoTime}
@@ -689,6 +725,9 @@ export default function Monitor({
           </div>
         )}
       </div>
+      {audioUrl && (
+        <audio ref={audioRef} src={audioUrl} preload="metadata" className="hidden" />
+      )}
     </main>
   );
 }
