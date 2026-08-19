@@ -3,7 +3,7 @@
 //!
 //! usage: senmei-ml-convert <arch> <model> <out.bpk> [scale] [num_block]
 //!   arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr
-//!         | ifrnet | drunet | nafnet
+//!         | ifrnet | drunet | nafnet | span
 //!   model: a `.pth` state dict or an `.onnx` file (initializers are read via
 //!          the built-in parser — no ONNX Runtime)
 //!   scale / num_block only matter for `realesrgan` (RRDBNet) and `real-plksr`
@@ -20,7 +20,7 @@ fn main() -> senmei_ml::Result<()> {
             "usage: senmei-ml-convert <arch> <model.pth|model.onnx> <out.bpk> [scale] [num_block]"
         );
         eprintln!(
-            "  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr | ifrnet | drunet | nafnet"
+            "  arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr | ifrnet | drunet | nafnet | span"
         );
         std::process::exit(2);
     }

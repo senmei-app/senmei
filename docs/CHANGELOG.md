@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **feat: register SPAN — 2xNomosUni_span_multijpg_ldl (2026-08-20)** — the
+  f16/bf16 block was a synthetic-input artifact: real frames stay ~2e4–3e4
+  (f16-safe; bf16 still NaN on RADV). Phhofm weights are flat + norm-on
+  (output [0,1]); the `span` convert branch now strips an optional `params`
+  wrapper. Registered as `span-2x-nomosuni-ldl` (CC-BY-4.0, 48ch 2×,
+  sha256-pinned), converted to f16 `.bpk` and smoke-tested on Vulkan (real
+  512² frame: min −0.12, max 1.34, no NaN/inf).
+
 - **feat: senmei-server async render + status polling (2026-08-20)** —
   `confirm_render` now starts the render on a worker thread and returns
   immediately (the stdio loop stays responsive, so `cancel_render` works
@@ -40,11 +48,11 @@
   `probe_video`, `list_models`, `get_ffmpeg_status`. HTTP stays an optional
   feature (YAGNI); license gate lives in core so every transport gets it.
 
-- **ml: SPAN burn port (gated — f16/bf16-blocked) (2026-08-19)** — clean burn
+- **ml: SPAN burn port (2026-08-19)** — clean burn
   port of SPAN (Apache-2.0 BasicSR) with Conv3XC/SPAB, `(x−mean)·255`
   normalization and `no_norm` handling; torch-verified (matches f32 up to f16
   limits). Not registered: intermediates reach ~1e5 and overflow f16; bf16 is
-  all-NaN on RADV. Re-evaluate with the tch/libtorch f32 engine.
+  all-NaN on RADV. Blocked on synthetic inputs only — un-gated 2026-08-20 (entry above).
 
 ## 0.1.2 (2026-08-19)
 

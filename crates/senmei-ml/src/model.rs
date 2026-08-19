@@ -164,7 +164,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 17);
+        assert_eq!(registry.models().len(), 18);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -206,6 +206,12 @@ mod tests {
         assert!(registry.models()[14].loadable);
         assert_eq!(registry.models()[15].id, "ifrnet-vimeo90k");
         assert_eq!(registry.models()[16].id, "ifrnet-gopro");
+        assert_eq!(registry.models()[17].id, "span-2x-nomosuni-ldl");
+        assert!(matches!(registry.models()[17].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[17].scale, 2);
+        assert_eq!(registry.models()[17].arch, "span");
+        assert!(registry.models()[17].loadable);
+        assert_eq!(registry.models()[17].license.as_deref(), Some("CC-BY-4.0"));
         assert!(matches!(registry.models()[15].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[15].arch, "ifrnet");
         assert!(registry.models()[15].loadable);

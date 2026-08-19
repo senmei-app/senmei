@@ -1,7 +1,8 @@
 //! SPAN (Swift Parameter-free Attention Network) — clean burn port from the
-//! Apache-2.0 BasicSR reference (hongyuanyu/SPAN). Load: TNTwise checkpoints
-//! keep the Conv3XC training branch (stale fused `eval_conv` ignored). f16-safe
-//! on real frames (overflow only on synthetic noise); bf16 broken on RADV.
+//! Apache-2.0 BasicSR reference (hongyuanyu/SPAN). Loads Phhofm (flat keys,
+//! norm on) and TNTwise (`params` wrapper) checkpoints; stale fused
+//! `eval_conv` ignored. f16-safe on real frames (overflow only on synthetic
+//! noise); bf16 broken on RADV. Output is [0,1] for norm-on checkpoints.
 
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
@@ -120,7 +121,7 @@ impl<B: Backend> Span<B> {
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        // (x - mean) * 255, mean (0.4488, 0.4371, 0.4040) — checkpoints carry no_norm=0.
+        // (x - mean) * 255 — Phhofm trains with norm on; mean (0.4488, 0.4371, 0.4040).
         let mean = Tensor::<B, 1>::from_floats([0.4488, 0.4371, 0.4040], &x.device())
             .reshape([1, 3, 1, 1]);
         let x = (x - mean).mul_scalar(255.0);
@@ -234,5 +235,34 @@ mod tests {
             .fold(0.0f32, f32::max);
         println!("mae={mae:.6} max={maxe:.6}");
         assert!(mae < 5e-3, "mae too high: {mae}");
+    }
+
+    #[test]
+    #[ignore = "needs Vulkan + /tmp/senmei_models/2xNomosUni_span_multijpg_ldl.f16.bpk + real_512.rgb; needs RUST_MIN_STACK=33554432"]
+    fn span_phhofm_loads_and_outputs_unit_range() {
+        let device = WgpuDevice::DiscreteGpu(0);
+        let mut m = Span::<BurnBackend<f16>>::new(48, 2, &device);
+        let mut store =
+            BurnpackStore::from_file("/tmp/senmei_models/2xNomosUni_span_multijpg_ldl.f16.bpk");
+        let res = m.load_from(&mut store).unwrap();
+        assert!(res.missing.is_empty(), "missing: {:?}", res.missing);
+
+        let rgb = std::fs::read("/tmp/senmei_models/real_512.rgb").expect("missing frame");
+        assert_eq!(rgb.len(), 512 * 512 * 3);
+        let v: Vec<f32> = rgb.iter().map(|&b| b as f32 / 255.0).collect();
+        let x = Tensor::<BurnBackend<f16>, 4>::from_data(
+            TensorData::new(v, [1, 3, 512, 512]).convert::<f16>(),
+            &device,
+        );
+        let out = m.forward(x);
+        let o: Vec<f32> = out.into_data().convert::<f32>().to_vec().unwrap();
+        let (nans, infs) = o.iter().fold((0usize, 0usize), |(a, b), f| {
+            (a + f.is_nan() as usize, b + f.is_infinite() as usize)
+        });
+        let mn = o.iter().copied().fold(f32::INFINITY, f32::min);
+        let mx = o.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        println!("min={mn:.3} max={mx:.3} nan={nans} inf={infs}");
+        assert_eq!((nans, infs), (0, 0));
+        assert!(mn > -1.0 && mx < 2.0, "out of range {mn}..{mx}");
     }
 }

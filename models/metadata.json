@@ -311,5 +311,24 @@
       "half": true,
       "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded"
     }
+  },
+  {
+    "id": "span-2x-nomosuni-ldl",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2xNomosUni_span_multijpg_ldl.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg_ldl",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg_ldl/2xNomosUni_span_multijpg_ldl.pth",
+    "sha256": "59d96e844503a93303cbd780ba083d68049745b5307cb90bb3c05aad8180bb49",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× multijpg+ldl; f16-safe on real frames"
+    }
   }
 ]

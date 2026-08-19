@@ -539,11 +539,10 @@ pub fn convert_pth_to_bpk(
                 .map_err(|e| Error::new(e.to_string()))?;
         }
         "span" => {
-            // `params` wrapper + the Conv3XC training branch (`conv.0/1/2` +
-            // `sk`); the stale fused `eval_conv.*` and `no_norm` buffer are
-            // ignored by `load_from`.
+            // Phhofm is flat; TNTwise wraps in `params` (stripped). Stale
+            // `eval_conv.*` and `no_norm` are ignored by `load_from`.
             let mut store = PytorchStore::from_file(pth_path)
-                .with_top_level_key("params")
+                .with_key_remapping(r"^params\.", "")
                 .with_key_remapping(r"\.conv\.0\.", ".conv0.")
                 .with_key_remapping(r"\.conv\.1\.", ".conv1.")
                 .with_key_remapping(r"\.conv\.2\.", ".conv2.")
