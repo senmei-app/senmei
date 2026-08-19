@@ -33,8 +33,12 @@ jobs:
       - name: Install Linux system deps
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          # apt occasionally hangs on fresh ubuntu runners (lock/mirror);
+          # retry the update and bound the lock/network waits.
+          sudo apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=120 \
+            -o Acquire::https::Timeout=120
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            -o DPkg::Lock::Timeout=300 \
             libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
             libssl-dev libayatana-appindicator3-dev librsvg2-dev ffmpeg
 
