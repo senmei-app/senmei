@@ -8,6 +8,10 @@
 
 ## 0.1.2 (2026-08-19)
 
+- **docs: defer the CEF webview switch, keep WebKitGTK + rodio (2026-08-19)** —
+  re-evaluate Tauri's CEF backend (`feat/cef`) in a few months; the
+  audio-streaming/kira milestone is deferred with it (a CEF switch would
+  obsolete it), so the rodio full-track MP3 preview stays (PLAN §12).
 - **fix: plain-click on a media-library video now previews it (2026-08-19)** — the
   monitor used `files[0]` as its current file, so selecting another video only
   highlighted it without changing the preview. A dedicated `currentFile` state is

@@ -19,6 +19,11 @@
       then gpu-allocator + wgpu-hal 29 unify on 0.62 with no fork. Tracked
       upstream: gpu-allocator #310 (closed "not planned"); no Tauri issue yet.
 
+## Webview / media preview (revisit ~2026-11)
+- [ ] Re-evaluate the Tauri CEF backend (`feat/cef`) for native media playback
+      (VAAPI, no `asset://` limitation). Would obsolete the rodio audio path +
+      the audio-streaming idea. Stay on WebKitGTK + rodio until then (PLAN §12).
+
 ## after release
 - [ ] Project website
 - [ ] MCP server: AI agents auto-tune settings → sample → compare vs original →

@@ -308,9 +308,13 @@ sequenceDiagram
 - **Gain:** Chromium rendering + VAAPI decode in the native `<video>` preview (WebKitGTK lacks it).
 - **Cost:** pre-release; Chromium footprint.
 - **Action:** revisit §1 „no CEF" when it matures. Not ruled out long-term, but no current need.
+- **Decision (2026-08-19):** stay on **WebKitGTK** for now; re-evaluate CEF in a few
+  months once `feat/cef` matures. The audio-streaming milestone (rodio→kira, live
+  ffmpeg pipe) is **deferred with CEF** — a CEF switch would obsolete it entirely.
 - **Interim (media):** WebKitGTK can't play media over Tauri's `asset://` scheme at all
   (GStreamer backend, `error 4` for every codec) — audio is played natively via **rodio**
-  (FFmpeg-extracted MP3), video via native `<video>` where possible + FFmpeg frame fallback.
+  (FFmpeg-extracted MP3, full track; joins at the current position when ready), video via
+  native `<video>` where possible + FFmpeg frame fallback.
 - **Interim (decode):** VAAPI on the FFmpeg decode path (`-hwaccel vaapi`), under our control.
 
 ---
