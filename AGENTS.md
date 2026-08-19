@@ -28,6 +28,7 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - **Own responsibilities:** keep responsibilities self-contained; defaults belong to the owning component, not a central list of special cases.
 - **Remove dead code:** delete dead abstractions and one-use helpers when direct code is clearer.
 - **Generated code:** never hand-edit generated output (`packages/bridge/src/bindings.ts`, `crates/senmei/gen/schemas/`). Change the authoritative input and rerun the generator.
+- **Patch upstream via fork, not vendoring:** when a dependency needs a small pin/patch (e.g. gpu-allocator's `windows 0.62` for wgpu-hal 29), fork it under the org and reference it via `[patch.crates-io]` — never vendor the crate into `third_party/` in this repo.
 
 ## Module Structure (follows with M0)
 
