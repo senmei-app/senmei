@@ -81,5 +81,6 @@
 
 ## after release
 - [ ] Project website
+- [ ] MCP server: AI agents auto-tune settings → sample → compare vs original → confirm → full render (PLAN.md §16)
 - [x] Follow-up: burn feature request „load ONNX initializer" filed (`tracel-ai/burn-onnx#456`), replace own parser later
 

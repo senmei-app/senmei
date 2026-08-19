@@ -381,3 +381,68 @@ Weights are **never committed** — only downloaded on demand; `metadata.json` h
 - **Sample preview (M5):** timeline in/out presets + "Render Sample" range render; compare/result views.
 - **Media/License (2026-08-18):** LGPL-only FFmpeg (BtbN `-lgpl` pinned) + LGPL-safe encoder chain; license gate for model download/use.
 - **Next:** end-to-end RIFE render in the app, more model ports — backlog in `docs/todos.md` / `docs/models.md`.
+
+---
+
+## 16. MCP / AI-Agent Control (future, 2026-08-19)
+
+> Status: **planned, not started** — direction, not yet a binding decision.
+> Goal: let AI assistants (ChatGPT, Gemini, Claude, …) drive Senmei over
+> **MCP**: analyze a video, propose settings, render a sample, compare it
+> against the original, then start the full render after user confirmation.
+
+### 16.1 Workflow
+
+```mermaid
+sequenceDiagram
+    participant AGENT as AI agent (MCP client)
+    participant MCP as Senmei MCP server
+    participant PIPE as senmei-pipeline
+    participant METRIC as sample-compare (metrics)
+
+    AGENT->>MCP: probe_video(input)
+    MCP-->>AGENT: VideoInfo (dims/fps/duration/rotation/HDR)
+    AGENT->>MCP: list_models() + settings schema
+    MCP-->>AGENT: model matrix + StepParams schema
+    AGENT->>MCP: render_sample(input, config, range)
+    MCP->>PIPE: range render (start_ms..end_ms)
+    PIPE-->>METRIC: sample clip + original
+    METRIC-->>AGENT: PSNR/SSIM/VMAF + before/after frames
+    AGENT-->>AGENT: iterate settings
+    AGENT->>MCP: propose config (no auto-start)
+    Note over AGENT,MCP: user confirms
+    AGENT->>MCP: render(input, output, config)
+```
+
+### 16.2 Reuse (already exists)
+
+| Capability | Source |
+|---|---|
+| Media probe (dims/fps/duration/rotation/HDR) | `probe_video` → `VideoInfo` |
+| Range render (sample) | `render` with `start_ms`/`end_ms` |
+| Model matrix + license gate | `list_models`, `metadata.json`, `license_blocked()` |
+| Settings schema | `StepParams` / `PipelineStep` / `ProjectSettings` (specta → `bindings.ts`) |
+| Encoder validation + fallback | `senmei-media` `pick_video_encoder` |
+
+### 16.3 New work
+
+| # | Piece | Notes |
+|---|---|---|
+| 1 | **Headless entry point** | separate binary over `senmei-pipeline`/`senmei-app`, no Tauri/GUI dependency; expose the existing commands as MCP tools |
+| 2 | **Sample-compare tool** | render a short clip, compute PSNR/SSIM (+ VMAF via FFmpeg `libvmaf` if present), return metrics + before/after frames |
+| 3 | **Settings JSON Schema** | derive from the specta/schemars types; enrich `///` doc comments with trade-offs (e.g. HDR → `tonemap: "auto"`) |
+| 4 | **Confirmation gate** | the agent proposes a config; the full render starts only after explicit user confirm |
+| 5 | **Tool allowlist + ranges** | agent can only call whitelisted tools; params constrained to valid ranges (same validation as the GUI) |
+
+### 16.4 Constraints (from AGENTS.md)
+
+- License gate applies to MCP too — the agent can only load permissive, verified weights (`license_blocked()` already enforced).
+- No auto-start of long renders without confirmation.
+- FFmpeg stays a subprocess; the MCP server uses the same `senmei-media` path (LGPL builds).
+- No new inference backends — burn Vulkan fp16, CPU fallback.
+
+### 16.5 Open questions
+
+- **VMAF:** expensive, needs a `libvmaf` FFmpeg build — fall back to PSNR/SSIM if unavailable.
+- **Subjective settings** (sharpness, denoise strength): the agent reasons from objective signals; user preference stays a prompt input.
+- **Placement:** after release (post-M8), next to the project website (`docs/todos.md`).
