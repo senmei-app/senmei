@@ -68,7 +68,11 @@ impl Decoder {
                 90 => "transpose=2", // 90° counterclockwise
                 180 => "hflip,vflip",
                 270 => "transpose=1", // 270° cw = 90° clockwise
-                _ => unreachable!(),
+                other => {
+                    return Err(Error::Command(format!(
+                        "unsupported rotation: {other} (expected 0/90/180/270)"
+                    )));
+                }
             };
             filters.push(vf);
         }

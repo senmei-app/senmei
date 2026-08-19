@@ -55,15 +55,18 @@ enum Model {
 }
 
 impl Model {
-    fn forward(&self, x: BurnTensor<BurnBackend<f16>, 4>) -> BurnTensor<BurnBackend<f16>, 4> {
+    fn forward(
+        &self,
+        x: BurnTensor<BurnBackend<f16>, 4>,
+    ) -> Result<BurnTensor<BurnBackend<f16>, 4>> {
         match self {
-            Model::UpCunet2x(m) => m.forward(x),
-            Model::UpCunet2xFast(m) => m.forward(x),
-            Model::RrdbNet(m) => m.forward(x),
-            Model::RealPlk(m) => m.forward(x),
-            Model::Drunet(m) => m.forward(x),
-            Model::NafNet(m) => m.forward(x),
-            Model::RifeNet(_) | Model::IfrNet(_) => panic!("no single-input forward"),
+            Model::UpCunet2x(m) => Ok(m.forward(x)),
+            Model::UpCunet2xFast(m) => Ok(m.forward(x)),
+            Model::RrdbNet(m) => Ok(m.forward(x)),
+            Model::RealPlk(m) => Ok(m.forward(x)),
+            Model::Drunet(m) => Ok(m.forward(x)),
+            Model::NafNet(m) => Ok(m.forward(x)),
+            Model::RifeNet(_) | Model::IfrNet(_) => Err(Error::new("no single-input forward")),
         }
     }
 
@@ -72,11 +75,11 @@ impl Model {
         a: BurnTensor<BurnBackend<f16>, 4>,
         b: BurnTensor<BurnBackend<f16>, 4>,
         t: BurnTensor<BurnBackend<f16>, 4>,
-    ) -> BurnTensor<BurnBackend<f16>, 4> {
+    ) -> Result<BurnTensor<BurnBackend<f16>, 4>> {
         match self {
-            Model::RifeNet(m) => m.forward(a, b, t),
-            Model::IfrNet(m) => m.forward(a, b, t),
-            _ => panic!("model has no frame interpolation"),
+            Model::RifeNet(m) => Ok(m.forward(a, b, t)),
+            Model::IfrNet(m) => Ok(m.forward(a, b, t)),
+            _ => Err(Error::new("model has no frame interpolation")),
         }
     }
 }
@@ -175,7 +178,7 @@ impl InferenceEngine for BurnEngine {
 
         let data = TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>();
         let x = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, &self.device);
-        let out = model.forward(x);
+        let out = model.forward(x)?;
         let [_, _, oh, ow] = out.dims();
         let data = out
             .into_data()
@@ -223,7 +226,10 @@ impl InferenceEngine for BurnEngine {
         for (x, y, t) in &tiles {
             let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<f16>();
             let xt = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, device);
-            let out = model.forward(xt);
+            let out = match model.forward(xt) {
+                Ok(o) => o,
+                Err(e) => return Some(Err(e)),
+            };
             let [_, _, oh, ow] = out.dims();
             let sx = (*x as f32 * scale_f).round() as usize;
             let sy = (*y as f32 * scale_f).round() as usize;
@@ -262,11 +268,7 @@ impl InferenceEngine for BurnEngine {
         // The flow estimators work on a downscaled grid (RIFE 1/32, IFRNet
         // 1/16 via the 4-level pyramid), so the input is padded to a multiple
         // and cropped back to the original dims (same as the references).
-        let pad = match model {
-            Model::RifeNet(_) => 32,
-            Model::IfrNet(_) => 16,
-            _ => unreachable!(),
-        };
+        let pad = if matches!(model, Model::RifeNet(_)) { 32 } else { 16 };
         let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
         let a_t = BurnTensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(a.data.clone(), [n, c, h, w]).convert::<f16>(),
@@ -301,7 +303,10 @@ impl InferenceEngine for BurnEngine {
         let b_t = pad(b_t);
         // ncnn broadcasts the scalar timestep over the (padded) spatial grid.
         let t_t = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, pad_h, pad_w], &self.device) * t;
-        let out = model.interp(a_t, b_t, t_t);
+        let out = match model.interp(a_t, b_t, t_t) {
+            Ok(o) => o,
+            Err(e) => return Some(Err(e)),
+        };
         let out = out.slice([0..n, 0..c, 0..h, 0..w]);
         let data = match out.into_data().convert::<f32>().to_vec() {
             Ok(v) => v,
@@ -352,7 +357,11 @@ impl InferenceEngine for BurnEngine {
             let z = BurnTensor::<BurnBackend<f16>, 4>::zeros([n, 4, pad_h, pad_w - w], device);
             x = BurnTensor::cat(vec![x, z], 3);
         }
-        let out = model.forward(x).slice([0..n, 0..3, 0..h, 0..w]);
+        let out = match model.forward(x) {
+            Ok(o) => o,
+            Err(e) => return Some(Err(e)),
+        }
+        .slice([0..n, 0..3, 0..h, 0..w]);
         let data = match out.into_data().convert::<f32>().to_vec() {
             Ok(v) => v,
             Err(e) => return Some(Err(Error::new(e.to_string()))),

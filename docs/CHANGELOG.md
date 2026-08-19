@@ -4,6 +4,12 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **fix: replace production panics with `Err` in the burn engine + decoder (2026-08-19)** —
+  `Model::forward`/`interp` now return `Result` (single-input forward on an
+  interpolation model, or interpolation on an SR model, are `Err` instead of
+  `panic!`); `infer_interp`'s pad selection drops its `unreachable!()`, and the
+  FFmpeg decoder errors on an unsupported rotation instead of `unreachable!()`.
+
 - **fix: harden the ONNX reader against malformed input (2026-08-19)** —
   `onnx.rs` no longer panics on out-of-bounds varints, oversized
   length-delimited fields, or length overflow; the low-level helpers are now
