@@ -176,6 +176,11 @@ jobs:
           pattern: senmei-*
           merge-multiple: true
 
+      # linuxdeploy leaves a 0-byte file named "empty" in the AppImage bundle;
+      # GitHub rejects 0-byte uploads (size >= 1).
+      - name: Strip empty build artifacts
+        run: find bundles -type f -size 0 -delete
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
