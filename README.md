@@ -1,39 +1,87 @@
 # Senmei (鮮明)
 
-**Senmei** (Japanese for "clear, vivid, distinct") is a modern desktop video enhancer in Rust — frame interpolation and AI upscaling, modeled after [REAL Video Enhancer](https://github.com/TNTwise/REAL-Video-Enhancer).
+**Senmei** (Japanese for "clear, vivid, distinct") is a modern desktop video
+enhancer in Rust — AI upscaling, frame interpolation, denoising and deblurring,
+modeled after [REAL Video Enhancer](https://github.com/TNTwise/REAL-Video-Enhancer).
 
-## Status
+Built as a clean-room **burn** port: every model architecture is re-implemented
+from a permissively-licensed reference (no TorchScript/ONNX Runtime at runtime)
+and runs on **Vulkan fp16**.
 
-� **Active development** — milestones **M0–M6 done**, M4/M5/M7 partially. The
-full plan lives in [`docs/PLAN.md`](docs/PLAN.md); the implementation log is in
-[`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+## Features
 
-Current state:
-- **Upscaling (M2):** real models on **burn-Vulkan fp16** with tiling —
-  real-cugan-x2, Fallin Soft/Strong, 4x-Alchemy, Real-ESRGAN (verified
-  1080p→2160p).
-- **Interpolation (M3):** **RIFE v4.6** (clean burn port) with scene-change
-  detection.
-- **Processing stack (M7):** interpolate, upscale, denoise/deblur/dedup,
-  resize, output; batch queue + progress.
-- **Sample/Preview (M5):** timeline in/out + "Render Sample", compare/result
-  views.
-- **Engine (M6):** burn-Vulkan fp16 is the shipped default; no ncnn/C++ shim.
+- **ML processing stack** — composable steps, applied per frame:
+  **Upscale** (Real-CUGAN, Real-ESRGAN, Fallin, 4x_Alchemy, BSRGAN),
+  **Interpolate** (RIFE v4.6, IFRNet), **Denoise** (DRUNet), **Deblur** (NAFNet),
+  plus reference CPU steps (dedup, resize, unsharp fallbacks).
+- **Timeline & samples** — in/out range, "Render Sample", compare/result views.
+- **Batch queue** — render many files, pause/resume/cancel, per-file progress.
+- **FFmpeg pipeline** — codec-agnostic decode, LGPL-safe encoders
+  (libkvazaar / libopenh264 / SVT-AV1), audio passthrough, HDR→SDR tonemapping.
+- **Download-on-demand models** — weights are never bundled; the app fetches and
+  converts them to f16 `.bpk` burnpacks (sha256-pinned, license-gated).
 
-## Tech Stack (short version)
+## Tech stack
 
 | Layer | Choice |
 |---|---|
-| UI | Tauri 2 + platform webview · React + TypeScript + Vite · bun |
-| Inference | burn (`burn-wgpu`) · Vulkan fp16 |
-| Media | FFmpeg (subprocess, `rawvideo` pipe) |
-| License | MIT OR Apache-2.0 · FFmpeg as LGPL build |
+| UI host | Tauri 2 + platform webview (webkit2gtk / WebView2 / WKWebView) |
+| Frontend | React + TypeScript + Vite · bun · Base UI + Tailwind + lucide-react |
+| Inference | burn (`burn-wgpu`) · **Vulkan, fp16** (clean arch ports, torch-verified) |
+| Media | FFmpeg as subprocess (`rawvideo` pipe), system or portable LGPL build |
+| License | MIT OR Apache-2.0 |
 
-## Links
+## Architecture
 
-- Plan: [`docs/PLAN.md`](docs/PLAN.md)
-- GitHub: [senmei-app/senmei](https://github.com/senmei-app/senmei)
+```mermaid
+flowchart LR
+    UI[React frontend] -->|tauri-specta IPC| CMD[senmei-app: commands]
+    CMD --> PIP[senmei-pipeline]
+    PIP --> ML[senmei-ml]
+    PIP --> MED[senmei-media]
+    ML -->|burn-wgpu Vulkan f16| GPU[GPU]
+    MED -->|rawvideo pipe| FF[FFmpeg]
+    ML --> REG[model registry + .bpk store]
+```
+
+- `crates/senmei` — Tauri shell (config, main, logging)
+- `crates/senmei-app` — Tauri commands, state, IPC, typed bindings
+- `crates/senmei-pipeline` — step orchestration, batch queue, events
+- `crates/senmei-ml` — `InferenceEngine`, `BurnEngine`, burn archs, registry
+- `crates/senmei-media` — FFmpeg decode/encode, probe, preview, downloader
+- `packages/app` / `packages/ui` — React frontend + shared UI kit
+- `packages/bridge` — generated TS types (tauri-specta)
+
+## Quickstart
+
+```sh
+bun install          # frontend deps
+bun run dev          # full app: cargo tauri dev (Vite + Rust, hot reload)
+bun run ui:dev       # frontend only
+```
+
+Models download on first use (Settings → model dropdowns → "Download weights").
+To convert a model manually: `cargo run -p senmei-ml --features burn --bin
+senmei-ml-convert -- <arch> <model.pth|onnx> <out.bpk> [scale] [num_block]`.
+
+## Model zoo
+
+See [`docs/models.md`](docs/models.md) for the full matrix (adopted, backlog,
+licenses, sources). Every model is torch-verified against the port before it is
+marked loadable; weights are recorded per artifact with license + source.
+
+## Docs
+
+- [`docs/PLAN.md`](docs/PLAN.md) — decisions & architecture (source of truth)
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — implementation log
+- [`docs/models.md`](docs/models.md) — model matrix & backlog
+- [`docs/benchmarks.md`](docs/benchmarks.md) — perf numbers
+- [`docs/burn-bugs.md`](docs/burn-bugs.md) — upstream burn/cubecl findings
+- [`docs/todos.md`](docs/todos.md) — open backlog
 
 ## License
 
-Own code dual-licensed under **MIT OR Apache-2.0** (details in [`docs/PLAN.md`](docs/PLAN.md), section 14).
+Own code dual-licensed under **MIT OR Apache-2.0** (details in
+[`docs/PLAN.md`](docs/PLAN.md), section 14). FFmpeg is only ever used as an
+**LGPL** build; model weights carry their own permissive licenses (recorded in
+`docs/models.md`).
