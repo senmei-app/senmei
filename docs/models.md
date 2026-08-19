@@ -9,20 +9,20 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 
 ## Adopted (burn)
 
-| Model | Kind | License | Scale | Status | Source |
+| Stack | Model | Scale | License | Status | Source |
 |---|---|---|---|---|---|
-| Real-CUGAN up2x no-denoise | upscale | Apache-2.0 | 2 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
-| Fallin Soft | upscale | CC-BY-4.0 | 2 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
-| Fallin Strong | upscale | CC-BY-4.0 | 2 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
-| 4x_Alchemy | upscale | CC-BY-4.0 | 4 | loadable (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `.pth` |
-| Real-ESRGAN animevideo x2/x4 | upscale | BSD-3-Clause | 2/4 | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
-| Real-ESRGAN x4plus-anime (6B) | upscale | BSD-3-Clause | 4 | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
-| BSRGAN | upscale (restoration) | MIT | 4 | loadable (RRDBNet, 23 blocks; torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
-| RIFE v4.6 | interpolate | MIT | 1 | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
-| IFRNet (Vimeo90K / GoPro) | interpolate | MIT | 1 | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
-| DRUNet color (DPIR) | denoise | MIT | 1 | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
-| NAFNet-GoPro width32 | deblur | MIT | 1 | loadable (NafNet; torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
-| Real-PLKSr DeJPG / DeH264 | decompress | verify (Phhofm) | 1 | loadable, download gated | `Phhofm/models` · TAS host |
+| Interpolation | RIFE v4.6 | 1 | MIT | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
+| Interpolation | IFRNet (Vimeo90K / GoPro) | 1 | MIT | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
+| Denoise | DRUNet color (DPIR) | 1 | MIT | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
+| Denoise | Real-PLKSr DeJPG / DeH264 | 1 | verify (Phhofm) | loadable, download gated | `Phhofm/models` · TAS host |
+| Restoration | Real-CUGAN up2x no-denoise | 2 | Apache-2.0 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
+| Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
+| Restoration | Fallin Strong | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
+| Restoration | 4x_Alchemy | 4 | CC-BY-4.0 | loadable (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `.pth` |
+| Restoration | Real-ESRGAN animevideo x2/x4 | 2/4 | BSD-3-Clause | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| Restoration | Real-ESRGAN x4plus-anime (6B) | 4 | BSD-3-Clause | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
+| Restoration | BSRGAN | 4 | MIT | loadable (RRDBNet, 23 blocks; torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
+| Deblur | NAFNet-GoPro width32 | 1 | MIT | loadable (NafNet; torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.
