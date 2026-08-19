@@ -1,3 +1,5 @@
+use tauri::Manager;
+
 fn main() {
     senmei_app::log_hub::init();
     log::info!("Senmei starting");
@@ -20,6 +22,12 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             senmei_app::log_hub::attach(app.handle());
+            // Packaged app: make the bundled model catalog reachable in the
+            // writable data dir (dev falls back to the repo checkout).
+            let resource_dir = app.path().resource_dir().ok();
+            if let Err(e) = senmei_app::models::ensure_catalog(resource_dir.as_deref()) {
+                log::warn!("model catalog not materialized: {e}");
+            }
             Ok(())
         })
         .invoke_handler(builder.invoke_handler())

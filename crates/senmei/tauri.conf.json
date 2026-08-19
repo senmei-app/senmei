@@ -27,5 +27,9 @@
         "scope": ["$DATA/**"]
       }
     }
+  },
+  "bundle": {
+    "active": true,
+    "resources": ["../../models/metadata.json"]
   }
 }

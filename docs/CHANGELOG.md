@@ -4,6 +4,13 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **feat: make the model catalog work in packaged apps (2026-08-19)** —
+  `models_dir()` now prefers the writable data dir in a packaged app; the catalog
+  (`models/metadata.json`) is bundled via `bundle.resources` and materialized to
+  `$DATA/models/` at setup (`models::ensure_catalog`). Dev keeps using the repo
+  `models/` checkout. The on-demand download + f16 `.bpk` conversion flow is
+  unchanged.
+
 - **docs: consolidate burn-bugs.md into upstream-issues.md (2026-08-19)** — the
   findings doc is merged into `docs/upstream-issues.md` (one section per issue:
   Finding + paste-ready text); `burn-bugs.md` deleted and all references updated;

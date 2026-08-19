@@ -1,21 +1,62 @@
 //! Model registry helpers for the commands layer.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+/// Writable models dir for a packaged app (catalog materialized by
+/// [`ensure_catalog`]).
+pub fn data_models_dir() -> PathBuf {
+    crate::store::data_dir().join("models")
+}
+
+/// Resolve the models dir. Dev uses the repo checkout `models/` (keeps
+/// pre-converted `.bpk` and gitignored weights local); a packaged app uses the
+/// writable data dir once [`ensure_catalog`] has materialized `metadata.json`.
 pub fn models_dir() -> PathBuf {
-    // Anchor to the repo checkout: cargo tauri dev runs the binary from the
-    // crate dir, so CWD-relative paths can miss models/ at the repo root.
+    // Dev anchor: cargo tauri dev runs the binary from the crate dir, so
+    // CWD-relative paths can miss models/ at the repo root.
     let anchored = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models");
-    for dir in [
-        anchored,
-        PathBuf::from("models"),
-        PathBuf::from("../models"),
-    ] {
-        if dir.is_dir() {
+    if anchored.join("metadata.json").is_file() {
+        return anchored;
+    }
+    let data_models = data_models_dir();
+    if data_models.join("metadata.json").is_file() {
+        return data_models;
+    }
+    for dir in [PathBuf::from("models"), PathBuf::from("../models")] {
+        if dir.join("metadata.json").is_file() {
             return dir;
         }
     }
-    PathBuf::from("models")
+    data_models
+}
+
+/// Materialize the model catalog (`metadata.json`) into the writable data dir
+/// so a packaged app finds it without a repo checkout. Source: bundled resource
+/// dir (release) or the dev repo checkout. Idempotent.
+pub fn ensure_catalog(resource_dir: Option<&Path>) -> Result<PathBuf, String> {
+    let dir = data_models_dir();
+    let target = dir.join("metadata.json");
+    if target.is_file() {
+        return Ok(dir);
+    }
+    let source = resource_dir
+        .and_then(|r| {
+            [r.join("models/metadata.json"), r.join("metadata.json")]
+                .into_iter()
+                .find(|p| p.is_file())
+        })
+        .or_else(|| {
+            let anchored =
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
+            anchored.is_file().then_some(anchored)
+        })
+        .ok_or_else(|| {
+            "model catalog (metadata.json) not found in resources or repo checkout".to_string()
+        })?;
+    std::fs::create_dir_all(&dir)
+        .and_then(|_| std::fs::copy(&source, &target))
+        .map(|_| dir)
+        .map_err(|e| format!("failed to materialize model catalog: {e}"))
 }
 
 pub fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
@@ -47,4 +88,39 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     let mut engine = senmei_ml::engine_for_model(&mref).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let base = std::env::temp_dir()
+            .join(format!("senmei-models-test-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::env::set_var("XDG_DATA_HOME", &base);
+        test();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn ensure_catalog_materializes_into_data_dir() {
+        with_temp_data_dir("catalog", || {
+            ensure_catalog(None).unwrap();
+            assert!(data_models_dir().join("metadata.json").is_file());
+        });
+    }
+
+    #[test]
+    fn ensure_catalog_is_idempotent() {
+        with_temp_data_dir("idempotent", || {
+            ensure_catalog(None).unwrap();
+            let dir = ensure_catalog(None).unwrap();
+            assert!(dir.join("metadata.json").is_file());
+        });
+    }
 }

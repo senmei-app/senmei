@@ -1,6 +1,6 @@
 mod commands;
 pub mod log_hub;
-mod models;
+pub mod models;
 mod preview;
 mod store;
 
