@@ -35,7 +35,7 @@
 
 ## after release
 - [ ] Project website
-- [ ] MCP server: settings schema + sample-compare (PSNR/SSIM/VMAF) tool, then
+- [ ] MCP server: sample-compare (PSNR/SSIM/VMAF) tool + tool whitelist, then
       e2e agent loop (PLAN.md §16.6)
 - [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
 

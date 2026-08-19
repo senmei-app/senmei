@@ -61,6 +61,11 @@ impl SenmeiServer {
         json_ok(&core::ffmpeg_status())
     }
 
+    #[tool(description = "Settings schema: render-config JSON Schema + model slots (which models fill which field) + hard constraints")]
+    async fn get_settings_schema(&self) -> Result<CallToolResult, McpError> {
+        json_ok(&core::settings_schema())
+    }
+
     #[tool(description = "Propose a render (validates, does NOT start); confirm with confirm_render")]
     async fn propose_render(
         &self,

@@ -430,9 +430,9 @@ sequenceDiagram
 |---|---|---|---|
 | 1 | **Headless entry point** | ✅ done | `crates/senmei-server`: transport-agnostic `core` + MCP stdio adapter (rmcp), no Tauri/GUI dep |
 | 2 | **Sample-compare tool** | ⬜ open | render a short clip, compute PSNR/SSIM (+ VMAF via FFmpeg `libvmaf` if present), return metrics + before/after frames |
-| 3 | **Settings JSON Schema** | ⬜ open | derive from the specta/schemars types; enrich `///` doc comments with trade-offs (e.g. HDR → `tonemap: "auto"`) |
+| 3 | **Settings JSON Schema** | ✅ done | `get_settings_schema` tool: schemars render-config schema (documented + ranged) + model slots + constraints |
 | 4 | **Confirmation gate** | ✅ done | `propose_render` (validate+park) / `confirm_render` / `cancel_render`; async + `get_render_status` |
-| 5 | **Tool allowlist + ranges** | 🟡 partial | `RenderConfig::validate` constrains params; explicit tool whitelist + range schema not yet exposed to agents |
+| 5 | **Tool allowlist + ranges** | 🟡 partial | ranges now in the schema; explicit tool whitelist still open |
 
 **Decision (2026-08-19):** headless crate = **`senmei-server`** — thin, transport-agnostic
 `core` service (probe/render/models/queue + license/confirm gates) with adapters:
@@ -455,12 +455,12 @@ require a refactor. Both gates live in `core`, so every transport gets them.
 
 ### 16.6 Next steps (2026-08-20)
 
-1. **Settings JSON schema** (§16.3 #3) — expose `StepParams`/`PipelineStep` as a
-   typed tool (`get_settings_schema`); the agent needs it before it can iterate.
+1. ~~**Settings JSON schema** (§16.3 #3)~~ ✅ done — `get_settings_schema`
+   exposes the render-config JSON Schema + model slots + constraints.
 2. **Sample-compare** (§16.3 #2) — `render_sample` + metrics tool
    (`compare_sample`): PSNR/SSIM (+ VMAF if `libvmaf` present) + before/after
    frames, reusing the existing `start_ms`/`end_ms` range render.
-3. **Tool allowlist + ranges** (§16.3 #5) — finish param constraints (mirror the
-   GUI validation) and expose them in the schema.
+3. **Tool allowlist + ranges** (§16.3 #5) — remaining: explicit tool whitelist
+   (ranges already ship in the schema).
 4. **E2E agent loop** — MCP-client smoke test `probe → propose → sample →
    compare → confirm → full render`, then a real client (Claude/ChatGPT).

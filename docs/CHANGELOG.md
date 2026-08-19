@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: senmei-server settings schema tool (2026-08-20)** — new
+  `get_settings_schema` MCP tool (works without the `render` feature): the
+  render-config JSON Schema (schemars, fields now documented + ranged), the
+  model slots (`model_id`/`interp_model`/denoise/deblur → registry models) and
+  the hard constraints (license + confirm gate). Also gates `RenderStatus`'s
+  `Default` impl behind the feature, fixing the default build.
+
 - **docs: MCP status — in progress + next steps (2026-08-20)** — PLAN §16
   "planned, not started" → "in progress": headless entry + confirm gate done
   (e2e render verified), sample-compare / settings-schema / tool-ranges open;
