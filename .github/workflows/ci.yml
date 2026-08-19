@@ -70,23 +70,33 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace
 
-      # senmei_app test exe died with 0xc0000139 at load; dump its imports and
-      # retry with the choco-ffmpeg dirs scrubbed from PATH to find the culprit.
+      # senmei_app test exe died with 0xc0000139 at load; dump its import table
+      # and retry with a system-only PATH to isolate the culprit DLL.
       - name: Diagnose test exe load failure (Windows)
         if: runner.os == 'Windows' && failure()
         shell: pwsh
         run: |
           $exe = Get-ChildItem target\debug\deps\senmei_app-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { $exe = Get-ChildItem target\debug\deps\*.exe | Select-Object -First 1 }
-          Write-Host "EXE: $($exe.FullName)"
-          $dumpbin = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($dumpbin) { & $dumpbin.FullName /dependents $exe.FullName } else { Write-Host 'dumpbin not found' }
-          Write-Host '--- choco ffmpeg dlls ---'
-          Get-ChildItem 'C:\ProgramData\chocolatey\lib\ffmpeg\tools' -Recurse -Filter *.dll -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
-          $scrub = ($env:PATH -split ';') | Where-Object { $_ -notmatch 'chocolatey' }
-          $env:PATH = $scrub -join ';'
-          Write-Host '--- retry with scrubbed PATH ---'
+          Write-Host "EXE: $($exe.FullName) ($([Math]::Round($exe.Length/1MB,1)) MB)"
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+            if ($vs) {
+              $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($dumpbin) { Write-Host "DUMPBIN: $($dumpbin.FullName)"; & $dumpbin.FullName /dependents $exe.FullName } else { Write-Host 'dumpbin not found under vswhere path' }
+            } else { Write-Host 'vswhere found no VS' }
+          } else { Write-Host 'vswhere not found' }
+
+          Write-Host '--- PATH entries ---'
+          $env:PATH -split ';' | Where-Object { $_ }
+
+          Write-Host '--- retry with system-only PATH ---'
+          $sys = @('C:\Windows\System32','C:\Windows','C:\Windows\System32\Wbem','C:\Windows\System32\WindowsPowerShell\v1.0', (Split-Path $exe.FullName))
+          $env:PATH = $sys -join ';'
           & $exe.FullName --list
+          Write-Host "retry LASTEXITCODE: $LASTEXITCODE"
 
       # Debug artifacts from check+test + the release build exceed the runner
       # disk; drop the debug profile before the release bundle build.
