@@ -4,6 +4,10 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **docs: add release process doc (2026-08-19)** — `docs/RELEASING.md` documents
+  how to cut a release (version bump → pre-flight → tag → CI build + publish →
+  post-release) and is linked from the root README's docs index.
+
 - **ci: fix bun cache, bump actions to v5, publish bundles on version tags (2026-08-19)** —
   `setup-bun@v2` now caches `node_modules` keyed on `./bun.lock`; checkout and
   upload-artifact bumped to v5; a new `release` job publishes the built bundles

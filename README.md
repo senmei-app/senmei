@@ -81,6 +81,7 @@ model added → `models.md` (numbers → `benchmarks.md`); upstream bug →
 - [`docs/models.md`](docs/models.md) — model matrix & backlog
 - [`docs/benchmarks.md`](docs/benchmarks.md) — perf numbers
 - [`docs/upstream-issues.md`](docs/upstream-issues.md) — upstream burn/cubecl findings + paste-ready texts
+- [`docs/RELEASING.md`](docs/RELEASING.md) — how to cut a release
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — implementation log (newest on top)
 - [`docs/todos.md`](docs/todos.md) — open backlog only
 
