@@ -4,6 +4,11 @@
 
 > Kept in sync with actual implementation. Update on every significant change.
 
+- **ui: fullscreen fills the screen (2026-08-19)** — the single-view media used
+  `max-h-full max-w-full` and stayed small in fullscreen; it now uses
+  `h-full w-full` like Compare. Fullscreen also drops the monitor padding/
+  border and hides the timeline bar, so the image/video fills the whole screen.
+
 - **ui: F11 fullscreen hotkey + Esc closes settings (2026-08-19)** — new
   configurable `toggleFullscreen` hotkey (default `F11`, in Settings →
   Hotkeys) drives the Monitor's native fullscreen; the Settings page now

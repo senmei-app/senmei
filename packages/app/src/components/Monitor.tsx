@@ -419,10 +419,13 @@ export default function Monitor({
       : "rounded-md bg-black/50 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur hover:bg-black/60";
 
   return (
-    <main ref={rootRef} className="flex h-full flex-col bg-slate-100 p-4 dark:bg-slate-950">
+    <main ref={rootRef} className={"flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (isFull ? "" : " p-4")}>
       <div
         onDoubleClick={toggleFullscreen}
-        className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-2xl dark:border-slate-800"
+        className={
+          "relative flex flex-1 items-center justify-center overflow-hidden bg-black" +
+          (isFull ? "" : " rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-800")
+        }
       >
         {mode === "compare" && file && effRendered ? (
           <div className="flex h-full w-full">
@@ -469,13 +472,13 @@ export default function Monitor({
             onTimeUpdate={onVideoTime}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
-            className="max-h-full max-w-full object-contain opacity-80"
+            className="h-full w-full object-contain opacity-80"
           />
         ) : src && frames[src] ? (
           <img
             src={frames[src]}
             alt="preview"
-            className={"max-h-full max-w-full object-contain opacity-80" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
+            className={"h-full w-full object-contain opacity-80" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
@@ -543,7 +546,7 @@ export default function Monitor({
         )}
       </div>
 
-      <div className="relative z-10 mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40">
+      <div className={"relative z-10 mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40" + (isFull ? " hidden" : "")}>
         <div className="mb-2 flex items-center">
           <div className="flex items-center space-x-2">
             <button
