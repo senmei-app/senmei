@@ -35,7 +35,7 @@
 
 ## after release
 - [ ] Project website
-- [ ] MCP server: AI agents auto-tune settings → sample → compare vs original →
-      confirm → full render (PLAN.md §16)
+- [ ] MCP server: settings schema + sample-compare (PSNR/SSIM/VMAF) tool, then
+      e2e agent loop (PLAN.md §16.6)
 - [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
 

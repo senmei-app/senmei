@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: MCP status — in progress + next steps (2026-08-20)** — PLAN §16
+  "planned, not started" → "in progress": headless entry + confirm gate done
+  (e2e render verified), sample-compare / settings-schema / tool-ranges open;
+  §16.6 orders the remaining work; todos.md points to it.
+
 - **feat: register SPAN — 2xNomosUni_span_multijpg_ldl (2026-08-20)** — the
   f16/bf16 block was a synthetic-input artifact: real frames stay ~2e4–3e4
   (f16-safe; bf16 still NaN on RADV). Phhofm weights are flat + norm-on

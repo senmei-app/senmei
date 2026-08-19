@@ -382,9 +382,11 @@ Weights are **never committed** — only downloaded on demand; `metadata.json` h
 
 ---
 
-## 16. MCP / AI-Agent Control (future, 2026-08-19)
+## 16. MCP / AI-Agent Control (2026-08-19, status 2026-08-20)
 
-> Status: **planned, not started** — direction, not yet a binding decision.
+> Status: **in progress** — `senmei-server` scaffold, read-only tools and the
+> confirm-gated async render are done (e2e render verified); sample-compare,
+> settings schema and tool ranges are open (§16.3, next steps §16.6).
 > Goal: let AI assistants (ChatGPT, Gemini, Claude, …) drive Senmei over
 > **MCP**: analyze a video, propose settings, render a sample, compare it
 > against the original, then start the full render after user confirmation.
@@ -424,13 +426,13 @@ sequenceDiagram
 
 ### 16.3 New work
 
-| # | Piece | Notes |
-|---|---|---|
-| 1 | **Headless entry point** | separate binary over `senmei-pipeline`/`senmei-app`, no Tauri/GUI dependency; expose the existing commands as MCP tools |
-| 2 | **Sample-compare tool** | render a short clip, compute PSNR/SSIM (+ VMAF via FFmpeg `libvmaf` if present), return metrics + before/after frames |
-| 3 | **Settings JSON Schema** | derive from the specta/schemars types; enrich `///` doc comments with trade-offs (e.g. HDR → `tonemap: "auto"`) |
-| 4 | **Confirmation gate** | the agent proposes a config; the full render starts only after explicit user confirm |
-| 5 | **Tool allowlist + ranges** | agent can only call whitelisted tools; params constrained to valid ranges (same validation as the GUI) |
+| # | Piece | Status | Notes |
+|---|---|---|---|
+| 1 | **Headless entry point** | ✅ done | `crates/senmei-server`: transport-agnostic `core` + MCP stdio adapter (rmcp), no Tauri/GUI dep |
+| 2 | **Sample-compare tool** | ⬜ open | render a short clip, compute PSNR/SSIM (+ VMAF via FFmpeg `libvmaf` if present), return metrics + before/after frames |
+| 3 | **Settings JSON Schema** | ⬜ open | derive from the specta/schemars types; enrich `///` doc comments with trade-offs (e.g. HDR → `tonemap: "auto"`) |
+| 4 | **Confirmation gate** | ✅ done | `propose_render` (validate+park) / `confirm_render` / `cancel_render`; async + `get_render_status` |
+| 5 | **Tool allowlist + ranges** | 🟡 partial | `RenderConfig::validate` constrains params; explicit tool whitelist + range schema not yet exposed to agents |
 
 **Decision (2026-08-19):** headless crate = **`senmei-server`** — thin, transport-agnostic
 `core` service (probe/render/models/queue + license/confirm gates) with adapters:
@@ -450,3 +452,15 @@ require a refactor. Both gates live in `core`, so every transport gets them.
 - **VMAF:** expensive, needs a `libvmaf` FFmpeg build — fall back to PSNR/SSIM if unavailable.
 - **Subjective settings** (sharpness, denoise strength): the agent reasons from objective signals; user preference stays a prompt input.
 - **Placement:** after release (post-M8), next to the project website (`docs/todos.md`).
+
+### 16.6 Next steps (2026-08-20)
+
+1. **Settings JSON schema** (§16.3 #3) — expose `StepParams`/`PipelineStep` as a
+   typed tool (`get_settings_schema`); the agent needs it before it can iterate.
+2. **Sample-compare** (§16.3 #2) — `render_sample` + metrics tool
+   (`compare_sample`): PSNR/SSIM (+ VMAF if `libvmaf` present) + before/after
+   frames, reusing the existing `start_ms`/`end_ms` range render.
+3. **Tool allowlist + ranges** (§16.3 #5) — finish param constraints (mirror the
+   GUI validation) and expose them in the schema.
+4. **E2E agent loop** — MCP-client smoke test `probe → propose → sample →
+   compare → confirm → full render`, then a real client (Claude/ChatGPT).
