@@ -152,9 +152,17 @@ pub fn download(data_dir: &Path, mut on_progress: impl FnMut(u64, u64)) -> Resul
     let bin_dir = data_dir.join("bin");
     fs::create_dir_all(&bin_dir).map_err(Error::from)?;
     let ffmpeg_bin = bin_dir.join(ffmpeg_bin_name());
-    downloader::extract_binary(&archive, &ffmpeg_bin, &format!("/bin/{}", ffmpeg_bin_name()))?;
+    downloader::extract_binary(
+        &archive,
+        &ffmpeg_bin,
+        &format!("/bin/{}", ffmpeg_bin_name()),
+    )?;
     let ffprobe_bin = bin_dir.join(ffprobe_bin_name());
-    downloader::extract_binary(&archive, &ffprobe_bin, &format!("/bin/{}", ffprobe_bin_name()))?;
+    downloader::extract_binary(
+        &archive,
+        &ffprobe_bin,
+        &format!("/bin/{}", ffprobe_bin_name()),
+    )?;
 
     #[cfg(unix)]
     {

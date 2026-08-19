@@ -407,7 +407,9 @@ pub async fn render(
                         Some(id) => match engine_for_model(id) {
                             Ok(e) => Some(e),
                             Err(err) => {
-                                log::warn!("deblur model {id} unavailable, using unsharp mask: {err}");
+                                log::warn!(
+                                    "deblur model {id} unavailable, using unsharp mask: {err}"
+                                );
                                 None
                             }
                         },
