@@ -6,6 +6,7 @@
 //! load, so the app consumes the converted format (see `rust-sr-bench`'s
 //! `convert-f16` for the one-time conversion). The arch is chosen from `ModelRef::arch`.
 
+mod dncnn;
 mod drunet;
 mod ifrnet;
 mod nafnet;
@@ -27,6 +28,7 @@ use burn_store::{
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
+use dncnn::Dncnn;
 use drunet::Drunet;
 use ifrnet::IfrNet;
 use nafnet::NafNet;
@@ -46,6 +48,7 @@ enum Model {
     RifeNet(RifeNet<BurnBackend<f16>>),
     IfrNet(IfrNet<BurnBackend<f16>>),
     Drunet(Drunet<BurnBackend<f16>>),
+    Dncnn(Dncnn<BurnBackend<f16>>),
     NafNet(NafNet<BurnBackend<f16>>),
     RealPlk(RealPlk<BurnBackend<f16>>),
     Span(Span<BurnBackend<f16>>),
@@ -62,6 +65,7 @@ impl Model {
             Model::RrdbNet(m) => Ok(m.forward(x)),
             Model::RealPlk(m) => Ok(m.forward(x)),
             Model::Drunet(m) => Ok(m.forward(x)),
+            Model::Dncnn(m) => Ok(m.forward(x)),
             Model::NafNet(m) => Ok(m.forward(x)),
             Model::Span(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) => Err(Error::new("no single-input forward")),
@@ -128,6 +132,11 @@ impl BurnEngine {
                 let mut m = Drunet::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Drunet(m))
+            }
+            "dncnn" => {
+                let mut m = Dncnn::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Dncnn(m))
             }
             "nafnet" => {
                 let mut m = NafNet::new(&self.device);
@@ -334,7 +343,8 @@ impl InferenceEngine for BurnEngine {
         _opts: &InferOptions,
     ) -> Option<Result<Tensor>> {
         let model = self.model.as_ref()?;
-        if !matches!(model, Model::Drunet(_)) {
+        let is_drunet = matches!(model, Model::Drunet(_));
+        if !matches!(model, Model::Drunet(_) | Model::Dncnn(_)) {
             return None;
         }
         if input.shape.len() != 4 || input.shape[1] != 3 {
@@ -351,6 +361,20 @@ impl InferenceEngine for BurnEngine {
             TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>(),
             device,
         );
+        // DnCNN is blind (3ch in, no sigma map) and all stride-1 convs — run it
+        // directly. DRUNet gets a constant noise-level map and needs 8-aligned
+        // spatial dims (3× stride-2 downsample): pad + crop.
+        if !is_drunet {
+            let out = match model.forward(rgb) {
+                Ok(o) => o,
+                Err(e) => return Some(Err(e)),
+            };
+            let data = match out.into_data().convert::<f32>().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Some(Err(Error::new(e.to_string()))),
+            };
+            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
+        }
         let sigma_map = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, h, w], device) * sigma;
         let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
         // UNetRes needs multiples of 8 (3× stride-2 downsample); pad + crop.
@@ -477,6 +501,17 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"m_up(\d)\.(\d)\.res\.2\.", "m_up$1.b$2.c2.")
                 .with_key_remapping(r"m_up(\d)\.0\.", "m_up$1.up.");
             let mut m = Drunet::<BurnBackend>::new(&device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "dncnn" => {
+            // Torch `model.{2i}.weight/bias` (ReLU sits at odd `{2i+1}` slots,
+            // no params) map onto the burn `c{2i}` field names 1:1.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
+            let mut m = Dncnn::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -1094,6 +1129,67 @@ mod tests {
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, h, w]);
         assert!(out.data.iter().all(|v| v.is_finite()));
+    }
+
+    /// End-to-end DnCNN (color blind) check against the spandrel reference on
+    /// the deterministic 64x64 input (`/tmp/dncnn_in.f32` → `dncnn_ref.f32`).
+    /// The blind model takes 3ch (no sigma map); f16 vs f32 → loose tolerance.
+    #[test]
+    #[ignore = "requires Vulkan + a converted dncnn_color_blind.f16.bpk (senmei-ml-convert)"]
+    fn dncnn_matches_torch_reference() {
+        let bpk = std::path::Path::new("/tmp/dncnn.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "dncnn-color".into(),
+            arch: "dncnn".into(),
+            scale: 1,
+            num_block: 4,
+            feature_channels: 48,
+            no_norm: false,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let in_data = std::fs::read("/tmp/dncnn_in.f32").unwrap();
+        let input: Vec<f32> = in_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        let input = Tensor::new(vec![1, 3, 64, 64], input);
+        let out = engine
+            .infer_denoise(
+                &input,
+                0.1,
+                &InferOptions {
+                    tile_size: None,
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, 64, 64]);
+
+        let ref_data = std::fs::read("/tmp/dncnn_ref.f32").unwrap();
+        let reference: Vec<f32> = ref_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(reference.len(), out.data.len());
+
+        let mut mae = 0.0f64;
+        let mut max_abs = 0.0f64;
+        for (a, b) in out.data.iter().zip(&reference) {
+            assert!(a.is_finite(), "output contains non-finite value");
+            let d = (*a - *b).abs() as f64;
+            mae += d;
+            max_abs = max_abs.max(d);
+        }
+        mae /= out.data.len() as f64;
+        eprintln!("dncnn mae={mae:.5} max_abs={max_abs:.5}");
+        assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
     }
 
     /// NAFNet via the generic `infer` path (what the Deblur step uses): scale-1

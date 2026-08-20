@@ -263,6 +263,26 @@
     }
   },
   {
+    "id": "dncnn-color",
+    "kind": "denoise",
+    "scale": 1,
+    "arch": "dncnn",
+    "weights": [
+      "dncnn_color_blind.pth.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/cszn/KAIR",
+    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/dncnn_color_blind.pth",
+    "sha256": "dfe11a6b703304df82cdf236f431fc6492766c7b9119d97e943edeb392c710a3",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "in_nc": 3,
+      "note": "DnCNN color blind (KAIR, MIT) 20 conv layers, ReLU between, no BN; residual out=x-model(x); 3ch in (no sigma map); spandrel-verified mae ~0.001"
+    }
+  },
+  {
     "id": "nafnet-gopro-width32",
     "kind": "deblur",
     "scale": 1,

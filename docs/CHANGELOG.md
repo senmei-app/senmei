@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **ml: add DnCNN color denoiser (2026-08-20)** — new `dncnn` burn arch (20
+  conv layers, ReLU between, no BN, residual `x - model(x)`); registered
+  `dncnn-color` (KAIR, MIT, sha256-pinned); wired into the Denoise step;
+  spandrel-verified mae ~0.001.
+
 - **ml: make 4× RealPLKSR BHI-otf loadable (2026-08-20)** — channels-last
   `.pth` contiguous-preprocessed, converted to f16 `.bpk`, sha256 pinned; arch
   confirmed identical to BHI-real (346 keys / same shapes); torch (spandrel)
