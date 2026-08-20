@@ -93,4 +93,28 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - `bun run dev` — full app: `cargo tauri dev` (Vite + Rust, `tauri.conf.json` in `crates/senmei`)
 - `bun run ui:dev` — frontend only
 
+## Headless web (no Wayland/X, for other agents/browsers)
+
+Senmei runs fully headless over **`senmei-server`** — one transport-agnostic
+`core` (probe/render/models/queue + license/confirm gates) with two adapters:
+
+- **MCP (stdio)** — default; agents drive it over the `senmei_*` tool set.
+- **HTTP (axum)** — `--http` serves the built web UI + a REST API. This is the
+  browser/headless path: the whole UI works without a display server.
+
+Start (from repo root):
+```
+cargo run -p senmei-server --features render,http -- --http
+# serves http://127.0.0.1:8765/ (port via SENMEI_HTTP_PORT, web dir via SENMEI_WEB_DIR)
+```
+REST surface: `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`,
+`/api/probe`, `/api/frame` (base64 PNG), `/api/download-model`, `/api/render`
+(+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema`. Same gates as
+MCP — both transports get license/confirm enforcement from `core`.
+
+Frontend talks to either transport through `packages/app/src/backend/`
+(`tauri.ts` IPC / `http.ts` REST / `mock.ts` dev), selected automatically; no
+`isTauri()` in components. Other agents may use the REST API directly (curl) or
+the built web UI — the app is display-server-free.
+
 Keep this file focused on long-lived decision rules, not current implementation details. Engineering principles adapted from Koharu (MIT OR Apache-2.0).

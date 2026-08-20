@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **docs: headless HTTP/web path for other agents (2026-08-20)** — AGENTS.md
+  gets a "Headless web" section (`senmei-server --http` start + REST surface +
+  frontend `backend/` transports); PLAN.md §16.7 documents the HTTP adapter +
+  web UI as the second transport (browsers *and* agents, same license/confirm
+  gates); the OpenCode senmei agent now lists the REST endpoints as an MCP
+  alternative.
+
 - **feat: decompress step in the processing stack (M7) (2026-08-20)** — new
   `Decompress` step type picks a 1× RealPLKSR de-artifact model (DeH264 / DeJPG /
   DeJPG `_60` / DeNoise); mapped to `RenderConfig.decompress_model_id` and run

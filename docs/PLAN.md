@@ -385,8 +385,10 @@ Weights are **never committed** — only downloaded on demand; `metadata.json` h
 ## 16. MCP / AI-Agent Control (2026-08-19, status 2026-08-20)
 
 > Status: **core loop done** — scaffold, settings schema, sample-compare, tool
-> ranges and the e2e agent loop are all in (§16.3, §16.6); a real client
-> (Claude/ChatGPT) remains a manual follow-up.
+> ranges and the e2e agent loop are all in (§16.3, §16.6); **plus an HTTP
+> adapter + full web UI** (headless, no Wayland/X) — agents/browsers can drive
+> Senmei over REST or the built UI as well as MCP (§16.7). A real Claude/ChatGPT
+> client over MCP remains a manual follow-up.
 > Goal: let AI assistants (ChatGPT, Gemini, Claude, …) drive Senmei over
 > **MCP**: analyze a video, propose settings, render a sample, compare it
 > against the original, then start the full render after user confirmation.
@@ -467,3 +469,22 @@ require a refactor. Both gates live in `core`, so every transport gets them.
 4. ~~**E2E agent loop**~~ ✅ done — ignored integration test `tests/agent_loop.rs`
    drives the full loop over stdio (probe → sample → compare → propose →
    confirm → poll); a real Claude/ChatGPT client remains a manual follow-up.
+
+### 16.7 HTTP adapter + full web UI (2026-08-20)
+
+**Decision (2026-08-20):** the HTTP adapter is no longer YAGNI — it is the
+display-server-free path for browsers *and* other agents. One `core`, two
+transports: **MCP (stdio)** for tool-driven agents, **HTTP (axum)** for the
+web UI + REST. Both enforce the same license/confirm gates from `core`.
+
+| Piece | Status | Notes |
+|---|---|---|
+| HTTP adapter (`--http`) | ✅ | axum 0.8 + tower-http; REST + static UI fallback |
+| REST surface | ✅ | `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`, `/api/probe`, `/api/frame` (base64 PNG), `/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema` |
+| Web UI (headless) | ✅ | frontend `backend/` abstraction — `tauri.ts` IPC / `http.ts` REST / `mock.ts` dev, auto-selected, no `isTauri()` in components |
+| Path-input dialogs (Dateizugriff B) | ✅ | `PathDialog` for entering server-side paths in web mode (no native picker) |
+| E2E verified | ✅ | browser against `--http`: import → probe → sample render → done; live progress + output file |
+
+Run: `cargo run -p senmei-server --features render,http -- --http`
+(port `SENMEI_HTTP_PORT`, web dir `SENMEI_WEB_DIR`; serves the built UI from
+`packages/app/dist` by default).
