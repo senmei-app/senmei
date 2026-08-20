@@ -57,23 +57,24 @@ fn find_metadata_json(root: &Path) -> Option<PathBuf> {
 pub fn ensure_catalog(resource_dir: Option<&Path>) -> Result<PathBuf, String> {
     let dir = data_models_dir();
     let target = dir.join("metadata.json");
-    if target.is_file() {
-        return Ok(dir);
+    if let Some(source) = resource_dir.and_then(find_metadata_json).or_else(|| {
+        let anchored =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
+        anchored.is_file().then_some(anchored)
+    }) {
+        // Refresh when the bundled catalog differs (e.g. after an app update);
+        // a stale data-dir copy would otherwise hide newly added models.
+        if std::fs::read(&target).ok() != std::fs::read(&source).ok() {
+            std::fs::create_dir_all(&dir)
+                .and_then(|_| std::fs::copy(&source, &target))
+                .map_err(|e| format!("failed to materialize model catalog: {e}"))?;
+        }
+    } else if !target.is_file() {
+        return Err(
+            "model catalog (metadata.json) not found in resources or repo checkout".to_string(),
+        );
     }
-    let source = resource_dir
-        .and_then(find_metadata_json)
-        .or_else(|| {
-            let anchored =
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
-            anchored.is_file().then_some(anchored)
-        })
-        .ok_or_else(|| {
-            "model catalog (metadata.json) not found in resources or repo checkout".to_string()
-        })?;
-    std::fs::create_dir_all(&dir)
-        .and_then(|_| std::fs::copy(&source, &target))
-        .map(|_| dir)
-        .map_err(|e| format!("failed to materialize model catalog: {e}"))
+    Ok(dir)
 }
 
 pub fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {

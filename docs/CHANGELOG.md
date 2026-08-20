@@ -14,6 +14,11 @@
 
 ## 0.1.3 (2026-08-20)
 
+- **fix: refresh stale model catalog from bundled metadata (2026-08-20)** —
+  `ensure_catalog` now overwrites the data-dir `metadata.json` when the
+  bundled one differs, so a packaged app picks up newly added models instead
+  of keeping an old copy.
+
 - **fix: About version derived from package.json (2026-08-20)** —
   `__APP_VERSION__` was hardcoded to 0.1.0 in `vite.config.ts`; it now reads
   `packages/app/package.json` so the About dialog shows the real version.
