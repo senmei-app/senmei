@@ -25,7 +25,6 @@ gpu-allocator = { git = "https://github.com/senmei-app/gpu-allocator", tag = "v0
 # build-time link), so tch/burn-tch must not add libtorch link args. Tags:
 #   tch-rs v0.22.0-senmei-dlopen (torch-sys/ + tch at root, upstream layout),
 #   burn v0.21.0-senmei-burn-tch-dlopen (burn-tch)
-# TODO: switch file:// URLs to https://github.com once the tags are pushed.
-torch-sys = { git = "file:///home/mzach/github/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
-tch = { git = "file:///home/mzach/github/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
-burn-tch = { git = "file:///home/mzach/github/senmei-app/burn", tag = "v0.21.0-senmei-burn-tch-dlopen" }
+torch-sys = { git = "https://github.com/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
+tch = { git = "https://github.com/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
+burn-tch = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-tch-dlopen" }
