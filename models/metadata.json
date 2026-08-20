@@ -206,6 +206,26 @@
     }
   },
   {
+    "id": "real-plksr-dejpg-60",
+    "kind": "decompress",
+    "scale": 1,
+    "arch": "real-plksr",
+    "weights": [
+      "1xDeJPG_realplksr_otf_60.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models",
+    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf_60.pth",
+    "sha256": "0b43ae985a9f975e5eca0cd5bb8ec7f861cf3728250ef7e5db2cc7439d6f2350",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": false,
+      "note": "1x RealPLKSR_otf DeJPG q60 (Phhofm, CC-BY-4.0 confirmed 2026-08-20); contiguous preprocessed; verified vs torch mae ~0.0003"
+    }
+  },
+  {
     "id": "anime1080fixer",
     "kind": "denoise",
     "scale": 1,

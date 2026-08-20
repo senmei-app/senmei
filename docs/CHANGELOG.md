@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **ml: register RealPLKSR 1× DeJPG `_60` (q60) (2026-08-20)** — weights-only
+  on the existing real-plksr arch: contiguous-preprocessed state dict, f16
+  `.bpk` conversion, sha256 pinned; verified vs torch (spandrel) mae ~0.0003.
+
 - **fix: preview frames broken after backend migration (2026-08-20)** —
   `tauri.ts readFrame` parsed the bridge result as an object, but
   `read_frame` resolves to a plain path string → empty `convertFileSrc("")` →

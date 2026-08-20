@@ -15,8 +15,7 @@
 
 ## Models
 
-- [ ] RealPLKSR rest: 1× DeJPG _60 (dl+sha256+verify); BHI-otf contiguous fix;
-      NomosWebPhoto non-dysample port
+- [ ] RealPLKSR rest: BHI-otf contiguous fix; NomosWebPhoto non-dysample port
 - [ ] RealPLKSR 2× Public layernorm (realistic 2×): port LayerNorm PLKBlock
       variant (verify dim), then weights
 - [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant

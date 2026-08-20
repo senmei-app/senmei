@@ -14,7 +14,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Interpolation | RIFE v4.6 | 1 | MIT | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | Interpolation | IFRNet (Vimeo90K / GoPro) | 1 | MIT | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
 | Denoise | DRUNet color (DPIR) | 1 | MIT | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
-| Denoise | RealPLKSR 1× DeNoise / DeJPG / DeH264 (otf) | 1 | CC-BY-4.0 | loadable (license confirmed 2026-08-20) | `Phhofm/models` releases |
+| Denoise | RealPLKSR 1× DeNoise / DeJPG / DeH264 (otf, +DeJPG _60) | 1 | CC-BY-4.0 | loadable (license confirmed 2026-08-20; _60 contiguous-preprocessed, torch mae ~0.0003) | `Phhofm/models` releases |
 | Restoration | Real-CUGAN up2x no-denoise | 2 | Apache-2.0 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
 | Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Fallin Strong | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
@@ -61,7 +61,6 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
 | Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
-| Denoise | RealPLKSR 1× family (DeJPG _60) | CC-BY-4.0 | adopt (DeNoise/DeJPG/DeH264 otf adopted; +DeJPG _60) |
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
 | Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
@@ -97,7 +96,8 @@ Candidates per stack; each needs a clean burn port + permissive license before
   V2 = 48.
 - RealPLKSR_Dysample family (CC-BY-4.0, `Phhofm/models` releases; arch ported via
   4x_Alchemy = dim 64 / 28 blocks / GroupNorm4 → **weights-only only for that config**):
-  1× DeNoise/DeJPG/DeH264 + 4× BHI/Nomos2/NomosWebPhoto/Nature/HFA2k/mssim fit.
+  1× DeNoise/DeJPG/DeH264 (+ DeJPG `_60` q60 variant, 2026-08-20) + 4×
+  BHI/Nomos2/NomosWebPhoto/Nature/HFA2k/mssim fit.
   Anime-first: BHI (4×) + Nomos. Realistic: 4xNature/HFA2k/mssim + 1× DeNoise/DeJPG/DeH264.
   ArtFaces = faces only (skip). 2× BHI small (dim 32), large (dim 96) and 2× Public
   layernorm (realistic 2×) need an arch variant first — not weights-only (todos).
