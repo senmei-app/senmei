@@ -22,6 +22,8 @@ repository = "https://github.com/senmei-app/senmei"
 # github.com/senmei-app/gpu-allocator).
 gpu-allocator = { git = "https://github.com/senmei-app/gpu-allocator", tag = "v0.28.0-windows-0.62" }
 # Optional libtorch (`tch`) engine: ROCm 2.15-nightly support (C++20 build,
-# removed-ops mapping, ROCm rpath-link) + cuda_hack signature match.
-torch-sys = { git = "https://github.com/senmei-app/torch-sys", tag = "v0.22.0-senmei" }
-burn-tch = { git = "https://github.com/senmei-app/burn-tch", tag = "v0.21.0-senmei" }
+# removed-ops mapping, ROCm rpath-link) + cuda_hack signature match. Proper
+# forks of LaurentMazare/tch-rs and tracel-ai/burn; the `v*-senmei` tags have
+# the crate at the repo root (subtree-split) so [patch] can point at them.
+torch-sys = { git = "https://github.com/senmei-app/tch-rs", tag = "v0.22.0-senmei" }
+burn-tch = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei" }
