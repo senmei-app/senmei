@@ -12,6 +12,11 @@
   binding decisions now note the optional libtorch engine (`tch` feature,
   runtime dlopen, CUDA/ROCm only) next to the shipped burn-Vulkan default.
 
+- **ci: release notes via git-cliff (2026-08-20)** — the release job now
+  generates notes from conventional commits (grouped Features/Bug Fixes/…,
+  like Koharu) via `git-cliff` (`cliff.toml`) instead of an awk slice of the
+  CHANGELOG; `--current` emits exactly the tagged release.
+
 ## 0.1.3 (2026-08-20)
 
 - **fix: refresh stale model catalog from bundled metadata (2026-08-20)** —
