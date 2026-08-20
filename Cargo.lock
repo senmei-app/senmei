@@ -7874,6 +7874,7 @@ dependencies = [
  "burn-store",
  "burn-tch",
  "burn-wgpu",
+ "libloading 0.9.0",
  "serde",
  "serde_json",
  "specta",

@@ -1,0 +1,7 @@
+//! Runtime dependency resolution: hardware detection and (later) on-demand
+//! libtorch download/loading — the desktop app resolves libtorch at runtime
+//! (CUDA/ROCm only, no CPU), like Koharu, instead of a build-time link.
+
+pub mod hardware;
+
+pub use hardware::{Hardware, detect};

@@ -4,6 +4,7 @@ mod model;
 #[cfg(feature = "burn")]
 mod onnx;
 mod resize;
+mod runtime;
 mod tensor;
 mod tiling;
 
@@ -60,6 +61,7 @@ pub use engine::{
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
+pub use runtime::{Hardware, detect};
 pub use tensor::Tensor;
 pub use tiling::{crop, pad_to, stitch, uniform_tile};
 #[cfg(feature = "burn")]
