@@ -222,7 +222,17 @@ export default function SettingsPage({
                     <button
                       key={b}
                       onClick={() => onBackendChange(b)}
-                      disabled={b === "vulkan" && backendInfo ? !backendInfo.vulkanCompiled : false}
+                      disabled={
+                        b === "vulkan"
+                          ? backendInfo
+                            ? !backendInfo.vulkanCompiled
+                            : false
+                          : b === "libTorch"
+                            ? backendInfo
+                              ? !(backendInfo.libtorchCompiled && backendInfo.cudaAvailable)
+                              : false
+                            : false
+                      }
                       className={
                         backend === b
                           ? "rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white"

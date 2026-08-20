@@ -12,7 +12,7 @@ description = "Tauri application shell for Senmei: commands, state, and IPC."
 tar = "0.4"
 liblzma = "0.4"
 senmei-media = { path = "../senmei-media", version = "0.1.2" }
-senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn"] }
+senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2" }
 rodio = { version = "0.20", default-features = false, features = ["mp3"] }
 sysinfo = { version = "0.39", features = ["system"] }
@@ -24,3 +24,10 @@ specta = "2.0.0-rc.25"
 specta-typescript = "0.0.12"
 tauri = { version = "2", features = ["custom-protocol"] }
 tauri-specta = { version = "2.0.0-rc.25", features = ["typescript"] }
+
+[features]
+default = ["burn"]
+# Vulkan (burn-wgpu) inference.
+burn = ["senmei-ml/burn"]
+# Runtime-libtorch (dlopen) engine; implies burn for the Auto fallback.
+tch = ["senmei-ml/tch"]

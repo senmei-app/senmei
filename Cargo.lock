@@ -1265,10 +1265,9 @@ dependencies = [
 [[package]]
 name = "burn-tch"
 version = "0.21.0"
-source = "git+https://github.com/senmei-app/burn?tag=v0.21.0-senmei#b20989e6ee5786c8271c9f52c1076235c9f3cdc6"
+source = "git+file:///home/mzach/github/senmei-app/burn?tag=v0.21.0-senmei-burn-tch-dlopen#8701152d03c27d086ab1a610d77b43b543451206"
 dependencies = [
  "burn-backend",
- "cc",
  "libc",
  "log",
  "tch",
@@ -7881,6 +7880,7 @@ dependencies = [
  "specta",
  "tch",
  "thiserror 2.0.20",
+ "torch-sys",
  "zip 2.4.2",
 ]
 
@@ -9084,8 +9084,7 @@ dependencies = [
 [[package]]
 name = "tch"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e09b91610202dc4820c21eb474a42b386ef69f323b1c0902b5472ba7456ebb5"
+source = "git+file:///home/mzach/github/senmei-app/tch?tag=v0.22.0-senmei-dlopen#7e76de58c33da877d5c1de103dee7b51e3b106ee"
 dependencies = [
  "half",
  "lazy_static",
@@ -9105,7 +9104,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -9581,11 +9580,11 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "torch-sys"
 version = "0.22.0"
-source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei#4a633c99591f2c1d45d050a327059bbb559cb05f"
+source = "git+file:///home/mzach/github/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#aceb09cf108e645dfa2bac8f95998a19d8865f08"
 dependencies = [
  "anyhow",
- "cc",
  "libc",
+ "libloading 0.9.0",
  "serde",
  "serde_json",
  "ureq",

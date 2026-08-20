@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: wire tch backend end-to-end (2026-08-20)** — `tch` cargo feature
+  threaded senmei → senmei-app → senmei-server (senmei-ml patch deps on the
+  senmei-app torch-sys/tch/burn-tch forks); Settings page enables the LibTorch
+  backend button only when compiled and a CUDA/ROCm device is present.
+
 - **feat: ml: TchEngine on runtime-dlopen libtorch (CUDA/ROCm) (2026-08-20)**
   — runs the shared archs on `burn-tch` over the on-demand libtorch runtime
   (dlopen via `torch-sys` loader, no build-time link). Resolver pins 2.11.0

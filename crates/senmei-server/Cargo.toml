@@ -27,5 +27,8 @@ env_logger = "0.11"
 default = []
 # Real render: pulls the burn inference stack + pipeline (heavy build).
 render = ["dep:senmei-pipeline", "senmei-ml/burn"]
+# Runtime-libtorch (dlopen) engine: CUDA/ROCm libtorch is downloaded on demand
+# into the data dir; Auto then prefers LibTorch when a GPU is present.
+tch = ["senmei-ml/tch"]
 # Full web UI + REST API (axum).
 http = ["dep:axum", "dep:tower-http"]
