@@ -133,6 +133,7 @@ impl<B: Backend> Span<B> {
             x
         } else {
             let mean = Tensor::<B, 1>::from_floats([0.4488, 0.4371, 0.4040], &x.device())
+                .cast(x.dtype())
                 .reshape([1, 3, 1, 1]);
             (x - mean).mul_scalar(255.0)
         };
@@ -158,6 +159,84 @@ mod tests {
     use burn::tensor::{f16, TensorData};
     use burn_store::{BurnpackStore, ModuleSnapshot};
     use burn_wgpu::WgpuDevice;
+
+    #[test]
+    #[ignore = "needs Vulkan; standalone repro of cubek-convolution f16 1x1 conv bug (upstream-issues.md §6)"]
+    fn conv1x1_repro() {
+        use burn::module::Param;
+        let device = WgpuDevice::DiscreteGpu(0);
+
+        // Deterministic LCG so the repro never depends on external files.
+        let mut seed = 0x9e37_79b9u32;
+        let mut rnd = move || {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            (seed >> 8) as f32 / 16_777_216.0
+        };
+
+        // K=96 with H*W >= 32768 is broken; other K are fine at any N.
+        let cases = [
+            (96usize, 128usize, 128usize),
+            (96, 128, 256),
+            (96, 240, 320),
+            (64, 240, 320),
+        ];
+        println!("cubek-convolution f16 1x1 conv repro (K=96 x N>=32768 broken):");
+        for (k, h, w) in cases {
+            let n = h * w;
+            let mut wv = vec![0.0f32; 48 * k];
+            let mut bv = vec![0.0f32; 48];
+            let mut xv = vec![0.0f32; k * n];
+            for v in &mut wv {
+                *v = (rnd() - 0.5) * 0.16;
+            }
+            for v in &mut bv {
+                *v = (rnd() - 0.5) * 0.1;
+            }
+            for v in &mut xv {
+                *v = (rnd() - 0.5) * 6.0;
+            }
+
+            // f32 CPU reference (1x1 conv = per-pixel matmul).
+            let mut refv = vec![0.0f32; 48 * n];
+            for j in 0..48 {
+                for p in 0..n {
+                    let mut acc = 0.0f32;
+                    for c in 0..k {
+                        acc += wv[j * k + c] * xv[c * n + p];
+                    }
+                    refv[j * n + p] = acc + bv[j];
+                }
+            }
+
+            let wt = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(wv, [48, k, 1, 1]).convert::<f16>(),
+                &device,
+            );
+            let b = Tensor::<BurnBackend<f16>, 1>::from_data(
+                TensorData::new(bv, [48]).convert::<f16>(),
+                &device,
+            );
+            let x = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(xv, [1, k, h, w]).convert::<f16>(),
+                &device,
+            );
+
+            let mut conv = Conv2dConfig::new([k, 48], [1, 1]).init(&device);
+            conv.weight = Param::from_tensor(wt);
+            conv.bias = Some(Param::from_tensor(b));
+
+            let out: Vec<f32> = conv.forward(x).into_data().convert::<f32>().to_vec().unwrap();
+            let mut maxe = 0.0f32;
+            let mut mae = 0.0f32;
+            for (o, r) in out.iter().zip(&refv) {
+                let e = (o - f16::from_f32(*r).to_f32()).abs();
+                maxe = maxe.max(e);
+                mae += e;
+            }
+            mae /= out.len() as f32;
+            println!("  K={k} N={n} ({h}x{w}): max_abs={maxe:.5} mean_abs={mae:.6}");
+        }
+    }
 
     #[test]
     #[ignore = "needs Vulkan + /tmp/senmei_models/span_v2.f16.bpk + torch ref bins; needs RUST_MIN_STACK=33554432"]

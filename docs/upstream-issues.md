@@ -8,7 +8,8 @@ the linked issue or comment form.
 
 Filed 2026-08-18 (author zachelnet): Bug 1 → comment on `tracel-ai/burn#4950`,
 Bug 3 → `tracel-ai/cubecl#1531`, Bug 4 → `tracel-ai/burn#5382`, Bug 5 →
-`tracel-ai/burn#5383`. Section numbers ≠ old bug numbers; Bug 2 (tuner panic
+`tracel-ai/burn#5383`. Filed 2026-08-20: §6 → `tracel-ai/cubek#519`.
+Section numbers ≠ old bug numbers; Bug 2 (tuner panic
 without fusion) is a secondary manifestation of the same autotune machinery and
 is folded into §2; Bug 7 (NAFNet fp16 overflow) is inherent to the weights +
 input, not an upstream bug — its finding is in `docs/models.md` (Notes).
@@ -247,3 +248,82 @@ tests); the change is mostly exposing it publicly and decoupling it from graph
 codegen. Tradeoff: keep it runtime-only (no generated code) so it stays a small,
 dependency-light path for weight loading.
 ```
+
+## 6. cubek-convolution f16 1×1 conv wrong for K=96 × N≥32768 — Bug (cubek)
+
+**Finding.** Root cause of the SPAN f16 degradation is now isolated (2026-08-20):
+it is **not** accumulation precision, **not** silu/sigmoid, and **not** weight
+quantization. A bit-exact op-by-op diff (burn f16 vs torch ROCm f16) showed the
+norm output and **every conv weight/bias are bit-identical**, `conv0` (3→6 1×1)
+and `sk` (3→48 1×1) differ by ~1 ULP, but `conv2` (96→48 1×1, the last conv of
+the first SPAB `Conv3XC`) produces **wrong values** (mean abs err 1.1, max 15.3),
+not rounded ones. Minimal standalone repro confirms it is a shape-dependent
+kernel bug in the f16 implicit-GEMM conv, independent of data:
+
+- `Conv2d([96, 48], [1, 1])` f16 on Vulkan, input `[1, 96, H, W]`:
+  - `H·W ≤ 16384` → correct (≤ 1–2 ULP)
+  - `H·W ≥ 32768` → **wrong** (mean abs err ≈ 1.0, max ≈ 7.7; e.g. 128×256,
+    240×320, 256×256)
+- Same `H·W = 76800` but `K ∈ {48, 64, 80, 97, 112, 128}` → correct.
+
+So the trigger is the specific combination **K=96 (in channels) AND N ≥ 32768
+(spatial positions)** — consistent with a tile-index/vectorization overflow in
+the f16 conv kernel, not a precision choice (the matmul `Acc` is already
+`(f16, f32)` on Linux). In SPAN this hits every `conv2` (96→48) at full frame
+240×320 = 76800, and the error compounds ~2× per block. Workaround: run SPAN in
+f32, or use only 64ch / no_norm checkpoints (their 1×1 convs never hit K=96 at
+this N).
+
+Repro artifacts kept in-repo: self-contained Rust test `conv1x1_repro` in
+`crates/senmei-ml/src/burn/span.rs` (deterministic LCG data + f32 CPU
+reference, no external files) and the torch cross-check `tools/span_conv_repro.py`.
+
+Target repo: **`tracel-ai/cubek`** (crate `cubek-convolution`), not cubecl — the
+conv kernel lives in cubek. Filed as **`tracel-ai/cubek#519`** (2026-08-20); no
+duplicate at filing time (search `is:issue conv` returned only closed #20, a
+bias-gradient reduce-sum bug).
+
+**Paste-ready text** (Title + Body):
+
+```text
+cubek-convolution: f16 1x1 conv returns wrong results when in_channels=96 and spatial positions ≥ 32768
+```
+
+Body:
+
+```text
+<!-- Please search existing issues to avoid creating duplicates -->
+
+### Describe the bug
+
+On the wgpu backend (Vulkan, AMD RADV/RDNA4) a f16 1x1 convolution returns
+numerically wrong results (not just rounded) for a specific shape: input
+channels = 96 and H*W ≥ 32768. The same conv is bit-exact against a f32
+reference for every other shape tested.
+
+### To Reproduce
+
+```rust
+// burn 0.21 / burn-wgpu Vulkan, Backend = Vulkan<f16>
+let mut conv = Conv2dConfig::new([96, 48], [1, 1]).init(&device);
+// load any f16 weights + bias, e.g. random normal(0, 0.08)
+let x = /* [1, 96, 128, 256] f16 input */;
+let out = conv.forward(x); // wrong: mean abs err ~1.0 vs f32 reference
+```
+
+Shapes that reproduce (f16): `[1, 96, 128, 256]` (N=32768), `[1, 96, 240, 320]`
+(N=76800), `[1, 96, 256, 256]` (N=65536).
+Shapes that are correct: `[1, 96, 128, 128]` (N=16384), and `[1, K, 240, 320]`
+for K in {48, 64, 80, 97, 112, 128}.
+
+### Expected behavior
+
+f16 conv with f32 accumulation should match the f32 reference to ~1 ULP,
+independent of the shape.
+
+### Environment
+
+- burn / burn-wgpu / burn-cubecl 0.21.0, wgpu Vulkan on RADV
+- GPU: AMD RX 9070 XT (gfx1201)
+```
+

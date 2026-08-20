@@ -4,8 +4,14 @@
 
 ## Backend
 - [ ] Autotune default: keep ON vs OFF vs vendor-patch (see `docs/upstream-issues.md` §2)
-- [ ] SPAN: verify burn f16 end-to-end (f16-safe on real frames; bf16 broken on
-      RADV — port done, gated in `senmei-ml/src/burn/span.rs`)
+- [ ] SPAN f16 degrades 48ch norm-on (ldl/multijpg/hfa2k 0.69–0.92 vs torch) —
+      cause found: cubek-convolution f16 1×1 conv wrong for K=96 × N≥32768
+      (`docs/upstream-issues.md` §6); workaround f32 or 64ch/no_norm
+- [ ] FFmpeg between-filter step (B linear): `Filter` Step in `Vec<Step>`,
+      position pre/post/between; frame-preserving only (rawvideo pipe, 1:1)
+- [ ] Hardware usage display (like Koharu): live GPU busy % (amdgpu
+      `gpu_busy_percent` on RADV/AMD, nvidia-smi fallback) + CPU/RAM + render
+      FPS in the UI (status bar / monitor)
 
 ## Models
 

@@ -178,7 +178,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 21);
+        assert_eq!(registry.models().len(), 25);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -243,7 +243,7 @@ mod tests {
                 .and_then(|v| v.as_u64()),
             Some(48)
         );
-        assert_eq!(registry.models()[19].id, "span-2x-hfa2k-ludvae");
+        assert_eq!(registry.models()[19].id, "span-2x-hfa2k");
         assert_eq!(registry.models()[19].arch, "span");
         assert_eq!(registry.models()[19].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(
@@ -263,6 +263,13 @@ mod tests {
                 .and_then(|v| v.as_u64()),
             Some(64)
         );
+        assert_eq!(registry.models()[24].id, "real-plksr-denois");
+        assert!(matches!(registry.models()[24].kind, ModelKind::Decompress));
+        assert_eq!(registry.models()[24].arch, "real-plksr");
+        assert_eq!(registry.models()[24].scale, 1);
+        assert!(registry.models()[24].loadable);
+        assert_eq!(registry.models()[24].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[24].sha256.as_deref().unwrap().len(), 64);
         assert!(matches!(registry.models()[15].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[15].arch, "ifrnet");
         assert!(registry.models()[15].loadable);

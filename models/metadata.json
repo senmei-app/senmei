@@ -173,16 +173,16 @@
     "weights": [
       "1xDeH264_realplksr.pth.f16.bpk"
     ],
-    "license": "verify (Phhofm)",
+    "license": "CC-BY-4.0",
     "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeH264_realplksr.pth",
+    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeH264_realplksr/1xDeH264_realplksr.pth",
     "sha256": "92829754924fbcf944acf5d09e9cfd1cb3d1f2ee67a208a9921c1c0e4d74d6e7",
     "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "dysample": false,
-      "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); license still pending review so download stays gated"
+      "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); CC-BY-4.0 confirmed 2026-08-20"
     }
   },
   {
@@ -193,15 +193,16 @@
     "weights": [
       "1xDeJPG_realplksr_otf.pth.f16.bpk"
     ],
-    "license": "verify (Phhofm)",
+    "license": "CC-BY-4.0",
     "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/NevermindNilas/TAS-Models-Host/releases/download/main/1xDeJPG_realplksr_otf.pth",
+    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf.pth",
+    "sha256": "3bf4959fbd4b39b8877e73ea97a54d4280755371fe4bd64a2836c707d7fd485b",
     "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "dysample": false,
-      "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); license still pending review so download stays gated"
+      "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); CC-BY-4.0 confirmed 2026-08-20"
     }
   },
   {
@@ -329,7 +330,7 @@
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× multijpg+ldl; f16-safe on real frames"
+      "note": "Phhofm SPAN (CC-BY-4.0 confirmed 2026-08-20, norm=True), 48ch 2× multijpg+ldl; f16-safe on real frames"
     }
   },
   {
@@ -344,32 +345,32 @@
     "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg",
     "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg/2xNomosUni_span_multijpg.pth",
     "sha256": "1a981d0a11e2fcbb6cda7ac635f31b97d9903492ba7e4dda09b8be0b274f1ac5",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× universal multijpg; f16-safe"
+      "note": "Phhofm SPAN (CC-BY-4.0 confirmed 2026-08-20, norm=True), 48ch 2× universal multijpg; f16-safe"
     }
   },
   {
-    "id": "span-2x-hfa2k-ludvae",
+    "id": "span-2x-hfa2k",
     "kind": "upscale",
     "scale": 2,
     "arch": "span",
     "weights": [
-      "2xHFA2k_LUDVAE_SPAN.f16.bpk"
+      "2xHFA2kSPAN.f16.bpk"
     ],
     "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2k_LUDVAE_SPAN",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2k_LUDVAE_SPAN/2xHFA2k_LUDVAE_SPAN.pth",
-    "sha256": "1efe96d6729e82883618a01eca77a23eae873dd4f8a374aa5fe2e2f15f64d104",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2kSPAN",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2kSPAN/2xHFA2kSPAN.pth",
+    "sha256": "59f41331bf32f122b73aaa9938b8baee7cb3e86125bdb55983d26074ac0d7285",
     "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN anime (HFA2k_LUDVAE), 48ch 2×, params-wrapped; f16-safe"
+      "note": "Phhofm SPAN anime (2xHFA2kSPAN, CC-BY-4.0 confirmed 2026-08-20), 48ch 2×, params-wrapped"
     }
   },
   {
@@ -390,6 +391,88 @@
       "half": true,
       "feature_channels": 64,
       "note": "TNTwise ModernSpanimation V1 (MIT), 64ch 2× anime, params-wrapped; f16-safe"
+    }
+  },
+  {
+    "id": "span-2x-modern-spanimation-v1.5",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2x_ModernSpanimationV1.5.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1.5",
+    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1.5/2x_ModernSpanimationV1.5.pth",
+    "sha256": "fd147c3fa41916d390f3b44bd8376a07c000a6a3eb1e87d4b7c5bb1147bde140",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 64,
+      "note": "TNTwise ModernSpanimation V1.5 (MIT), 64ch 2× anime, norm-on"
+    }
+  },
+  {
+    "id": "span-2x-modern-spanimation-v2",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2x_ModernSpanimationV2.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV2",
+    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV2/2x_ModernSpanimationV2.pth",
+    "sha256": "a13ae9fd8a72d0d320759472e4097eb58483c2ecc6232dec35b971e97275554c",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 48,
+      "no_norm": true,
+      "note": "TNTwise ModernSpanimation V2 (MIT), 48ch 2× anime; no_norm (norm=False)"
+    }
+  },
+  {
+    "id": "span-2x-bhi-small",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "span",
+    "weights": [
+      "2xBHI_small_span_pretrain.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xBHI_small_span_pretrain",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xBHI_small_span_pretrain/2xBHI_small_span_pretrain.pth",
+    "sha256": "74f5cbb6a614c34cb5f280e12e05d716d3a1ca85df723df6de247d43a7e01990",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "feature_channels": 48,
+      "no_norm": true,
+      "note": "Phhofm 2xBHI small (CC-BY-4.0 confirmed 2026-08-20), 48ch 2× anime; no_norm (norm=False)"
+    }
+  },
+  {
+    "id": "real-plksr-denois",
+    "kind": "decompress",
+    "scale": 1,
+    "arch": "real-plksr",
+    "weights": [
+      "1xDeNoise_realplksr_otf.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models",
+    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeNoise_realplksr_otf/1xDeNoise_realplksr_otf.pth",
+    "sha256": "f4774fbe13ceaa9df390343c2baaa980061458ef27292fa6aca6740d87608a8e",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": false,
+      "note": "1x RealPLKSR_otf denoise (Phhofm, CC-BY-4.0 confirmed 2026-08-20)"
     }
   }
 ]

@@ -8,6 +8,26 @@
 
 ## Unreleased
 
+- **docs: SPAN f16 root cause isolated — cubek-convolution kernel bug (2026-08-20)** —
+  op-by-op bit-exact diff (burn f16 vs torch ROCm f16) proved weights + norm are
+  bit-identical and silu/sigmoid/accumulation are innocent; the first SPAB's
+  `conv2` (96→48 1×1) returns wrong values. Minimal repro: `Conv2d([96,48],[1,1])`
+  f16 breaks when K=96 **and** N=H·W≥32768 (K∈{48,64,80,97,112,128} all correct).
+  Documented in `docs/upstream-issues.md` §6 with paste-ready text.
+
+- **ml: swap HFA2k_LUDVAE_SPAN → 2xHFA2kSPAN (2026-08-20)** — HFA2k_LUDVAE's
+  f16 render is degraded by the conv kernel bug (corr 0.57 vs torch, artifacts);
+  registry entry removed. Replaced with the official Phhofm `2xHFA2kSPAN`
+  (48ch, params-wrapped, corr 0.82 in f16).
+
+- **ml: RealPLKSR 1× family unlocked — CC-BY-4.0 confirmed (2026-08-20)** —
+  Phhofm release pages + assets verified: `1xDeJPG_realplksr_otf`,
+  `1xDeH264_realplksr`, `1xDeNoise_realplksr_otf` are CC-BY-4.0. Registry
+  `real-plksr-deh264`/`real-plksr-dejpg` switched from `verify (Phhofm)`
+  (license-blocked) to `CC-BY-4.0` with canonical Phhofm download URLs (DeH264
+  sha already pinned; DeJPG sha pinned); new `real-plksr-denois` entry added.
+  All three download+convert+load now.
+
 - **fix: SPAN SPAB head concat must use the SiLU'd out1 (2026-08-20)** — the
   head concat `[feat, b6, b1, b5_2]` feeds the post-SiLU `out1` in
   span_arch/ONNX (`SiLU(inplace=True)`); the port returned the raw conv output,
