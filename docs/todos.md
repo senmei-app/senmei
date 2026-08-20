@@ -7,18 +7,8 @@
       cause: cubek-convolution f16 1×1 conv bug K=96×N≥32768 (cubek#519,
       `docs/upstream-issues.md` §6). Affected 48ch models disabled in registry;
       re-enable once fixed upstream (still loadable: 64ch V1/V1.5 + BHI)
-- [ ] FFmpeg between-filter step (B linear): `Filter` Step in `Vec<Step>`,
-      position pre/post/between; frame-preserving only (rawvideo pipe, 1:1)
 - [ ] License policy: opt-in toggle for non-commercial/unverified models (user
       decides, off by default)? — decision deferred 2026-08-20, hard gate stays
-- [ ] Runtime libtorch loading (like Koharu): resolve CUDA/ROCm libtorch at
-      runtime via dlopen (`libloading`) + on-demand download to the data dir,
-      instead of the build-time `LIBTORCH`/`download-libtorch` link. Pattern:
-      `koharu-runtime` `hardware/{cuda,hip}.rs` (probe) + `runtime/loader.rs`
-      (lazy `Library`) + `runtime/packages/torch.rs` (pinned download +
-      `Store::directory` cache). **Scope: CUDA + ROCm only — NO CPU libtorch**
-      (CPU stays on burn-Vulkan; decision 2026-08-20). TchEngine archs
-      (upcunet/realesrgan/rife) stay; `TchDevice::Cpu` disabled.
 
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
