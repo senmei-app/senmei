@@ -8,6 +8,7 @@
 
 mod dncnn;
 mod drunet;
+mod ffdnet;
 mod ifrnet;
 mod nafnet;
 mod real_plksr;
@@ -30,6 +31,7 @@ use std::path::Path;
 
 use dncnn::Dncnn;
 use drunet::Drunet;
+use ffdnet::Ffdnet;
 use ifrnet::IfrNet;
 use nafnet::NafNet;
 use real_plksr::RealPlk;
@@ -49,6 +51,7 @@ enum Model {
     IfrNet(IfrNet<BurnBackend<f16>>),
     Drunet(Drunet<BurnBackend<f16>>),
     Dncnn(Dncnn<BurnBackend<f16>>),
+    Ffdnet(Ffdnet<BurnBackend<f16>>),
     NafNet(NafNet<BurnBackend<f16>>),
     RealPlk(RealPlk<BurnBackend<f16>>),
     Span(Span<BurnBackend<f16>>),
@@ -68,7 +71,9 @@ impl Model {
             Model::Dncnn(m) => Ok(m.forward(x)),
             Model::NafNet(m) => Ok(m.forward(x)),
             Model::Span(m) => Ok(m.forward(x)),
-            Model::RifeNet(_) | Model::IfrNet(_) => Err(Error::new("no single-input forward")),
+            Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
+                Err(Error::new("no single-input forward"))
+            }
         }
     }
 
@@ -137,6 +142,11 @@ impl BurnEngine {
                 let mut m = Dncnn::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Dncnn(m))
+            }
+            "ffdnet" => {
+                let mut m = Ffdnet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Ffdnet(m))
             }
             "nafnet" => {
                 let mut m = NafNet::new(&self.device);
@@ -344,7 +354,7 @@ impl InferenceEngine for BurnEngine {
     ) -> Option<Result<Tensor>> {
         let model = self.model.as_ref()?;
         let is_drunet = matches!(model, Model::Drunet(_));
-        if !matches!(model, Model::Drunet(_) | Model::Dncnn(_)) {
+        if !matches!(model, Model::Drunet(_) | Model::Dncnn(_) | Model::Ffdnet(_)) {
             return None;
         }
         if input.shape.len() != 4 || input.shape[1] != 3 {
@@ -362,8 +372,17 @@ impl InferenceEngine for BurnEngine {
             device,
         );
         // DnCNN is blind (3ch in, no sigma map) and all stride-1 convs — run it
-        // directly. DRUNet gets a constant noise-level map and needs 8-aligned
-        // spatial dims (3× stride-2 downsample): pad + crop.
+        // directly. FFDNet takes the noise level internally (σ). DRUNet gets a
+        // constant noise-level map and needs 8-aligned spatial dims (3× stride-2
+        // downsample): pad + crop.
+        if let Model::Ffdnet(m) = model {
+            let out = m.forward(rgb, sigma);
+            let data = match out.into_data().convert::<f32>().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Some(Err(Error::new(e.to_string()))),
+            };
+            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
+        }
         if !is_drunet {
             let out = match model.forward(rgb) {
                 Ok(o) => o,
@@ -512,6 +531,16 @@ pub fn convert_pth_to_bpk(
             let mut store = PytorchStore::from_file(pth_path)
                 .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Dncnn::<BurnBackend>::new(&device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "ffdnet" => {
+            // Same `model.{2i}` layout as DnCNN (ReLU at odd slots).
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
+            let mut m = Ffdnet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -1189,6 +1218,63 @@ mod tests {
         }
         mae /= out.data.len() as f64;
         eprintln!("dncnn mae={mae:.5} max_abs={max_abs:.5}");
+        assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
+    }
+
+    /// End-to-end FFDNet (color) check against the KAIR reconstruction on the
+    /// deterministic 64x64 input (`/tmp/ffdnet_in.f32` → `ffdnet_ref.f32`, both
+    /// with σ=0.1). The burn port must match the torch even-pad + pixel-
+    /// unshuffle + noise-map pipeline; f16 vs f32 → loose tolerance.
+    #[test]
+    #[ignore = "requires Vulkan + a converted ffdnet_color.f16.bpk (senmei-ml-convert)"]
+    fn ffdnet_matches_torch_reference() {
+        let bpk = std::path::Path::new("/tmp/ffdnet.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "ffdnet-color".into(),
+            arch: "ffdnet".into(),
+            scale: 1,
+            num_block: 4,
+            feature_channels: 48,
+            no_norm: false,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let in_data = std::fs::read("/tmp/ffdnet_in.f32").unwrap();
+        let input: Vec<f32> = in_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        let input = Tensor::new(vec![1, 3, 64, 64], input);
+        let out = engine
+            .infer_denoise(
+                &input,
+                0.1,
+                &InferOptions {
+                    tile_size: None,
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, 64, 64]);
+
+        let ref_data = std::fs::read("/tmp/ffdnet_ref.f32").unwrap();
+        let reference: Vec<f32> = ref_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(reference.len(), out.data.len());
+
+        let mut max_abs = 0.0f64;
+        for (a, b) in out.data.iter().zip(&reference) {
+            assert!(a.is_finite(), "output contains non-finite value");
+            max_abs = max_abs.max((*a - *b).abs() as f64);
+        }
         assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
     }
 

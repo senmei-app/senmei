@@ -178,7 +178,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 33);
+        assert_eq!(registry.models().len(), 34);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -299,6 +299,13 @@ mod tests {
         assert_eq!(registry.models()[32].id, "4x-bhi-realplksr-otf");
         assert!(registry.models()[32].loadable);
         assert_eq!(registry.models()[32].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[33].id, "ffdnet-color");
+        assert!(matches!(registry.models()[33].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[33].arch, "ffdnet");
+        assert_eq!(registry.models()[33].scale, 1);
+        assert!(registry.models()[33].loadable);
+        assert_eq!(registry.models()[33].license.as_deref(), Some("MIT"));
+        assert_eq!(registry.models()[33].sha256.as_deref().unwrap().len(), 64);
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

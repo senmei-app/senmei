@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **ml: add FFDNet color denoiser (2026-08-20)** — new `ffdnet` burn arch
+  (nb=12/nc=96: even-only replication pad, pixel-unshuffle(2) → 12ch + σ map
+  = 13ch, 12 convs ReLU, no BN, pixel-shuffle(2)); registered `ffdnet-color`
+  (KAIR, MIT, sha256-pinned); wired into the Denoise step; torch-verified mae
+  0.0004 (reference regenerated with fresh conv modules — the earlier mae 0.21
+  was a buggy Python `*[Conv,ReLU]*10` shared-module reconstruction).
+
 - **ml: add DnCNN color denoiser (2026-08-20)** — new `dncnn` burn arch (20
   conv layers, ReLU between, no BN, residual `x - model(x)`); registered
   `dncnn-color` (KAIR, MIT, sha256-pinned); wired into the Denoise step;

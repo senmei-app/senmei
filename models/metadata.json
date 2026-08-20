@@ -634,5 +634,26 @@
       "dysample": true,
       "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; pth channels-last — bpk from contiguous-preprocessed state dict (in-app convert needs it too); arch identical to _real; torch mae ~0.005"
     }
+  },
+  {
+    "id": "ffdnet-color",
+    "kind": "denoise",
+    "scale": 1,
+    "arch": "ffdnet",
+    "weights": [
+      "ffdnet_color.pth.f16.bpk"
+    ],
+    "license": "MIT",
+    "source_url": "https://github.com/cszn/KAIR",
+    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/ffdnet_color.pth",
+    "sha256": "286f04f7e3a20254c067ba95efb5d3339f4fc8a09a365a93cd469184d4cdb279",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "in_nc": 13,
+      "sigma": "0..1",
+      "note": "FFDNet color (KAIR, MIT) nb=12/nc=96; even-only replication pad, pixel-unshuffle(2) → 12ch + σ map = 13ch, 12 convs ReLU (no BN), pixel-shuffle(2); torch-verified mae 0.0004"
+    }
   }
 ]
