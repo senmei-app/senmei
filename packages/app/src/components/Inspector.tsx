@@ -86,6 +86,12 @@ export default function Inspector({
           changed = true;
           return { ...s, params: { ...s.params, modelId: m.id } };
         }
+      } else if (s.stepType === "decompress") {
+        const m = models.find((x) => x.kind === "decompress" && x.loadable);
+        if (m) {
+          changed = true;
+          return { ...s, params: { ...s.params, modelId: m.id } };
+        }
       }
       return s;
     });
@@ -97,6 +103,7 @@ export default function Inspector({
   const upscaleModels = models.filter((m) => m.kind === "upscale");
   const denoiseModels = models.filter((m) => m.kind === "denoise");
   const deblurModels = models.filter((m) => m.kind === "deblur");
+  const decompressModels = models.filter((m) => m.kind === "decompress");
 
   const update = (id: string, patch: Partial<PipelineStep>) =>
     onChange(steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -274,6 +281,11 @@ export default function Inspector({
                             const sc = s.params?.scale;
                             return m && sc ? ` · ${m.id} ×${sc}` : "";
                           })()}
+                        {s.stepType === "decompress" &&
+                          (() => {
+                            const m = models.find((x) => x.id === s.params?.modelId);
+                            return m ? ` · ${m.id}` : "";
+                          })()}
                         {s.stepType === "interpolation" && s.params?.fpsMultiplier
                           ? ` ×${s.params.fpsMultiplier}`
                           : ""}
@@ -314,6 +326,7 @@ export default function Inspector({
                       upscaleModels={upscaleModels}
                       denoiseModels={denoiseModels}
                       deblurModels={deblurModels}
+                      decompressModels={decompressModels}
                       downloading={downloading}
                       dlPct={dlPct}
                       folderMenu={folderMenu}

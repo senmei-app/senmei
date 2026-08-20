@@ -84,6 +84,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     const lastOut = outs.length ? outs[outs.length - 1] : undefined;
     const enabled = steps.filter((s) => s.enabled);
     const interp = enabled.find((s) => s.stepType === "interpolation");
+    const dc = enabled.find((s) => s.stepType === "decompress");
     const up = enabled.find((s) => s.stepType === "upscale");
     const res = enabled.find((s) => s.stepType === "resize");
     const dn = enabled.find((s) => s.stepType === "denoise");
@@ -91,6 +92,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     const dd = enabled.find((s) => s.stepType === "deduplication");
     const outScale = up ? (up.params?.scale ?? null) : null;
     const outModel = up ? (up.params?.modelId ?? null) : null;
+    const outDecompressModel = dc ? (dc.params?.modelId ?? null) : null;
     const outOutputResize = res ? toFactor(res.params?.factor ?? "") : null;
     const outFps = interp ? (interp.params?.fpsMultiplier ?? null) : null;
     const outInterpModel = interp ? (interp.params?.modelId ?? null) : null;
@@ -108,6 +110,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       modelId: outModel,
       resize: null,
       filter: outFilter,
+      decompressModelId: outDecompressModel,
       outputResize: outOutputResize,
       fpsMultiplier: outFps,
       interpModel: outInterpModel,

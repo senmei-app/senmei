@@ -167,6 +167,11 @@ export type RenderConfig = {
 	modelId?: string | null,
 	resize?: number | null,
 	filter?: FilterParams | null,
+	/**
+	 *  Optional ML decompress model (RealPLKSR 1×); runs a scale-1 pass
+	 *  (de-artifact/de-JPEG/de-H.264) ahead of the step chain.
+	 */
+	decompressModelId?: string | null,
 	outputResize?: number | null,
 	fpsMultiplier?: number | null,
 	interpModel?: string | null,

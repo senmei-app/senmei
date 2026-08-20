@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: decompress step in the processing stack (M7) (2026-08-20)** — new
+  `Decompress` step type picks a 1× RealPLKSR de-artifact model (DeH264 / DeJPG /
+  DeJPG `_60` / DeNoise); mapped to `RenderConfig.decompress_model_id` and run
+  as a scale-1 ML pass ahead of upscaling in `render`.
+
 - **fix: web E2E — audio no-op, add-video button, sample render path (2026-08-20)** —
   `extractAudio` in the HTTP backend now no-ops (browser `<video>` handles
   sound) instead of throwing; the MediaLibrary `+` button was missing an

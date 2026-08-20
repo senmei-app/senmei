@@ -17,6 +17,7 @@ export interface BatchJob {
 
 export type StepType =
   | "interpolation"
+  | "decompress"
   | "upscale"
   | "denoise"
   | "deblur"
@@ -26,6 +27,7 @@ export type StepType =
 
 export const STEP_META: Record<StepType, { icon: string; labelKey: string; implemented: boolean }> = {
   interpolation: { icon: "⚡", labelKey: "tab.interpolate", implemented: true },
+  decompress: { icon: "🧼", labelKey: "tab.decompress", implemented: true },
   upscale: { icon: "🔍", labelKey: "tab.upscale", implemented: true },
   denoise: { icon: "🧹", labelKey: "tab.denoise", implemented: true },
   deblur: { icon: "✨", labelKey: "tab.deblur", implemented: true },
@@ -56,6 +58,7 @@ export function qualityKey(params: StepParams | undefined): string {
 
 export const STEP_ORDER: StepType[] = [
   "interpolation",
+  "decompress",
   "upscale",
   "denoise",
   "deblur",
@@ -66,6 +69,7 @@ export const STEP_ORDER: StepType[] = [
 
 const DEFAULTS: Record<StepType, StepParams> = {
   interpolation: { modelId: null, fpsMultiplier: 2 },
+  decompress: { modelId: null },
   upscale: { modelId: null, scale: 2 },
   denoise: { radius: 1, modelId: null },
   deblur: { amount: 0.5, modelId: null },

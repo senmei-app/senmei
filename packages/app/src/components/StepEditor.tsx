@@ -26,6 +26,7 @@ export interface StepEditorProps {
   upscaleModels: ModelMetadata[];
   denoiseModels: ModelMetadata[];
   deblurModels: ModelMetadata[];
+  decompressModels: ModelMetadata[];
   downloading: string | null;
   dlPct: number;
   folderMenu: string | null;
@@ -47,6 +48,7 @@ export default function StepEditor(props: StepEditorProps) {
     upscaleModels,
     denoiseModels,
     deblurModels,
+    decompressModels,
     downloading,
     dlPct,
     folderMenu,
@@ -165,6 +167,26 @@ export default function StepEditor(props: StepEditorProps) {
           )}
         </>
       );
+    case "decompress": {
+      const m = decompressModels.find((x) => x.id === s.params?.modelId);
+      return (
+        <>
+          {field(
+            t("fi.model"),
+            modelSelect(decompressModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+          )}
+          {m?.loadable && (
+            <button
+              onClick={() => downloadWeights(m.id)}
+              disabled={!!downloading}
+              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+            >
+              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+            </button>
+          )}
+        </>
+      );
+    }
     case "deblur":
       return (
         <>

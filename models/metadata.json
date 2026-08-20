@@ -222,7 +222,7 @@
       "input_range": "0..1",
       "half": true,
       "dysample": false,
-      "note": "1x RealPLKSR_otf DeJPG q60 (Phhofm, CC-BY-4.0 confirmed 2026-08-20); contiguous preprocessed; verified vs torch mae ~0.0003"
+      "note": "1x RealPLKSR_otf DeJPG q60 (Phhofm, CC-BY-4.0 confirmed 2026-08-20); pth is channels-last — bpk requires contiguous preprocessing (in-app convert would need it too); verified vs torch mae ~0.0003"
     }
   },
   {

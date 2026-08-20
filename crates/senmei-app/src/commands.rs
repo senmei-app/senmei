@@ -349,6 +349,9 @@ pub struct RenderConfig {
     pub model_id: Option<String>,
     pub resize: Option<f32>,
     pub filter: Option<FilterParams>,
+    /// Optional ML decompress model (RealPLKSR 1×); runs a scale-1 pass
+    /// (de-artifact/de-JPEG/de-H.264) ahead of the step chain.
+    pub decompress_model_id: Option<String>,
     pub output_resize: Option<f32>,
     pub fps_multiplier: Option<u32>,
     pub interp_model: Option<String>,
@@ -379,6 +382,7 @@ pub async fn render(
             model_id,
             resize,
             filter,
+            decompress_model_id,
             output_resize,
             fps_multiplier,
             interp_model,
@@ -393,6 +397,18 @@ pub async fn render(
             vec![Box::new(senmei_pipeline::Passthrough)];
         if let Some(f) = resize {
             steps.push(Box::new(senmei_pipeline::Resize::new(f)));
+        }
+        // Decompress pass runs first: scale-1 de-artifact (RealPLKSR 1×) ahead
+        // of interpolation/upscaling. Skipped when the model can't be loaded.
+        if let Some(id) = decompress_model_id {
+            if !id.is_empty() {
+                match engine_for_model(&id) {
+                    Ok(engine) => {
+                        steps.push(Box::new(senmei_pipeline::Upscale::new(1, Some(engine))));
+                    }
+                    Err(err) => log::warn!("decompress model {id} unavailable, skipping: {err}"),
+                }
+            }
         }
         if let Some(s) = scale {
             if s > 1 {
