@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **feat: senmei-server http feature — headless web UI + REST (2026-08-20)** —
+  `--http` (or `SENMEI_HTTP`) starts an axum server on `127.0.0.1:8765` (env
+  `SENMEI_HTTP_PORT`) that serves the built web UI (`packages/app/dist`, env
+  `SENMEI_WEB_DIR`) plus a REST API over the shared `core`: `/api/health`,
+  `/api/models`, `/api/settings-schema`, `/api/ffmpeg`, `/api/backend-info`,
+  `/api/probe`, `/api/frame` (base64 PNG), `/api/compare`, `/api/download-model`,
+  `/api/render` (+ `/status`, `/cancel`). Same license/confirm gates as MCP;
+  headless (no Wayland/X needed). Verified over curl: probe, frame, async render
+  (30/30 frames → done), static UI.
+
 - **feat: backend switch + libtorch status (2026-08-20)** — new `EngineBackend`
   setting (`auto` | `vulkan` | `libTorch`) wired through `engine_for_model`;
   `backend_info` command reports compiled backends, libtorch version, and

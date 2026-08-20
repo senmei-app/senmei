@@ -53,10 +53,98 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
     senmei_media::probe(&ffprobe, Path::new(input)).map_err(|e| e.to_string())
 }
 
+/// Extract one frame as a base64 PNG (fast seek via an ffmpeg pipe).
+pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
+    let ff = ffmpeg();
+    let out = std::process::Command::new(&ff)
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            &format!("{:.3}", position_ms / 1000.0),
+            "-i",
+            input,
+            "-frames:v",
+            "1",
+            "-c:v",
+            "png",
+            "-f",
+            "image2pipe",
+            "-",
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(format!("frame extraction failed for {input}"));
+    }
+    use base64::Engine as _;
+    Ok(base64::engine::general_purpose::STANDARD.encode(out.stdout))
+}
+
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     load_registry()
         .map(|(registry, _)| registry.models().to_vec())
         .unwrap_or_default()
+}
+
+/// Download a model's weights (`.pth`/`.onnx`, sha256-verified when pinned) and
+/// convert them to the f16 `.bpk` burnpack. Mirrors the GUI's `download_model`
+/// without Tauri. Needs the `render` feature (burn convert).
+#[cfg(feature = "render")]
+pub fn download_model(model_id: &str) -> Result<String, String> {
+    let (registry, dir) = load_registry()?;
+    let meta = registry
+        .models()
+        .iter()
+        .find(|m| m.id == model_id)
+        .cloned()
+        .ok_or_else(|| format!("model not found: {model_id}"))?;
+    let convert_arg = registry
+        .resolve(model_id, &dir)
+        .map(|m| if m.arch == "span" { m.feature_channels } else { m.num_block })
+        .unwrap_or(4);
+    if meta.license_blocked() {
+        return Err(format!(
+            "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
+            meta.license.as_deref().unwrap_or("none")
+        ));
+    }
+    if !meta.loadable {
+        return Err(format!("model {model_id} has no loadable arch yet"));
+    }
+    let url = meta
+        .download_url
+        .clone()
+        .ok_or_else(|| format!("model {model_id} has no download_url"))?;
+    let weight = meta
+        .weights
+        .as_ref()
+        .and_then(|w| w.first())
+        .cloned()
+        .ok_or_else(|| format!("model {model_id} has no weights"))?;
+    if !weight.ends_with(".bpk") {
+        return Err(format!("expected f16 burnpack weight, got {weight}"));
+    }
+    let bpk_path = dir.join(&weight);
+    let onnx = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("onnx");
+    let base = weight.trim_end_matches(".f16.bpk");
+    let source = senmei_media::download_to_temp(
+        &url,
+        &dir,
+        &format!("{base}.{}", if onnx { "onnx" } else { "pth" }),
+        meta.sha256.as_deref(),
+        &mut |_, _| {},
+    )
+    .map_err(|e| e.to_string())?;
+    let res = if onnx {
+        senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
+    } else {
+        senmei_ml::convert_pth_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
+    };
+    let _ = std::fs::remove_file(&source);
+    res.map_err(|e| e.to_string())?;
+    Ok(bpk_path.to_string_lossy().into_owned())
 }
 
 #[cfg(feature = "render")]

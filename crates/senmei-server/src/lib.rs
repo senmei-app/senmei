@@ -8,3 +8,5 @@
 
 pub mod core;
 pub mod mcp;
+#[cfg(feature = "http")]
+pub mod http;
