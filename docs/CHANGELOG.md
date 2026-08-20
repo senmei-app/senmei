@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **fix: menu bar shifted right when opening a menu (2026-08-20)** —
+  `space-x-4` added a margin to every menu button once the click-away overlay
+  became the nav's first child; switched to `gap-4`.
+
 - **feat: live hardware usage in status bar (2026-08-20)** — new
   `hardware_status` Tauri command samples system CPU/RAM (sysinfo) and the
   primary GPU via `/sys/class/drm` (`gpu_busy_percent`, `mem_info_vram_*`,

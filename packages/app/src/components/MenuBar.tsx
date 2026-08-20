@@ -155,7 +155,7 @@ export default function MenuBar({
   };
 
   return (
-    <nav className="relative flex items-center space-x-4 font-medium text-slate-600 dark:text-slate-400">
+    <nav className="relative flex items-center gap-4 font-medium text-slate-600 dark:text-slate-400">
       {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />}
 
       {menus.map((menu) => (
