@@ -101,6 +101,9 @@ Candidates per stack; each needs a clean burn port + permissive license before
   Anime-first: BHI (4×) + Nomos. Realistic: 4xNature/HFA2k/mssim + 1× DeNoise/DeJPG/DeH264.
   ArtFaces = faces only (skip). 2× BHI small (dim 32), large (dim 96) and 2× Public
   layernorm (realistic 2×) need an arch variant first — not weights-only (todos).
+  Registered 4× weights-only (2026-08-20): Nomos2, Nature, HFA2k_ludvae, mssim,
+  BHI-real. BHI-otf = channels-last (loadable:false, needs .contiguous() fix);
+  NomosWebPhoto = non-dysample tail (flat keys) — needs an arch variant.
   Skip redundant BHI sub-variants (otf_nn/multiblur).
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);

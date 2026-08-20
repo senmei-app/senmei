@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **ml: register 4× RealPLKSR weights-only batch (2026-08-20)** — Nomos2,
+  Nature, HFA2k_ludvae, mssim, BHI-real added (dim 64/28 blocks, contiguous,
+  verified convert + sha256). BHI-otf listed but `loadable:false` (channels-last
+  .pth); NomosWebPhoto skipped (non-dysample tail).
+
+- **backend: autotune stays ON (2026-08-20)** — decision: keep the default
+  autotune enabled; the full-frame OOM (upstream-issues §2) is avoided by the
+  640px tiled infer path, so no opt-out or vendor patch needed.
+
 - **ml: disable 48ch SPAN models hit by cubek conv bug (2026-08-20)** —
   `span-2x-nomosuni-ldl`, `span-2x-hfa2k`, `span-2x-modern-spanimation-v2`
   (multijpg already off) set `loadable: false`; they render degraded in f16

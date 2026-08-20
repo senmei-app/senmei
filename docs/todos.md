@@ -3,7 +3,6 @@
 > Open items only — completed items move to `docs/CHANGELOG.md`.
 
 ## Backend
-- [ ] Autotune default: keep ON vs OFF vs vendor-patch (see `docs/upstream-issues.md` §2)
 - [ ] SPAN f16 degrades 48ch norm-on (ldl/multijpg/hfa2k 0.69–0.92 vs torch) —
       cause: cubek-convolution f16 1×1 conv bug K=96×N≥32768 (cubek#519,
       `docs/upstream-issues.md` §6). Affected 48ch models disabled in registry;
@@ -16,8 +15,8 @@
 
 ## Models
 
-- [ ] RealPLKSR batch (weights-only, dim 64): 1× DeNoise otf + DeJPG _60,
-      4× BHI otf/real, 4× Nomos2, 4× Nature/HFA2k/mssim — dl+sha256, verify
+- [ ] RealPLKSR rest: 1× DeJPG _60 (dl+sha256+verify); BHI-otf contiguous fix;
+      NomosWebPhoto non-dysample port
 - [ ] RealPLKSR 2× Public layernorm (realistic 2×): port LayerNorm PLKBlock
       variant (verify dim), then weights
 - [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant

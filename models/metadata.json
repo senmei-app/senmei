@@ -257,7 +257,7 @@
     "metadata": {
       "input_range": "0..1",
       "half": true,
-      "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/upstream-issues.md §6); Deblur-step wiring pending"
+      "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/models.md Notes); Deblur-step wiring pending"
     }
   },
   {
@@ -473,6 +473,126 @@
       "half": true,
       "dysample": false,
       "note": "1x RealPLKSR_otf denoise (Phhofm, CC-BY-4.0 confirmed 2026-08-20)"
+    }
+  },
+  {
+    "id": "4x-nomos2-realplksr",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xNomos2_realplksr_dysample.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xNomos2_realplksr_dysample",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xNomos2_realplksr_dysample/4xNomos2_realplksr_dysample.pth",
+    "sha256": "96c8476ed2c42107628d10562b32ae89e7be3c2f7a53d29504823e9bafe8121d",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample Nomos2 (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+    }
+  },
+  {
+    "id": "4x-nature-realplksr",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xNature_realplksr_dysample.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xNature_realplksr_dysample",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xNature_realplksr_dysample/4xNature_realplksr_dysample.pth",
+    "sha256": "062b57e5270ac3c37edb658259cb6f2deeb68e063249a5934b086e232dd99c34",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample Nature (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+    }
+  },
+  {
+    "id": "4x-hfa2k-realplksr",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xHFA2k_ludvae_realplksr_dysample.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xHFA2k_ludvae_realplksr_dysample",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xHFA2k_ludvae_realplksr_dysample/4xHFA2k_ludvae_realplksr_dysample.pth",
+    "sha256": "c6e44af18fd3159787b0dbf81d432a6c1ba12c736fc1184b107ed091e49e327c",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample HFA2k LUDVAE (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+    }
+  },
+  {
+    "id": "4x-mssim-realplksr",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xmssim_realplksr_dysample_pretrain.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xmssim_realplksr_dysample_pretrain",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xmssim_realplksr_dysample_pretrain/4xmssim_realplksr_dysample_pretrain.pth",
+    "sha256": "0a8706be7239d571a700b4c5bde2ca565d1f78a9386807e197fc02854e26862f",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample mssim (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+    }
+  },
+  {
+    "id": "4x-bhi-realplksr-real",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xBHI_realplksr_dysample_real.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_real.pth",
+    "sha256": "8e01e91fd857e31e521d1b85ad6674ac41f5c898b51a2edf5e80522fe81cabbe",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample BHI real (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+    }
+  },
+  {
+    "id": "4x-bhi-realplksr-otf",
+    "kind": "upscale",
+    "scale": 4,
+    "arch": "real-plksr",
+    "weights": [
+      "4xBHI_realplksr_dysample_otf.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
+    "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_otf.pth",
+    "sha256": "a78f5263e5f8ab75a03449ec4fc5091651906e1cf8872f905e58ef458bba8a84",
+    "loadable": false,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; channels-last .pth — needs .contiguous() fix before in-app convert"
     }
   }
 ]
