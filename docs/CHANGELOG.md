@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.1.3 (2026-08-20)
+
 - **feat: wire tch backend end-to-end (2026-08-20)** — `tch` cargo feature
   threaded senmei → senmei-app → senmei-server (senmei-ml patch deps on the
   senmei-app torch-sys/tch/burn-tch forks); Settings page enables the LibTorch
