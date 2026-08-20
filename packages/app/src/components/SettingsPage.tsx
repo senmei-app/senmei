@@ -233,13 +233,6 @@ export default function SettingsPage({
                     </button>
                   ))}
                 </div>
-                {backendInfo && (
-                  <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    {backendInfo.libtorchVersion
-                      ? `LibTorch ${backendInfo.libtorchVersion}${backendInfo.cudaAvailable ? ` · CUDA/ROCm (${backendInfo.cudaDeviceCount} device${backendInfo.cudaDeviceCount === 1 ? "" : "s"})` : " · CPU"}`
-                      : "LibTorch not compiled"}
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -339,6 +332,31 @@ export default function SettingsPage({
                           : t("settings.ffmpeg.download")}
                       </Button>
                     </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  {t("settings.section.backend")}
+                </h3>
+                <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                  <p>
+                    Vulkan: {backendInfo?.vulkanCompiled ? "✓" : "—"}
+                  </p>
+                  <p>
+                    LibTorch:{" "}
+                    {backendInfo?.libtorchCompiled
+                      ? `✓ ${backendInfo.libtorchVersion ?? ""}`.trim()
+                      : "—"}
+                  </p>
+                  {backendInfo?.libtorchCompiled && (
+                    <p>
+                      CUDA/ROCm:{" "}
+                      {backendInfo.cudaAvailable
+                        ? `${backendInfo.cudaDeviceCount} device${backendInfo.cudaDeviceCount === 1 ? "" : "s"}`
+                        : "not available"}
+                    </p>
                   )}
                 </div>
               </div>
