@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: native video preview never engaged after backend migration (2026-08-20)** —
+  `nativeSrc` raced the asset-protocol grant: the `<video>` mounted with
+  `convertFileSrc(file)` before `probe_video` had run `allow_file`, so it
+  `onError`'d and the preview fell back to slow FFmpeg frames permanently.
+  The native URL is now set only after `probeVideo` succeeds (file granted).
+
 - **ml: register RealPLKSR 1× DeJPG `_60` (q60) (2026-08-20)** — weights-only
   on the existing real-plksr arch: contiguous-preprocessed state dict, f16
   `.bpk` conversion, sha256 pinned; verified vs torch (spandrel) mae ~0.0003.

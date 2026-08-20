@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import type { RenderProgress, VideoInfo } from "@senmei/bridge";
-import { backend, backendSync, type Backend } from "../backend";
+import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
 import { basename } from "../paths";
@@ -119,11 +119,13 @@ export default function Monitor({
   const name = src ? basename(src) : null;
 
   // Native <video> for the source preview; fall back to FFmpeg-decoded frames
-  // only when the webview cannot load/play the file.
+  // only when the webview cannot load/play the file. The URL is only set after
+  // probeVideo succeeds — that command grants the file into the asset:// scope
+  // (allow_file), so the <video> never races a not-yet-allowed path.
   const [nativeFailed, setNativeFailed] = useState(false);
+  const [nativeUrl, setNativeUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const nativeSrc =
-    !nativeFailed && file && mode === "source" ? (backendSync()?.nativeVideoUrl(file) ?? null) : null;
+  const nativeSrc = !nativeFailed && file && mode === "source" ? nativeUrl : null;
 
   // Sound comes from the backend (rodio): WebKitGTK can't play media over
   // Tauri's asset:// scheme, so audio is decoded/played natively and driven
@@ -319,6 +321,7 @@ export default function Monitor({
   // of jumping to 0, and the sample range is only (re)initialised per file.
   const prevFile = useRef<string | null>(null);
   useEffect(() => {
+    let on = true;
     const fileChanged = file !== prevFile.current;
     prevFile.current = file ?? null;
     const next =
@@ -330,20 +333,27 @@ export default function Monitor({
     setFrames({});
     setError(null);
     setNativeFailed(false);
+    setNativeUrl(null);
     const b = be();
     const probeTarget = file;
     if (probeTarget && b) {
       b.probeVideo(probeTarget)
         .then((i) => {
+          if (!on) return;
           setInfo(i);
+          setNativeUrl(b.nativeVideoUrl(probeTarget));
           if (fileChanged) onSampleChange?.(0, snapFrame(Math.min(10000, (i.duration ?? 0) * 1000), i.fps ?? 0));
         })
         .catch((e) => {
+          if (!on) return;
           console.error("probeVideo failed:", e);
           setError(String(e));
         });
     }
     loadFrame(next);
+    return () => {
+      on = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, file, mode, beReady]);
 
