@@ -180,7 +180,14 @@ jobs:
       # Only the final installers are published; bundle dirs also hold build
       # intermediates (extracted libs, deb/rpm control files, AppImage glue).
       - name: Build release notes from CHANGELOG
-        run: awk '/^## /{ c++ } c==1 { print } c==2 { exit }' docs/CHANGELOG.md > release-notes.md
+        # Section of the tagged version (tag v0.1.3 -> "## 0.1.3 ..."), skipping
+        # docs-only entries (not user-facing).
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '
+            /^## / { if ($2 == ver) { insec = 1; next } else if (insec) exit }
+            insec && !/^[[:space:]]*- \*\*docs:/ { print }
+          ' docs/CHANGELOG.md > release-notes.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
