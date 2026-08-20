@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **compliance: adopt cargo-deny as license/bans/advisories gate (2026-08-20)**
+  — new `deny.toml` (targets = shipped product triples, so UEFI-only
+  `r-efi`/getrandom is excluded) + `bun run deny` script. Allowlist covers the
+  full permissive set (MIT/Apache/BSD/ISC/MPL/CC0/CDLA-Permissive-2.0/bzip2-1.0.6/…);
+  advisories: 0 CVEs, 13 `unmaintained` (gtk-rs GTK3 webview, paste,
+  proc-macro-error, unic-*, bincode) ignored with justification. `zip`
+  duplicate-unify deferred (touches libtorch WIP).
+
 - **ml: add SCUNet color denoiser (2026-08-20)** — new `scunet` burn arch:
   Swin-Conv-UNet (config [4,4,4,4,4,4,4], dim 64, window 8, head_dim 32) with
   W/SW windowed multi-head self-attention (relative-position bias via per-head
