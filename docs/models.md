@@ -14,7 +14,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Interpolation | RIFE v4.6 | 1 | MIT | loadable (RifeNet, ncnn `flownet.bin`) | `nihui/rife-ncnn-vulkan` |
 | Interpolation | IFRNet (Vimeo90K / GoPro) | 1 | MIT | loadable (IfrNet) | HF `pavlichenko/ifrnet_*` |
 | Denoise | DRUNet color (DPIR) | 1 | MIT | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
-| Denoise | RealPLKSR 1× DeNoise / DeJPG / DeH264 (otf, +DeJPG _60) | 1 | CC-BY-4.0 | loadable (license confirmed 2026-08-20; _60 contiguous-preprocessed, torch mae ~0.0003) | `Phhofm/models` releases |
+| Decompress | RealPLKSR 1× DeNoise / DeJPG / DeH264 (otf, +DeJPG _60) | 1 | CC-BY-4.0 | loadable (kind `decompress` = 1× de-artifact, not general denoise; wired into the Decompress step) — license confirmed 2026-08-20, _60 contiguous-preprocessed, torch mae ~0.0003 | `Phhofm/models` releases |
 | Restoration | Real-CUGAN up2x no-denoise | 2 | Apache-2.0 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
 | Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Fallin Strong | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
