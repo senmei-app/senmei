@@ -113,6 +113,7 @@ export default function Monitor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
+  const frameBustRef = useRef(0);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   const name = src ? basename(src) : null;
@@ -275,10 +276,14 @@ export default function Monitor({
     )
       .then((results) => {
         // Update every side together so compare never shows one ahead of the
-        // other (the result decode is slower than the source decode).
+        // other (the result decode is slower than the source decode). Frames
+        // reuse a stable file per source; a query forces the webview to
+        // re-fetch (asset:// URLs cache otherwise). data: URIs are always fresh.
         const updates: Record<string, string> = {};
         for (const r of results) {
-          if (r) updates[r.path] = r.src;
+          if (r) {
+            updates[r.path] = r.src.startsWith("data:") ? r.src : r.src + "?v=" + ++frameBustRef.current;
+          }
         }
         if (Object.keys(updates).length) {
           setFrames((prev) => ({ ...prev, ...updates }));

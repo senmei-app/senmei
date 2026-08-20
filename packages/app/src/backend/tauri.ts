@@ -46,8 +46,9 @@ export const tauriBackend: Backend = {
   },
 
   async readFrame(input, positionMs, projectDir = null): Promise<FrameSource> {
-    const r = await bridge.readFrame(input, positionMs, projectDir);
-    const file = (r as { filePath?: string }).filePath ?? (r as { path?: string }).path ?? "";
+    // bridge.readFrame resolves to the PNG path (string); convertFileSrc turns
+    // it into an asset:// URL the webview may load.
+    const file = await bridge.readFrame(input, positionMs, projectDir);
     return convertFileSrc(file);
   },
 

@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: preview frames broken after backend migration (2026-08-20)** —
+  `tauri.ts readFrame` parsed the bridge result as an object, but
+  `read_frame` resolves to a plain path string → empty `convertFileSrc("")` →
+  "asset protocol not configured" + broken frame thumbs. Also restored the
+  `?v=` cache-busting query for `asset://` frame URLs (stable filename + webview
+  cache) that the migration had dropped.
+
 - **feat: transport-agnostic frontend backend — one UI, two transports (2026-08-20)** —
   new `packages/app/src/backend/` abstraction (`types.ts` contract + `tauri.ts`
   IPC / `http.ts` REST impls + `mock.ts` dev backend via `VITE_SENMEI_MOCK=1`);
