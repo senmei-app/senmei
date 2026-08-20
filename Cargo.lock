@@ -7816,7 +7816,7 @@ dependencies = [
 
 [[package]]
 name = "senmei"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "log",
  "senmei-app",
@@ -7829,7 +7829,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-app"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "env_logger",
  "liblzma",
@@ -7850,7 +7850,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-media"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "liblzma",
  "log",
@@ -7867,7 +7867,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-ml"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "burn",
  "burn-store",
@@ -7886,7 +7886,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-pipeline"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "log",
  "senmei-media",
@@ -7896,7 +7896,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-server"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -9084,7 +9084,7 @@ dependencies = [
 [[package]]
 name = "tch"
 version = "0.22.0"
-source = "git+file:///home/mzach/github/senmei-app/tch?tag=v0.22.0-senmei-dlopen#7e76de58c33da877d5c1de103dee7b51e3b106ee"
+source = "git+file:///home/mzach/github/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#a86154d9ee96c2e0de2db9cd5253a8a0767864bb"
 dependencies = [
  "half",
  "lazy_static",
@@ -9104,7 +9104,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -9580,7 +9580,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "torch-sys"
 version = "0.22.0"
-source = "git+file:///home/mzach/github/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#aceb09cf108e645dfa2bac8f95998a19d8865f08"
+source = "git+file:///home/mzach/github/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#a86154d9ee96c2e0de2db9cd5253a8a0767864bb"
 dependencies = [
  "anyhow",
  "libc",

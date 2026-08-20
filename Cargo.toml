@@ -23,10 +23,9 @@ repository = "https://github.com/senmei-app/senmei"
 gpu-allocator = { git = "https://github.com/senmei-app/gpu-allocator", tag = "v0.28.0-windows-0.62" }
 # Runtime libtorch via dlopen: torch-sys loads libtorch at runtime (no
 # build-time link), so tch/burn-tch must not add libtorch link args. Tags:
-#   tch-rs v0.22.0-senmei-dlopen (torch-sys), tch v0.22.0-senmei-dlopen (tch,
-#   upstream 0.22.0 source — the senmei-0.22.0 subtree is a newer, mismatched
-#   fork), burn v0.21.0-senmei-burn-tch-dlopen (burn-tch)
+#   tch-rs v0.22.0-senmei-dlopen (torch-sys/ + tch at root, upstream layout),
+#   burn v0.21.0-senmei-burn-tch-dlopen (burn-tch)
 # TODO: switch file:// URLs to https://github.com once the tags are pushed.
 torch-sys = { git = "file:///home/mzach/github/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
-tch = { git = "file:///home/mzach/github/senmei-app/tch", tag = "v0.22.0-senmei-dlopen" }
+tch = { git = "file:///home/mzach/github/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
 burn-tch = { git = "file:///home/mzach/github/senmei-app/burn", tag = "v0.21.0-senmei-burn-tch-dlopen" }
