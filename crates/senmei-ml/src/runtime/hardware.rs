@@ -121,6 +121,7 @@ mod hip {
     type GetDeviceName = unsafe extern "C" fn(*mut c_char, c_int, c_int) -> c_int;
     type GetDeviceMemory = unsafe extern "C" fn(*mut u64, c_int) -> c_int;
 
+    #[cfg(unix)]
     #[repr(C)]
     struct DlInfo {
         dli_fname: *const c_char,
@@ -129,12 +130,15 @@ mod hip {
         dli_saddr: *mut c_void,
     }
 
+    #[cfg(unix)]
     unsafe extern "C" {
         fn dladdr(addr: *const c_void, info: *mut DlInfo) -> c_int;
     }
 
     /// Directory of the shared object that exports `fptr` (e.g. `libamdhip64`),
-    /// so the loader can preload the ROCm runtime from the same place.
+    /// so the loader can preload the ROCm runtime from the same place. `dladdr`
+    /// is POSIX-only; other platforms rely on the env-derived dir.
+    #[cfg(unix)]
     fn loaded_lib_dir(fptr: *const c_void) -> Option<PathBuf> {
         unsafe {
             let mut info = std::mem::zeroed::<DlInfo>();
@@ -200,7 +204,10 @@ mod hip {
                 Some(f) => *f,
                 None => return (None, None),
             };
+            #[cfg(unix)]
             let dir = env_rocm_dir().or_else(|| loaded_lib_dir(get_count as *const c_void));
+            #[cfg(not(unix))]
+            let dir = env_rocm_dir();
 
             let mut count = 0;
             if get_count(&mut count) != 0 || count <= 0 {
