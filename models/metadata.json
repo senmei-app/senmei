@@ -153,16 +153,18 @@
     "scale": 1,
     "arch": "scunet",
     "weights": [
-      "scunet_color_15.pth"
+      "scunet_color_15.pth.f16.bpk"
     ],
     "license": "Apache-2.0",
     "source_url": "https://github.com/cszn/SCUNet",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/scunet_color_15.pth",
-    "loadable": false,
+    "sha256": "fa3a95efb4add693a78917e70757a3d535c5a8c905ace9f93ba7e5897351e1b2",
+    "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
-      "note": "license confirmed Apache-2.0; arch port pending"
+      "in_nc": 3,
+      "note": "SCUNet color σ=15 (cszn, Apache-2.0) Swin-Conv-UNet, config [4,4,4,4,4,4,4] dim 64 window 8 head_dim 32; clean burn port torch-verified mae ~0.0018; preprocess pth to contiguous (relative_position_params is a transposed view)"
     }
   },
   {

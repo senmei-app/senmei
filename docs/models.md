@@ -16,6 +16,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Denoise | DRUNet color (DPIR) | 1 | MIT | loadable (UNetRes, in_nc=4 sigma-map; torch-verified mae 0.001); wired into the Denoise step | `cszn/KAIR` · `drunet_color.pth` |
 | Denoise | DnCNN color blind | 1 | MIT | loadable (Dncnn, 20 conv layers, no BN; spandrel-verified mae ~0.001); wired into the Denoise step | `cszn/KAIR` · `dncnn_color_blind.pth` |
 | Denoise | FFDNet color | 1 | MIT | loadable (Ffdnet, 12 conv layers, nc=96, pixel-unshuffle + σ map; torch-verified mae 0.0004); wired into the Denoise step | `cszn/KAIR` · `ffdnet_color.pth` |
+| Denoise | SCUNet color σ=15 | 1 | Apache-2.0 | loadable (Scunet, Swin-Conv-UNet config [4,4,4,4,4,4,4], dim 64, window 8; torch-verified mae 0.0018; pth preprocessed contiguous); wired into the Denoise step | `cszn/SCUNet` · `scunet_color_15.pth` |
 | Decompress | RealPLKSR 1× DeNoise / DeJPG / DeH264 (otf, +DeJPG _60) | 1 | CC-BY-4.0 | loadable (kind `decompress` = 1× de-artifact, not general denoise; wired into the Decompress step) — license confirmed 2026-08-20, _60 contiguous-preprocessed, torch mae ~0.0003 | `Phhofm/models` releases |
 | Restoration | Real-CUGAN up2x no-denoise | 2 | Apache-2.0 | loadable (UpCunet2x) | `bilibili/ailab` · VSGAN |
 | Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
@@ -58,7 +59,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Interpolation | AnimeInterp | MIT · weights verify | maybe |
 | Interpolation | FILM | Apache-2.0 repo · TF weights | maybe (TF conversion) |
 | Interpolation | AMT | MIT · weights verify | no (transformer) |
-| Denoise | SCUNet (GAN/PSNR) | Apache-2.0 | adopt (Swin port) |
+| Denoise | SCUNet (GAN/PSNR) | Apache-2.0 | done (Swin port adopted 2026-08-20) |
 | Denoise | FFDNet | MIT (KAIR) | adopt (pixel-shuffle denoise; DnCNN done) |
 | Denoise | NAFNet | MIT (HF nyanko7) | maybe (PSNR-oriented) |
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |

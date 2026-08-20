@@ -12,6 +12,7 @@ mod ffdnet;
 mod ifrnet;
 mod nafnet;
 mod real_plksr;
+mod scunet;
 mod span;
 
 use crate::arch::{RrdbNet, RifeNet, UpCunet2x, UpCunet2xFast};
@@ -32,6 +33,7 @@ use std::path::Path;
 use dncnn::Dncnn;
 use drunet::Drunet;
 use ffdnet::Ffdnet;
+use scunet::Scunet;
 use ifrnet::IfrNet;
 use nafnet::NafNet;
 use real_plksr::RealPlk;
@@ -52,6 +54,7 @@ enum Model {
     Drunet(Drunet<BurnBackend<f16>>),
     Dncnn(Dncnn<BurnBackend<f16>>),
     Ffdnet(Ffdnet<BurnBackend<f16>>),
+    Scunet(Scunet<BurnBackend<f16>>),
     NafNet(NafNet<BurnBackend<f16>>),
     RealPlk(RealPlk<BurnBackend<f16>>),
     Span(Span<BurnBackend<f16>>),
@@ -69,6 +72,7 @@ impl Model {
             Model::RealPlk(m) => Ok(m.forward(x)),
             Model::Drunet(m) => Ok(m.forward(x)),
             Model::Dncnn(m) => Ok(m.forward(x)),
+            Model::Scunet(m) => Ok(m.forward(x)),
             Model::NafNet(m) => Ok(m.forward(x)),
             Model::Span(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
@@ -147,6 +151,11 @@ impl BurnEngine {
                 let mut m = Ffdnet::new(&self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::Ffdnet(m))
+            }
+            "scunet" => {
+                let mut m = Scunet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Scunet(m))
             }
             "nafnet" => {
                 let mut m = NafNet::new(&self.device);
@@ -354,7 +363,10 @@ impl InferenceEngine for BurnEngine {
     ) -> Option<Result<Tensor>> {
         let model = self.model.as_ref()?;
         let is_drunet = matches!(model, Model::Drunet(_));
-        if !matches!(model, Model::Drunet(_) | Model::Dncnn(_) | Model::Ffdnet(_)) {
+        if !matches!(
+            model,
+            Model::Drunet(_) | Model::Dncnn(_) | Model::Ffdnet(_) | Model::Scunet(_)
+        ) {
             return None;
         }
         if input.shape.len() != 4 || input.shape[1] != 3 {
@@ -541,6 +553,40 @@ pub fn convert_pth_to_bpk(
             let mut store = PytorchStore::from_file(pth_path)
                 .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Ffdnet::<BurnBackend>::new(&device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "scunet" => {
+            // Torch `m_{head,down,body,up,tail}` Sequential keys map onto the
+            // burn field paths: head/tail are `m_head.0.`/`m_tail.0.`; down
+            // levels keep block indices 0-3 and the index-4 stride conv maps
+            // to `_down`; up levels map the index-0 deconv to `_up`. MLP/conv
+            // blocks are torch Sequentials (`.mlp.0`/`.mlp.2`,
+            // `.conv_block.0`/`.conv_block.2`) and LayerNorm weight/bias are
+            // burn `gamma`/`beta`.
+            //
+            // The `relative_position_params` bare-tensor param lives in the
+            // custom `Wmsa` module, which is not in the default half-precision
+            // set — add it so the f16 bpk stores it as F16 (otherwise the f16
+            // model loads it F32 and the attention add fails DTypeMismatch).
+            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(
+                HalfPrecisionAdapter::new().with_module("Wmsa"),
+            );
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^module\.", "")
+                .with_key_remapping(r"^m_head\.0\.", "m_head.")
+                .with_key_remapping(r"^m_tail\.0\.", "m_tail.")
+                .with_key_remapping(r"^m_down(\d)\.4\.", "m_down${1}_down.")
+                .with_key_remapping(r"^m_up(\d)\.0\.", "m_up${1}_up.")
+                .with_key_remapping(r"\.trans_block\.mlp\.0\.", ".trans_block.mlp0.")
+                .with_key_remapping(r"\.trans_block\.mlp\.2\.", ".trans_block.mlp2.")
+                .with_key_remapping(r"\.conv_block\.0\.", ".conv_block.c0.")
+                .with_key_remapping(r"\.conv_block\.2\.", ".conv_block.c2.")
+                .with_key_remapping(r"\.ln([12])\.weight", ".ln$1.gamma")
+                .with_key_remapping(r"\.ln([12])\.bias", ".ln$1.beta");
+            let mut m = Scunet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -1276,6 +1322,134 @@ mod tests {
             max_abs = max_abs.max((*a - *b).abs() as f64);
         }
         assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
+    }
+
+    /// End-to-end SCUNet (color, σ=15, config [4,4,4,4,4,4,4]) check against
+    /// the torch reconstruction on the deterministic 64x64 input
+    /// (`/tmp/scunet_in.f32` → `scunet_ref.f32`). Exercises the Swin W/SW-MSA
+    /// window partition, relative-position bias and the shift mask; f16 vs f32
+    /// → loose tolerance.
+    #[test]
+    #[ignore = "requires Vulkan + a converted scunet_color_15.f16.bpk (senmei-ml-convert)"]
+    fn scunet_matches_torch_reference() {
+        let bpk = std::path::Path::new("/tmp/scunet.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "scunet-color".into(),
+            arch: "scunet".into(),
+            scale: 1,
+            num_block: 4,
+            feature_channels: 64,
+            no_norm: false,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let in_data = std::fs::read("/tmp/scunet_in.f32").unwrap();
+        let input: Vec<f32> = in_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        let input = Tensor::new(vec![1, 3, 64, 64], input);
+        let out = engine
+            .infer_denoise(
+                &input,
+                0.1,
+                &InferOptions {
+                    tile_size: None,
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, 64, 64]);
+
+        let ref_data = std::fs::read("/tmp/scunet_ref.f32").unwrap();
+        let reference: Vec<f32> = ref_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(reference.len(), out.data.len());
+
+        let mut mae = 0.0f64;
+        let mut max_abs = 0.0f64;
+        for (a, b) in out.data.iter().zip(&reference) {
+            assert!(a.is_finite(), "output contains non-finite value");
+            let d = (*a - *b).abs() as f64;
+            mae += d;
+            max_abs = max_abs.max(d);
+        }
+        mae /= out.data.len() as f64;
+        eprintln!("scunet mae={mae:.5} max_abs={max_abs:.5}");
+        // 28 Swin blocks in f16 → edge-pixel noise is higher than the conv-only
+        // denoisers; 0.06 still separates a correct port (mae ≈ 0.002, isolated
+        // boundary pixels) from a logic bug (mae > 0.005, widespread).
+        assert!(max_abs < 0.06, "max abs diff {max_abs} exceeds 0.06");
+    }
+
+    /// SCUNet on a non-multiple input (66×50 → internal replication pad to
+    /// 128×64, crop back) — regression for the pad off-by-one that produced a
+    /// 385px row instead of 384 on 640×360 (only hit in real renders, the 64×64
+    /// reference never padded). `/tmp/scunet_in_66x50.f32` → ref.
+    #[test]
+    #[ignore = "requires Vulkan + a converted scunet_color_15.f16.bpk (senmei-ml-convert)"]
+    fn scunet_matches_torch_reference_nonaligned() {
+        let bpk = std::path::Path::new("/tmp/scunet.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "scunet-color".into(),
+            arch: "scunet".into(),
+            scale: 1,
+            num_block: 4,
+            feature_channels: 64,
+            no_norm: false,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let in_data = std::fs::read("/tmp/scunet_in_66x50.f32").unwrap();
+        let input: Vec<f32> = in_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        let input = Tensor::new(vec![1, 3, 66, 50], input);
+        let out = engine
+            .infer_denoise(
+                &input,
+                0.1,
+                &InferOptions {
+                    tile_size: None,
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, 66, 50]);
+
+        let ref_data = std::fs::read("/tmp/scunet_ref_66x50.f32").unwrap();
+        let reference: Vec<f32> = ref_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(reference.len(), out.data.len());
+
+        let mut mae = 0.0f64;
+        let mut max_abs = 0.0f64;
+        for (a, b) in out.data.iter().zip(&reference) {
+            assert!(a.is_finite(), "output contains non-finite value");
+            let d = (*a - *b).abs() as f64;
+            mae += d;
+            max_abs = max_abs.max(d);
+        }
+        mae /= out.data.len() as f64;
+        eprintln!("scunet 66x50 mae={mae:.5} max_abs={max_abs:.5}");
+        assert!(max_abs < 0.06, "max abs diff {max_abs} exceeds 0.06");
     }
 
     /// NAFNet via the generic `infer` path (what the Deblur step uses): scale-1

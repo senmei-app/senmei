@@ -200,6 +200,12 @@ mod tests {
         assert!(registry.models()[7].loadable);
         assert_eq!(registry.models()[7].license.as_deref(), Some("MIT"));
         assert!(matches!(registry.models()[8].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[8].id, "scunet-denoise");
+        assert_eq!(registry.models()[8].arch, "scunet");
+        assert_eq!(registry.models()[8].scale, 1);
+        assert!(registry.models()[8].loadable);
+        assert_eq!(registry.models()[8].license.as_deref(), Some("Apache-2.0"));
+        assert_eq!(registry.models()[8].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(registry.models()[9].id, "real-plksr-deh264");
         assert_eq!(registry.models()[9].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(registry.models()[10].id, "real-plksr-dejpg");

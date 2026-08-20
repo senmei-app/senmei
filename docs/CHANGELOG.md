@@ -8,6 +8,21 @@
 
 ## Unreleased
 
+- **ml: add SCUNet color denoiser (2026-08-20)** — new `scunet` burn arch:
+  Swin-Conv-UNet (config [4,4,4,4,4,4,4], dim 64, window 8, head_dim 32) with
+  W/SW windowed multi-head self-attention (relative-position bias via per-head
+  gather + stack, cyclic-shift roll reversed vs torch, SW cross-window -inf
+  mask) + residual 3×3 conv branch, 1×1 conv merge, stride-2 U-Net with skip
+  adds; internal 64-replication pad/crop. Registered `scunet-denoise` (cszn,
+  Apache-2.0, sha256-pinned); `relative_position_params` is a transposed view
+  in the pth so it must be contiguous-preprocessed before conversion, and the
+  `Wmsa` module was added to the half-precision adapter set (else it loads f32
+  into the f16 model → DTypeMismatch); wired into the Denoise step;
+  torch-verified mae 0.0018. Fixed a replication-pad off-by-one (built
+  `right+1` pad rows, so non-64-multiple heights like 360 → 385 broke the
+  window partition) — covered by a new 66×50 non-aligned regression test
+  (mae 0.0017); headless server needs `RUST_MIN_STACK` (see AGENTS.md).
+
 - **ml: add FFDNet color denoiser (2026-08-20)** — new `ffdnet` burn arch
   (nb=12/nc=96: even-only replication pad, pixel-unshuffle(2) → 12ch + σ map
   = 13ch, 12 convs ReLU, no BN, pixel-shuffle(2)); registered `ffdnet-color`

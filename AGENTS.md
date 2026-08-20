@@ -104,9 +104,13 @@ Senmei runs fully headless over **`senmei-server`** — one transport-agnostic
 
 Start (from repo root):
 ```
-cargo run -p senmei-server --features render,http -- --http
+RUST_MIN_STACK=33554432 cargo run -p senmei-server --features render,http -- --http
 # serves http://127.0.0.1:8765/ (port via SENMEI_HTTP_PORT, web dir via SENMEI_WEB_DIR)
 ```
+`RUST_MIN_STACK` is required — loading burn/Vulkan models without it stack-overflows
+(the unit tests and GUI set it too). A stale `target/debug/senmei-server` also
+silently falls back denoise/deblur to the CPU reference on unknown archs (e.g.
+`scunet` before it existed), so rebuild after model-arch changes.
 REST surface: `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`,
 `/api/probe`, `/api/frame` (base64 PNG), `/api/download-model`, `/api/render`
 (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema`. Same gates as
