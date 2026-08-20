@@ -1,19 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import {
-  audioClear,
-  audioLoad,
-  audioPause,
-  audioPlay,
-  audioSeek,
-  audioSetVolume,
-  extractAudio,
-  probeVideo,
-  readFrame,
-  type RenderProgress,
-  type VideoInfo,
-} from "@senmei/bridge";
-import { loadDemo } from "../demo";
+import type { RenderProgress, VideoInfo } from "@senmei/bridge";
+import { backend, backendSync, type Backend } from "../backend";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
 import { basename } from "../paths";
@@ -113,10 +100,7 @@ export default function Monitor({
   // Source shows the whole source timeline; result/compare show only the
   // sample window (the rendered result spans exactly in..out).
   const tlSource = mode === "source";
-  // Demo mode has no real render output; simulate one per video so Compare /
-  // Result are usable in the browser without running a fake render.
-  const demoResult = !isTauri() && file ? file.replace(/\.[^.]+$/, ".senmei.mp4") : null;
-  const effRendered = renderedFile ?? demoResult;
+  const effRendered = renderedFile;
   const src = mode === "result" && effRendered ? effRendered : (file ?? null);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
@@ -129,7 +113,6 @@ export default function Monitor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
-  const frameBustRef = useRef(0);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   const name = src ? basename(src) : null;
@@ -138,37 +121,56 @@ export default function Monitor({
   // only when the webview cannot load/play the file.
   const [nativeFailed, setNativeFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const nativeSrc = isTauri() && !nativeFailed && file && mode === "source" ? convertFileSrc(file) : null;
+  const nativeSrc =
+    !nativeFailed && file && mode === "source" ? (backendSync()?.nativeVideoUrl(file) ?? null) : null;
 
   // Sound comes from the backend (rodio): WebKitGTK can't play media over
   // Tauri's asset:// scheme, so audio is decoded/played natively and driven
   // over IPC. The native <video> stays muted (its audio would double up).
   const [audioReady, setAudioReady] = useState(false);
+  // The resolved backend; re-render once available so nativeSrc is non-null.
+  const beRef = useRef<Backend | null>(null);
+  const [beReady, setBeReady] = useState(false);
+  useEffect(() => {
+    let on = true;
+    backend().then((b) => {
+      if (!on) return;
+      beRef.current = b;
+      setBeReady(true);
+    });
+    return () => {
+      on = false;
+    };
+  }, []);
+  const be = () => beRef.current;
+
   // A stale extraction after a file switch must not load the old track.
   const audioFileRef = useRef<string | null>(null);
   useEffect(() => {
     // Drop the previous track so a stale sink can't play during extraction.
-    void audioClear().catch(() => {});
+    void be()?.audioClear().catch(() => {});
     setAudioReady(false);
-    if (!isTauri() || !file) return;
+    if (!be() || !file) return;
     audioFileRef.current = file;
-    extractAudio(file, projectDir ?? null)
+    be()!
+      .extractAudio(file, projectDir ?? null)
       .then((p) => {
         if (audioFileRef.current !== file) return;
-        return audioLoad(p)
+        return be()!
+          .audioLoad(p)
           .then(() => setAudioReady(true))
           .catch((e) => console.error("audio load failed:", e));
       })
       .catch((e) => console.error("preview extractAudio failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [file, beReady]);
 
   // Audio arrives async (extraction takes seconds); if playback already
   // started, join it at the current position instead of staying silent.
   useEffect(() => {
     if (audioReady && playing) {
-      void audioSeek(posRef.current).catch(() => {});
-      void audioPlay().catch(() => {});
+      void be()?.audioSeek(posRef.current).catch(() => {});
+      void be()?.audioPlay().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioReady]);
@@ -183,7 +185,7 @@ export default function Monitor({
     localStorage.setItem("senmei.volume", String(v));
   };
   useEffect(() => {
-    void audioSetVolume(volume).catch(() => {});
+    void be()?.audioSetVolume(volume).catch(() => {});
   }, [volume]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
@@ -202,17 +204,17 @@ export default function Monitor({
       const v = videoRef.current;
       if (v.paused) {
         void v.play();
-        void audioPlay();
+        void be()?.audioPlay().catch(() => {});
       } else {
         v.pause();
-        void audioPause();
+        void be()?.audioPause().catch(() => {});
       }
       return;
     }
     // Frame-fallback: rodio carries the sound, the timer drives frames.
     setPlaying((p) => {
-      if (!p) void audioPlay();
-      else void audioPause();
+      if (!p) void be()?.audioPlay().catch(() => {});
+      else void be()?.audioPause().catch(() => {});
       return !p;
     });
   };
@@ -256,19 +258,14 @@ export default function Monitor({
       targets.push({ path: src, ms });
     }
     if (targets.length === 0) return Promise.resolve();
-    if (!isTauri()) {
-      loadDemo().then(({ demoFrame }) =>
-        targets.forEach(({ path }) =>
-          setFrames((prev) => ({ ...prev, [path]: `data:image/jpeg;base64,${demoFrame()}` })),
-        ),
-      );
-      return Promise.resolve();
-    }
     setLoading(true);
+    const b = be();
+    if (!b) return Promise.resolve();
     return Promise.all(
       targets.map(({ path, ms: t }) =>
-        readFrame(path, t, projectDir ?? null)
-          .then((filePath) => ({ path, filePath }))
+        b
+          .readFrame(path, t, projectDir ?? null)
+          .then((src) => ({ path, src }))
           .catch((e) => {
             console.error("readFrame failed:", e);
             setError(String(e));
@@ -278,11 +275,10 @@ export default function Monitor({
     )
       .then((results) => {
         // Update every side together so compare never shows one ahead of the
-        // other (the result decode is slower than the source decode). Frames
-        // reuse a stable file per source; a query forces the webview to re-fetch.
+        // other (the result decode is slower than the source decode).
         const updates: Record<string, string> = {};
         for (const r of results) {
-          if (r) updates[r.path] = convertFileSrc(r.filePath) + "?v=" + ++frameBustRef.current;
+          if (r) updates[r.path] = r.src;
         }
         if (Object.keys(updates).length) {
           setFrames((prev) => ({ ...prev, ...updates }));
@@ -325,22 +321,14 @@ export default function Monitor({
     setInfo(null);
     setPosMs(next);
     setPlaying(false);
-    void audioPause().catch(() => {});
+    void be()?.audioPause().catch(() => {});
     setFrames({});
     setError(null);
     setNativeFailed(false);
-    if (!isTauri()) {
-      const probeTarget = file;
-      if (probeTarget) {
-        loadDemo().then(({ demoProbe }) => setInfo(demoProbe()));
-        if (fileChanged) onSampleChange?.(0, 10000);
-      }
-      loadFrame(next);
-      return;
-    }
+    const b = be();
     const probeTarget = file;
-    if (probeTarget) {
-      probeVideo(probeTarget)
+    if (probeTarget && b) {
+      b.probeVideo(probeTarget)
         .then((i) => {
           setInfo(i);
           if (fileChanged) onSampleChange?.(0, snapFrame(Math.min(10000, (i.duration ?? 0) * 1000), i.fps ?? 0));
@@ -352,7 +340,7 @@ export default function Monitor({
     }
     loadFrame(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, file, mode]);
+  }, [src, file, mode, beReady]);
 
   const onScrub = (ms: number) => {
     setPosMs(ms);
@@ -363,7 +351,7 @@ export default function Monitor({
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
-    void audioSeek(ms).catch(() => {});
+    void be()?.audioSeek(ms).catch(() => {});
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -394,13 +382,13 @@ export default function Monitor({
         if (mode === "source") {
           // End of the video: stop instead of looping the sample window.
           setPlaying(false);
-          void audioPause().catch(() => {});
+          void be()?.audioPause().catch(() => {});
           return;
         }
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
-        void audioSeek(inMs).catch(() => {});
+        void be()?.audioSeek(inMs).catch(() => {});
         if (!busy) {
           busy = true;
           loadFrame(inMs).finally(() => {
@@ -530,7 +518,7 @@ export default function Monitor({
                 <img
                   src={frames[effRendered]}
                   alt="result"
-                  className={"h-full w-full object-contain opacity-80" + (demoResult ? " saturate-150 brightness-105" : "")}
+                  className="h-full w-full object-contain opacity-80"
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
@@ -564,7 +552,7 @@ export default function Monitor({
           <img
             src={frames[src]}
             alt="preview"
-            className={"h-full w-full object-contain opacity-80" + (demoResult && mode === "result" ? " saturate-150 brightness-105" : "")}
+            className="h-full w-full object-contain opacity-80"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">

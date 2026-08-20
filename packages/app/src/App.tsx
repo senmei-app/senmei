@@ -1,35 +1,18 @@
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import {
-  backendInfo,
-  createProject,
-  deleteProject,
-  exportProject,
-  getSettings,
-  hardwareStatus,
-  healthCheck,
-  importFolder,
-  listProjects,
-  loadProjectSettings,
-  openProject,
-  saveProjectSettings,
-  saveSettings,
-  type BackendInfo,
-  type EngineBackend,
-  type HardwareSnapshot,
-  type ProjectEntry,
-  type ProjectSettings,
-  type Settings,
+import type {
+  BackendInfo,
+  EngineBackend,
+  HardwareSnapshot,
+  ProjectEntry,
+  ProjectSettings,
+  Settings,
 } from "@senmei/bridge";
+import { backend as getBackend } from "./backend";
 import { I18nProvider, type Lang } from "./i18n";
 import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
 import { defaultHotkey, comboFromEvent, resolveHotkeys } from "./hotkeys";
 import { basename } from "./paths";
-import { loadDemo } from "./demo";
 import { useBatch } from "./useBatch";
 import TopBar from "./components/TopBar";
 import MediaLibrary from "./components/MediaLibrary";
@@ -78,23 +61,18 @@ export default function App() {
   const resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
   const reloadProjects = async () => {
-    if (!isTauri()) {
-      const { demoProjects } = await loadDemo();
-      setProjects([...demoProjects]);
-      return;
-    }
-    const list = await listProjects();
+    const list = await (await getBackend()).listProjects();
     setProjects(list);
   };
 
   useEffect(() => {
-    if (!isTauri()) {
-      setHealth("demo (browser)");
-    } else {
-      healthCheck()
+    (async () => {
+      const be = await getBackend();
+      be.healthCheck()
         .then(setHealth)
         .catch(() => setHealth("n/a"));
-      void getSettings()
+      void be
+        .getSettings()
         .then((s) => {
           setLang((s.language as Lang) || "en");
           setTheme(s.theme || "dark");
@@ -103,11 +81,11 @@ export default function App() {
           setBackend(s.backend ?? "auto");
         })
         .catch(() => {});
-      backendInfo()
+      be.backendInfo()
         .then(setBackendInfoState)
         .catch(() => {});
-    }
-    void reloadProjects();
+      void reloadProjects();
+    })();
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     setSystemDark(mq.matches);
@@ -118,10 +96,10 @@ export default function App() {
 
   // Poll hardware usage (GPU/CPU/RAM) once per second.
   useEffect(() => {
-    if (!isTauri()) return;
     let cancelled = false;
     const poll = () =>
-      hardwareStatus()
+      getBackend()
+        .then((b) => b.hardwareStatus())
         .then((snapshot) => {
           if (!cancelled) setHardware(snapshot);
         })
@@ -136,14 +114,16 @@ export default function App() {
 
   // Persist the current settings merged with `partial`.
   const persistSettings = (partial: Partial<Settings>) => {
-    void saveSettings({
-      language: lang,
-      theme,
-      hotkeys: Object.keys(hotkeyOverrides).length ? hotkeyOverrides : null,
-      tileSize,
-      backend,
-      ...partial,
-    });
+    void getBackend().then((b) =>
+      b.saveSettings({
+        language: lang,
+        theme,
+        hotkeys: Object.keys(hotkeyOverrides).length ? hotkeyOverrides : null,
+        tileSize,
+        backend,
+        ...partial,
+      }),
+    );
   };
 
   const changeLang = (l: Lang) => {
@@ -158,12 +138,13 @@ export default function App() {
 
   // Load per-project settings when a project opens; save on any change.
   useEffect(() => {
-    if (!projectDir || !isTauri()) {
+    if (!projectDir) {
       setHydrated(false);
       return;
     }
     setHydrated(false);
-    loadProjectSettings(projectDir)
+    getBackend()
+      .then((b) => b.loadProjectSettings(projectDir))
       .then((s: ProjectSettings) => {
         if (s.steps && s.steps.length > 0) setSteps(normalizeSteps(s.steps));
         if (s.files && s.files.length > 0) setFiles(s.files);
@@ -175,12 +156,10 @@ export default function App() {
   }, [projectDir]);
 
   useEffect(() => {
-    if (!projectDir || !isTauri() || !hydrated) return;
-    void saveProjectSettings(projectDir, {
-      steps,
-      files,
-      outputDir,
-    }).catch(() => {});
+    if (!projectDir || !hydrated) return;
+    void getBackend().then((b) =>
+      b.saveProjectSettings(projectDir, { steps, files, outputDir }).catch(() => {}),
+    );
   }, [projectDir, hydrated, steps, files, outputDir]);
 
   const changeTheme = (t: string) => {
@@ -204,83 +183,37 @@ export default function App() {
     });
   };
 
-  // App-wide video drag & drop (not just onto the drop box). Tauri reports
-  // absolute paths via onDragDropEvent; the browser demo falls back to HTML5
-  // drops (names only).
+  // App-wide video drag & drop (not just onto the drop box). The backend
+  // registers the transport's drop source (Tauri webview / HTML5 in web).
   const addDropped = (paths: string[]) => {
     const videos = paths.filter((p) => VIDEO_EXTS.some((e) => p.toLowerCase().endsWith(`.${e}`)));
     if (videos.length) setFiles((prev) => [...prev, ...videos]);
   };
 
   useEffect(() => {
-    if (!isTauri()) return;
-    let unlisten: (() => void) | undefined;
-    getCurrentWebview()
-      .onDragDropEvent((event) => {
-        if (event.payload.type === "drop") addDropped(event.payload.paths);
-      })
-      .then((fn) => (unlisten = fn))
-      .catch(() => {});
-    return () => unlisten?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (isTauri()) return;
-    const onDrop = (e: DragEvent) => {
-      e.preventDefault();
-      const paths = Array.from(e.dataTransfer?.files ?? []).map((f) => `/demo/${f.name}`);
-      addDropped(paths);
-    };
-    const onOver = (e: DragEvent) => e.preventDefault();
-    document.addEventListener("dragover", onOver);
-    document.addEventListener("drop", onDrop);
-    return () => {
-      document.removeEventListener("dragover", onOver);
-      document.removeEventListener("drop", onDrop);
-    };
+    let un: (() => void) | undefined;
+    getBackend().then((b) => {
+      un = b.onFileDrop(addDropped);
+    });
+    return () => un?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openFiles = async () => {
-    if (!isTauri()) {
-      const { demoVideos } = await loadDemo();
-      setFiles((prev) => [...prev, ...demoVideos]);
-      return;
-    }
-    const selected = await open({
-      multiple: true,
-      filters: [{ name: "Video", extensions: VIDEO_EXTS }],
-    });
-    if (!selected) return;
-    const list = Array.isArray(selected) ? selected : [selected];
+    const list = await (await getBackend()).pickVideoFiles();
     setFiles((prev) => [...prev, ...list]);
   };
 
   const importFolderFiles = async () => {
-    if (!isTauri()) {
-      const { demoVideos } = await loadDemo();
-      setFiles((prev) => [...prev, ...demoVideos]);
-      return;
-    }
-    const dir = await open({ directory: true, title: "Import videos from folder" });
-    if (typeof dir !== "string") return;
-    const found = await importFolder(dir);
+    const be = await getBackend();
+    const dir = await be.pickFolder("Import videos from folder");
+    if (!dir) return;
+    const found = await be.importFolder(dir);
     setFiles((prev) => [...prev, ...found]);
   };
 
   const handleCreateProject = async (name: string) => {
-    if (!isTauri()) {
-      const { demoProjects } = await loadDemo();
-      const p: ProjectEntry = { name, path: `/demo/${name.toLowerCase().replace(/\s+/g, "-")}` };
-      demoProjects.push(p);
-      setProjectDir(p.path);
-      setFiles([]);
-      batch.setRenderedFile(null);
-      setOutputDir(null);
-      return;
-    }
-    const dir = await createProject(name);
+    const dir = await (await getBackend()).createProject(name);
     setProjectDir(dir);
     setFiles([]);
     batch.setRenderedFile(null);
@@ -292,27 +225,19 @@ export default function App() {
     setFiles([]);
     batch.setRenderedFile(null);
     setOutputDir(null);
-    if (!isTauri()) {
-      const { demoVideos } = await loadDemo();
-      setFiles([...demoVideos]);
-    }
   };
 
   // Open an exported project archive (.tar.xz); import it into the app
   // storage and switch to it.
   const browseProject = async () => {
-    if (!isTauri()) {
-      handleOpenProject("/demo/quanzhi-fashi");
-      return;
-    }
-    const file = await open({
-      multiple: false,
-      title: "Open project",
-      filters: [{ name: "Senmei project", extensions: ["tar.xz", "xz"] }],
-    });
-    if (typeof file !== "string") return;
+    const be = await getBackend();
+    const file = await be.pickFile(
+      [{ name: "Senmei project", extensions: ["tar.xz", "xz"] }],
+      "Open project",
+    );
+    if (!file) return;
     try {
-      const dir = await openProject(file);
+      const dir = await be.openProject(file);
       setProjectDir(dir);
       setFiles([]);
       batch.setRenderedFile(null);
@@ -332,18 +257,12 @@ export default function App() {
 
   const handleExportProject = async () => {
     if (!projectDir) return;
-    if (!isTauri()) {
-      setHealth("export not available in the browser demo");
-      return;
-    }
+    const be = await getBackend();
     const base = basename(projectDir) || "project";
-    const dest = await save({
-      defaultPath: `${base}.tar.xz`,
-      filters: [{ name: "Senmei project", extensions: ["tar.xz"] }],
-    });
+    const dest = await be.pickSaveFile(`${base}.tar.xz`, ["tar.xz"]);
     if (!dest) return;
     try {
-      await exportProject(projectDir, dest);
+      await be.exportProject(projectDir, dest);
       setHealth(`project exported to ${dest}`);
     } catch (e) {
       setHealth(`export failed: ${e}`);
@@ -351,12 +270,8 @@ export default function App() {
   };
 
   const pickOutputDir = async () => {
-    if (!isTauri()) {
-      setOutputDir("/demo/output");
-      return;
-    }
-    const dir = await open({ directory: true, title: "Output folder" });
-    if (typeof dir === "string") setOutputDir(dir);
+    const dir = await (await getBackend()).pickFolder("Output folder");
+    if (dir) setOutputDir(dir);
   };
 
   const removeFile = (path: string) => {
@@ -366,13 +281,7 @@ export default function App() {
 
   const handleDeleteProject = async (path: string) => {
     try {
-      if (!isTauri()) {
-        const { demoProjects } = await loadDemo();
-        const i = demoProjects.findIndex((p) => p.path === path);
-        if (i >= 0) demoProjects.splice(i, 1);
-      } else {
-        await deleteProject(path);
-      }
+      await (await getBackend()).deleteProject(path);
       await reloadProjects();
     } catch (e) {
       setHealth(`delete failed: ${e}`);
@@ -380,7 +289,7 @@ export default function App() {
   };
 
   const openGithub = () => {
-    if (isTauri()) void openUrl("https://github.com/senmei-app/senmei");
+    void getBackend().then((b) => b.openExternal("https://github.com/senmei-app/senmei"));
   };
 
   // Plain click selects only that file; toggle (multi-select mode or Ctrl/Cmd) adds/removes.

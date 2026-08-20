@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: transport-agnostic frontend backend — one UI, two transports (2026-08-20)** —
+  new `packages/app/src/backend/` abstraction (`types.ts` contract + `tauri.ts`
+  IPC / `http.ts` REST impls + `mock.ts` dev backend via `VITE_SENMEI_MOCK=1`);
+  all components (`App`, `Monitor`, `Inspector`, `LogsPanel`, `useBatch`,
+  `useDownloadable`, `useFfmpeg`) now call `backend.*` only — no scattered
+  `isTauri()`/`loadDemo()` in components. Covers settings/projects, file
+  pickers (native dialog in Tauri, path prompt in web), audio, hardware status,
+  render, model downloads, logs, drag&drop. `demo.ts` removed.
+
 - **fix: menu bar shifted right when opening a menu (2026-08-20)** —
   `space-x-4` added a margin to every menu button once the click-away overlay
   became the nav's first child; switched to `gap-4`.

@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { isTauri, Channel } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { downloadModel, listModels, type DownloadProgress, type ModelMetadata } from "@senmei/bridge";
-import { loadDemo } from "../demo";
+import type { ModelMetadata } from "@senmei/bridge";
+import { backend } from "../backend";
 import { useI18n } from "../i18n";
 import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
 import StepEditor from "./StepEditor";
-
-let demoFolderN = 0;
 
 export default function Inspector({
   steps,
@@ -54,11 +50,10 @@ export default function Inspector({
   const [dlPct, setDlPct] = useState(0);
 
   useEffect(() => {
-    if (!isTauri()) {
-      loadDemo().then(({ demoModels }) => setModels(demoModels));
-      return;
-    }
-    listModels().then(setModels).catch(() => {});
+    backend()
+      .then((b) => b.listModels())
+      .then(setModels)
+      .catch(() => {});
   }, []);
 
   // Fill default models once the catalog loads (only when a step has none yet).
@@ -198,18 +193,12 @@ export default function Inspector({
     setRecentFolders((r) => [folder, ...r.filter((x) => x !== folder)].slice(0, 6));
 
   const pickOutputFolder = async (id: string) => {
+    const be = await backend();
     let dir: string | null = null;
-    if (!isTauri()) {
-      // Browser demo: no native picker; prompt may be blocked (headless), so fall back to a demo path.
-      try {
-        dir = window.prompt(t("output.pick"));
-      } catch {
-        dir = null;
-      }
-      if (!dir) dir = `/demo/output${demoFolderN++ || ""}`;
-    } else {
-      const picked = await open({ directory: true });
-      dir = typeof picked === "string" ? picked : null;
+    try {
+      dir = await be.pickFolder(t("output.pick"));
+    } catch {
+      dir = null;
     }
     if (!dir) return;
     updateParams(id, { outputMode: "custom", outputFolder: dir });
@@ -227,20 +216,12 @@ export default function Inspector({
     if (downloading) return;
     setDownloading(modelId);
     setDlPct(0);
-    if (!isTauri()) {
-      loadDemo()
-        .then(({ demoDownloadModel }) =>
-          demoDownloadModel((p) =>
-            setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0),
-          ),
-        )
-        .catch((e) => console.error(e))
-        .finally(() => setDownloading(null));
-      return;
-    }
-    const ch = new Channel<DownloadProgress>();
-    ch.onmessage = (p) => setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0);
-    downloadModel(modelId, ch)
+    backend()
+      .then((b) =>
+        b.downloadModel(modelId, (p) =>
+          setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0),
+        ),
+      )
       .catch((e) => console.error(e))
       .finally(() => setDownloading(null));
   };

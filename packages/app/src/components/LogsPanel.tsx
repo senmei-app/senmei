@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getLogs, type LogEntry } from "@senmei/bridge";
+import type { LogEntry } from "@senmei/bridge";
+import { backend } from "../backend";
 import { useI18n } from "../i18n";
 
 const LEVEL_SEV: Record<string, number> = { ERROR: 4, WARN: 3, INFO: 2, DEBUG: 1, TRACE: 0 };
@@ -27,18 +26,18 @@ export default function LogsPanel() {
   const boxRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isTauri()) {
-      setEntries([{ level: "INFO", message: t("logs.demoHint"), timestamp: Date.now() }]);
-      return;
-    }
-    let un: UnlistenFn | undefined;
-    getLogs()
-      .then((existing) => setEntries(existing))
-      .catch(() => {});
-    listen<LogEntry>("log", (e) => {
-      setEntries((prev) => (prev.length >= MAX_ENTRIES ? [...prev.slice(-MAX_ENTRIES), e.payload] : [...prev, e.payload]));
-    })
-      .then((fn) => (un = fn))
+    let un: (() => void) | undefined;
+    backend()
+      .then((b) => {
+        b.getLogs()
+          .then((existing) => setEntries(existing))
+          .catch(() => {});
+        un = b.onLog((e) => {
+          setEntries((prev) =>
+            prev.length >= MAX_ENTRIES ? [...prev.slice(-MAX_ENTRIES), e] : [...prev, e],
+          );
+        });
+      })
       .catch(() => {});
     return () => {
       un?.();

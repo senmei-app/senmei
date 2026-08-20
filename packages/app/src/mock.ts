@@ -1,3 +1,7 @@
+// In-memory demo backend (dev only, selected via `VITE_SENMEI_MOCK=1`) so the
+// UI is testable in a plain browser without a running `senmei-server`.
+// Mutable arrays keep a single shared instance across reloads.
+
 import type {
   DownloadProgress,
   ModelMetadata,
@@ -5,19 +9,17 @@ import type {
   RenderProgress,
   VideoInfo,
 } from "@senmei/bridge";
-
-// In-memory demo backend so the UI is fully testable in a plain browser,
-// where the Tauri IPC (and therefore the real Rust commands) is unavailable.
+import type { Backend } from "./backend/types";
 
 export const demoSettings = { language: "en", theme: "dark" };
 
-export const demoProjects: ProjectEntry[] = [
+const demoProjects: ProjectEntry[] = [
   { name: "Demo: Quanzhi Fashi", path: "/demo/quanzhi-fashi" },
   { name: "Demo: One Punch Man", path: "/demo/opm" },
   { name: "Demo: Frieren", path: "/demo/frieren" },
 ];
 
-export const demoModels: ModelMetadata[] = [
+const demoModels: ModelMetadata[] = [
   {
     id: "fallin-soft",
     kind: "upscale",
@@ -84,12 +86,12 @@ export const demoModels: ModelMetadata[] = [
   },
 ];
 
-export const demoVideos = [
+const demoVideos = [
   "/demo/Quanzhi Fashi (Staffel 3) Folge 7.mp4",
   "/demo/Quanzhi Fashi (Staffel 3) Folge 8.mp4",
 ];
 
-export function demoProbe(): VideoInfo {
+function demoProbe(): VideoInfo {
   return {
     width: 1920,
     height: 1080,
@@ -113,13 +115,13 @@ const DEMO_FRAME_B64 =
   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD" +
   "/9k=";
 
-export function demoFrame(): string {
-  return DEMO_FRAME_B64;
+function demoFrame(): string {
+  return `data:image/jpeg;base64,${DEMO_FRAME_B64}`;
 }
 
 let demoRenderTimer: ReturnType<typeof setInterval> | null = null;
 
-export function startDemoRender(onProgress: (p: RenderProgress) => void): Promise<string> {
+function startDemoRender(onProgress: (p: RenderProgress) => void): Promise<string> {
   return new Promise((resolve) => {
     let frames = 0;
     const total = 3000;
@@ -136,14 +138,14 @@ export function startDemoRender(onProgress: (p: RenderProgress) => void): Promis
   });
 }
 
-export function stopDemoRender() {
+function stopDemoRender() {
   if (demoRenderTimer) {
     clearInterval(demoRenderTimer);
     demoRenderTimer = null;
   }
 }
 
-export function demoDownloadModel(onProgress: (p: DownloadProgress) => void): Promise<string> {
+function demoDownloadModel(onProgress: (p: DownloadProgress) => void): Promise<string> {
   return new Promise((resolve) => {
     onProgress({ downloaded: 0, total: 100 });
     setTimeout(() => {
@@ -152,3 +154,154 @@ export function demoDownloadModel(onProgress: (p: DownloadProgress) => void): Pr
     }, 1500);
   });
 }
+
+const projectSettings = new Map<string, unknown>();
+
+export const mockBackend: Backend = {
+  async healthCheck() {
+    return "ok";
+  },
+
+  async backendInfo() {
+    return {
+      vulkanCompiled: true,
+      libtorchCompiled: false,
+      libtorchVersion: null,
+      cudaAvailable: false,
+      cudaDeviceCount: 0,
+    };
+  },
+
+  async getFfmpegStatus() {
+    return { found: true, path: "/usr/bin/ffmpeg", version: "demo", encoders: [], decoders: [] };
+  },
+
+  async hardwareStatus() {
+    return null;
+  },
+
+  async getLogs() {
+    return [];
+  },
+
+  onLog() {
+    return () => {};
+  },
+
+  async listModels() {
+    return demoModels;
+  },
+
+  async probeVideo(_input) {
+    return demoProbe();
+  },
+
+  async readFrame() {
+    return demoFrame();
+  },
+
+  nativeVideoUrl() {
+    return null;
+  },
+
+  async getSettings() {
+    return demoSettings;
+  },
+
+  async saveSettings() {},
+
+  async downloadModel(_id, onProgress) {
+    return demoDownloadModel(onProgress);
+  },
+
+  async listProjects() {
+    return demoProjects;
+  },
+
+  async createProject(name) {
+    const path = `/demo/${name.toLowerCase().replace(/\s+/g, "-")}`;
+    if (!demoProjects.some((p) => p.path === path)) demoProjects.push({ name, path });
+    return path;
+  },
+
+  async deleteProject(path) {
+    const i = demoProjects.findIndex((p) => p.path === path);
+    if (i >= 0) demoProjects.splice(i, 1);
+  },
+
+  async openProject(archive) {
+    return archive.replace(/\.tar\.xz$/i, "");
+  },
+
+  async exportProject() {},
+
+  async importFolder() {
+    return demoVideos;
+  },
+
+  async loadProjectSettings(path) {
+    return (projectSettings.get(path) ?? { steps: [], files: [], outputDir: null }) as never;
+  },
+
+  async saveProjectSettings(path, settings) {
+    projectSettings.set(path, settings);
+  },
+
+  async pickVideoFiles() {
+    return demoVideos;
+  },
+
+  async pickFolder() {
+    return "/demo/output";
+  },
+
+  async pickSaveFile() {
+    return "/demo/project.tar.xz";
+  },
+
+  async pickFile() {
+    return "/demo/project.tar.xz";
+  },
+
+  async extractAudio() {
+    return "/demo/audio.aac";
+  },
+  async audioLoad() {},
+  async audioPlay() {},
+  async audioPause() {},
+  async audioClear() {},
+  async audioSeek() {},
+  async audioSetVolume() {},
+
+  async render(_input, output, _config, onProgress) {
+    return startDemoRender(onProgress).then(() => output);
+  },
+
+  async cancelRender() {
+    stopDemoRender();
+  },
+
+  async pauseRender() {},
+  async uniquePath(path) {
+    return path;
+  },
+  async pruneSamples() {},
+
+  async downloadFfmpeg() {},
+
+  async openExternal() {},
+
+  onFileDrop(handler) {
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      handler(demoVideos);
+    };
+    const onOver = (e: DragEvent) => e.preventDefault();
+    document.addEventListener("dragover", onOver);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragover", onOver);
+      document.removeEventListener("drop", onDrop);
+    };
+  },
+};

@@ -3,19 +3,10 @@
 // cancel stops after the current file; pause freezes the running file.
 
 import { useState } from "react";
-import { isTauri, Channel } from "@tauri-apps/api/core";
-import {
-  cancelRender,
-  pauseRender,
-  uniquePath,
-  render,
-  pruneSamples,
-  type RenderConfig,
-  type RenderProgress,
-} from "@senmei/bridge";
+import type { RenderConfig, RenderProgress } from "@senmei/bridge";
+import { backend } from "./backend";
 import { buildEncoderArgs, type BatchJob, type PipelineStep } from "./steps";
 import { basename, dirname, joinPath } from "./paths";
-import { loadDemo } from "./demo";
 
 function fmtTs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -138,36 +129,25 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       setJobs((prev) => prev.map((j, k) => (k === i ? { ...j, ...p } : j)));
 
     try {
+      const be = await backend();
       for (let i = 0; i < initial.length; i++) {
         let output = initial[i].output;
-        if (isTauri()) {
-          try {
-            output = await uniquePath(output); // collision -> _2, _3, …
-          } catch {
-            // keep the intended path if resolution fails
-          }
+        try {
+          output = await be.uniquePath(output); // collision -> _2, _3, …
+        } catch {
+          // keep the intended path if resolution fails
         }
         patch(i, { output, status: "rendering", progress: null });
         try {
-          if (isTauri()) {
-            const ch = new Channel<RenderProgress>();
-            ch.onmessage = (p) => {
-              patch(i, { progress: p });
-              setProgress(p);
-            };
-            await render(initial[i].input, output, config, ch);
-          } else {
-            const { startDemoRender } = await loadDemo();
-            await startDemoRender((p) => {
-              patch(i, { progress: p });
-              setProgress(p);
-            });
-          }
+          await be.render(initial[i].input, output, config, (p) => {
+            patch(i, { progress: p });
+            setProgress(p);
+          });
           patch(i, { status: "done" });
           setRenderedFile(output);
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
-            void pruneSamples(dirname(output), 5);
+            void be.pruneSamples(dirname(output), 5);
           }
         } catch (e) {
           const msg = String(e);
@@ -177,7 +157,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
             break; // stop the batch
           }
           patch(i, { status: "failed", error: msg });
-          if (isTauri()) onError(`render failed: ${shortReason(msg)}`);
+          onError(`render failed: ${shortReason(msg)}`);
           // continue with the next file
         }
       }
@@ -189,7 +169,6 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   };
 
   const cancel = () => {
-    if (!isTauri()) loadDemo().then(({ stopDemoRender }) => stopDemoRender());
     setRendering(false);
     setPaused(false);
     setJobs((prev) =>
@@ -197,16 +176,12 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
         j.status === "queued" || j.status === "rendering" ? { ...j, status: "cancelled" as const } : j,
       ),
     );
-    void cancelRender();
+    void backend().then((b) => b.cancelRender());
   };
 
   const togglePause = () => {
-    if (!isTauri()) {
-      setPaused((p) => !p);
-      return;
-    }
     setPaused((p) => {
-      void pauseRender(!p);
+      void backend().then((b) => b.pauseRender(!p));
       return !p;
     });
   };
