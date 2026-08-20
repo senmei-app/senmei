@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: app sluggish after backend migration (2026-08-20)** —
+  `useFfmpeg` created a fresh `getStatus` closure every render; since the
+  StatusBar re-renders every second (hardware poll) and `useDownloadable`
+  re-runs its refresh effect whenever `getStatus` changes identity, that meant
+  a `getFfmpegStatus` IPC call per render → the whole UI lagged. Wrapped the
+  callbacks in `useCallback` so the effect runs once.
+
 - **fix: native video preview never engaged after backend migration (2026-08-20)** —
   `nativeSrc` raced the asset-protocol grant: the `<video>` mounted with
   `convertFileSrc(file)` before `probe_video` had run `allow_file`, so it
