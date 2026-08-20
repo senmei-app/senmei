@@ -7876,6 +7876,7 @@ name = "senmei-server"
 version = "0.1.2"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "env_logger",
  "log",
  "rmcp",
