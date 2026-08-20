@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { execSync } from "node:child_process";
+import pkg from "./package.json";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -17,7 +18,7 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   define: {
-    __APP_VERSION__: JSON.stringify("0.1.0"),
+    __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_HASH__: JSON.stringify(buildHash),
   },
   server: {

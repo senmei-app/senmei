@@ -14,6 +14,10 @@
 
 ## 0.1.3 (2026-08-20)
 
+- **fix: About version derived from package.json (2026-08-20)** —
+  `__APP_VERSION__` was hardcoded to 0.1.0 in `vite.config.ts`; it now reads
+  `packages/app/package.json` so the About dialog shows the real version.
+
 - **feat: wire tch backend end-to-end (2026-08-20)** — `tch` cargo feature
   threaded senmei → senmei-app → senmei-server (senmei-ml patch deps on the
   senmei-app torch-sys/tch/burn-tch forks); Settings page enables the LibTorch
