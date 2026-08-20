@@ -290,7 +290,7 @@ mod tests {
         assert_eq!(registry.models()[30].id, "4x-bhi-realplksr-real");
         assert!(registry.models()[30].loadable);
         assert_eq!(registry.models()[31].id, "4x-bhi-realplksr-otf");
-        assert!(!registry.models()[31].loadable);
+        assert!(registry.models()[31].loadable);
         assert_eq!(registry.models()[31].sha256.as_deref().unwrap().len(), 64);
         assert!(matches!(registry.models()[16].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[16].arch, "ifrnet");

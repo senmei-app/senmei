@@ -607,12 +607,12 @@
     "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
     "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_otf.pth",
     "sha256": "a78f5263e5f8ab75a03449ec4fc5091651906e1cf8872f905e58ef458bba8a84",
-    "loadable": false,
+    "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "dysample": true,
-      "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; channels-last .pth — needs .contiguous() fix before in-app convert"
+      "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; pth channels-last — bpk from contiguous-preprocessed state dict (in-app convert needs it too); arch identical to _real; torch mae ~0.005"
     }
   }
 ]

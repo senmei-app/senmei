@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **ml: make 4× RealPLKSR BHI-otf loadable (2026-08-20)** — channels-last
+  `.pth` contiguous-preprocessed, converted to f16 `.bpk`, sha256 pinned; arch
+  confirmed identical to BHI-real (346 keys / same shapes); torch (spandrel)
+  mae ~0.005, no NaNs.
+
 - **docs: headless HTTP/web path for other agents (2026-08-20)** — AGENTS.md
   gets a "Headless web" section (`senmei-server --http` start + REST surface +
   frontend `backend/` transports); PLAN.md §16.7 documents the HTTP adapter +

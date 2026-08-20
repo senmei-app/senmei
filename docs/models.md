@@ -102,7 +102,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
   ArtFaces = faces only (skip). 2× BHI small (dim 32), large (dim 96) and 2× Public
   layernorm (realistic 2×) need an arch variant first — not weights-only (todos).
   Registered 4× weights-only (2026-08-20): Nomos2, Nature, HFA2k_ludvae, mssim,
-  BHI-real. BHI-otf = channels-last (loadable:false, needs .contiguous() fix);
+  BHI-real. BHI-otf = channels-last (fixed 2026-08-20: contiguous-preprocessed, loadable);
   NomosWebPhoto = non-dysample tail (flat keys) — needs an arch variant.
   Skip redundant BHI sub-variants (otf_nn/multiblur).
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
