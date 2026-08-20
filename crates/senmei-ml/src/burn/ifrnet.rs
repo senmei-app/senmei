@@ -50,7 +50,7 @@ fn warp<B: Backend>(img: Tensor<B, 4>, flow: Tensor<B, 4>) -> Tensor<B, 4> {
     let sx = (xs + fx) / ((w - 1) as f64 / 2.0) - 1.0;
     let sy = (ys + fy) / ((h - 1) as f64 / 2.0) - 1.0;
     let grid = Tensor::cat(vec![sx.permute([0, 2, 3, 1]), sy.permute([0, 2, 3, 1])], 3);
-    super::warp::grid_sample(img, grid)
+    crate::arch::warp::grid_sample(img, grid)
 }
 
 fn slice_c<B: Backend>(x: Tensor<B, 4>, s: usize, e: usize) -> Tensor<B, 4> {

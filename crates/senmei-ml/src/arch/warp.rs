@@ -85,7 +85,7 @@ pub fn grid_sample_with<B: Backend>(
         + wx1 * wy1 * i11
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn"))]
 mod tests {
     use super::*;
     use burn::tensor::{Tensor as BurnTensor, TensorData};

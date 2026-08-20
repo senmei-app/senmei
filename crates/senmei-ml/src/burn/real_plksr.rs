@@ -15,7 +15,7 @@ use burn::tensor::activation::{mish, sigmoid};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, TensorData};
 
-use super::warp::grid_sample_with;
+use crate::arch::warp::grid_sample_with;
 
 fn conv2d<B: Backend>(
     in_c: usize,

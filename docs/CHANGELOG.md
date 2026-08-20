@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **ml: integrate optional burn-tch (libtorch) engine behind `tch` feature (2026-08-20)** —
+  `TchEngine` (upcunet2x / upcunet2x-fast / fallin-cugan / realesrgan / rife) on
+  `LibTorch<f32>` with portable `TchDevice` (Auto/Cpu/Cuda/Mps). Shared archs
+  extracted to `crates/senmei-ml/src/arch/` (engine-agnostic, used by burn + tch).
+  ROCm/C++20/removed-ops patches moved to org forks `senmei-app/torch-sys`
+  (v0.22.0-senmei) and `senmei-app/burn-tch` (v0.21.0-senmei), referenced via
+  `[patch.crates-io]` — no in-repo vendoring. CPU roundtrip test green; ROCm
+  build recipe unchanged (LIBTORCH + ROCm 7.14 runtime).
+
 - **ml: register 4× RealPLKSR weights-only batch (2026-08-20)** — Nomos2,
   Nature, HFA2k_ludvae, mssim, BHI-real added (dim 64/28 blocks, contiguous,
   verified convert + sha256). BHI-otf listed but `loadable:false` (channels-last

@@ -166,18 +166,26 @@ fn run_tiled(
     Ok(crate::crop(&stitched, out_h_target, out_w_target))
 }
 
-/// Pick an engine for a model based on its weight-file format.
+/// Pick an engine for a model based on its weight-file format. The `tch`
+/// engine (libtorch, optional feature) takes precedence when compiled.
 pub fn engine_for_model(model: &ModelRef) -> Result<Box<dyn InferenceEngine>> {
-    #[cfg(feature = "burn")]
+    #[cfg(feature = "tch")]
+    {
+        let _ = model;
+        return Ok(Box::new(crate::tch::TchEngine::new(
+            crate::tch::TchDevice::automatic(),
+        )));
+    }
+    #[cfg(all(feature = "burn", not(feature = "tch")))]
     {
         let _ = model;
         return Ok(Box::new(crate::burn::BurnEngine::new()));
     }
-    #[cfg(not(feature = "burn"))]
+    #[cfg(not(any(feature = "burn", feature = "tch")))]
     {
         let _ = model;
         Err(crate::Error::new(
-            "no inference engine compiled (enable the `burn` feature)",
+            "no inference engine compiled (enable the `burn` or `tch` feature)",
         ))
     }
 }

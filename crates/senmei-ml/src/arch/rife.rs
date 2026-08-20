@@ -12,7 +12,7 @@ use burn::tensor::module::interpolate;
 use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::tensor::{Int, Tensor};
 
-use super::warp::grid_sample;
+use crate::arch::warp::grid_sample;
 
 fn conv2d<B: Backend>(in_c: usize, out_c: usize, stride: usize, device: &B::Device) -> Conv2d<B> {
     Conv2dConfig::new([in_c, out_c], [3, 3])
@@ -648,7 +648,7 @@ impl<B: Backend> RifeNet<B> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn"))]
 mod tests {
     use super::*;
     use burn::tensor::TensorData;

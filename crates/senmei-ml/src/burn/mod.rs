@@ -10,12 +10,9 @@ mod drunet;
 mod ifrnet;
 mod nafnet;
 mod real_plksr;
-mod realesrgan;
-mod rife;
 mod span;
-mod upcunet;
-mod warp;
 
+use crate::arch::{RrdbNet, RifeNet, UpCunet2x, UpCunet2xFast};
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -34,10 +31,7 @@ use drunet::Drunet;
 use ifrnet::IfrNet;
 use nafnet::NafNet;
 use real_plksr::RealPlk;
-use realesrgan::RrdbNet;
-use rife::RifeNet;
 use span::Span;
-use upcunet::{UpCunet2x, UpCunet2xFast};
 
 pub struct BurnEngine {
     model: Option<Model>,

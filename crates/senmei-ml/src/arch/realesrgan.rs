@@ -7,7 +7,7 @@ use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::leaky_relu;
 use burn::tensor::{backend::Backend, Tensor};
 
-use super::upcunet::nearest2x;
+use crate::arch::upcunet::nearest2x;
 
 fn conv3x3<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<B> {
     Conv2dConfig::new([in_c, out_c], [3, 3])
@@ -136,7 +136,7 @@ impl<B: Backend> RrdbNet<B> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn"))]
 mod tests {
     use super::*;
     use crate::BurnBackend;

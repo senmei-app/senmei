@@ -16,6 +16,12 @@ thiserror = "2"
 burn = { version = "=0.21.0", optional = true }
 burn-store = { version = "=0.21.0", optional = true }
 
+# Optional libtorch backend (burn-tch) for high-performance local runs.
+burn-tch = { version = "=0.21.0", optional = true }
+# Direct tch access (device probing, e.g. Cuda::is_available). Same pin as
+# burn-tch 0.21; download-libtorch pulls a CPU libtorch for out-of-the-box builds.
+tch = { version = "0.22.0", features = ["download-libtorch"], optional = true }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 burn-wgpu = { version = "=0.21.0", features = ["metal"], optional = true }
 
@@ -25,6 +31,9 @@ burn-wgpu = { version = "=0.21.0", features = ["vulkan"], optional = true }
 [features]
 default = []
 burn = ["dep:burn", "dep:burn-store", "dep:burn-wgpu"]
+# libtorch backend for high-performance local runs; shares the `arch` modules
+# and the `burn` tensor core, so it also enables the `burn` dependency (no wgpu).
+tch = ["dep:burn-tch", "dep:burn", "dep:burn-store", "dep:tch"]
 
 [[bin]]
 name = "senmei-ml-convert"

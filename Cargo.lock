@@ -1265,8 +1265,7 @@ dependencies = [
 [[package]]
 name = "burn-tch"
 version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfa36b630bd7a790395b4561f7d0e315c0d5e1c557db7dd4cf1b48d5c0d4aff2"
+source = "git+https://github.com/senmei-app/burn-tch?tag=v0.21.0-senmei#a7b735e8d272548eeb8d7321870bd4b92cd882b8"
 dependencies = [
  "burn-backend",
  "cc",
@@ -7854,10 +7853,12 @@ version = "0.1.2"
 dependencies = [
  "burn",
  "burn-store",
+ "burn-tch",
  "burn-wgpu",
  "serde",
  "serde_json",
  "specta",
+ "tch",
  "thiserror 2.0.20",
 ]
 
@@ -9541,8 +9542,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "torch-sys"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aef40c585e342df95b66a1fa7c923188623999c2b657227befb481dfb03a6a42"
+source = "git+https://github.com/senmei-app/torch-sys?tag=v0.22.0-senmei#c8834f0f01362f92a96682378a9bab9c2c83edd4"
 dependencies = [
  "anyhow",
  "cc",
