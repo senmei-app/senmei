@@ -105,7 +105,8 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     let backend = crate::store::load_settings()
         .backend
         .unwrap_or(senmei_ml::EngineBackend::Auto);
-    let mut engine = senmei_ml::engine_for_model(&mref, backend).map_err(|e| e.to_string())?;
+    let mut engine = senmei_ml::engine_for_model(&mref, backend, &crate::store::data_dir())
+        .map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)
 }

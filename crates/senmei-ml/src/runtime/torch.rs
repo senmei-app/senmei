@@ -1,14 +1,16 @@
 //! Runtime libtorch resolution (CUDA/ROCm only, no CPU) — like FFmpeg, the
 //! libtorch runtime is downloaded on demand into the app data dir and cached.
-//! Kept in sync with the pinned `tch`/`torch-sys` version (2.9.0) so the
-//! downloaded `.so` are ABI-compatible with our bindings.
+//! Pinned to a torch release that publishes a ROCm-7 build (2.11.0+rocm7.1), so
+//! the downloaded `.so` load on a ROCm 7 runtime and are ABI-compatible with
+//! the wrapper.
 
 use std::path::{Path, PathBuf};
 
 use crate::runtime::hardware::{Hardware, Device};
 
-/// Must match `torch-sys`'s `TORCH_VERSION` (see its build.rs).
-const TORCH_VERSION: &str = "2.9.0";
+/// Torch release with ROCm-7 libtorch builds (see download.pytorch.org). Must
+/// stay in sync with the torch-sys fork's headers used to build the wrapper.
+const TORCH_VERSION: &str = "2.11.0";
 
 /// Relative install dir inside the data dir (mirrors Koharu's `Store` layout).
 const INSTALL_DIR: &str = "libtorch";
@@ -18,7 +20,7 @@ const INSTALL_DIR: &str = "libtorch";
 pub enum TorchVariant {
     /// NVIDIA CUDA build (e.g. `cu128`).
     Cuda(&'static str),
-    /// AMD ROCm build (e.g. `rocm7.4`).
+    /// AMD ROCm build (e.g. `rocm7.1`).
     Rocm(&'static str),
 }
 
@@ -73,7 +75,7 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
     if hardware.supports_cuda() {
         Some(TorchVariant::Cuda("cu128"))
     } else if hardware.supports_rocm() {
-        Some(TorchVariant::Rocm("rocm7.4"))
+        Some(TorchVariant::Rocm("rocm7.1"))
     } else {
         None
     }
@@ -200,7 +202,46 @@ mod tests {
     #[test]
     fn cuda_url_shape() {
         let u = TorchVariant::Cuda("cu128").url();
-        assert!(u.contains("libtorch-shared-with-deps-2.9.0%2Bcu128.zip"));
+        assert!(u.contains("libtorch-shared-with-deps-2.11.0%2Bcu128.zip"));
         assert!(u.starts_with("https://download.pytorch.org/libtorch/cu128/"));
+    }
+
+    /// A complete install dir must be reused without re-downloading: seed the
+    /// expected libs (empty files) and check resolve() returns them directly,
+    /// twice, with the same lib dir.
+    #[test]
+    fn resolve_reuses_complete_install() {
+        let data_dir = std::env::temp_dir()
+            .join(format!("senmei_torch_cache_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&data_dir);
+        let variant = TorchVariant::Cuda("cu128");
+        let lib = install_dir(&data_dir, &variant).join("lib");
+        std::fs::create_dir_all(&lib).unwrap();
+        for name in variant.expected_libs() {
+            std::fs::write(lib.join(name), b"").unwrap();
+        }
+        let hw = Hardware {
+            cuda: Some(vec![Device { name: "test-gpu".into(), vram_bytes: 1 << 30 }]),
+            ..Default::default()
+        };
+        let a = resolve(&data_dir, &hw).unwrap().expect("variant resolves");
+        let b = resolve(&data_dir, &hw).unwrap().expect("variant resolves");
+        assert_eq!(a.lib_dir, b.lib_dir, "second resolve must hit the cache");
+        assert!(a.lib_dir.join("libtorch.so").is_file());
+        assert_eq!(a.variant, variant);
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    /// `pick_device` prefers the GPU with the most VRAM (dGPU over APU/iGPU).
+    #[test]
+    fn pick_device_prefers_most_vram() {
+        let hw = Hardware {
+            rocm: Some(vec![
+                Device { name: "apu".into(), vram_bytes: 2 << 30 },
+                Device { name: "dgpu".into(), vram_bytes: 16 << 30 },
+            ]),
+            ..Default::default()
+        };
+        assert_eq!(pick_device(&hw).name, "dgpu");
     }
 }

@@ -1,6 +1,7 @@
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EngineCaps {
@@ -191,6 +192,10 @@ pub struct BackendInfo {
 }
 
 pub fn backend_info() -> BackendInfo {
+    // Runtime dlopen probe — `tch::Cuda` would need the loader initialized.
+    let hw = crate::runtime::detect();
+    let gpu_count = hw.cuda.as_ref().map_or(0, |v| v.len())
+        + hw.rocm.as_ref().map_or(0, |v| v.len());
     BackendInfo {
         vulkan_compiled: cfg!(feature = "burn"),
         libtorch_compiled: cfg!(feature = "tch"),
@@ -198,21 +203,22 @@ pub fn backend_info() -> BackendInfo {
         libtorch_version: Some(crate::tch::LIBTORCH_VERSION.to_string()),
         #[cfg(not(feature = "tch"))]
         libtorch_version: None,
-        #[cfg(feature = "tch")]
-        cuda_available: tch::Cuda::is_available(),
-        #[cfg(not(feature = "tch"))]
-        cuda_available: false,
-        #[cfg(feature = "tch")]
-        cuda_device_count: tch::Cuda::device_count().max(0) as u32,
-        #[cfg(not(feature = "tch"))]
-        cuda_device_count: 0,
+        cuda_available: hw.supports_gpu(),
+        cuda_device_count: gpu_count as u32,
     }
 }
 
 /// Pick an engine for a model based on the requested backend and the compiled
-/// features. `Auto` prefers the `tch` (libtorch) engine when compiled.
-pub fn engine_for_model(model: &ModelRef, backend: EngineBackend) -> Result<Box<dyn InferenceEngine>> {
+/// features. `Auto` prefers the `tch` (libtorch) engine when a CUDA/ROCm GPU is
+/// present, falling back to Vulkan. `data_dir` is where the runtime libtorch is
+/// downloaded/cached (see `crate::runtime`).
+pub fn engine_for_model(
+    model: &ModelRef,
+    backend: EngineBackend,
+    data_dir: &Path,
+) -> Result<Box<dyn InferenceEngine>> {
     let _ = model;
+    let _ = data_dir; // only used under `feature = "tch"`
     match backend {
         EngineBackend::Vulkan => {
             #[cfg(feature = "burn")]
@@ -229,9 +235,7 @@ pub fn engine_for_model(model: &ModelRef, backend: EngineBackend) -> Result<Box<
         EngineBackend::LibTorch => {
             #[cfg(feature = "tch")]
             {
-                Ok(Box::new(crate::tch::TchEngine::new(
-                    crate::tch::TchDevice::automatic(),
-                )))
+                Ok(Box::new(crate::tch::TchEngine::runtime(data_dir)?))
             }
             #[cfg(not(feature = "tch"))]
             {
@@ -242,20 +246,18 @@ pub fn engine_for_model(model: &ModelRef, backend: EngineBackend) -> Result<Box<
         }
         EngineBackend::Auto => {
             #[cfg(feature = "tch")]
-            {
-                return Ok(Box::new(crate::tch::TchEngine::new(
-                    crate::tch::TchDevice::automatic(),
-                )));
+            if let Ok(engine) = crate::tch::TchEngine::runtime(data_dir) {
+                return Ok(Box::new(engine));
             }
-            #[cfg(all(feature = "burn", not(feature = "tch")))]
+            #[cfg(feature = "burn")]
             {
                 return Ok(Box::new(crate::burn::BurnEngine::new()));
             }
-            #[cfg(not(any(feature = "burn", feature = "tch")))]
+            #[cfg(not(feature = "burn"))]
             {
-                Err(crate::Error::new(
-                    "no inference engine compiled (enable the `burn` or `tch` feature)",
-                ))
+                return Err(crate::Error::new(
+                    "no engine available (libtorch needs a CUDA/ROCm device and `burn` is not compiled)",
+                ));
             }
         }
     }

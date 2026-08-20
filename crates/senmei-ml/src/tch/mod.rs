@@ -1,10 +1,9 @@
 //! Optional libtorch backend (`burn-tch`) for high-performance local runs.
 //!
 //! Runs the shared `crate::arch` re-implementations on `LibTorch<f32>`. The
-//! device is picked from a small portable enum so the same code path covers
-//! CPU, CUDA (→ ROCm libtorch on AMD) and MPS (Apple silicon). On a stock
-//! `download-libtorch` build only `Cpu` is available; CUDA/ROCm needs a
-//! matching system libtorch (e.g. a ROCm build for the Radeon path).
+//! libtorch runtime is resolved on demand (CUDA/ROCm only — see
+//! `crate::runtime`) and dlopen'd via `torch_sys::loader`; no CPU libtorch,
+//! CPU stays on the burn-Vulkan engine.
 
 use crate::arch::{RrdbNet, RifeNet, UpCunet2x, UpCunet2xFast};
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
@@ -15,48 +14,103 @@ use burn::tensor::{Tensor as BurnTensor, TensorData};
 use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
 use burn_tch::{LibTorch, LibTorchDevice};
 use std::path::Path;
+use std::sync::OnceLock;
 
 type B = LibTorch<f32>;
 
-/// libtorch version the fork's torch-sys pins (`build.rs` `TORCH_VERSION`).
-/// Must be kept in sync with `senmei-app/tch-rs` @ `v0.22.0-senmei`.
-pub const LIBTORCH_VERSION: &str = "2.9.0";
+/// libtorch release with ROCm-7 builds that the runtime downloads. Must stay
+/// in sync with `crate::runtime::torch` (and the torch-sys headers used to
+/// build the wrapper).
+pub const LIBTORCH_VERSION: &str = "2.11.0";
 
-/// Portable device selection for the libtorch backend.
+/// Device for the libtorch backend. CPU is intentionally absent — the
+/// burn-Vulkan engine owns the CPU path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TchDevice {
-    /// Best available device, resolved at construction.
-    Auto,
-    Cpu,
     /// CUDA device index; maps to ROCm on an AMD libtorch build.
     Cuda(usize),
     /// Apple silicon Metal Performance Shaders.
     Mps,
 }
 
-impl TchDevice {
-    /// Pick the best available device: CUDA/ROCm if present, else MPS on Apple
-    /// silicon, else CPU. The MPS branch is a compile-time heuristic — a real
-    /// libtorch MPS check would need a runtime probe on `tch::Device`.
-    pub fn automatic() -> Self {
-        if tch::Cuda::is_available() {
-            TchDevice::Cuda(0)
-        } else if cfg!(target_os = "macos") {
-            TchDevice::Mps
-        } else {
-            TchDevice::Cpu
+impl From<TchDevice> for LibTorchDevice {
+    fn from(d: TchDevice) -> Self {
+        match d {
+            TchDevice::Cuda(i) => LibTorchDevice::Cuda(i),
+            TchDevice::Mps => LibTorchDevice::Mps,
         }
     }
 }
 
-impl From<TchDevice> for LibTorchDevice {
-    fn from(d: TchDevice) -> Self {
-        match d {
-            TchDevice::Auto => TchDevice::automatic().into(),
-            TchDevice::Cpu => LibTorchDevice::Cpu,
-            TchDevice::Cuda(i) => LibTorchDevice::Cuda(i),
-            TchDevice::Mps => LibTorchDevice::Mps,
+/// Resolved + dlopen'd libtorch install, cached per process (idempotent).
+static RUNTIME_LIBTORCH: OnceLock<
+    std::result::Result<Option<crate::runtime::TorchInstall>, String>,
+> = OnceLock::new();
+
+/// Handles for the preloaded ROCm/HIP runtime libs, kept alive for the process
+/// lifetime (dropping a `Library` unloads it).
+static PRELOADED: std::sync::Mutex<Vec<libloading::os::unix::Library>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Preload every shared lib in `dir` with RTLD_GLOBAL so the ROCm runtime is in
+/// the global scope when `torch_sys::loader::init` dlopens `libtorch_hip`.
+/// Failures (optional deps, non-loadable files) are skipped.
+fn preload_runtime_libs(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut libs = match PRELOADED.lock() {
+        Ok(g) => g,
+        Err(e) => e.into_inner(),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_so = path.extension().and_then(|e| e.to_str()) == Some("so")
+            || path.file_name().is_some_and(|n| n.to_string_lossy().ends_with(".so"));
+        if !is_so || !path.is_file() {
+            continue;
         }
+        unsafe {
+            if let Ok(lib) = libloading::os::unix::Library::open(
+                Some(&path),
+                libloading::os::unix::RTLD_NOW | libloading::os::unix::RTLD_GLOBAL,
+            ) {
+                libs.push(lib);
+            }
+        }
+    }
+}
+
+/// Resolve (download on first use) and dlopen a CUDA/ROCm libtorch, once per
+/// process. `Ok(None)` when no GPU is present — the caller (burn) owns CPU.
+fn ensure_loaded(data_dir: &Path) -> Result<()> {
+    let install = RUNTIME_LIBTORCH.get_or_init(|| {
+        let hw = crate::runtime::detect();
+        let resolved = crate::runtime::resolve(data_dir, &hw);
+        if let Ok(Some(inst)) = &resolved {
+            // Preload the system ROCm runtime for any ROCm build so the
+            // `libamdhip64.so.7` SONAME resolves to the installed version. A
+            // downloaded libtorch may bundle its own HIP runtime, but mixing a
+            // bundled older HIP with the system HSA runtime crashes on load —
+            // the preloaded system lib shadows the bundled one (RTLD_GLOBAL).
+            if matches!(
+                inst.variant,
+                crate::runtime::TorchVariant::Rocm(_)
+            ) {
+                if let Some(dir) = hw.rocm_runtime_dir.as_deref() {
+                    preload_runtime_libs(dir);
+                }
+            }
+            if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
+                return Err(e);
+            }
+        }
+        resolved
+    });
+    match install {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => Err(Error::new("no CUDA/ROCm device — CPU stays on burn-Vulkan")),
+        Err(e) => Err(Error::new(e.clone())),
     }
 }
 
@@ -105,8 +159,11 @@ impl TchEngine {
         }
     }
 
-    pub fn default_cpu() -> Self {
-        Self::new(TchDevice::Cpu)
+    /// Resolve + dlopen a CUDA/ROCm libtorch at runtime and build the engine on
+    /// it. Errors when no GPU is present (CPU stays on burn-Vulkan).
+    pub fn runtime(data_dir: &Path) -> Result<Self> {
+        ensure_loaded(data_dir)?;
+        Ok(Self::new(TchDevice::Cuda(0)))
     }
 
     /// RIFE loads from the raw ncnn `flownet.bin` (fp16 weights), like the
@@ -237,60 +294,33 @@ impl InferenceEngine for TchEngine {
 mod tests {
     use super::*;
 
-    /// Concept validation: a random-init UpCunet2xFast is saved as an f16
-    /// burnpack on CPU, loaded through `TchEngine` (with the f16→f32 adapter)
-    /// and inferred. Proves the burn-store → LibTorch plumbing end to end
-    /// without needing committed weights. Requires the libtorch `download`
-    /// feature (CPU build).
+    /// Roundtrip on the runtime-resolved GPU (CUDA/ROCm): a random-init
+    /// UpCunet2xFast is saved as an f16 burnpack on the device, loaded through
+    /// `TchEngine` (f16→f32 adapter) and inferred — proves the burn-store →
+    /// LibTorch plumbing over the dlopen path. `#[ignore]` because resolving
+    /// libtorch downloads it (~2 GB) on first use; skips without a GPU.
     #[test]
-    fn tch_engine_roundtrips_bpk_on_cpu() {
-        let device = LibTorchDevice::Cpu;
-        let tmp = std::env::temp_dir().join("senmei_tch_concept.bpk");
-        let _ = std::fs::remove_file(&tmp);
-
-        let m = UpCunet2xFast::<B>::new(&device);
-        let mut save =
-            BurnpackStore::from_file(&tmp).with_to_adapter(HalfPrecisionAdapter::new());
-        m.save_into(&mut save).unwrap();
-
-        let mref = ModelRef {
-            id: "concept".into(),
-            arch: "fallin-cugan".into(),
-            scale: 2,
-            num_block: 4,
-            feature_channels: 48,
-            no_norm: false,
-            path: tmp.clone(),
-        };
-        let mut engine = TchEngine::new(TchDevice::Cpu);
-        engine.load(&mref).unwrap();
-        let input = Tensor::new(vec![1, 3, 64, 64], vec![0.5f32; 3 * 64 * 64]);
-        let out = engine
-            .infer(&input, &InferOptions { tile_size: None })
-            .unwrap();
-        assert_eq!(out.shape, vec![1, 3, 128, 128]);
-        assert!(out.data.iter().all(|v| v.is_finite()));
-
-        let _ = std::fs::remove_file(&tmp);
-    }
-
-    /// Same roundtrip as the CPU test, but on `Cuda(0)` (→ ROCm libtorch with
-    /// the AMD runtime). Skips when no CUDA/ROCm device is present; run with
-    /// `LIBTORCH` pointing at a ROCm libtorch to exercise the GPU path.
-    #[test]
-    fn tch_engine_roundtrips_bpk_on_rocm() {
-        if !tch::Cuda::is_available() {
-            eprintln!("no CUDA/ROCm libtorch, skipping");
+    #[ignore]
+    fn tch_engine_roundtrips_bpk_on_gpu() {
+        if !crate::runtime::detect().supports_gpu() {
+            eprintln!("no CUDA/ROCm device, skipping");
             return;
         }
-        let device = LibTorchDevice::Cuda(0);
-        let tmp = std::env::temp_dir().join("senmei_tch_rocm_concept.bpk");
+        let data_dir = std::env::temp_dir().join("senmei_tch_test_data");
+        // Init the runtime loader before any torch_sys/tch call.
+        eprintln!("[tch_test] runtime...");
+        let mut engine = TchEngine::runtime(&data_dir).unwrap();
+        eprintln!("[tch_test] runtime ok, model init...");
+        let tmp = std::env::temp_dir().join("senmei_tch_gpu_concept.bpk");
         let _ = std::fs::remove_file(&tmp);
 
+        let device = LibTorchDevice::Cuda(0);
         let m = UpCunet2xFast::<B>::new(&device);
         let mut save =
             BurnpackStore::from_file(&tmp).with_to_adapter(HalfPrecisionAdapter::new());
+        eprintln!("[tch_test] save_into...");
         m.save_into(&mut save).unwrap();
+        eprintln!("[tch_test] saved, load...");
 
         let mref = ModelRef {
             id: "concept".into(),
@@ -301,12 +331,13 @@ mod tests {
             no_norm: false,
             path: tmp.clone(),
         };
-        let mut engine = TchEngine::new(TchDevice::Cuda(0));
         engine.load(&mref).unwrap();
+        eprintln!("[tch_test] loaded, infer...");
         let input = Tensor::new(vec![1, 3, 128, 128], vec![0.5f32; 3 * 128 * 128]);
         let out = engine
             .infer(&input, &InferOptions { tile_size: None })
             .unwrap();
+        eprintln!("[tch_test] inferred {:?}", out.shape);
         assert_eq!(out.shape, vec![1, 3, 256, 256]);
         assert!(out.data.iter().all(|v| v.is_finite()));
 

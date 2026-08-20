@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: ml: TchEngine on runtime-dlopen libtorch (CUDA/ROCm) (2026-08-20)**
+  — runs the shared archs on `burn-tch` over the on-demand libtorch runtime
+  (dlopen via `torch-sys` loader, no build-time link). Resolver pins 2.11.0
+  (`rocm7.1`/`cu128`; 2.9.0 has no ROCm-7 build) and detects the system ROCm
+  runtime dir so a bundled older HIP is shadowed at load. `backend_info()`
+  probes CUDA/ROCm via dlopen (no loader init); `engine_for_model` takes the
+  data dir, `Auto` prefers libtorch on a GPU. GPU roundtrip (save/load/infer
+  128→256) verified against the downloaded ROCm build.
+
 - **ml: add 2× Public RealPLKSR LayerNorm (2026-08-20)** — `RealPlk` now takes
   a `layer_norm: bool`; the layernorm variant swaps the tail GroupNorm for a
   per-pixel channel `LayerNorm` (eps 1e-6, weight/bias [64]) at the block
