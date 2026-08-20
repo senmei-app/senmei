@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **docs: align PLAN/README with the optional tch backend (2026-08-20)** —
+  binding decisions now note the optional libtorch engine (`tch` feature,
+  runtime dlopen, CUDA/ROCm only) next to the shipped burn-Vulkan default.
+
 ## 0.1.3 (2026-08-20)
 
 - **feat: wire tch backend end-to-end (2026-08-20)** — `tch` cargo feature

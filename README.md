@@ -27,7 +27,7 @@ and runs on **Vulkan fp16**.
 |---|---|
 | UI host | Tauri 2 + platform webview (webkit2gtk / WebView2 / WKWebView) |
 | Frontend | React + TypeScript + Vite · bun · Base UI + Tailwind + lucide-react |
-| Inference | burn (`burn-wgpu`) · **Vulkan, fp16** (clean arch ports, torch-verified) |
+| Inference | burn (`burn-wgpu`) · **Vulkan, fp16** (default) · optional **LibTorch** backend (`tch` feature, runtime-dlopen, CUDA/ROCm) |
 | Media | FFmpeg as subprocess (`rawvideo` pipe), system or portable LGPL build |
 | License | MIT OR Apache-2.0 |
 

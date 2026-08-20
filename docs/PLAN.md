@@ -11,7 +11,7 @@
 A fast, modern desktop video enhancer in Rust with:
 
 - **Frame interpolation** (e.g. 24 → 48 fps) and **upscaling** (e.g. 1080p → 4K)
-- **GPU inference**: **burn (`burn-wgpu`) on the Vulkan backend, fp16** with CPU fallback — no libtorch, no ONNX Runtime, no TorchScript, no candle, no ncnn
+- **GPU inference**: **burn (`burn-wgpu`) on the Vulkan backend, fp16** with CPU fallback — default; optional **libtorch** backend behind the `tch` feature (runtime dlopen, CUDA/ROCm only). No ONNX Runtime, no TorchScript, no candle, no ncnn
 - **Consistent HTML/CSS/JS UI** via platform webviews (webkit2gtk / WebView2 / WKWebView)
 - **Better FFmpeg settings** than RVE (profile-based, extensible, validated)
 - **Sample preview** of 10–60 s directly in the app
@@ -24,7 +24,7 @@ A fast, modern desktop video enhancer in Rust with:
 |---|---|---|
 | 1 | Shell / UI host | **Tauri 2 + platform webview** (webkit2gtk / WebView2 / WKWebView), not CEF |
 | 2 | Frontend | **React + TypeScript**, `react-resizable-panels`, Tailwind, lucide-react |
-| 3 | Inference | **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback — no libtorch, no ONNX Runtime, no candle, no ncnn engine |
+| 3 | Inference | **burn (`burn-wgpu`) on the Vulkan backend, fp16**, CPU fallback — default; optional **libtorch** (`tch` feature, runtime dlopen, CUDA/ROCm). No ONNX Runtime, no candle, no ncnn engine |
 | 4 | No ONNX Runtime / no TorchScript | every arch is a **clean burn re-implementation**; weights from a permissive source (torch `.pth` → f16 `.bpk`, ONNX `.onnx` via a built-in reader, or ncnn `.bin` for RIFE) |
 | 5 | No WebGPU/WASM | preview via native `<video>` where the webview can play the file; FFmpeg-decoded frame fallback (codec-agnostic, incl. H.265) |
 | 6 | Media | **FFmpeg as subprocess** with `rawvideo` pipe; prefer **system FFmpeg**, fallback: portable download (BtbN builds) into data dir |
@@ -300,8 +300,8 @@ sequenceDiagram
 |---|---|
 | Frontend build | **Vite** |
 | Package manager | **bun** (like Koharu) |
-| inference runtime | **burn (`burn-wgpu`), Vulkan fp16** — no libtorch / no ONNX Runtime / no candle / no ncnn |
-| Engine (2026-08-17) | burn-Vulkan fp16 is the shipped default; ncnn C++ shim dropped; libtorch deferred |
+| inference runtime | **burn (`burn-wgpu`), Vulkan fp16** (default); optional **libtorch** behind `tch` feature (runtime dlopen) — no ONNX Runtime / no candle / no ncnn |
+| Engine (2026-08-20) | burn-Vulkan fp16 is the shipped default; ncnn C++ shim dropped; **libtorch: optional `tch` feature** — runtime-dlopen, CUDA/ROCm only, wrapper ABI must match the downloaded libtorch |
 
 **Open evaluation (2026-08-19) — Tauri CEF backend (`feat/cef`):**
 - **Status:** active branch (2026-08); Koharu already installs the CLI from it.
