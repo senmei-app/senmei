@@ -86,7 +86,13 @@ export default function MediaLibrary({
           >
             ⧉
           </button>
-          <button className="rounded-md bg-slate-200 px-1.5 py-1 text-[11px] leading-none text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">+</button>
+          <button
+            onClick={onOpen}
+            title={t("media.addVideos")}
+            className="rounded-md bg-slate-200 px-1.5 py-1 text-[11px] leading-none text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            +
+          </button>
         </div>
       </div>
 

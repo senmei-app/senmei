@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import type { RenderConfig, RenderProgress } from "@senmei/bridge";
-import { backend } from "./backend";
+import { backend, isWeb } from "./backend";
 import { buildEncoderArgs, type BatchJob, type PipelineStep } from "./steps";
 import { basename, dirname, joinPath } from "./paths";
 
@@ -66,7 +66,10 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
         ?.replace(/\.[^.]+$/, `_${marker}${info}${rangeTag}.${container}`) ??
       `output_${marker}${info}${rangeTag}.${container}`;
     const dir = targetDir ?? dirname(input);
-    if (isSample) return joinPath(pd ?? dir, "sample", name);
+    // Sample renders live in a `sample/` folder. In Tauri that's under the
+    // project; in the web mode the project dir is browser-only (no server
+    // equivalent), so write next to the input instead.
+    if (isSample) return joinPath(isWeb() ? dir : (pd ?? dir), "sample", name);
     return joinPath(dir, name);
   };
 

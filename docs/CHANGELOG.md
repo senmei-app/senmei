@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: web E2E — audio no-op, add-video button, sample render path (2026-08-20)** —
+  `extractAudio` in the HTTP backend now no-ops (browser `<video>` handles
+  sound) instead of throwing; the MediaLibrary `+` button was missing an
+  `onClick` and now opens the file picker; sample renders in web mode write to
+  `<input dir>/sample/` (the project dir is browser-only) instead of failing
+  with permission denied. Verified end-to-end in the browser against
+  `senmei-server --http` (render feature): import → probe → sample render →
+  done → output file.
+
 - **feat: path-input dialog for web file access (Dateizugriff B) (2026-08-20)** —
   new promise-based `PathDialog` (mounted at the app root) replaces the
   `window.prompt` fallbacks in the HTTP backend: `pickVideoFiles`,

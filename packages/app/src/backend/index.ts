@@ -7,6 +7,11 @@ import type { Backend } from "./types";
 
 export type { Backend, FrameSource } from "./types";
 
+/// Synchronous transport check: true when running outside Tauri (web/mock).
+/// Use for render-path decisions that have no server equivalent (e.g. sample
+/// renders can't write into a browser-only project dir).
+export const isWeb = () => !isTauri();
+
 let promise: Promise<Backend> | null = null;
 let cached: Backend | null = null;
 

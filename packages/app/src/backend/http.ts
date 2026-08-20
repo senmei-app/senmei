@@ -179,8 +179,9 @@ export const httpBackend: Backend = {
     return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
+  // Audio is played by the browser's <video> element in web mode (no rodio).
   async extractAudio() {
-    throw new Error("audio is not available over HTTP yet");
+    return ""; // no separate track extraction over HTTP
   },
   async audioLoad() {},
   async audioPlay() {},
