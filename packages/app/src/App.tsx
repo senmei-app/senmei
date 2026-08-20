@@ -10,6 +10,7 @@ import {
   deleteProject,
   exportProject,
   getSettings,
+  hardwareStatus,
   healthCheck,
   importFolder,
   listProjects,
@@ -19,6 +20,7 @@ import {
   saveSettings,
   type BackendInfo,
   type EngineBackend,
+  type HardwareSnapshot,
   type ProjectEntry,
   type ProjectSettings,
   type Settings,
@@ -50,6 +52,7 @@ export default function App() {
   const [tileSize, setTileSize] = useState<number>(640);
   const [backend, setBackend] = useState<EngineBackend>("auto");
   const [backendInfoState, setBackendInfoState] = useState<BackendInfo | null>(null);
+  const [hardware, setHardware] = useState<HardwareSnapshot | null>(null);
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -111,6 +114,24 @@ export default function App() {
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Poll hardware usage (GPU/CPU/RAM) once per second.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    const poll = () =>
+      hardwareStatus()
+        .then((snapshot) => {
+          if (!cancelled) setHardware(snapshot);
+        })
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   // Persist the current settings merged with `partial`.
@@ -521,6 +542,7 @@ export default function App() {
               fileCount={files.length}
               progress={batch.progress}
               rendering={batch.rendering}
+              hardware={hardware}
               onSettings={() => setSettingsOpen(true)}
             />
           </div>

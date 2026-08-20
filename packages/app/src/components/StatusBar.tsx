@@ -1,18 +1,23 @@
-import type { RenderProgress } from "@senmei/bridge";
+import type { HardwareSnapshot, RenderProgress } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
+
+const fmtGb = (bytes: number | null | undefined) =>
+  bytes == null ? "—" : `${(bytes / 1024 ** 3).toFixed(1)}G`;
 
 export default function StatusBar({
   health,
   fileCount,
   progress,
   rendering,
+  hardware,
   onSettings,
 }: {
   health: string;
   fileCount: number;
   progress: RenderProgress | null;
   rendering: boolean;
+  hardware: HardwareSnapshot | null;
   onSettings: () => void;
 }) {
   const { t } = useI18n();
@@ -58,6 +63,26 @@ export default function StatusBar({
             <div className="h-1.5 w-24 rounded-full bg-slate-200 dark:bg-slate-800">
               <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
             </div>
+          </div>
+        )}
+        {hardware && (
+          <div className="flex items-center space-x-3">
+            {hardware.gpuName && (
+              <span>
+                {hardware.gpuName}{" "}
+                {hardware.gpuUtilizationPercent != null
+                  ? `${Math.round(hardware.gpuUtilizationPercent)}%`
+                  : "—"}{" "}
+                {hardware.gpuMemoryUsedBytes != null
+                  ? fmtGb(hardware.gpuMemoryUsedBytes)
+                  : "—"}
+                /{fmtGb(hardware.gpuMemoryTotalBytes)}
+              </span>
+            )}
+            <span>CPU {Math.round((hardware.cpuUsage ?? 0) * 100)}%</span>
+            <span>
+              RAM {fmtGb(hardware.memoryUsedBytes)}/{fmtGb(hardware.memoryTotalBytes)}
+            </span>
           </div>
         )}
         <span

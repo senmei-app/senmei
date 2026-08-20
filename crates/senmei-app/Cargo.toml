@@ -15,6 +15,7 @@ senmei-media = { path = "../senmei-media", version = "0.1.2" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn"] }
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2" }
 rodio = { version = "0.20", default-features = false, features = ["mp3"] }
+sysinfo = { version = "0.39", features = ["system"] }
 env_logger = "0.11"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }

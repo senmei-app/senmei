@@ -272,6 +272,12 @@ pub fn backend_info() -> senmei_ml::BackendInfo {
 
 #[tauri::command]
 #[specta::specta]
+pub fn hardware_status() -> crate::resources::HardwareSnapshot {
+    crate::resources::sample_hardware()
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn list_projects() -> Vec<store::ProjectEntry> {
     store::list_projects()
 }

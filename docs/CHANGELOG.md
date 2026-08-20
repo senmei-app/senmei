@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: live hardware usage in status bar (2026-08-20)** — new
+  `hardware_status` Tauri command samples system CPU/RAM (sysinfo) and the
+  primary GPU via `/sys/class/drm` (`gpu_busy_percent`, `mem_info_vram_*`,
+  `vendor`; adapter with most VRAM wins). Status bar polls once per second and
+  shows GPU utilization/VRAM, CPU %, and RAM.
+
 - **feat: senmei-server http feature — headless web UI + REST (2026-08-20)** —
   `--http` (or `SENMEI_HTTP`) starts an axum server on `127.0.0.1:8765` (env
   `SENMEI_HTTP_PORT`) that serves the built web UI (`packages/app/dist`, env

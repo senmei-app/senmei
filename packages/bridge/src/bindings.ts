@@ -10,6 +10,7 @@ export const commands = {
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
 	backendInfo: () => __TAURI_INVOKE<BackendInfo>("backend_info"),
+	hardwareStatus: () => __TAURI_INVOKE<HardwareSnapshot>("hardware_status"),
 	listProjects: () => __TAURI_INVOKE<ProjectEntry[]>("list_projects"),
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
@@ -102,6 +103,17 @@ export type FilterParams = {
 	 */
 	deblurModelId?: string | null,
 	dedupThreshold?: number | null,
+};
+
+export type HardwareSnapshot = {
+	/**  Overall system CPU load in 0..1. */
+	cpuUsage: number | null,
+	memoryTotalBytes: number,
+	memoryUsedBytes: number,
+	gpuName: string | null,
+	gpuUtilizationPercent: number | null,
+	gpuMemoryUsedBytes: number | null,
+	gpuMemoryTotalBytes: number | null,
 };
 
 export type LogEntry = {

@@ -3,6 +3,7 @@ mod commands;
 pub mod log_hub;
 pub mod models;
 mod preview;
+mod resources;
 mod store;
 
 use tauri_specta::{collect_commands, Builder, ErrorHandlingMode};
@@ -18,6 +19,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::get_settings,
             commands::save_settings,
             commands::backend_info,
+            commands::hardware_status,
             commands::list_projects,
             commands::create_project,
             commands::delete_project,
