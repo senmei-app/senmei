@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **feat: path-input dialog for web file access (Dateizugriff B) (2026-08-20)** —
+  new promise-based `PathDialog` (mounted at the app root) replaces the
+  `window.prompt` fallbacks in the HTTP backend: `pickVideoFiles`,
+  `pickFolder`, `pickSaveFile`, `pickFile` now open a proper modal for entering
+  server-side paths (comma-separated for multiple files). Verified end-to-end
+  in the browser against `senmei-server --http` (import + preview frame +
+  output-folder picker).
+
 - **fix: app sluggish after backend migration (2026-08-20)** —
   `useFfmpeg` created a fresh `getStatus` closure every render; since the
   StatusBar re-renders every second (hardware poll) and `useDownloadable`

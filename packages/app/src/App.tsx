@@ -22,6 +22,7 @@ import StatusBar from "./components/StatusBar";
 import ProjectScreen from "./components/ProjectScreen";
 import SettingsPage from "./components/SettingsPage";
 import AboutDialog from "./components/AboutDialog";
+import PathDialog from "./components/PathDialog";
 
 const VIDEO_EXTS = ["mp4", "mkv", "mov", "webm", "avi", "m4v"];
 
@@ -457,6 +458,7 @@ export default function App() {
           </div>
         )}
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} onGithub={openGithub} />}
+        <PathDialog />
       </div>
     </I18nProvider>
   );

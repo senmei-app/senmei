@@ -14,6 +14,7 @@ import type {
   VideoInfo,
 } from "@senmei/bridge";
 import type { Backend, FrameSource } from "./types";
+import { openPathDialog } from "./pathDialog";
 
 const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? "";
 
@@ -154,8 +155,12 @@ export const httpBackend: Backend = {
   },
 
   async pickVideoFiles(): Promise<string[]> {
-    // Path input fallback; a proper file-picker UI ships with Dateizugriff B.
-    const input = window.prompt("Video paths (comma-separated)");
+    // No native picker over HTTP: enter server-side paths in the path dialog.
+    const input = await openPathDialog({
+      title: "Add videos",
+      placeholder: "/path/to/video1.mp4, /path/to/video2.mp4",
+      multiple: true,
+    });
     return (input ?? "")
       .split(",")
       .map((p) => p.trim())
@@ -163,16 +168,15 @@ export const httpBackend: Backend = {
   },
 
   async pickFolder(title?): Promise<string | null> {
-    return window.prompt(title ?? "Folder path");
+    return openPathDialog({ title: title ?? "Choose folder", placeholder: "/path/to/folder" });
   },
 
   async pickSaveFile(defaultName): Promise<string | null> {
-    const input = window.prompt("Save as path", defaultName);
-    return input?.trim() || null;
+    return openPathDialog({ title: "Save as", default: defaultName, placeholder: "/path/to/file" });
   },
 
   async pickFile(_filters, title?): Promise<string | null> {
-    return window.prompt(title ?? "File path");
+    return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
   async extractAudio() {
