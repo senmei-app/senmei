@@ -325,12 +325,12 @@
     "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg_ldl",
     "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg_ldl/2xNomosUni_span_multijpg_ldl.pth",
     "sha256": "59d96e844503a93303cbd780ba083d68049745b5307cb90bb3c05aad8180bb49",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0 confirmed 2026-08-20, norm=True), 48ch 2× multijpg+ldl; f16-safe on real frames"
+      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× multijpg+ldl; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.917 vs torch"
     }
   },
   {
@@ -350,7 +350,7 @@
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0 confirmed 2026-08-20, norm=True), 48ch 2× universal multijpg; f16-safe"
+      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× universal multijpg; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.686 vs torch"
     }
   },
   {
@@ -365,12 +365,12 @@
     "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2kSPAN",
     "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2kSPAN/2xHFA2kSPAN.pth",
     "sha256": "59f41331bf32f122b73aaa9938b8baee7cb3e86125bdb55983d26074ac0d7285",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
-      "note": "Phhofm SPAN anime (2xHFA2kSPAN, CC-BY-4.0 confirmed 2026-08-20), 48ch 2×, params-wrapped"
+      "note": "Phhofm SPAN anime (2xHFA2kSPAN, CC-BY-4.0), 48ch 2×, params-wrapped; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.821 vs torch"
     }
   },
   {
@@ -425,13 +425,13 @@
     "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV2",
     "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV2/2x_ModernSpanimationV2.pth",
     "sha256": "a13ae9fd8a72d0d320759472e4097eb58483c2ecc6232dec35b971e97275554c",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
       "feature_channels": 48,
       "no_norm": true,
-      "note": "TNTwise ModernSpanimation V2 (MIT), 48ch 2× anime; no_norm (norm=False)"
+      "note": "TNTwise ModernSpanimation V2 (MIT), 48ch 2× anime; no_norm; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.936 vs torch"
     }
   },
   {

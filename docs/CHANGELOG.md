@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **ml: disable 48ch SPAN models hit by cubek conv bug (2026-08-20)** —
+  `span-2x-nomosuni-ldl`, `span-2x-hfa2k`, `span-2x-modern-spanimation-v2`
+  (multijpg already off) set `loadable: false`; they render degraded in f16
+  (corr 0.82–0.94) due to `cubek-convolution` f16 1×1 conv bug (K=96×N≥32768,
+  cubek#519). 64ch V1/V1.5 + BHI (corr ≥ 0.99) stay loadable.
+
 - **docs: SPAN f16 root cause isolated — cubek-convolution kernel bug (2026-08-20)** —
   op-by-op bit-exact diff (burn f16 vs torch ROCm f16) proved weights + norm are
   bit-identical and silu/sigmoid/accumulation are innocent; the first SPAB's
