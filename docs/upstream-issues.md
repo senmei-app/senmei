@@ -165,6 +165,12 @@ but discards it, reading storage linearly — a non-contiguous `.pth`
 loads silently scrambled (head weight correlation 0.24). Workaround: preprocess
 the state dict with `{k: v.contiguous() for k, v in sd.items()}`.
 
+**Fix PR** (2026-08-20): `tracel-ai/burn#5392` „fix(store): respect PyTorch
+tensor strides" — parses/validates strides in both rebuild paths and materializes
+non-contiguous views in logical row-major order. Still open (needs review;
+patch coverage 69% < 80% target). Once merged + released, the contiguous
+preprocess step can be dropped from the SPAN/RealPLKSR/SCUNet convert flow.
+
 **Paste-ready text** (Title + Body):
 
 ```text
