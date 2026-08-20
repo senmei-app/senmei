@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: FFmpeg between-filter step (2026-08-20)** — new `Filter` step in
+  `Vec<Step>` that runs each frame through a free-form FFmpeg `-vf` graph over
+  a rawvideo pipe (1:1 frame-preserving; filters changing the size are
+  rejected). Wired as `filter.ffmpegFilter` in the server `RenderConfig` and
+  the Tauri `FilterParams`, plus a new "filter" step in the processing-stack
+  UI (single text field, `hue=h=10,unsharp`-style). Gives the whole FFmpeg
+  video-filter catalog without per-filter ports. End-to-end verified via
+  `/api/render` (`negate` inverts pixels).
+
 - **compliance: adopt cargo-deny as license/bans/advisories gate (2026-08-20)**
   — new `deny.toml` (targets = shipped product triples, so UEFI-only
   `r-efi`/getrandom is excluded) + `bun run deny` script. Allowlist covers the

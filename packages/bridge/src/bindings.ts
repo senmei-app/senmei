@@ -103,6 +103,11 @@ export type FilterParams = {
 	 */
 	deblurModelId?: string | null,
 	dedupThreshold?: number | null,
+	/**
+	 *  Free-form FFmpeg `-vf` filter graph applied per frame (frame-preserving
+	 *  1:1 only; runs after the reference/ML filters).
+	 */
+	ffmpegFilter?: string | null,
 };
 
 export type HardwareSnapshot = {
@@ -214,6 +219,11 @@ export type StepParams = {
 	amount?: number | null,
 	/**  Dedup mean-pixel-diff threshold in [0,1] (deduplication step). */
 	threshold?: number | null,
+	/**
+	 *  Free-form FFmpeg `-vf` filter graph applied per frame (filter step;
+	 *  frame-preserving 1:1 only).
+	 */
+	filter?: string | null,
 	factor?: string | null,
 	/**  Label for an output step (e.g. "Final", "Intermediate"). */
 	label?: string | null,

@@ -61,6 +61,10 @@ pub struct StepParams {
     /// Dedup mean-pixel-diff threshold in [0,1] (deduplication step).
     #[serde(default)]
     pub threshold: Option<f32>,
+    /// Free-form FFmpeg `-vf` filter graph applied per frame (filter step;
+    /// frame-preserving 1:1 only).
+    #[serde(default)]
+    pub filter: Option<String>,
     #[serde(default)]
     pub factor: Option<String>,
     /// Label for an output step (e.g. "Final", "Intermediate").

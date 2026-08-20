@@ -90,6 +90,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     const dn = enabled.find((s) => s.stepType === "denoise");
     const db = enabled.find((s) => s.stepType === "deblur");
     const dd = enabled.find((s) => s.stepType === "deduplication");
+    const fl = enabled.find((s) => s.stepType === "filter");
     const outScale = up ? (up.params?.scale ?? null) : null;
     const outModel = up ? (up.params?.modelId ?? null) : null;
     const outDecompressModel = dc ? (dc.params?.modelId ?? null) : null;
@@ -104,6 +105,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       deblurAmount: db ? (db.params?.amount ?? null) : null,
       deblurModelId: db ? (db.params?.modelId ?? null) : null,
       dedupThreshold: dd ? (dd.params?.threshold ?? null) : null,
+      ffmpegFilter: fl ? (fl.params?.filter?.trim() ? fl.params.filter : null) : null,
     };
     const config: RenderConfig = {
       scale: outScale,

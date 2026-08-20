@@ -22,6 +22,7 @@ export type StepType =
   | "denoise"
   | "deblur"
   | "deduplication"
+  | "filter"
   | "resize"
   | "output";
 
@@ -32,6 +33,7 @@ export const STEP_META: Record<StepType, { icon: string; labelKey: string; imple
   denoise: { icon: "🧹", labelKey: "tab.denoise", implemented: true },
   deblur: { icon: "✨", labelKey: "tab.deblur", implemented: true },
   deduplication: { icon: "🎞️", labelKey: "tab.dedup", implemented: true },
+  filter: { icon: "🎛️", labelKey: "tab.filter", implemented: true },
   resize: { icon: "📐", labelKey: "tab.resize", implemented: true },
   output: { icon: "📦", labelKey: "tab.output", implemented: true },
 };
@@ -63,6 +65,7 @@ export const STEP_ORDER: StepType[] = [
   "denoise",
   "deblur",
   "deduplication",
+  "filter",
   "resize",
   "output",
 ];
@@ -74,6 +77,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
   denoise: { radius: 1, modelId: null },
   deblur: { amount: 0.5, modelId: null },
   deduplication: { threshold: 0.02 },
+  filter: { filter: "hue=h=0" },
   resize: { factor: "" },
   output: {
     label: "",

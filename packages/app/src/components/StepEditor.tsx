@@ -254,6 +254,22 @@ export default function StepEditor(props: StepEditorProps) {
         </>
       );
     }
+    case "filter":
+      return (
+        <>
+          {field(
+            t("filter.graph"),
+            <input
+              type="text"
+              value={s.params?.filter ?? ""}
+              placeholder="hue=h=10,unsharp"
+              onChange={(e) => updateParams(s.id, { filter: e.target.value })}
+              className={inputCls}
+            />,
+          )}
+          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{t("filter.hint")}</p>
+        </>
+      );
     case "output": {
       const mode = s.params?.outputMode ?? "input";
       const quality = qualityKey(s.params);

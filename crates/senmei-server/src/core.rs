@@ -181,6 +181,11 @@ pub struct FilterConfig {
     /// Dedup mean-pixel-diff threshold in [0,1]; drops near-duplicate frames.
     #[schemars(range(min = 0.0, max = 1.0))]
     pub dedup_threshold: Option<f32>,
+    /// Free-form FFmpeg `-vf` filter graph applied per frame (e.g.
+    /// `"hue=h=10,unsharp"`). Frame-preserving only (1:1) — filters that change
+    /// the output size are rejected. Runs between the reference/ML filters and
+    /// the final `output_resize`.
+    pub ffmpeg_filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -361,7 +366,8 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     let mref = registry
         .resolve(model_id, &dir)
         .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).map_err(|e| e.to_string())?;
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &data_dir())
+        .map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)
 }
@@ -477,6 +483,11 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
         if let Some(t) = f.dedup_threshold {
             if t > 0.0 {
                 steps.push(Box::new(senmei_pipeline::Dedup::new(t)));
+            }
+        }
+        if let Some(filter) = f.ffmpeg_filter.as_deref() {
+            if !filter.trim().is_empty() {
+                steps.push(Box::new(senmei_pipeline::Filter::new(filter, ffmpeg())));
             }
         }
     }

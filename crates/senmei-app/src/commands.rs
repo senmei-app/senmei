@@ -339,6 +339,9 @@ pub struct FilterParams {
     /// model instead of the CPU unsharp mask.
     pub deblur_model_id: Option<String>,
     pub dedup_threshold: Option<f32>,
+    /// Free-form FFmpeg `-vf` filter graph applied per frame (frame-preserving
+    /// 1:1 only; runs after the reference/ML filters).
+    pub ffmpeg_filter: Option<String>,
 }
 
 /// All render knobs in one struct (specta caps command arity at 10 args).
@@ -467,6 +470,11 @@ pub async fn render(
             if let Some(t) = f.dedup_threshold {
                 if t > 0.0 {
                     steps.push(Box::new(senmei_pipeline::Dedup::new(t)));
+                }
+            }
+            if let Some(filter) = f.ffmpeg_filter.as_deref() {
+                if !filter.trim().is_empty() {
+                    steps.push(Box::new(senmei_pipeline::Filter::new(filter, &ffmpeg)));
                 }
             }
         }

@@ -1,3 +1,7 @@
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+
 use senmei_media::Frame;
 use senmei_ml::{InferOptions, InferenceEngine};
 
@@ -17,6 +21,85 @@ impl Step for Passthrough {
     }
 
     fn process(&mut self, _frame: &mut Frame) -> crate::Result<bool> {
+        Ok(true)
+    }
+}
+
+/// Filter: run each frame through an FFmpeg filter graph over a rawvideo pipe.
+/// Frame-preserving only (1:1) — a filter that changes the output size is
+/// rejected. Spawns one short-lived `ffmpeg -i - -vf <filter> -` per frame
+/// (stateless, no pipe deadlock); sits wherever it is placed in `Vec<Step>`
+/// (pre/post/between other steps).
+pub struct Filter {
+    filter: String,
+    ffmpeg: PathBuf,
+}
+
+impl Filter {
+    pub fn new(filter: impl Into<String>, ffmpeg: impl Into<PathBuf>) -> Self {
+        Self {
+            filter: filter.into(),
+            ffmpeg: ffmpeg.into(),
+        }
+    }
+}
+
+impl Step for Filter {
+    fn name(&self) -> &'static str {
+        "filter"
+    }
+
+    fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+        let (w, h) = (frame.width, frame.height);
+        let size = format!("{w}x{h}");
+        let mut child = Command::new(&self.ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-s",
+                size.as_str(),
+                "-i",
+                "-",
+                "-vf",
+                self.filter.as_str(),
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(crate::Error::Io)?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| crate::Error::new("filter: no stdin"))?;
+        stdin.write_all(&frame.data)?;
+        drop(stdin); // EOF → ffmpeg flushes the filtergraph
+        let out = child.wait_with_output().map_err(crate::Error::Io)?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            return Err(crate::Error::new(format!(
+                "ffmpeg filter failed: {}",
+                msg.trim()
+            )));
+        }
+        if out.stdout.len() != frame.data.len() {
+            return Err(crate::Error::new(format!(
+                "filter changed frame size ({} -> {} bytes); only frame-preserving filters are supported",
+                frame.data.len(),
+                out.stdout.len()
+            )));
+        }
+        frame.data = out.stdout;
         Ok(true)
     }
 }
@@ -629,5 +712,51 @@ mod tests {
             }
         }
         assert_eq!(kept, 7); // frame 0 + force-kept every 6th
+    }
+
+    fn ffmpeg_available() -> bool {
+        std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn filter_negates_frame() {
+        if !ffmpeg_available() {
+            eprintln!("ffmpeg not found, skipping");
+            return;
+        }
+        let mut frame = Frame {
+            width: 4,
+            height: 4,
+            data: vec![50u8; 3 * 4 * 4],
+        };
+        Filter::new("negate", "ffmpeg").process(&mut frame).unwrap();
+        assert_eq!((frame.width, frame.height), (4, 4));
+        assert!(frame.data.iter().all(|&b| b == 205)); // 255 - 50
+    }
+
+    #[test]
+    fn filter_rejects_size_change() {
+        if !ffmpeg_available() {
+            eprintln!("ffmpeg not found, skipping");
+            return;
+        }
+        let mut frame = Frame {
+            width: 4,
+            height: 4,
+            data: vec![50u8; 3 * 4 * 4],
+        };
+        let err = Filter::new("scale=2:2", "ffmpeg")
+            .process(&mut frame)
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains("frame-preserving"),
+            "expected size-guard error, got: {err}"
+        );
     }
 }
