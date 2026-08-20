@@ -75,6 +75,8 @@ pub struct ModelRef {
     pub feature_channels: u32,
     /// SPAN `no_norm` checkpoints feed [0,1] input directly (norm=False).
     pub no_norm: bool,
+    /// RealPLKSR blocks use channel LayerNorm instead of GroupNorm.
+    pub layer_norm: bool,
     pub path: PathBuf,
 }
 
@@ -135,6 +137,11 @@ impl Registry {
                         .get("no_norm")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false),
+                    layer_norm: m
+                        .metadata
+                        .get("layer_norm")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                     path: dir.join(f),
                 })
         })
@@ -178,7 +185,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 34);
+        assert_eq!(registry.models().len(), 35);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -312,6 +319,14 @@ mod tests {
         assert!(registry.models()[33].loadable);
         assert_eq!(registry.models()[33].license.as_deref(), Some("MIT"));
         assert_eq!(registry.models()[33].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[34].id, "real-plksr-2x-public");
+        assert!(matches!(registry.models()[34].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[34].scale, 2);
+        assert_eq!(registry.models()[34].arch, "real-plksr");
+        assert!(registry.models()[34].loadable);
+        assert_eq!(registry.models()[34].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[34].sha256.as_deref().unwrap().len(), 64);
+        assert!(registry.models()[34].metadata.get("layer_norm").is_some());
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

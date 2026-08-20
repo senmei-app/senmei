@@ -22,6 +22,7 @@ model gets a `metadata.json` entry (license + source + download URL + sha256).
 | Restoration | Fallin Soft | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Fallin Strong | 2 | CC-BY-4.0 | loadable (UpCunet2x_fast, pad 38) | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | 4x_Alchemy | 4 | CC-BY-4.0 | loadable (RealPLKSR_Dysample) | `renarchi/Re-SISR` · `.pth` |
+| Restoration | 2× Public (RealPLKSR_Dysample LayerNorm) | 2 | CC-BY-4.0 | loadable (RealPlk layer_norm variant, per-pixel channel LayerNorm; ONNX-verified mae ~0.0016; flat contiguous `.pth` converts directly) | `Phhofm/models` · `2xPublic_realplksr_dysample_layernorm_real_nn` |
 | Restoration | Real-ESRGAN animevideo x2/x4 | 2/4 | BSD-3-Clause | loadable (RRDBNet, 4 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | Real-ESRGAN x4plus-anime (6B) | 4 | BSD-3-Clause | loadable (RRDBNet, 6 blocks) | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | BSRGAN | 4 | MIT | loadable (RRDBNet, 23 blocks; torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
@@ -73,7 +74,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, ModernSpanimation V1 done |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
-| Restoration | RealPLKSR_Dysample family — 2× Public layernorm (4), 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, NomosWebPhoto, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large/layernorm need an arch variant first |
+| Restoration | RealPLKSR_Dysample family — 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, NomosWebPhoto, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large need an arch variant first |
 | Restoration | 4x BHI DAT2 (`_real`, `_multiblurjpg`) | CC-BY-4.0 | maybe (best 4× quality, but **transformer port** = high cost; separate milestone) |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
@@ -102,8 +103,10 @@ Candidates per stack; each needs a clean burn port + permissive license before
   1× DeNoise/DeJPG/DeH264 (+ DeJPG `_60` q60 variant, 2026-08-20) + 4×
   BHI/Nomos2/NomosWebPhoto/Nature/HFA2k/mssim fit.
   Anime-first: BHI (4×) + Nomos. Realistic: 4xNature/HFA2k/mssim + 1× DeNoise/DeJPG/DeH264.
-  ArtFaces = faces only (skip). 2× BHI small (dim 32), large (dim 96) and 2× Public
-  layernorm (realistic 2×) need an arch variant first — not weights-only (todos).
+  ArtFaces = faces only (skip). 2× Public layernorm adopted (2026-08-20: RealPlk
+  layer_norm variant, per-pixel channel LayerNorm, ONNX-verified mae ~0.0016;
+  flat contiguous pth converts directly). 2× BHI small (dim 32) and large
+  (dim 96) still need an arch variant — not weights-only (todos).
   Registered 4× weights-only (2026-08-20): Nomos2, Nature, HFA2k_ludvae, mssim,
   BHI-real. BHI-otf = channels-last (fixed 2026-08-20: contiguous-preprocessed, loadable);
   NomosWebPhoto = non-dysample tail (flat keys) — needs an arch variant.

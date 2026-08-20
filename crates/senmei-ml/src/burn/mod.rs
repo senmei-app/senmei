@@ -163,7 +163,7 @@ impl BurnEngine {
                 Ok(Model::NafNet(m))
             }
             "real-plksr" => {
-                let mut m = RealPlk::new(model.scale as usize, &self.device);
+                let mut m = RealPlk::new(model.scale as usize, model.layer_norm, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RealPlk(m))
             }
@@ -442,6 +442,7 @@ pub fn convert_pth_to_bpk(
     bpk_path: &Path,
     scale: u32,
     num_block: u32,
+    layer_norm: bool,
 ) -> Result<()> {
     let device = WgpuDevice::DiscreteGpu(0);
     let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
@@ -619,18 +620,24 @@ pub fn convert_pth_to_bpk(
                 .map_err(|e| Error::new(e.to_string()))?;
         }
         "real-plksr" => {
-            // The pth wraps the state dict under `params`; remap the torch
-            // `feats.{i}` / `to_img.` keys onto the module record paths
-            // (`head`/`blocks`/`tail`, and `offset`/`scope`/`end_conv`). The
-            // channel_mixer/attn are torch `nn.Sequential`, so their sub-convs
-            // are indexed (`channel_mixer.0`/`.2`, `attn.f.0`) rather than named.
+            // Remap the torch `feats.{i}` / `to_img.` keys onto the module
+            // record paths (`head`/`blocks`/`tail`, and `offset`/`scope`/
+            // `end_conv`). The channel_mixer/attn are torch `nn.Sequential`,
+            // so their sub-convs are indexed (`channel_mixer.0`/`.2`,
+            // `attn.f.0`) rather than named. LayerNorm blocks add
+            // `feats.{i}.layer_norm.{weight,bias}` (record
+            // `blocks.{i-1}.layer_norm.{weight,bias}`) and drop the GroupNorm.
+            //
+            // Some pths (4x-alchemy) wrap the state dict under `params`, others
+            // (2xPublic) are flat — the reader recurses nested dicts by default,
+            // so `^params\.` → "" handles both (no-op on flat files).
             //
             // NOTE: the pth must have contiguous tensors — burn-store's reader
             // ignores strides (docs/upstream-issues.md §4), so a channels-last
             // state dict (e.g. the raw `4x_Alchemy.pth`) loads scrambled.
             // Preprocess with `{k: v.contiguous() for k, v in sd.items()}`.
             let store = PytorchStore::from_file(pth_path)
-                .with_top_level_key("params")
+                .with_key_remapping(r"^params\.", "")
                 .with_key_remapping(r"^feats\.0\.", "head.")
                 .with_key_remapping(r"^feats\.30\.", "tail.")
                 .with_key_remapping(r"^to_img\.", "")
@@ -641,7 +648,7 @@ pub fn convert_pth_to_bpk(
                 s.with_key_remapping(format!(r"^feats\.{i}\."), format!("blocks.{}.", i - 1))
             });
             let mut store = store;
-            let mut m = RealPlk::<BurnBackend>::new(scale as usize, &device);
+            let mut m = RealPlk::<BurnBackend>::new(scale as usize, layer_norm, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -832,6 +839,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -874,6 +882,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -938,6 +947,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -991,6 +1001,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -1024,6 +1035,73 @@ mod tests {
         }
         mae /= out.data.len() as f64;
         eprintln!("real_plksr_dejpg mae={mae:.5} max_abs={max_abs:.5}");
+        assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
+    }
+
+    /// End-to-end RealPLKSR 2× (2xPublic, DySample + channel LayerNorm) check
+    /// against the ONNX reference on the deterministic 256x256 input
+    /// (`/tmp/realplksr2x_in.f32` → `realplksr2x_public_ref.f32`, onnxruntime
+    /// CPU on the official fp32 ONNX — the DySample tail is static-sized, so
+    /// the input is fixed at 256²). Exercises the LayerNorm-at-block-start
+    /// path; f16 vs f32 → loose tolerance.
+    #[test]
+    #[ignore = "requires Vulkan + a converted 2xpublic_ln.f16.bpk (senmei-ml-convert)"]
+    fn real_plksr_2x_public_matches_torch_reference() {
+        let bpk = std::path::Path::new("/tmp/2xpublic_ln.f16.bpk");
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "real-plksr-2x-public".into(),
+            arch: "real-plksr".into(),
+            scale: 2,
+            num_block: 4,
+            feature_channels: 48,
+            no_norm: false,
+            layer_norm: true,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let in_data = std::fs::read("/tmp/realplksr2x_in.f32").unwrap();
+        let input: Vec<f32> = in_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(input.len(), 3 * 256 * 256);
+        let input = Tensor::new(vec![1, 3, 256, 256], input);
+        let out = engine
+            .infer(&input, &InferOptions { tile_size: None })
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, 512, 512]);
+
+        let ref_data = std::fs::read("/tmp/realplksr2x_public_ref.f32").unwrap();
+        let reference: Vec<f32> = ref_data
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(reference.len(), out.data.len());
+
+        let mut mae = 0.0f64;
+        let mut max_abs = 0.0f64;
+        let mut nan_count = 0usize;
+        for (a, b) in out.data.iter().zip(&reference) {
+            if !a.is_finite() {
+                nan_count += 1;
+                continue;
+            }
+            let d = (*a - *b).abs() as f64;
+            mae += d;
+            max_abs = max_abs.max(d);
+        }
+        mae /= out.data.len() as f64;
+        eprintln!(
+            "real_plksr_2x_public mae={mae:.5} max_abs={max_abs:.5} nan={nan_count}/{}",
+            out.data.len()
+        );
+        assert_eq!(nan_count, 0, "output contains non-finite values");
         assert!(max_abs < 0.05, "max abs diff {max_abs} exceeds 0.05");
     }
 
@@ -1224,6 +1302,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -1286,6 +1365,7 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -1344,6 +1424,7 @@ mod tests {
             num_block: 4,
             feature_channels: 64,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -1409,6 +1490,7 @@ mod tests {
             num_block: 4,
             feature_channels: 64,
             no_norm: false,
+            layer_norm: false,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();

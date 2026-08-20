@@ -657,5 +657,26 @@
       "sigma": "0..1",
       "note": "FFDNet color (KAIR, MIT) nb=12/nc=96; even-only replication pad, pixel-unshuffle(2) → 12ch + σ map = 13ch, 12 convs ReLU (no BN), pixel-shuffle(2); torch-verified mae 0.0004"
     }
+  },
+  {
+    "id": "real-plksr-2x-public",
+    "kind": "upscale",
+    "scale": 2,
+    "arch": "real-plksr",
+    "weights": [
+      "2xpublic_ln.pth.f16.bpk"
+    ],
+    "license": "CC-BY-4.0",
+    "source_url": "https://github.com/Phhofm/models/releases/tag/2xPublic_realplksr_dysample_layernorm_real_nn",
+    "download_url": "https://github.com/Phhofm/models/releases/download/2xPublic_realplksr_dysample_layernorm_real_nn/2xPublic_realplksr_dysample_layernorm_real_nn.pth",
+    "sha256": "ccde158249395a94d60404e267f33f4d609c14705937ebe9f390d4d616995b13",
+    "loadable": true,
+    "metadata": {
+      "input_range": "0..1",
+      "half": true,
+      "dysample": true,
+      "layer_norm": true,
+      "note": "2x RealPLKSR_Dysample LayerNorm real_nn (Phhofm, CC-BY-4.0); dim 64/28 blocks, per-pixel channel LayerNorm (eps 1e-6) at block start. The flat contiguous .pth converts directly (converter strips optional params wrapper); ONNX-verified mae ~0.0016."
+    }
   }
 ]

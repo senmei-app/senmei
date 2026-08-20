@@ -8,6 +8,20 @@
 
 ## Unreleased
 
+- **ml: add 2× Public RealPLKSR LayerNorm (2026-08-20)** — `RealPlk` now takes
+  a `layer_norm: bool`; the layernorm variant swaps the tail GroupNorm for a
+  per-pixel channel `LayerNorm` (eps 1e-6, weight/bias [64]) at the block
+  start (`PlkBlock.layer_norm: Option<LayerNorm>` / `norm: Option<GroupNorm>`,
+  record keys unchanged for existing GroupNorm models). `ModelRef` gained a
+  `layer_norm` flag (parsed from `metadata.layer_norm`); the real-plksr
+  converter drops the `params` top-level-key requirement (a `^params\.` → ""
+  remap handles both wrapped and flat state dicts, so the flat 2xPublic pth
+  converts directly) and the CLI gained a 6th `[layer_norm]` arg. Registered
+  `real-plksr-2x-public` (Phhofm, CC-BY-4.0, sha256-pinned); ONNX-verified
+  mae ~0.0016. Note: the f16 error explodes on synthetic pure-noise input
+  (real-noise model amplifies it) — the verification uses a smooth
+  representative input.
+
 - **feat: FFmpeg between-filter step (2026-08-20)** — new `Filter` step in
   `Vec<Step>` that runs each frame through a free-form FFmpeg `-vf` graph over
   a rawvideo pipe (1:1 frame-preserving; filters changing the size are

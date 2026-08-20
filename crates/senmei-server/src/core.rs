@@ -104,6 +104,7 @@ pub fn download_model(model_id: &str) -> Result<String, String> {
         .resolve(model_id, &dir)
         .map(|m| if m.arch == "span" { m.feature_channels } else { m.num_block })
         .unwrap_or(4);
+    let layer_norm = registry.resolve(model_id, &dir).map(|m| m.layer_norm).unwrap_or(false);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -140,7 +141,14 @@ pub fn download_model(model_id: &str) -> Result<String, String> {
     let res = if onnx {
         senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
     } else {
-        senmei_ml::convert_pth_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
+        senmei_ml::convert_pth_to_bpk(
+            &meta.arch,
+            &source,
+            &bpk_path,
+            meta.scale,
+            convert_arg,
+            layer_norm,
+        )
     };
     let _ = std::fs::remove_file(&source);
     res.map_err(|e| e.to_string())?;

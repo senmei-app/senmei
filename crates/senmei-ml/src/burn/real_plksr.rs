@@ -2,12 +2,14 @@
 //!
 //! Partial Large Kernel CNNs for Efficient Super-Resolution
 //! (https://arxiv.org/abs/2404.11848). Used by `4x-alchemy` (DySample
-//! upsampling) and the 1x decompress models (`real-plksr-deh264`/`dejpg`,
-//! pixel-shuffle identity). All adopted models share dim=64 / 28 blocks /
-//! kernel 17 / split 0.25 / EA / GroupNorm(4) and differ only in `scale`
-//! (`ModelRef::scale`) and whether the `DySample` tail is present.
+//! upsampling), the 1x decompress models (`real-plksr-deh264`/`dejpg`,
+//! pixel-shuffle identity) and `real-plksr-2x-public` (DySample +
+//! channel LayerNorm). The GroupNorm models share dim=64 / 28 blocks /
+//! kernel 17 / split 0.25 / EA and differ only in `scale`; the LayerNorm
+//! variant swaps the tail GroupNorm for a per-pixel channel `LayerNorm`
+//! (eps 1e-6) at the block start (`layer_norm: bool`).
 
-use burn::module::Module;
+use burn::module::{Module, Param, ParamId};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::norm::{GroupNorm, GroupNormConfig};
 use burn::nn::PaddingConfig2d;
@@ -92,15 +94,49 @@ impl<B: Backend> Ea<B> {
     }
 }
 
-/// One PLK block: channel mixer → partial large-kernel conv → attention →
-/// refine → group norm, with a residual skip.
+/// Per-pixel channel LayerNorm (mean/var over C), matching the traiNNer-redux
+/// RealPLKSR `layer_norm` variant (eps 1e-6). The affine params stay [C] and
+/// are reshaped to [1,C,1,1] — a plain `mean_dim` reduction (64 channels) is
+/// f16-safe here.
+#[derive(Module, Debug)]
+pub struct LayerNorm<B: Backend> {
+    weight: Param<Tensor<B, 1>>,
+    bias: Param<Tensor<B, 1>>,
+}
+
+impl<B: Backend> LayerNorm<B> {
+    fn new(dim: usize, device: &B::Device) -> Self {
+        Self {
+            weight: Param::initialized(
+                ParamId::new(),
+                Tensor::<B, 1>::from_data(TensorData::new(vec![1.0f32; dim], [dim]), device),
+            ),
+            bias: Param::initialized(ParamId::new(), Tensor::<B, 1>::zeros([dim], device)),
+        }
+    }
+
+    fn forward(&self, x: Tensor<B, 4>, eps: f32) -> Tensor<B, 4> {
+        let [_, c, _, _] = x.dims();
+        let mean = x.clone().mean_dim(1);
+        let d = x - mean;
+        let var = d.clone().square().mean_dim(1);
+        let inv = (var + eps).sqrt().recip();
+        d * inv * self.weight.val().reshape([1, c, 1, 1]) + self.bias.val().reshape([1, c, 1, 1])
+    }
+}
+
+/// One PLK block: `[layer_norm →] channel mixer → partial large-kernel conv
+/// → attention → refine → [group norm]`, with a residual skip. Exactly one of
+/// the norms is present: GroupNorm models run `layer_norm=None, norm=Some`,
+/// LayerNorm models the reverse.
 #[derive(Module, Debug)]
 pub struct PlkBlock<B: Backend> {
+    layer_norm: Option<LayerNorm<B>>,
     channel_mixer: Dccm<B>,
     lk: PlkConv2d<B>,
     attn: Ea<B>,
     refine: Conv2d<B>,
-    norm: GroupNorm<B>,
+    norm: Option<GroupNorm<B>>,
 }
 
 impl<B: Backend> PlkBlock<B> {
@@ -109,30 +145,41 @@ impl<B: Backend> PlkBlock<B> {
         pdim: usize,
         kernel: usize,
         norm_groups: usize,
+        layer_norm: bool,
         device: &B::Device,
     ) -> Self {
         Self {
+            layer_norm: layer_norm.then(|| LayerNorm::new(dim, device)),
             channel_mixer: Dccm::new(dim, device),
             lk: PlkConv2d::new(pdim, kernel, device),
             attn: Ea::new(dim, device),
             refine: conv2d(dim, dim, 1, 0, device),
-            norm: GroupNormConfig {
-                num_groups: norm_groups,
-                num_channels: dim,
-                epsilon: 1e-5,
-                affine: true,
-            }
-            .init(device),
+            norm: (!layer_norm).then(|| {
+                GroupNormConfig {
+                    num_groups: norm_groups,
+                    num_channels: dim,
+                    epsilon: 1e-5,
+                    affine: true,
+                }
+                .init(device)
+            }),
         }
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let skip = x.clone();
-        let h = self.channel_mixer.forward(x);
+        let h = match &self.layer_norm {
+            Some(ln) => ln.forward(x, 1e-6),
+            None => x,
+        };
+        let h = self.channel_mixer.forward(h);
         let h = self.lk.forward(h);
         let h = self.attn.forward(h);
         let h = self.refine.forward(h);
-        let h = group_norm(h, &self.norm);
+        let h = match &self.norm {
+            Some(n) => group_norm(h, n),
+            None => h,
+        };
         h + skip
     }
 }
@@ -181,7 +228,7 @@ pub struct RealPlk<B: Backend> {
 }
 
 impl<B: Backend> RealPlk<B> {
-    pub fn new(scale: usize, device: &B::Device) -> Self {
+    pub fn new(scale: usize, layer_norm: bool, device: &B::Device) -> Self {
         let dim = 64;
         let in_ch = 3 * scale * scale;
         let dysample = scale > 1;
@@ -190,7 +237,7 @@ impl<B: Backend> RealPlk<B> {
         Self {
             head: conv2d(3, dim, 3, 1, device),
             blocks: (0..28)
-                .map(|_| PlkBlock::new(dim, dim / 4, 17, 4, device))
+                .map(|_| PlkBlock::new(dim, dim / 4, 17, 4, layer_norm, device))
                 .collect(),
             tail: conv2d(dim, in_ch, 3, 1, device),
             offset: dysample.then(|| conv2d(in_ch, out, 1, 0, device)),
