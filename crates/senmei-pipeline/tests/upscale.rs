@@ -89,7 +89,7 @@ fn burn_engine_upscales_real_model() {
     let mut registry = senmei_ml::Registry::new();
     registry.load_dir(&models_dir).unwrap();
     let mref = registry.resolve("real-cugan-x2", &models_dir).unwrap();
-    let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).unwrap();
     engine.load(&mref).unwrap();
     let steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Upscale::new(2, Some(engine)))];

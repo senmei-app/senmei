@@ -17,6 +17,8 @@ export type {
   RenderConfig,
   FilterParams,
   LogEntry,
+  EngineBackend,
+  BackendInfo,
 } from "./bindings";
 
 export const healthCheck = () => commands.healthCheck();
@@ -32,6 +34,7 @@ export const importFolder = (dir: string) => commands.importFolder(dir);
 
 export const getSettings = () => commands.getSettings();
 export const saveSettings = (settings: Settings) => commands.saveSettings(settings);
+export const backendInfo = () => commands.backendInfo();
 
 export const listProjects = () => commands.listProjects();
 export const createProject = (name: string) => commands.createProject(name);

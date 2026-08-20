@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@senmei/ui";
+import type { BackendInfo, EngineBackend } from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
 import { HOTKEY_ACTIONS, comboFromEvent } from "../hotkeys";
@@ -25,20 +26,26 @@ export default function SettingsPage({
   language,
   theme,
   tileSize,
+  backend,
+  backendInfo,
   hotkeys,
   onLanguageChange,
   onThemeChange,
   onTileSizeChange,
+  onBackendChange,
   onHotkeyChange,
   onBack,
 }: {
   language: string;
   theme: string;
   tileSize: number;
+  backend: EngineBackend;
+  backendInfo: BackendInfo | null;
   hotkeys: Record<string, string>;
   onLanguageChange: (lang: Lang) => void;
   onThemeChange: (theme: Theme) => void;
   onTileSizeChange: (n: number) => void;
+  onBackendChange: (b: EngineBackend) => void;
   onHotkeyChange: (id: string, combo: string) => void;
   onBack: () => void;
 }) {
@@ -204,6 +211,35 @@ export default function SettingsPage({
                   className="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 />
                 <span className="ml-2 text-[11px] text-slate-400">{t("settings.tileSizeHint")}</span>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.backend")}
+                </label>
+                <div className="flex gap-1">
+                  {(["auto", "vulkan", "libTorch"] as EngineBackend[]).map((b) => (
+                    <button
+                      key={b}
+                      onClick={() => onBackendChange(b)}
+                      disabled={b === "vulkan" && backendInfo ? !backendInfo.vulkanCompiled : false}
+                      className={
+                        backend === b
+                          ? "rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white"
+                          : "rounded-md bg-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                      }
+                    >
+                      {b === "libTorch" ? "LibTorch" : b === "vulkan" ? "Vulkan" : "Auto"}
+                    </button>
+                  ))}
+                </div>
+                {backendInfo && (
+                  <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    {backendInfo.libtorchVersion
+                      ? `LibTorch ${backendInfo.libtorchVersion}${backendInfo.cudaAvailable ? ` · CUDA/ROCm (${backendInfo.cudaDeviceCount} device${backendInfo.cudaDeviceCount === 1 ? "" : "s"})` : " · CPU"}`
+                      : "LibTorch not compiled"}
+                  </p>
+                )}
               </div>
             </div>
           )}

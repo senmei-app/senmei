@@ -17,6 +17,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::import_folder,
             commands::get_settings,
             commands::save_settings,
+            commands::backend_info,
             commands::list_projects,
             commands::create_project,
             commands::delete_project,

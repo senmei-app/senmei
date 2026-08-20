@@ -18,6 +18,9 @@ pub struct Settings {
     /// Fused RGB8 tile size in px; `None` = engine default (640).
     #[serde(default)]
     pub tile_size: Option<u32>,
+    /// Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan).
+    #[serde(default)]
+    pub backend: Option<senmei_ml::EngineBackend>,
 }
 
 impl Default for Settings {
@@ -27,6 +30,7 @@ impl Default for Settings {
             theme: "dark".into(),
             hotkeys: None,
             tile_size: None,
+            backend: None,
         }
     }
 }
@@ -426,12 +430,14 @@ mod tests {
                 theme: "light".into(),
                 hotkeys: Some(HashMap::from([("render".into(), "Ctrl+Shift+R".into())])),
                 tile_size: Some(512),
+                backend: Some(senmei_ml::EngineBackend::Vulkan),
             };
             save_settings(&settings).unwrap();
             let loaded = load_settings();
             assert_eq!(loaded.language, "de");
             assert_eq!(loaded.theme, "light");
             assert_eq!(loaded.tile_size, Some(512));
+            assert_eq!(loaded.backend, Some(senmei_ml::EngineBackend::Vulkan));
             assert_eq!(
                 loaded.hotkeys.as_ref().and_then(|h| h.get("render")),
                 Some(&"Ctrl+Shift+R".to_string())

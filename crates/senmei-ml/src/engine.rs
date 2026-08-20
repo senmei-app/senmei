@@ -166,27 +166,98 @@ fn run_tiled(
     Ok(crate::crop(&stitched, out_h_target, out_w_target))
 }
 
-/// Pick an engine for a model based on its weight-file format. The `tch`
-/// engine (libtorch, optional feature) takes precedence when compiled.
-pub fn engine_for_model(model: &ModelRef) -> Result<Box<dyn InferenceEngine>> {
-    #[cfg(feature = "tch")]
-    {
-        let _ = model;
-        return Ok(Box::new(crate::tch::TchEngine::new(
-            crate::tch::TchDevice::automatic(),
-        )));
+/// Which inference backend to use. `Auto` picks the best compiled one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum EngineBackend {
+    /// LibTorch if compiled, else Vulkan.
+    #[default]
+    Auto,
+    Vulkan,
+    LibTorch,
+}
+
+/// Runtime info about the compiled backends (settings UI).
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendInfo {
+    pub vulkan_compiled: bool,
+    pub libtorch_compiled: bool,
+    /// LibTorch version string when the `tch` feature is compiled.
+    pub libtorch_version: Option<String>,
+    /// CUDA/ROCm device present (only meaningful when libtorch is compiled).
+    pub cuda_available: bool,
+    pub cuda_device_count: u32,
+}
+
+pub fn backend_info() -> BackendInfo {
+    BackendInfo {
+        vulkan_compiled: cfg!(feature = "burn"),
+        libtorch_compiled: cfg!(feature = "tch"),
+        #[cfg(feature = "tch")]
+        libtorch_version: Some(crate::tch::LIBTORCH_VERSION.to_string()),
+        #[cfg(not(feature = "tch"))]
+        libtorch_version: None,
+        #[cfg(feature = "tch")]
+        cuda_available: tch::Cuda::is_available(),
+        #[cfg(not(feature = "tch"))]
+        cuda_available: false,
+        #[cfg(feature = "tch")]
+        cuda_device_count: tch::Cuda::device_count().max(0) as u32,
+        #[cfg(not(feature = "tch"))]
+        cuda_device_count: 0,
     }
-    #[cfg(all(feature = "burn", not(feature = "tch")))]
-    {
-        let _ = model;
-        return Ok(Box::new(crate::burn::BurnEngine::new()));
-    }
-    #[cfg(not(any(feature = "burn", feature = "tch")))]
-    {
-        let _ = model;
-        Err(crate::Error::new(
-            "no inference engine compiled (enable the `burn` or `tch` feature)",
-        ))
+}
+
+/// Pick an engine for a model based on the requested backend and the compiled
+/// features. `Auto` prefers the `tch` (libtorch) engine when compiled.
+pub fn engine_for_model(model: &ModelRef, backend: EngineBackend) -> Result<Box<dyn InferenceEngine>> {
+    let _ = model;
+    match backend {
+        EngineBackend::Vulkan => {
+            #[cfg(feature = "burn")]
+            {
+                Ok(Box::new(crate::burn::BurnEngine::new()))
+            }
+            #[cfg(not(feature = "burn"))]
+            {
+                Err(crate::Error::new(
+                    "vulkan backend not compiled (enable the `burn` feature)",
+                ))
+            }
+        }
+        EngineBackend::LibTorch => {
+            #[cfg(feature = "tch")]
+            {
+                Ok(Box::new(crate::tch::TchEngine::new(
+                    crate::tch::TchDevice::automatic(),
+                )))
+            }
+            #[cfg(not(feature = "tch"))]
+            {
+                Err(crate::Error::new(
+                    "libtorch backend not compiled (enable the `tch` feature)",
+                ))
+            }
+        }
+        EngineBackend::Auto => {
+            #[cfg(feature = "tch")]
+            {
+                return Ok(Box::new(crate::tch::TchEngine::new(
+                    crate::tch::TchDevice::automatic(),
+                )));
+            }
+            #[cfg(all(feature = "burn", not(feature = "tch")))]
+            {
+                return Ok(Box::new(crate::burn::BurnEngine::new()));
+            }
+            #[cfg(not(any(feature = "burn", feature = "tch")))]
+            {
+                Err(crate::Error::new(
+                    "no inference engine compiled (enable the `burn` or `tch` feature)",
+                ))
+            }
+        }
     }
 }
 

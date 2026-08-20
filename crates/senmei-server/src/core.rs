@@ -273,7 +273,7 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     let mref = registry
         .resolve(model_id, &dir)
         .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
-    let mut engine = senmei_ml::engine_for_model(&mref).map_err(|e| e.to_string())?;
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)
 }

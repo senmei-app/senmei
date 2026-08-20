@@ -9,6 +9,7 @@ export const commands = {
 	importFolder: (dir: string) => __TAURI_INVOKE<string[]>("import_folder", { dir }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
+	backendInfo: () => __TAURI_INVOKE<BackendInfo>("backend_info"),
 	listProjects: () => __TAURI_INVOKE<ProjectEntry[]>("list_projects"),
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
@@ -57,10 +58,26 @@ export const commands = {
 };
 
 /* Types */
+/**  Runtime info about the compiled backends (settings UI). */
+export type BackendInfo = {
+	vulkanCompiled: boolean,
+	libtorchCompiled: boolean,
+	/**  LibTorch version string when the `tch` feature is compiled. */
+	libtorchVersion: string | null,
+	/**  CUDA/ROCm device present (only meaningful when libtorch is compiled). */
+	cudaAvailable: boolean,
+	cudaDeviceCount: number,
+};
+
 export type DownloadProgress = {
 	downloaded: number,
 	total: number,
 };
+
+/**  Which inference backend to use. `Auto` picks the best compiled one. */
+export type EngineBackend = 
+/**  LibTorch if compiled, else Vulkan. */
+"auto" | "vulkan" | "libTorch";
 
 export type FfmpegInfo = {
 	found: boolean,
@@ -165,6 +182,8 @@ export type Settings = {
 	hotkeys?: { [key in string]: string } | null,
 	/**  Fused RGB8 tile size in px; `None` = engine default (640). */
 	tileSize?: number | null,
+	/**  Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan). */
+	backend?: EngineBackend | null,
 };
 
 /**  Typed params per step type. Only the fields relevant to a step's type are set. */

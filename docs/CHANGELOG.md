@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: backend switch + libtorch status (2026-08-20)** — new `EngineBackend`
+  setting (`auto` | `vulkan` | `libTorch`) wired through `engine_for_model`;
+  `backend_info` command reports compiled backends, libtorch version, and
+  CUDA/ROCm availability. Settings UI gets an inference-backend picker with the
+  libtorch version/device line.
+
 - **ml: integrate optional burn-tch (libtorch) engine behind `tch` feature (2026-08-20)** —
   `TchEngine` (upcunet2x / upcunet2x-fast / fallin-cugan / realesrgan / rife) on
   `LibTorch<f32>` with portable `TchDevice` (Auto/Cpu/Cuda/Mps). Shared archs

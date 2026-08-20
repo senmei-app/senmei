@@ -73,7 +73,7 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
 fn bench_upscaler_1080p_fullframe() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();
@@ -122,7 +122,7 @@ fn bench_upscaler_1080p_fullframe() {
 fn bench_upscale_step() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();
@@ -173,7 +173,7 @@ fn bench_pipeline_full_render() {
         .success();
     assert!(ok);
 
-    let mut engine = senmei_ml::engine_for_model(&mref).unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default()).unwrap();
     engine.load(&mref).unwrap();
     let steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Upscale::new(2, Some(engine)))];

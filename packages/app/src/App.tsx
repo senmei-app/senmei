@@ -5,6 +5,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  backendInfo,
   createProject,
   deleteProject,
   exportProject,
@@ -16,6 +17,8 @@ import {
   openProject,
   saveProjectSettings,
   saveSettings,
+  type BackendInfo,
+  type EngineBackend,
   type ProjectEntry,
   type ProjectSettings,
   type Settings,
@@ -45,6 +48,8 @@ export default function App() {
   const [lang, setLang] = useState<Lang>("en");
   const [theme, setTheme] = useState<string>("dark");
   const [tileSize, setTileSize] = useState<number>(640);
+  const [backend, setBackend] = useState<EngineBackend>("auto");
+  const [backendInfoState, setBackendInfoState] = useState<BackendInfo | null>(null);
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -92,7 +97,11 @@ export default function App() {
           setTheme(s.theme || "dark");
           setHotkeyOverrides(s.hotkeys ?? {});
           setTileSize(s.tileSize ?? 640);
+          setBackend(s.backend ?? "auto");
         })
+        .catch(() => {});
+      backendInfo()
+        .then(setBackendInfoState)
         .catch(() => {});
     }
     void reloadProjects();
@@ -111,6 +120,7 @@ export default function App() {
       theme,
       hotkeys: Object.keys(hotkeyOverrides).length ? hotkeyOverrides : null,
       tileSize,
+      backend,
       ...partial,
     });
   };
@@ -118,6 +128,11 @@ export default function App() {
   const changeLang = (l: Lang) => {
     setLang(l);
     persistSettings({ language: l });
+  };
+
+  const changeBackend = (b: EngineBackend) => {
+    setBackend(b);
+    persistSettings({ backend: b });
   };
 
   // Load per-project settings when a project opens; save on any change.
@@ -416,10 +431,13 @@ export default function App() {
             language={lang}
             theme={theme}
             tileSize={tileSize}
+            backend={backend}
+            backendInfo={backendInfoState}
             hotkeys={resolveHotkeys(hotkeyOverrides)}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
             onTileSizeChange={changeTileSize}
+            onBackendChange={changeBackend}
             onHotkeyChange={changeHotkey}
             onBack={() => setSettingsOpen(false)}
           />

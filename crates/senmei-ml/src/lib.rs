@@ -54,7 +54,8 @@ pub use burn::{convert_onnx_to_bpk, convert_pth_to_bpk, BurnEngine};
 #[cfg(feature = "tch")]
 pub use tch::{TchDevice, TchEngine};
 pub use engine::{
-    engine_for_model, infer_denoise_tiled, infer_tiled, EngineCaps, InferOptions, InferenceEngine,
+    backend_info, engine_for_model, infer_denoise_tiled, infer_tiled, BackendInfo, EngineBackend,
+    EngineCaps, InferOptions, InferenceEngine,
 };
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};

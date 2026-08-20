@@ -266,6 +266,12 @@ pub fn save_settings(settings: store::Settings) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn backend_info() -> senmei_ml::BackendInfo {
+    senmei_ml::backend_info()
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn list_projects() -> Vec<store::ProjectEntry> {
     store::list_projects()
 }

@@ -18,6 +18,10 @@ use std::path::Path;
 
 type B = LibTorch<f32>;
 
+/// libtorch version the fork's torch-sys pins (`build.rs` `TORCH_VERSION`).
+/// Must be kept in sync with `senmei-app/tch-rs` @ `v0.22.0-senmei`.
+pub const LIBTORCH_VERSION: &str = "2.9.0";
+
 /// Portable device selection for the libtorch backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TchDevice {
