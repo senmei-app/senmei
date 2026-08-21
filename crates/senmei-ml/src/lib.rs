@@ -38,6 +38,8 @@ pub(crate) fn current_tile_size() -> usize {
 
 #[cfg(feature = "burn")]
 mod burn;
+#[cfg(feature = "burn")]
+mod convert;
 
 #[cfg(feature = "tch")]
 mod tch;
@@ -51,7 +53,9 @@ pub(crate) use burn_wgpu::Metal as BurnBackend;
 pub(crate) use burn_wgpu::Vulkan as BurnBackend;
 
 #[cfg(feature = "burn")]
-pub use burn::{convert_onnx_to_bpk, convert_pth_to_bpk, BurnEngine};
+pub use burn::BurnEngine;
+#[cfg(feature = "burn")]
+pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk};
 #[cfg(feature = "tch")]
 pub use tch::{TchDevice, TchEngine};
 pub use engine::{

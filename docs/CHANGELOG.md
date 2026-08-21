@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **refactor: extract `.pth`/`.onnx` converter into `src/convert.rs`
+  (2026-08-21)** — `convert_pth_to_bpk`, `convert_onnx_to_bpk` and helpers
+  move out of `burn/mod.rs` into a dedicated `convert` module (burn-gated);
+  the crate-root re-export keeps `senmei-ml-convert` and `download_model`
+  callers unchanged. `burn/mod.rs` is now just the engine + its tests
+  (~965 lines, was 1358).
+
 - **refactor: split `pipeline/step.rs` into `steps/` modules (2026-08-21)** —
   each step (`Filter`, `Denoise`, `Deblur`, `Dedup`, `Upscale`, `Resize`)
   moves into its own `steps/<step>.rs`; `steps/mod.rs` keeps the `Step`
