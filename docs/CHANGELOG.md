@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **ml: add 4× NomosWebPhoto RealPLKSR (2026-08-21)** — the flat
+  `4xNomosWebPhoto_RealPLKSR.pth` (Phhofm, CC-BY-4.0, sha256-pinned) is
+  GroupNorm(4) + a pixel-shuffle tail (no DySample, no LayerNorm; the ONNX
+  `InstanceNormalization` + reshape `[N,4,16·H·W]` is just GroupNorm
+  semantics). `RealPlk` gains a `dysample` flag (pixel-shuffle tail at
+  scale>1) and the converter a `dysample=0` variant; converter also remaps
+  `.norm.`→`.layer_norm.` for the LayerNorm variant (2× Public now converts —
+  before it errored on the missing norm). Verified: 256²→1024² vs official
+  ONNX mae 0.0007 (f16). Registry 35→36.
+
 - **ml: add SPAN 2× HFA2k LUDVAE (2026-08-21)** — registers
   `span-2x-hfa2k-ludvae` (Phhofm `2xHFA2k_LUDVAE_SPAN`, CC-BY-4.0,
   sha256-pinned), the LUDVAE variant dropped 2026-08-20 for the cubek#519 f16

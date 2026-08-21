@@ -1,7 +1,7 @@
 # Model Adoption Notes
 
 Adoption matrix for ML models. Companion to `PLAN.md` §14 (licensing) and
-`models/metadata.json` (registry). Last verified: 2026-08-20.
+`models/metadata.json` (registry). Last verified: 2026-08-21.
 
 Rule: permissive weights only (BSD/MIT/Apache/CC0), never AGPL-derived
 (RVE/TAS off-limits). Weights and arch are separate licenses; each adopted
@@ -23,7 +23,8 @@ download URL + sha256).
 | Restoration | Real-CUGAN | Fallin Soft | 2 | UpCunet2x_fast (pad 38) | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Real-CUGAN | Fallin Strong | 2 | UpCunet2x_fast (pad 38) | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | RealPLKSR | 4x_Alchemy | 4 | RealPLKSR_Dysample | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.pth` |
-| Restoration | RealPLKSR | 2× Public (LayerNorm) | 2 | RealPLKSR_Dysample LayerNorm | CC-BY-4.0 | loadable (ONNX-verified mae ~0.0016; flat contiguous `.pth` converts directly) | `Phhofm/models` · `2xPublic_realplksr_dysample_layernorm_real_nn` |
+| Restoration | RealPLKSR | 2× Public (LayerNorm) | 2 | RealPLKSR_Dysample LayerNorm | CC-BY-4.0 | loadable (ONNX-verified mae ~0.018 f16 — DySample grid-sample f16-limited; spandrel f32 0.00015; flat contiguous `.pth` converts directly) | `Phhofm/models` · `2xPublic_realplksr_dysample_layernorm_real_nn` |
+| Restoration | RealPLKSR | 4× NomosWebPhoto | 4 | RealPLKSR pixel-shuffle | CC-BY-4.0 | loadable (ONNX-verified mae 0.0007 f16; GroupNorm + pixel-shuffle tail, `dysample=false` variant) | `Phhofm/models` · `4xNomosWebPhoto_RealPLKSR` |
 | Restoration | Real-ESRGAN | animevideo x2/x4 | 2/4 | RRDBNet (4 blocks) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | Real-ESRGAN | x4plus-anime (6B) | 4 | RRDBNet (6 blocks) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | ESRGAN | BSRGAN | 4 | RRDBNet (23 blocks) | MIT | loadable (torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
@@ -74,7 +75,7 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, ModernSpanimation V1 done |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
-| Restoration | RealPLKSR_Dysample family — 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, NomosWebPhoto, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large need an arch variant first |
+| Restoration | RealPLKSR_Dysample family — 2× BHI small (6), 4× BHI (5 variants/release), Nomos2, Nature, ArtFaces, HFA2k, mssim | CC-BY-4.0 | adopt dim-64/GroupNorm set (weights-only); small/large need an arch variant first — NomosWebPhoto done (pixel-shuffle tail variant) |
 | Restoration | 4x BHI DAT2 (`_real`, `_multiblurjpg`) | CC-BY-4.0 | maybe (best 4× quality, but **transformer port** = high cost; separate milestone) |
 | Restoration | HAT | MIT · weights verify | maybe (transformer) |
 | Restoration | OmniSR | MIT · weights verify | no (deformable conv) |
@@ -108,12 +109,17 @@ Candidates per stack; each needs a clean burn port + permissive license before
   BHI/Nomos2/NomosWebPhoto/Nature/HFA2k/mssim fit.
   Anime-first: BHI (4×) + Nomos. Realistic: 4xNature/HFA2k/mssim + 1× DeNoise/DeJPG/DeH264.
   ArtFaces = faces only (skip). 2× Public layernorm adopted (2026-08-20: RealPlk
-  layer_norm variant, per-pixel channel LayerNorm, ONNX-verified mae ~0.0016;
-  flat contiguous pth converts directly). 2× BHI small (dim 32) and large
-  (dim 96) still need an arch variant — not weights-only (todos).
-  Registered 4× weights-only (2026-08-20): Nomos2, Nature, HFA2k_ludvae, mssim,
-  BHI-real. BHI-otf = channels-last (fixed 2026-08-20: contiguous-preprocessed, loadable);
-  NomosWebPhoto = non-dysample tail (flat keys) — needs an arch variant.
+  layer_norm variant, per-pixel channel LayerNorm; converter `.norm.`→`.layer_norm.`
+  remap added 2026-08-21 so it converts at all — before it errored on the missing
+  norm; f16 DySample mae ~0.018 vs ONNX, spandrel f32 0.00015 = f16-limited).
+  2× BHI small (dim 32) and large (dim 96) still need an arch variant — not
+  weights-only (todos). Registered 4× weights-only (2026-08-20): Nomos2, Nature,
+  HFA2k_ludvae, mssim, BHI-real. BHI-otf = channels-last (fixed 2026-08-20:
+  contiguous-preprocessed, loadable). NomosWebPhoto adopted 2026-08-21: the flat
+  `4xNomosWebPhoto_RealPLKSR.pth` is GroupNorm(4) + a pixel-shuffle tail (no
+  DySample, no LayerNorm — the ONNX `InstanceNormalization` + reshape is just
+  GroupNorm semantics), so it uses the new `dysample=false` RealPlk variant
+  (converter `dysample=0`); ONNX-verified mae 0.0007 f16.
   Skip redundant BHI sub-variants (otf_nn/multiblur).
 - ONNX loads without ONNX Runtime (built-in protobuf reader).
 - NAFNet fp16 (NAFBlock): SimpleGate = channel split × multiply (no activation);

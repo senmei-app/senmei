@@ -715,5 +715,27 @@
    "feature_channels": 48,
    "note": "Phhofm SPAN anime LUDVAE (2xHFA2k_LUDVAE_SPAN, CC-BY-4.0), 48ch 2\u00d7, flat + channels-last pth (contiguous-preprocess before convert); cubek#519 workaround (pad 1\u00d71 conv2 K=96\u2192128) applied at load"
   }
+ },
+ {
+  "id": "4x-nomoswebphoto-realplksr",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xNomosWebPhoto_RealPLKSR.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xNomosWebPhoto_RealPLKSR",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xNomosWebPhoto_RealPLKSR/4xNomosWebPhoto_RealPLKSR.pth",
+  "sha256": "a9db66c9b674c6a5025b6ef3bee71a57c33b8605d8a2de0980470f89002efbbe",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": false,
+   "layer_norm": false,
+   "note": "4x RealPLKSR NomosWebPhoto (Phhofm, CC-BY-4.0); dim 64/28 blocks, GroupNorm tail, pixel-shuffle upsampler (no DySample) \u2014 new converter `dysample=0` variant"
+  }
  }
 ]

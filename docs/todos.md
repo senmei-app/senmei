@@ -37,7 +37,6 @@
       (libtorch WIP), marginal win (0.6.6/7.2.0 transitives remain either way)
 ## Models
 
-- [ ] RealPLKSR rest: NomosWebPhoto non-dysample port
 - [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant
       (SPAN successor)
 - [ ] RealPLKSR 2× BHI large + 4xArtFaces: skip unless needed
