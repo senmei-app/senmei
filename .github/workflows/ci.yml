@@ -220,7 +220,8 @@ jobs:
         shell: bash
         run: |
           TCH_ARGS=""
-          if [ "$RUNNER_OS" != "macOS" ]; then TCH_ARGS="--features tch"; fi
+          # torch-sys dlopen loader is Linux-only; skip on macOS and Windows.
+          if [ "$RUNNER_OS" = "Linux" ]; then TCH_ARGS="--features tch"; fi
           bunx @tauri-apps/cli@^2 build $TCH_ARGS
 
       - name: Upload bundle
