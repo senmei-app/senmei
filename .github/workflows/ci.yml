@@ -18,6 +18,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # The check+test+release build barely fits the runner disk; incremental
+  # artifacts (huge with burn/wgpu) are the first thing to drop.
+  CARGO_INCREMENTAL: 0
 
 jobs:
   build:
@@ -68,7 +71,14 @@ jobs:
           cache-dependency-path: ./bun.lock
 
       - name: Install frontend deps
-        run: bun install --frozen-lockfile
+        # Network flakes (registry / bun download) are common on fresh
+        # runners; retry before failing.
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then break; fi
+            echo "bun install attempt $i failed; retrying"; sleep 5
+          done
+          test -d node_modules
 
       - name: Frontend typecheck + build
         run: bun run build
@@ -81,6 +91,11 @@ jobs:
 
       - name: cargo check --workspace
         run: cargo check --workspace
+
+      # Check output (.rmeta + incremental) is not reused by the test build;
+      # drop it so check+test+release fit on the runner disk.
+      - name: Free check artifacts
+        run: rm -rf target/debug/incremental target/debug/deps/*.rmeta
 
       # GPU tests are #[ignore] (need Vulkan + downloaded models), so this
       # runs the CPU/unit tests everywhere; on macOS there is no Metal path
