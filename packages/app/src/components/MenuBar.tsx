@@ -19,6 +19,7 @@ interface Menu {
 export default function MenuBar({
   onImportFile,
   onImportFolder,
+  onBatchFolder,
   onCloseProject,
   onExportProject,
   onSettings,
@@ -34,6 +35,7 @@ export default function MenuBar({
 }: {
   onImportFile: () => void;
   onImportFolder: () => void;
+  onBatchFolder: () => void;
   onCloseProject: () => void;
   onExportProject: () => void;
   onSettings: () => void;
@@ -88,6 +90,7 @@ export default function MenuBar({
       items: [
         { key: "add-all", label: t("menu.addAllQueue"), action: onAddAllToQueue },
         { key: "add-selected", label: t("menu.addSelectedQueue"), action: onAddSelectedToQueue },
+        { key: "batch-folder", label: t("menu.batchFolder"), action: onBatchFolder },
         { key: "sep1", separator: true },
         { key: "process-selected", label: t("menu.processSelected"), shortcut: "Ctrl+R", action: onProcessSelected },
         { key: "process-queue", label: t("menu.processQueue"), shortcut: "Ctrl+R", action: onProcessAll },

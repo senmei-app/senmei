@@ -370,26 +370,23 @@ pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
-    const EXTS: [&str; 10] = [
-        "mp4", "mkv", "mov", "webm", "avi", "m4v", "ts", "m2ts", "flv", "wmv",
-    ];
+    videos_under(&dir, false)
+}
 
-    let mut result = Vec::new();
-    for entry in std::fs::read_dir(&dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-            continue;
-        };
-        if EXTS.contains(&ext.to_ascii_lowercase().as_str()) {
-            result.push(path.to_string_lossy().into_owned());
-        }
-    }
-    result.sort();
-    Ok(result)
+/// Recursively collect all videos under `dir` (batch folder processing).
+#[tauri::command]
+#[specta::specta]
+pub fn scan_folder(dir: String) -> Result<Vec<String>, String> {
+    videos_under(&dir, true)
+}
+
+fn videos_under(dir: &str, recursive: bool) -> Result<Vec<String>, String> {
+    let found = senmei_media::find_videos(std::path::Path::new(dir), recursive)
+        .map_err(|e| e.to_string())?;
+    Ok(found
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect())
 }
 
 #[tauri::command]

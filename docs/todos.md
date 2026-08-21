@@ -13,7 +13,6 @@
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
 - [ ] Hardware encoders: `hevc_nvenc`, VAAPI (Linux), VideoToolbox (macOS),
       LGPL-safe
-- [ ] Batch folder processing: dir + subdirs, naming scheme, queue
 - [ ] Model A/B compare: two pipelines side by side (not only source vs result)
 - [ ] Content-aware defaults from probe: anime vs live-action → suggest
       models/steps

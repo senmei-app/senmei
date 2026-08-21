@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: batch folder processing (2026-08-21)** — „Process folder…“ (Process
+  menu) recursively scans a folder for videos via the shared
+  `senmei_media::find_videos` (GUI + new `/api/scan-folder` REST endpoint) and
+  enqueues every file for batch render.
+
 - **feat: per-step FPS benchmark (2026-08-21)** — the pipeline times each
   step (ms/frame + fps) and reports it in the final render progress event
   (GUI Monitor panel) and in `RenderStatus.steps` (MCP/HTTP); a per-step

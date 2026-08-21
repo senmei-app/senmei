@@ -109,6 +109,9 @@ export const tauriBackend: Backend = {
   importFolder(dir) {
     return bridge.importFolder(dir);
   },
+  scanFolder(dir) {
+    return bridge.scanFolder(dir);
+  },
 
   loadProjectSettings(path) {
     return bridge.loadProjectSettings(path);

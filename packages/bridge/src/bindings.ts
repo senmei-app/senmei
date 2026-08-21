@@ -7,6 +7,8 @@ export const commands = {
 	healthCheck: () => __TAURI_INVOKE<string>("health_check"),
 	render: (input: string, output: string, config: RenderConfig, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, config, onProgress }),
 	importFolder: (dir: string) => __TAURI_INVOKE<string[]>("import_folder", { dir }),
+	/**  Recursively collect all videos under `dir` (batch folder processing). */
+	scanFolder: (dir: string) => __TAURI_INVOKE<string[]>("scan_folder", { dir }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
 	backendInfo: () => __TAURI_INVOKE<BackendInfo>("backend_info"),

@@ -34,6 +34,7 @@ export const render = (
 ) => commands.render(input, output, config, onProgress);
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
+export const scanFolder = (dir: string) => commands.scanFolder(dir);
 
 export const getSettings = () => commands.getSettings();
 export const saveSettings = (settings: Settings) => commands.saveSettings(settings);

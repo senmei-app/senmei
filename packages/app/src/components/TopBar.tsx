@@ -9,6 +9,7 @@ export default function TopBar({
   rendering,
   onImportFile,
   onImportFolder,
+  onBatchFolder,
   onStartRender,
   onCloseProject,
   onExportProject,
@@ -28,6 +29,7 @@ export default function TopBar({
   rendering?: boolean;
   onImportFile: () => void;
   onImportFolder: () => void;
+  onBatchFolder: () => void;
   onStartRender: () => void;
   onCloseProject: () => void;
   onExportProject: () => void;
@@ -55,6 +57,7 @@ export default function TopBar({
       <MenuBar
         onImportFile={onImportFile}
         onImportFolder={onImportFolder}
+        onBatchFolder={onBatchFolder}
         onCloseProject={onCloseProject}
         onExportProject={onExportProject}
         onSettings={onSettings}

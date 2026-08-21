@@ -17,6 +17,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::health_check,
             commands::render,
             commands::import_folder,
+            commands::scan_folder,
             commands::get_settings,
             commands::save_settings,
             commands::backend_info,

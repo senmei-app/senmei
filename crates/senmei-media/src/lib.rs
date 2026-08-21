@@ -7,6 +7,7 @@ mod preview;
 mod preview_stream;
 mod probe;
 mod process;
+mod videos;
 
 pub use decoder::{Decoder, Tonemap};
 pub use downloader::download_to_temp;
@@ -17,6 +18,7 @@ pub use frame::Frame;
 pub use preview::{encode_png, extract_audio};
 pub use preview_stream::PreviewCache;
 pub use probe::{probe, VideoInfo};
+pub use videos::find_videos;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

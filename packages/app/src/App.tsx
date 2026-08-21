@@ -213,6 +213,19 @@ export default function App() {
     setFiles((prev) => [...prev, ...found]);
   };
 
+  const processFolderFiles = async () => {
+    const be = await getBackend();
+    const dir = await be.pickFolder("Process videos in folder (incl. subfolders)");
+    if (!dir) return;
+    const found = await be.scanFolder(dir);
+    if (!found.length) {
+      setHealth("no videos found in folder");
+      return;
+    }
+    setFiles((prev) => [...prev, ...found]);
+    void batch.startBatch(false, null, found);
+  };
+
   const handleCreateProject = async (name: string) => {
     const dir = await (await getBackend()).createProject(name);
     setProjectDir(dir);
@@ -388,6 +401,7 @@ export default function App() {
               rendering={batch.rendering}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
+              onBatchFolder={processFolderFiles}
               onStartRender={() => batch.startBatch()}
               onCloseProject={closeProject}
               onExportProject={handleExportProject}

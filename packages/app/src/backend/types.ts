@@ -91,6 +91,8 @@ export interface Backend {
   /// Package logs + system info into a `.tar.xz` (diagnose export).
   exportDiagnostics(dest: string): Promise<void>;
   importFolder(dir: string): Promise<string[]>;
+  /// Recursively collect all videos under `dir` (batch folder processing).
+  scanFolder(dir: string): Promise<string[]>;
   loadProjectSettings(path: string): Promise<ProjectSettings>;
   saveProjectSettings(path: string, settings: ProjectSettings): Promise<void>;
 

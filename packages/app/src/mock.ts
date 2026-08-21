@@ -255,6 +255,10 @@ export const mockBackend: Backend = {
     return demoVideos;
   },
 
+  async scanFolder() {
+    return demoVideos;
+  },
+
   async loadProjectSettings(path) {
     return (projectSettings.get(path) ?? { steps: [], files: [], outputDir: null }) as never;
   },

@@ -88,6 +88,17 @@ pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
         .unwrap_or_default()
 }
 
+/// Recursively list videos under `dir` (batch folder scan over HTTP).
+pub fn scan_folder(dir: &str) -> Result<Vec<String>, String> {
+    senmei_media::find_videos(std::path::Path::new(dir), true)
+        .map(|v| {
+            v.into_iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect()
+        })
+        .map_err(|e| e.to_string())
+}
+
 /// Download a model's weights (`.pth`/`.onnx`, sha256-verified when pinned) and
 /// convert them to the f16 `.bpk` burnpack. Mirrors the GUI's `download_model`
 /// without Tauri. Needs the `render` feature (burn convert).

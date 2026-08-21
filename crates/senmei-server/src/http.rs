@@ -66,6 +66,11 @@ struct DownloadParams {
 }
 
 #[derive(Deserialize)]
+struct ScanParams {
+    dir: String,
+}
+
+#[derive(Deserialize)]
 struct CompareParams {
     original: String,
     rendered: String,
@@ -113,7 +118,14 @@ async fn frame(Json(p): Json<FrameParams>) -> ApiResult {
 
 async fn compare(Json(p): Json<CompareParams>) -> ApiResult {
     match core::compare_sample(&p.original, &p.rendered) {
-        Ok(metrics) => json_ok(&metrics),
+        Ok(v) => json_ok(&v),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
+    match core::scan_folder(&p.dir) {
+        Ok(files) => json_ok(&files),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }
@@ -186,6 +198,7 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/probe", post(probe))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))
+        .route("/api/scan-folder", post(scan_folder))
         .route("/api/download-model", post(download_model))
         .route("/api/render", post(render_start))
         .route("/api/render/status", get(render_status))

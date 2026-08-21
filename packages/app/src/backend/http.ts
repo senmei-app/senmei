@@ -159,6 +159,13 @@ export const httpBackend: Backend = {
     return info ? [dir] : [];
   },
 
+  async scanFolder(dir) {
+    return api<string[]>("/api/scan-folder", {
+      method: "POST",
+      body: JSON.stringify({ dir }),
+    });
+  },
+
   async loadProjectSettings(path): Promise<ProjectSettings> {
     const raw = localStorage.getItem(`${PROJECTS_KEY}.${path}`);
     return raw ? JSON.parse(raw) : { steps: [], files: [], outputDir: null };
