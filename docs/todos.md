@@ -11,8 +11,6 @@
 - [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
       downloads, license gate
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
-- [ ] Hardware encoders: `hevc_nvenc`, VAAPI (Linux), VideoToolbox (macOS),
-      LGPL-safe
 - [ ] Model A/B compare: two pipelines side by side (not only source vs result)
 - [ ] Content-aware defaults from probe: anime vs live-action → suggest
       models/steps

@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -26,17 +28,89 @@ fn kvazaar_preset() -> &'static str {
         .leak()
 }
 
-/// Pick the best video encoder available in `ffmpeg`, preferring LGPL-safe
-/// codecs: libkvazaar (HEVC, BSD — ships in the bundled LGPL builds; better
-/// compression than H.264 at 2160p), then libopenh264 (H.264), then libx264
-/// (GPL-only software, works on GPU-less runners), then hardware (h264_nvenc,
-/// NVIDIA-only), then the native fallback. Hardware comes last because it is
-/// listed in `-encoders` even without a GPU and then fails at runtime.
-/// kvazaar/x264 default to quality-based rate control;
-/// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
-/// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
-/// later and can override it.
-fn pick_from_caps(caps: &[String], width: u32, height: u32) -> (String, Vec<String>) {
+/// Hardware encoders to try, HEVC before H.264, per platform. Only used when a
+/// runtime test encode confirms the encoder actually works (they are listed in
+/// `-encoders` even without a GPU and then fail at runtime).
+#[cfg(target_os = "linux")]
+const HW_ENCODERS: [&str; 8] = [
+    "hevc_vaapi", "hevc_nvenc", "hevc_qsv", "hevc_amf",
+    "h264_vaapi", "h264_nvenc", "h264_qsv", "h264_amf",
+];
+#[cfg(target_os = "macos")]
+const HW_ENCODERS: [&str; 2] = ["hevc_videotoolbox", "h264_videotoolbox"];
+#[cfg(target_os = "windows")]
+const HW_ENCODERS: [&str; 6] = [
+    "hevc_nvenc", "hevc_qsv", "hevc_amf", "h264_nvenc", "h264_qsv", "h264_amf",
+];
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+const HW_ENCODERS: [&str; 0] = [];
+
+/// First VA-API render node (preferred) or card, if any.
+fn vaapi_device() -> Option<std::path::PathBuf> {
+    let dir = Path::new("/dev/dri");
+    for entry in std::fs::read_dir(dir).ok()?.flatten() {
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with("renderD") {
+            return Some(entry.path());
+        }
+    }
+    let card = dir.join("card0");
+    card.is_file().then_some(card)
+}
+
+/// One-frame test encode; an encoder only counts as available when it actually
+/// produces output (VA-API gets an explicit device + hwupload).
+fn test_encode(ffmpeg: &Path, codec: &str) -> bool {
+    let mut cmd = Command::new(ffmpeg);
+    cmd.arg("-hide_banner").arg("-loglevel").arg("error");
+    if codec.ends_with("_vaapi") {
+        let Some(dev) = vaapi_device() else { return false };
+        cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
+        cmd.args(["-filter_hw_device", "va"]);
+    }
+    cmd.args(["-f", "lavfi", "-i", "testsrc=duration=0.1:size=64x48:rate=10"]);
+    if codec.ends_with("_vaapi") {
+        cmd.args(["-vf", "format=nv12,hwupload"]);
+    }
+    cmd.args(["-c:v", codec, "-f", "null", "-"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// Cached per-process verifier (each codec is test-encoded once).
+fn hw_verifier(ffmpeg: &Path) -> impl Fn(&str) -> bool + '_ {
+    static CACHE: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    move |codec: &str| {
+        if let Some(ok) = cache.lock().unwrap().get(codec) {
+            return *ok;
+        }
+        let ok = test_encode(ffmpeg, codec);
+        cache.lock().unwrap().insert(codec.to_string(), ok);
+        ok
+    }
+}
+
+/// Pick the best video encoder available in `ffmpeg`. Verified hardware
+/// encoders come first (fast; HEVC before H.264); otherwise the LGPL-safe
+/// software chain: libkvazaar (HEVC, BSD — ships in the bundled LGPL builds),
+/// then libopenh264 (H.264), then libx264 (GPL-only, works on GPU-less
+/// runners), then the native fallback. kvazaar/x264 default to quality-based
+/// rate control; libopenh264 is fixed-bitrate ABR, so it gets a
+/// resolution-based `-b:v` (~14 Mbps @1080p, 144 bits/px) — the caller's
+/// `extra_args` are appended later and can override it.
+fn pick_from_caps(
+    caps: &[String],
+    width: u32,
+    height: u32,
+    verify: &dyn Fn(&str) -> bool,
+) -> (String, Vec<String>) {
+    for codec in HW_ENCODERS {
+        if caps.iter().any(|e| e == codec) && verify(codec) {
+            return (codec.into(), Vec::new());
+        }
+    }
     for codec in ["libkvazaar", "libopenh264", "libx264", "h264_nvenc", "h264"] {
         if caps.iter().any(|e| e == codec) {
             return match codec {
@@ -90,7 +164,8 @@ impl Encoder {
         extra_args: &[String],
     ) -> Result<Self> {
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
-        let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height);
+        let verify = hw_verifier(ffmpeg);
+        let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height, &verify);
         // Strip any caller-supplied `-c:v` from extra_args: we always pass the
         // codec ourselves (below) so it can be validated against the available
         // encoders (the frontend maps H.265→libkvazaar even on builds without
@@ -106,9 +181,16 @@ impl Encoder {
                 log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
             }
         }
+        // VA-API needs an explicit device + hardware upload; NVENC/QSV/AMF/VT
+        // take ordinary frames and handle the upload themselves.
+        let vaapi = video_codec.ends_with("_vaapi").then(vaapi_device).flatten();
         let mut cmd = Command::new(ffmpeg);
-        cmd.arg("-y")
-            .args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
+        cmd.arg("-y");
+        if let Some(dev) = &vaapi {
+            cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
+            cmd.args(["-filter_hw_device", "va"]);
+        }
+        cmd.args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"]);
@@ -129,7 +211,11 @@ impl Encoder {
             .args(["-shortest"])
             .args(["-c:v", &video_codec])
             .args(codec_args)
-            .args(["-pix_fmt", "yuv420p"])
+            .args(if vaapi.is_some() {
+                ["-vf".to_string(), "format=nv12,hwupload".to_string()]
+            } else {
+                ["-pix_fmt".to_string(), "yuv420p".to_string()]
+            })
             .args(&extra_args)
             .arg(path)
             .stdin(Stdio::piped())
@@ -244,6 +330,40 @@ mod tests {
         );
     }
 
+    #[test]
+    fn verified_hw_encoder_beats_software() {
+        if HW_ENCODERS.is_empty() {
+            return;
+        }
+        let mut caps = vec!["libkvazaar".to_string()];
+        caps.extend(HW_ENCODERS.iter().map(|c| c.to_string()));
+        let (codec, _) = pick_from_caps(&caps, 1920, 1080, &|c| c == HW_ENCODERS[0]);
+        assert_eq!(codec, HW_ENCODERS[0]);
+    }
+
+    #[test]
+    fn listed_but_unverified_hw_falls_back() {
+        let mut caps = vec!["libkvazaar".to_string()];
+        caps.extend(HW_ENCODERS.iter().map(|c| c.to_string()));
+        let (codec, args) = pick_from_caps(&caps, 1920, 1080, &|_| false);
+        assert_eq!(codec, "libkvazaar");
+        assert!(args.contains(&"-preset".to_string()));
+    }
+
+    #[test]
+    fn hevc_hw_comes_before_h264_hw() {
+        if HW_ENCODERS.is_empty() {
+            return;
+        }
+        assert!(
+            HW_ENCODERS[0].starts_with("hevc_"),
+            "HEVC first in {HW_ENCODERS:?}"
+        );
+        let caps: Vec<String> = HW_ENCODERS.iter().map(|c| c.to_string()).collect();
+        let (codec, _) = pick_from_caps(&caps, 1920, 1080, &|_| true);
+        assert_eq!(codec, HW_ENCODERS[0]);
+    }
+
     /// End-to-end encode through the selected (LGPL-safe) codec. Skipped unless
     /// `SENMEI_FFMPEG` points at a real ffmpeg (e.g. the pinned BtbN LGPL build).
     #[test]
@@ -256,10 +376,9 @@ mod tests {
             return;
         };
         let ff = Path::new(&ff);
-        let (codec, _args) = pick_from_caps(&crate::ffmpeg::probe(ff).encoders, 64, 64);
+        let (codec, _args) = pick_from_caps(&crate::ffmpeg::probe(ff).encoders, 64, 64, &|_| false);
         assert!(
-            ["libkvazaar", "libopenh264", "h264_nvenc", "libx264", "h264"]
-                .contains(&codec.as_str()),
+            ["libkvazaar", "libopenh264", "libx264", "h264"].contains(&codec.as_str()),
             "unexpected codec {codec}"
         );
 

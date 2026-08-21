@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: hardware encoders (2026-08-21)** — the encoder picker prefers
+  verified hardware encoders (`hevc_nvenc`/VAAPI/QSV/AMF on Linux,
+  VideoToolbox on macOS, HEVC before H.264); each is confirmed with a cached
+  one-frame test encode, so GPU-less machines keep the LGPL-safe software
+  chain (libkvazaar → libopenh264 → …). VA-API gets device + `hwupload` args.
+
 - **feat: batch folder processing (2026-08-21)** — „Process folder…“ (Process
   menu) recursively scans a folder for videos via the shared
   `senmei_media::find_videos` (GUI + new `/api/scan-folder` REST endpoint) and
