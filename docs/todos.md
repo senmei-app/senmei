@@ -2,6 +2,56 @@
 
 > Open items only — completed items move to `docs/CHANGELOG.md`.
 
+## Docs
+- Documentation / user guide
+
+## Findings
+- Double rectangle in top-right icon after maximizing
+- Header is wider than in Koharu and VS Code
+- Include libtorch in the release
+- libtorch on ROCm 7.14 / nightly
+
+## Models (2026-08-21)
+- [ ] RealESRGANv2-animevideo-xs arch (xsx2/xsx4) — catalog entries stay `loadable: false` until the SRVGGNetCompact-like port
+- [ ] anime1080fixer arch + license verify — removed from catalog 2026-08-21; revisit with the RRDBNet port
+
+
+# Not yet
+- [ ] Project website
+- [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
+
+## gpu-allocator / windows 0.62 pin (revisit ~2026-02)
+- [ ] Drop the `senmei-app/gpu-allocator` fork once webview2-com-sys/tao move
+      `windows` to 0.62. Tracked: gpu-allocator #310 ("not planned"); no Tauri
+      issue yet.
+
+## Webview / media preview (revisit ~2026-11)
+- [ ] Re-evaluate Tauri CEF backend for native media playback (VAAPI, no
+      `asset://` limit) — would obsolete rodio. Stay WebKitGTK until then
+      (PLAN §12).
+## Compliance (2026-08-20)
+
+> cargo-deny 0.20.2 scan (ORT not viable: Cargo analyzer OOM >20 GiB heap +
+> config-loading bug on JDK 25). 0 CVEs, no GPL/AGPL/LGPL in tree.
+
+- [ ] Unify `zip` duplicate: 2.4.2 (senmei-media) vs 8.6.0 (burn-store) —
+      deferred 2026-08-20: touches `senmei-ml/Cargo.toml` + `Cargo.lock`
+      (libtorch WIP), marginal win (0.6.6/7.2.0 transitives remain either way)
+## Release review (2026-08-19)
+
+> 0.1.0 complete — see `docs/RELEASING.md`. macOS FFmpeg system-only (no LGPL
+> prebuilt; `brew install ffmpeg`) — revisit if LGPL rule relaxes.
+
+## Models
+
+- [ ] RealPLKSR rest: NomosWebPhoto non-dysample port
+- [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant
+      (SPAN successor)
+- [ ] RealPLKSR 2× BHI large + 4xArtFaces: skip unless needed
+      (dim-96 port; faces niche)
+
+
+
 ## Backend
 - [ ] SPAN f16 degrades 48ch norm-on (ldl/multijpg/hfa2k 0.69–0.92 vs torch) —
       cause: cubek-convolution f16 1×1 conv bug K=96×N≥32768 (cubek#519,
@@ -19,40 +69,3 @@
       2026-08-20: deferred, backlog)
 - [ ] License policy (web): model download over HTTP uses POST without progress
       events — add progress once streaming lands (or poll download status)
-
-## Models
-
-- [ ] RealPLKSR rest: NomosWebPhoto non-dysample port
-- [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant
-      (SPAN-Nachfolger)
-- [ ] RealPLKSR 2× BHI large + 4xArtFaces: skip unless needed
-      (dim-96 port; faces niche)
-
-## Release review (2026-08-19)
-
-> 0.1.0 complete — see `docs/RELEASING.md`. macOS FFmpeg system-only (no LGPL
-> prebuilt; `brew install ffmpeg`) — revisit if LGPL rule relaxes.
-
-## Compliance (2026-08-20)
-
-> cargo-deny 0.20.2 scan (ORT not viable: Cargo analyzer OOM >20 GiB heap +
-> config-loading bug on JDK 25). 0 CVEs, no GPL/AGPL/LGPL in tree.
-
-- [ ] Unify `zip` duplicate: 2.4.2 (senmei-media) vs 8.6.0 (burn-store) —
-      deferred 2026-08-20: touches `senmei-ml/Cargo.toml` + `Cargo.lock`
-      (libtorch WIP), marginal win (0.6.6/7.2.0 transitives remain either way)
-
-## gpu-allocator / windows 0.62 pin (revisit ~2026-02)
-- [ ] Drop the `senmei-app/gpu-allocator` fork once webview2-com-sys/tao move
-      `windows` to 0.62. Tracked: gpu-allocator #310 ("not planned"); no Tauri
-      issue yet.
-
-## Webview / media preview (revisit ~2026-11)
-- [ ] Re-evaluate Tauri CEF backend for native media playback (VAAPI, no
-      `asset://` limit) — would obsolete rodio. Stay WebKitGTK until then
-      (PLAN §12).
-
-## after release
-- [ ] Project website
-- [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
-
