@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **feat: model A/B compare (2026-08-21)** — render twice (e.g. with a
+  different pipeline); the Monitor keeps the previous result and the new A/B
+  tab shows both renders side by side.
+
 - **feat: queue persistence + resume (2026-08-21)** — the batch queue is
   persisted to `<data-dir>/batch-queue.json` when a batch starts and pruned
   as jobs finish; after a restart a banner offers to resume the files that

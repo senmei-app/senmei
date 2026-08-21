@@ -478,6 +478,7 @@ export default function App() {
                 <Monitor
                   file={currentFile ?? undefined}
                   renderedFile={batch.renderedFile}
+                  prevRenderedFile={batch.prevRenderedFile}
                   rendering={batch.rendering}
                   progress={batch.progress}
                   timings={batch.timings}

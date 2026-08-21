@@ -40,7 +40,20 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [timings, setTimings] = useState<StepTimingInfo[]>([]);
-  const [renderedFile, setRenderedFile] = useState<string | null>(null);
+  const [renderedFile, setRenderedFileState] = useState<string | null>(null);
+  // A/B compare: keep the previous render result so two pipelines can be
+  // compared side by side (render once, tweak, render again).
+  const [prevRenderedFile, setPrevRenderedFile] = useState<string | null>(null);
+  const renderedRef = useRef<string | null>(null);
+
+  // Setting the result to null (file switch) also clears the A/B pair.
+  const setRenderedFile = (v: string | null) => {
+    if (v === null) {
+      renderedRef.current = null;
+      setPrevRenderedFile(null);
+    }
+    setRenderedFileState(v);
+  };
   // Crash-safe queue resume: the batch is persisted on start and pruned as
   // jobs finish, so a restart can re-enqueue the files that never completed.
   const [savedQueue, setSavedQueue] = useState<BatchQueueState | null>(null);
@@ -212,6 +225,8 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
           });
           patch(i, { status: "done" });
           markDone(initial[i].input);
+          setPrevRenderedFile(renderedRef.current);
+          renderedRef.current = output;
           setRenderedFile(output);
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
@@ -285,6 +300,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setTimings,
     renderedFile,
     setRenderedFile,
+    prevRenderedFile,
     savedQueue,
     resumeQueue,
     discardQueue,

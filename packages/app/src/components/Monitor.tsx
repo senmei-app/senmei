@@ -48,6 +48,7 @@ function snapFrame(ms: number, fps: number): number {
 export default function Monitor({
   file,
   renderedFile,
+  prevRenderedFile,
   rendering,
   progress,
   timings = [],
@@ -65,6 +66,8 @@ export default function Monitor({
   progress: RenderProgress | null;
   /** Per-step timing from the last finished render (FPS benchmark). */
   timings?: StepTimingInfo[];
+  /** Previous render result, kept for A/B compare. */
+  prevRenderedFile?: string | null;
   sampleInMs?: number;
   sampleOutMs?: number;
   projectDir?: string | null;
@@ -99,7 +102,7 @@ export default function Monitor({
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  const [mode, setMode] = useState<"source" | "result" | "compare">("source");
+  const [mode, setMode] = useState<"source" | "result" | "compare" | "ab">("source");
   // Source shows the whole source timeline; result/compare show only the
   // sample window (the rendered result spans exactly in..out).
   const tlSource = mode === "source";
@@ -258,6 +261,9 @@ export default function Monitor({
       const source = Math.max(ms, inMs);
       if (file) targets.push({ path: file, ms: source });
       if (effRendered) targets.push({ path: effRendered, ms: Math.max(0, source - inMs) });
+    } else if (mode === "ab") {
+      if (prevRenderedFile) targets.push({ path: prevRenderedFile, ms: Math.max(0, ms - inMs) });
+      if (effRendered) targets.push({ path: effRendered, ms: Math.max(0, ms - inMs) });
     } else if (mode === "result" && effRendered) {
       targets.push({ path: effRendered, ms: Math.max(0, ms - inMs) });
     } else if (src) {
@@ -515,7 +521,34 @@ export default function Monitor({
           (isFull ? "" : " rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-800")
         }
       >
-        {mode === "compare" && file && effRendered ? (
+        {mode === "ab" && prevRenderedFile && effRendered ? (
+          <div className="flex h-full w-full">
+            <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
+              {frames[prevRenderedFile] ? (
+                <img src={frames[prevRenderedFile]} alt="A" className="h-full w-full object-contain opacity-80" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
+                  <span className="truncate px-4 font-mono text-sm text-slate-500">{basename(prevRenderedFile)}</span>
+                </div>
+              )}
+              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">
+                A
+              </span>
+            </div>
+            <div className="relative flex-1 overflow-hidden">
+              {frames[effRendered] ? (
+                <img src={frames[effRendered]} alt="B" className="h-full w-full object-contain opacity-80" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
+                  <span className="truncate px-4 font-mono text-sm text-slate-500">{basename(effRendered)}</span>
+                </div>
+              )}
+              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+                B
+              </span>
+            </div>
+          </div>
+        ) : mode === "compare" && file && effRendered ? (
           <div className="flex h-full w-full">
             <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
               {frames[file] ? (
@@ -591,6 +624,14 @@ export default function Monitor({
             className={tabCls(mode === "compare")}
           >
             {t("monitor.compare")}
+          </button>
+          <button
+            onClick={() => setMode("ab")}
+            disabled={!effRendered || !prevRenderedFile}
+            className={tabCls(mode === "ab")}
+            title={t("monitor.ab")}
+          >
+            A/B
           </button>
           <button
             onClick={() => setMode("result")}
