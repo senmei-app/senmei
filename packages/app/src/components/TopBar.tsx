@@ -45,7 +45,7 @@ export default function TopBar({
   const { t } = useI18n();
 
   return (
-    <header className="relative z-50 flex h-12 w-full items-center gap-4 border-b border-slate-200 bg-white/90 px-4 text-xs backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
+    <header className="relative z-50 flex h-10 w-full items-center gap-4 border-b border-slate-200 bg-white/90 px-4 text-xs backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
       <div data-tauri-drag-region className="flex items-center space-x-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
           鮮
