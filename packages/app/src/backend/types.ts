@@ -55,6 +55,8 @@ export interface Backend {
   /// Live hardware usage; `null` when unavailable on the transport.
   hardwareStatus(): Promise<HardwareSnapshot | null>;
   getLogs(): Promise<LogEntry[]>;
+  /// Empty the backend log buffer (Logs panel Clear).
+  clearLogs(): Promise<void>;
   /// Subscribe to live log events (Tauri IPC); web returns a no-op.
   onLog(listener: LogListener): () => void;
 

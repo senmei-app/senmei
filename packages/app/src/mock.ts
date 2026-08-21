@@ -190,6 +190,8 @@ export const mockBackend: Backend = {
     return [];
   },
 
+  async clearLogs() {},
+
   onLog() {
     return () => {};
   },

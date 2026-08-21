@@ -69,7 +69,6 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
 | Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
-| Restoration | Anime1080Fixer | verify | adopt (RRDBNet exists) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
 | Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, ModernSpanimation V1 done |

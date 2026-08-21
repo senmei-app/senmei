@@ -56,6 +56,8 @@ export const commands = {
 	uniquePath: (path: string) => __TAURI_INVOKE<string>("unique_path", { path }),
 	/**  Buffered entries for the Logs panel when it opens. */
 	getLogs: () => __TAURI_INVOKE<LogEntry[]>("get_logs"),
+	/**  Empty the buffered log history (Logs panel "Clear"). */
+	clearLogs: () => __TAURI_INVOKE<void>("clear_logs"),
 };
 
 /* Types */
@@ -146,6 +148,8 @@ export type ModelMetadata = {
 	sha256?: string | null,
 	/**  Whether the engine can load these weights yet. */
 	loadable?: boolean,
+	/**  Whether the primary weight file exists locally (set by `list_models`). */
+	downloaded?: boolean,
 };
 
 /**  One module in the processing stack. Ordered top→bottom = execution order. */

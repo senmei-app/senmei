@@ -11,6 +11,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = { version = "2.0.0-rc.25", features = ["serde_json", "derive"] }
 thiserror = "2"
+log = "0.4"
 
 # Runtime hardware probing (dlopen CUDA/ROCm detection, like Koharu).
 libloading = "0.9"

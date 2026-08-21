@@ -40,6 +40,9 @@ pub struct ModelMetadata {
     /// Whether the engine can load these weights yet.
     #[serde(default = "default_true")]
     pub loadable: bool,
+    /// Whether the primary weight file exists locally (set by `list_models`).
+    #[serde(default)]
+    pub downloaded: bool,
     #[serde(default)]
     #[specta(skip)]
     pub metadata: serde_json::Value,
@@ -188,7 +191,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 35);
+        assert_eq!(registry.models().len(), 34);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -226,35 +229,44 @@ mod tests {
         assert!(registry.models()[11].loadable);
         assert_eq!(registry.models()[11].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(registry.models()[11].sha256.as_deref().unwrap().len(), 64);
-        assert_eq!(registry.models()[12].id, "anime1080fixer");
-        assert_eq!(registry.models()[13].id, "drunet-color");
+        assert_eq!(registry.models()[12].id, "drunet-color");
+        assert!(matches!(registry.models()[12].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[12].arch, "drunet");
+        assert!(registry.models()[12].loadable);
+        assert_eq!(registry.models()[12].license.as_deref(), Some("MIT"));
+        assert_eq!(registry.models()[13].id, "dncnn-color");
         assert!(matches!(registry.models()[13].kind, ModelKind::Denoise));
-        assert_eq!(registry.models()[13].arch, "drunet");
+        assert_eq!(registry.models()[13].arch, "dncnn");
+        assert_eq!(registry.models()[13].scale, 1);
         assert!(registry.models()[13].loadable);
         assert_eq!(registry.models()[13].license.as_deref(), Some("MIT"));
-        assert_eq!(registry.models()[14].id, "dncnn-color");
-        assert!(matches!(registry.models()[14].kind, ModelKind::Denoise));
-        assert_eq!(registry.models()[14].arch, "dncnn");
-        assert_eq!(registry.models()[14].scale, 1);
+        assert_eq!(registry.models()[13].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[14].id, "nafnet-gopro-width32");
+        assert!(matches!(registry.models()[14].kind, ModelKind::Deblur));
+        assert_eq!(registry.models()[14].arch, "nafnet");
         assert!(registry.models()[14].loadable);
         assert_eq!(registry.models()[14].license.as_deref(), Some("MIT"));
-        assert_eq!(registry.models()[14].sha256.as_deref().unwrap().len(), 64);
-        assert_eq!(registry.models()[15].id, "nafnet-gopro-width32");
-        assert!(matches!(registry.models()[15].kind, ModelKind::Deblur));
-        assert_eq!(registry.models()[15].arch, "nafnet");
+        assert_eq!(registry.models()[15].id, "rife-v4.6");
+        assert!(matches!(registry.models()[15].kind, ModelKind::Interpolate));
+        assert_eq!(registry.models()[15].arch, "rife46");
         assert!(registry.models()[15].loadable);
-        assert_eq!(registry.models()[15].license.as_deref(), Some("MIT"));
-        assert_eq!(registry.models()[16].id, "rife-v4.6");
-        assert!(matches!(registry.models()[16].kind, ModelKind::Interpolate));
-        assert_eq!(registry.models()[16].arch, "rife46");
-        assert!(registry.models()[16].loadable);
-        assert_eq!(registry.models()[17].id, "ifrnet-vimeo90k");
-        assert_eq!(registry.models()[18].id, "ifrnet-gopro");
-        assert_eq!(registry.models()[19].id, "span-2x-nomosuni-ldl");
-        assert!(matches!(registry.models()[19].kind, ModelKind::Upscale));
-        assert_eq!(registry.models()[19].scale, 2);
+        assert_eq!(registry.models()[16].id, "ifrnet-vimeo90k");
+        assert_eq!(registry.models()[17].id, "ifrnet-gopro");
+        assert_eq!(registry.models()[18].id, "span-2x-nomosuni-ldl");
+        assert!(matches!(registry.models()[18].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[18].scale, 2);
+        assert_eq!(registry.models()[18].arch, "span");
+        assert!(!registry.models()[18].loadable);
+        assert_eq!(registry.models()[18].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(
+            registry.models()[18]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(48)
+        );
+        assert_eq!(registry.models()[19].id, "span-2x-nomosuni-multijpg");
         assert_eq!(registry.models()[19].arch, "span");
-        assert!(!registry.models()[19].loadable);
         assert_eq!(registry.models()[19].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(
             registry.models()[19]
@@ -263,7 +275,7 @@ mod tests {
                 .and_then(|v| v.as_u64()),
             Some(48)
         );
-        assert_eq!(registry.models()[20].id, "span-2x-nomosuni-multijpg");
+        assert_eq!(registry.models()[20].id, "span-2x-hfa2k");
         assert_eq!(registry.models()[20].arch, "span");
         assert_eq!(registry.models()[20].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(
@@ -273,63 +285,53 @@ mod tests {
                 .and_then(|v| v.as_u64()),
             Some(48)
         );
-        assert_eq!(registry.models()[21].id, "span-2x-hfa2k");
+        assert_eq!(registry.models()[21].id, "span-2x-modern-spanimation-v1");
         assert_eq!(registry.models()[21].arch, "span");
-        assert_eq!(registry.models()[21].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[21].license.as_deref(), Some("MIT"));
         assert_eq!(
             registry.models()[21]
                 .metadata
                 .get("feature_channels")
                 .and_then(|v| v.as_u64()),
-            Some(48)
-        );
-        assert_eq!(registry.models()[22].id, "span-2x-modern-spanimation-v1");
-        assert_eq!(registry.models()[22].arch, "span");
-        assert_eq!(registry.models()[22].license.as_deref(), Some("MIT"));
-        assert_eq!(
-            registry.models()[22]
-                .metadata
-                .get("feature_channels")
-                .and_then(|v| v.as_u64()),
             Some(64)
         );
-        assert_eq!(registry.models()[26].id, "real-plksr-denois");
-        assert!(matches!(registry.models()[26].kind, ModelKind::Decompress));
+        assert_eq!(registry.models()[25].id, "real-plksr-denois");
+        assert!(matches!(registry.models()[25].kind, ModelKind::Decompress));
+        assert_eq!(registry.models()[25].arch, "real-plksr");
+        assert_eq!(registry.models()[25].scale, 1);
+        assert!(registry.models()[25].loadable);
+        assert_eq!(registry.models()[25].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[25].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[26].id, "4x-nomos2-realplksr");
         assert_eq!(registry.models()[26].arch, "real-plksr");
-        assert_eq!(registry.models()[26].scale, 1);
+        assert_eq!(registry.models()[26].scale, 4);
         assert!(registry.models()[26].loadable);
-        assert_eq!(registry.models()[26].license.as_deref(), Some("CC-BY-4.0"));
-        assert_eq!(registry.models()[26].sha256.as_deref().unwrap().len(), 64);
-        assert_eq!(registry.models()[27].id, "4x-nomos2-realplksr");
-        assert_eq!(registry.models()[27].arch, "real-plksr");
-        assert_eq!(registry.models()[27].scale, 4);
+        assert_eq!(registry.models()[27].id, "4x-nature-realplksr");
         assert!(registry.models()[27].loadable);
-        assert_eq!(registry.models()[28].id, "4x-nature-realplksr");
+        assert_eq!(registry.models()[28].id, "4x-hfa2k-realplksr");
         assert!(registry.models()[28].loadable);
-        assert_eq!(registry.models()[29].id, "4x-hfa2k-realplksr");
+        assert_eq!(registry.models()[29].id, "4x-mssim-realplksr");
         assert!(registry.models()[29].loadable);
-        assert_eq!(registry.models()[30].id, "4x-mssim-realplksr");
+        assert_eq!(registry.models()[30].id, "4x-bhi-realplksr-real");
         assert!(registry.models()[30].loadable);
-        assert_eq!(registry.models()[31].id, "4x-bhi-realplksr-real");
+        assert_eq!(registry.models()[31].id, "4x-bhi-realplksr-otf");
         assert!(registry.models()[31].loadable);
-        assert_eq!(registry.models()[32].id, "4x-bhi-realplksr-otf");
+        assert_eq!(registry.models()[31].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[32].id, "ffdnet-color");
+        assert!(matches!(registry.models()[32].kind, ModelKind::Denoise));
+        assert_eq!(registry.models()[32].arch, "ffdnet");
+        assert_eq!(registry.models()[32].scale, 1);
         assert!(registry.models()[32].loadable);
+        assert_eq!(registry.models()[32].license.as_deref(), Some("MIT"));
         assert_eq!(registry.models()[32].sha256.as_deref().unwrap().len(), 64);
-        assert_eq!(registry.models()[33].id, "ffdnet-color");
-        assert!(matches!(registry.models()[33].kind, ModelKind::Denoise));
-        assert_eq!(registry.models()[33].arch, "ffdnet");
-        assert_eq!(registry.models()[33].scale, 1);
+        assert_eq!(registry.models()[33].id, "real-plksr-2x-public");
+        assert!(matches!(registry.models()[33].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[33].scale, 2);
+        assert_eq!(registry.models()[33].arch, "real-plksr");
         assert!(registry.models()[33].loadable);
-        assert_eq!(registry.models()[33].license.as_deref(), Some("MIT"));
+        assert_eq!(registry.models()[33].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(registry.models()[33].sha256.as_deref().unwrap().len(), 64);
-        assert_eq!(registry.models()[34].id, "real-plksr-2x-public");
-        assert!(matches!(registry.models()[34].kind, ModelKind::Upscale));
-        assert_eq!(registry.models()[34].scale, 2);
-        assert_eq!(registry.models()[34].arch, "real-plksr");
-        assert!(registry.models()[34].loadable);
-        assert_eq!(registry.models()[34].license.as_deref(), Some("CC-BY-4.0"));
-        assert_eq!(registry.models()[34].sha256.as_deref().unwrap().len(), 64);
-        assert!(registry.models()[34].metadata.get("layer_norm").is_some());
+        assert!(registry.models()[33].metadata.get("layer_norm").is_some());
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);
@@ -368,6 +370,7 @@ mod tests {
             download_url: None,
             sha256: None,
             loadable: true, // loadable alone must NOT unlock (review gate)
+            downloaded: false,
             metadata: serde_json::Value::Null,
         };
         assert!(mk(Some("verify (cszn)")).license_blocked());

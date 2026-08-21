@@ -24,7 +24,13 @@ pub fn read_initializers(bytes: &[u8]) -> Result<Vec<OnnxTensor>, String> {
         .ok_or_else(|| "ModelProto has no graph field".to_string())?;
     let mut out = Vec::new();
     for tensor in length_delimited_fields(graph, 5)? {
-        out.push(parse_tensor(tensor)?);
+        let t = parse_tensor(tensor)?;
+        // Unnamed initializers are unreachable from the graph — skip them.
+        if t.name.is_empty() {
+            log::warn!("onnx: skipping unnamed initializer");
+            continue;
+        }
+        out.push(t);
     }
     // Constant nodes: weights can live only in constants. The tensor sits in
     // the `value` attribute; key it by the node's output name (the inner
@@ -65,9 +71,7 @@ fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
     if first_varint(msg, 14)? == Some(1) {
         return Err("TensorProto uses external data, not supported by the byte reader".to_string());
     }
-    let name = first_string(msg, 8)?
-        .ok_or_else(|| "TensorProto missing name".to_string())?
-        .to_string();
+    let name = first_string(msg, 8)?.unwrap_or_default().to_string();
     let dtype = first_varint(msg, 2)?
         .ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
 

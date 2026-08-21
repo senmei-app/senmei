@@ -47,6 +47,7 @@ export default function Inspector({
     return () => document.removeEventListener("mousedown", onDown);
   }, [folderMenu]);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [dlError, setDlError] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
 
   useEffect(() => {
@@ -223,13 +224,14 @@ export default function Inspector({
     if (downloading) return;
     setDownloading(modelId);
     setDlPct(0);
+    setDlError(null);
     backend()
       .then((b) =>
         b.downloadModel(modelId, (p) =>
           setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0),
         ),
       )
-      .catch((e) => console.error(e))
+      .catch((e) => setDlError(String((e as Error)?.message ?? e)))
       .finally(() => setDownloading(null));
   };
 
@@ -329,6 +331,7 @@ export default function Inspector({
                       decompressModels={decompressModels}
                       downloading={downloading}
                       dlPct={dlPct}
+                      dlError={dlError}
                       folderMenu={folderMenu}
                       setFolderMenu={setFolderMenu}
                       folderMenuRef={folderMenuRef}

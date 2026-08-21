@@ -79,3 +79,5 @@ export const pauseRender = (paused: boolean) => commands.pauseRender(paused);
 export const uniquePath = (path: string) => commands.uniquePath(path);
 
 export const getLogs = () => commands.getLogs();
+
+export const clearLogs = () => commands.clearLogs();

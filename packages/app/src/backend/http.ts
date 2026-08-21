@@ -63,6 +63,8 @@ export const httpBackend: Backend = {
     return [];
   },
 
+  async clearLogs() {},
+
   onLog() {
     return () => {};
   },

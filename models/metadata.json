@@ -90,7 +90,7 @@
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx2.pth",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
@@ -109,7 +109,7 @@
     "license": "BSD-3-Clause",
     "source_url": "https://github.com/xinntao/Real-ESRGAN",
     "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx4.pth",
-    "loadable": true,
+    "loadable": false,
     "metadata": {
       "input_range": "0..1",
       "half": true,
@@ -240,25 +240,6 @@
     }
   },
   {
-    "id": "anime1080fixer",
-    "kind": "denoise",
-    "scale": 1,
-    "arch": "anime1080fixer",
-    "family": "anime1080fixer",
-    "weights": [
-      "1x_Anime1080Fixer_SuperUltraCompact.pth"
-    ],
-    "license": "verify (Zarxrax)",
-    "source_url": "https://github.com/Zarxrax/Anime1080Fixer",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/1x_Anime1080Fixer_SuperUltraCompact.pth",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "arch port pending; license check required"
-    }
-  },
-  {
     "id": "drunet-color",
     "kind": "denoise",
     "scale": 1,
@@ -325,15 +306,17 @@
     "arch": "rife46",
     "family": "rife",
     "weights": [
-      "flownet.bin"
+      "rife_v4.6_flownet.bin"
     ],
     "license": "MIT",
     "source_url": "https://github.com/nihui/rife-ncnn-vulkan",
+    "download_url": "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-ubuntu.zip",
     "loadable": true,
     "metadata": {
       "input_range": "0..1",
       "half": true,
-      "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin"
+      "extract_suffix": "rife-v4.6/flownet.bin",
+      "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin; download extracts rife-v4.6/flownet.bin from the nihui release zip into the versioned rife_v4.6_flownet.bin (the hzwer/Practical-RIFE weights are PyTorch .pth on Google Drive/Baidu — not directly downloadable, incompatible with the ncnn loader)"
     }
   },
   {

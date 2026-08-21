@@ -29,6 +29,7 @@ export interface StepEditorProps {
   decompressModels: ModelMetadata[];
   downloading: string | null;
   dlPct: number;
+  dlError: string | null;
   folderMenu: string | null;
   setFolderMenu: (id: string | null) => void;
   folderMenuRef: RefObject<HTMLDivElement>;
@@ -51,6 +52,7 @@ export default function StepEditor(props: StepEditorProps) {
     decompressModels,
     downloading,
     dlPct,
+    dlError,
     folderMenu,
     setFolderMenu,
     folderMenuRef,
@@ -72,9 +74,10 @@ export default function StepEditor(props: StepEditorProps) {
     <select value={value ?? ""} onChange={(e) => onValue(e.target.value)} className={inputCls}>
       <option value="">—</option>
       {models.map((m) => (
-        <option key={m.id} value={m.id}>
+        <option key={m.id} value={m.id} disabled={!m.loadable}>
           {m.family ? `${m.family} · ` : ""}
           {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
+          {!m.loadable ? ` (${t("up.notLoadable")})` : ""}
         </option>
       ))}
     </select>
@@ -91,33 +94,19 @@ export default function StepEditor(props: StepEditorProps) {
   );
 
   switch (s.stepType) {
-    case "interpolation":
+    case "interpolation": {
+      const m = interpolateModels.find((x) => x.id === s.params?.modelId);
       return (
         <>
           {field(
             t("fi.model"),
-            modelSelect(interpolateModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+            modelSelect(interpolateModels, s.params?.modelId, (id) => {
+              const sel = interpolateModels.find((x) => x.id === id);
+              updateParams(s.id, { modelId: id });
+              if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
+            }),
           )}
-          {field(
-            t("fi.fps"),
-            segButtons([2, 3, 4], s.params?.fpsMultiplier, (v) => updateParams(s.id, { fpsMultiplier: v })),
-          )}
-        </>
-      );
-    case "upscale": {
-      const m = upscaleModels.find((x) => x.id === s.params?.modelId);
-      return (
-        <>
-          {field(
-            t("up.model"),
-            modelSelect(upscaleModels, s.params?.modelId, (id) =>
-              updateParams(s.id, {
-                modelId: id,
-                scale: s.params?.scale ?? upscaleModels.find((x) => x.id === id)?.scale ?? 2,
-              }),
-            ),
-          )}
-          {m?.loadable && (
+          {m?.loadable && !m.downloaded && m.download_url && (
             <button
               onClick={() => downloadWeights(m.id)}
               disabled={!!downloading}
@@ -126,6 +115,39 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
+          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {field(
+            t("fi.fps"),
+            segButtons([2, 3, 4], s.params?.fpsMultiplier, (v) => updateParams(s.id, { fpsMultiplier: v })),
+          )}
+        </>
+      );
+    }
+    case "upscale": {
+      const m = upscaleModels.find((x) => x.id === s.params?.modelId);
+      return (
+        <>
+          {field(
+            t("up.model"),
+            modelSelect(upscaleModels, s.params?.modelId, (id) => {
+              const sel = upscaleModels.find((x) => x.id === id);
+              updateParams(s.id, {
+                modelId: id,
+                scale: s.params?.scale ?? sel?.scale ?? 2,
+              });
+              if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
+            }),
+          )}
+          {m?.loadable && !m.downloaded && m.download_url && (
+            <button
+              onClick={() => downloadWeights(m.id)}
+              disabled={!!downloading}
+              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+            >
+              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+            </button>
+          )}
+          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
           {field(
             t("up.scale"),
             segButtons([2, 3, 4], s.params?.scale, (v) => updateParams(s.id, { scale: v ?? 2 })),
@@ -145,13 +167,28 @@ export default function StepEditor(props: StepEditorProps) {
           className={inputCls}
         />,
       );
-    case "denoise":
+    case "denoise": {
+      const m = denoiseModels.find((x) => x.id === s.params?.modelId);
       return (
         <>
           {field(
             t("fi.model"),
-            modelSelect(denoiseModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+            modelSelect(denoiseModels, s.params?.modelId, (id) => {
+              const sel = denoiseModels.find((x) => x.id === id);
+              updateParams(s.id, { modelId: id });
+              if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
+            }),
           )}
+          {m?.loadable && !m.downloaded && m.download_url && (
+            <button
+              onClick={() => downloadWeights(m.id)}
+              disabled={!!downloading}
+              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+            >
+              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+            </button>
+          )}
+          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
           {field(
             t("denoise.radius"),
             <select
@@ -168,15 +205,20 @@ export default function StepEditor(props: StepEditorProps) {
           )}
         </>
       );
+    }
     case "decompress": {
       const m = decompressModels.find((x) => x.id === s.params?.modelId);
       return (
         <>
           {field(
             t("fi.model"),
-            modelSelect(decompressModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+            modelSelect(decompressModels, s.params?.modelId, (id) => {
+              const sel = decompressModels.find((x) => x.id === id);
+              updateParams(s.id, { modelId: id });
+              if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
+            }),
           )}
-          {m?.loadable && (
+          {m?.loadable && !m.downloaded && m.download_url && (
             <button
               onClick={() => downloadWeights(m.id)}
               disabled={!!downloading}
@@ -185,16 +227,32 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
+          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
         </>
       );
     }
-    case "deblur":
+    case "deblur": {
+      const m = deblurModels.find((x) => x.id === s.params?.modelId);
       return (
         <>
           {field(
             t("fi.model"),
-            modelSelect(deblurModels, s.params?.modelId, (id) => updateParams(s.id, { modelId: id })),
+            modelSelect(deblurModels, s.params?.modelId, (id) => {
+              const sel = deblurModels.find((x) => x.id === id);
+              updateParams(s.id, { modelId: id });
+              if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
+            }),
           )}
+          {m?.loadable && !m.downloaded && m.download_url && (
+            <button
+              onClick={() => downloadWeights(m.id)}
+              disabled={!!downloading}
+              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+            >
+              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+            </button>
+          )}
+          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
           {field(
             t("deblur.amount"),
             <input
@@ -209,6 +267,7 @@ export default function StepEditor(props: StepEditorProps) {
           )}
         </>
       );
+    }
     case "deduplication": {
       const threshold = s.params?.threshold ?? 0.02;
       const presets = [

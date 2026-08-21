@@ -31,6 +31,10 @@ export const tauriBackend: Backend = {
     return bridge.getLogs();
   },
 
+  clearLogs() {
+    return bridge.clearLogs();
+  },
+
   onLog(listener) {
     let un: (() => void) | undefined;
     listen<LogEntry>("log", (e) => listener(e.payload)).then((fn) => (un = fn));

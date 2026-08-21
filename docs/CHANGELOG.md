@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **feat: model download end-to-end (2026-08-21)** — `download_model` now
+  handles every weight format (`.bpk`/`.pth`/`.onnx`/ncnn-`.bin`/release-zip
+  with `extract_suffix`), logs start/result/errors, and skips
+  already-present weights. The converter tolerates unnamed ONNX initializers
+  and strips `params_ema.`/`params.` key prefixes (fixes
+  realesrgan-x4plus-anime). Models expose a `downloaded` flag; every model
+  step (upscale, decompress, denoise, deblur, interpolate) gets a download
+  button + auto-download, and non-loadable models are disabled in the
+  dropdown. Catalog: dropped anime1080fixer, marked the RealESRGANv2-animevideo-xs
+  entries not loadable, wired RIFE v4.6 + IFRNet downloads.
+
 - **feat: record model family lineage in the catalog (2026-08-21)** — every
   `metadata.json` entry now carries the `family` it descends from
   (real-esrgan, real-cugan, real-plksr, span, rife, …) alongside `arch`;

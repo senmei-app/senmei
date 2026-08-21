@@ -257,6 +257,8 @@ impl InferenceEngine for BurnEngine {
         let out_h = (ph as f32 * scale_f).round() as usize;
         let out_w = (pw as f32 * scale_f).round() as usize;
         // Accumulate tiles into one f16 canvas (overlap averaging) on the GPU.
+        // Tiles run one-by-one: larger batched matmuls are pathologically
+        // slower on this backend (see docs/benchmarks.md tile-size note).
         let mut acc = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, c, out_h, out_w], device);
         let mut cov = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, 1, out_h, out_w], device);
         for (x, y, t) in &tiles {
@@ -480,6 +482,8 @@ pub fn convert_pth_to_bpk(
                     r"^RRDB_trunk\.(\d+)\.RDB(\d+)\.conv(\d+)\.",
                     "body.$1.rdb$2.conv$3.",
                 )
+                .with_key_remapping(r"^params_ema\.", "")
+                .with_key_remapping(r"^params\.", "")
                 .with_key_remapping(r"^trunk_conv\.", "conv_body.")
                 .with_key_remapping(r"^upconv1\.", "conv_up1.")
                 .with_key_remapping(r"^upconv2\.", "conv_up2.")
