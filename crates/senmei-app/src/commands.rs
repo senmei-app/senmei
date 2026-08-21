@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::Manager;
 
-use crate::models::{engine_for_model, load_registry};
+use crate::models::load_registry;
 use crate::preview::{extract_audio_inner, probe_video_inner, read_frame_inner};
 use crate::store;
+use senmei_core::core;
 
 /// Shared cancellation flag for the active render (set by `cancel_render`).
 static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
@@ -32,9 +33,7 @@ pub struct DownloadProgress {
 #[tauri::command]
 #[specta::specta]
 pub fn get_ffmpeg_status() -> senmei_media::FfmpegInfo {
-    let dir = store::data_dir();
-    let ffmpeg = senmei_media::resolve(&dir);
-    senmei_media::probe_ffmpeg(&ffmpeg)
+    core::ffmpeg_status()
 }
 
 #[tauri::command]
@@ -56,24 +55,7 @@ pub async fn download_ffmpeg(on_progress: Channel<DownloadProgress>) -> Result<S
 #[tauri::command]
 #[specta::specta]
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
-    load_registry()
-        .map(|(registry, dir)| {
-            registry
-                .models()
-                .iter()
-                .cloned()
-                .map(|mut m| {
-                    m.downloaded = m
-                        .weights
-                        .as_ref()
-                        .and_then(|w| w.first())
-                        .map(|w| dir.join(w).is_file())
-                        .unwrap_or(false);
-                    m
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    core::list_models()
 }
 
 /// One model's on-disk weight info (size + sha256 check).
@@ -449,7 +431,7 @@ pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn scan_folder(dir: String) -> Result<Vec<String>, String> {
-    videos_under(&dir, true)
+    core::scan_folder(&dir)
 }
 
 fn videos_under(dir: &str, recursive: bool) -> Result<Vec<String>, String> {
@@ -605,166 +587,42 @@ pub async fn render(
     on_progress: Channel<RenderProgress>,
 ) -> Result<String, String> {
     log::info!("render start: {input} -> {output} (config {config:?})");
-    let input = PathBuf::from(input);
-    let output = PathBuf::from(output);
-
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
-        let RenderConfig {
-            scale,
-            model_id,
-            resize,
-            filter,
-            decompress_model_id,
-            output_resize,
-            fps_multiplier,
-            interp_model,
-            ffmpeg_args,
-            tonemap,
-            start_ms,
-            end_ms,
-        } = config;
-        senmei_ml::set_tile_size(store::load_settings().tile_size.unwrap_or(640));
-        let ffmpeg = senmei_media::resolve(&store::data_dir());
-        let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
-            vec![Box::new(senmei_pipeline::Passthrough)];
-        if let Some(f) = resize {
-            steps.push(Box::new(senmei_pipeline::Resize::new(f)));
-        }
-        // Decompress pass runs first: scale-1 de-artifact (RealPLKSR 1×) ahead
-        // of interpolation/upscaling. Skipped when the model can't be loaded.
-        if let Some(id) = decompress_model_id {
-            if !id.is_empty() {
-                match engine_for_model(&id) {
-                    Ok(engine) => {
-                        steps.push(Box::new(senmei_pipeline::Upscale::new(1, Some(engine))));
-                    }
-                    Err(err) => log::warn!("decompress model {id} unavailable, skipping: {err}"),
-                }
-            }
-        }
-        if let Some(s) = scale {
-            if s > 1 {
-                // A selected model that cannot be loaded (missing weights,
-                // unsupported format) falls back to the reference scaler.
-                let engine = match model_id.as_deref() {
-                    Some(id) => match engine_for_model(id) {
-                        Ok(e) => Some(e),
-                        Err(err) => {
-                            log::warn!("model {id} unavailable, using reference scaler: {err}");
-                            None
-                        }
-                    },
-                    None => None,
-                };
-                steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
-            }
-        }
-        if let Some(f) = filter {
-            if let Some(r) = f.denoise_radius {
-                if r > 0 {
-                    // A selected denoise model that cannot be loaded falls back
-                    // to the CPU box blur (engine stays None).
-                    let engine = match f.denoise_model_id.as_deref() {
-                        Some(id) => match engine_for_model(id) {
-                            Ok(e) => Some(e),
-                            Err(err) => {
-                                log::warn!("denoise model {id} unavailable, using box blur: {err}");
-                                None
-                            }
-                        },
-                        None => None,
-                    };
-                    steps.push(Box::new(senmei_pipeline::Denoise::new(r, engine)));
-                }
-            }
-            if let Some(a) = f.deblur_amount {
-                if a > 0.0 {
-                    // A selected deblur model that cannot be loaded falls back
-                    // to the CPU unsharp mask (engine stays None).
-                    let engine = match f.deblur_model_id.as_deref() {
-                        Some(id) => match engine_for_model(id) {
-                            Ok(e) => Some(e),
-                            Err(err) => {
-                                log::warn!(
-                                    "deblur model {id} unavailable, using unsharp mask: {err}"
-                                );
-                                None
-                            }
-                        },
-                        None => None,
-                    };
-                    steps.push(Box::new(senmei_pipeline::Deblur::new(a, engine)));
-                }
-            }
-            if let Some(t) = f.dedup_threshold {
-                if t > 0.0 {
-                    steps.push(Box::new(senmei_pipeline::Dedup::new(t)));
-                }
-            }
-            if let Some(filter) = f.ffmpeg_filter.as_deref() {
-                if !filter.trim().is_empty() {
-                    steps.push(Box::new(senmei_pipeline::Filter::new(filter, &ffmpeg)));
-                }
-            }
-        }
-        if let Some(f) = output_resize {
-            steps.push(Box::new(senmei_pipeline::Resize::new(f)));
-        }
-        let mut pipeline = senmei_pipeline::Pipeline::new(steps);
-        if start_ms.is_some() || end_ms.is_some() {
-            pipeline.set_range(start_ms.unwrap_or(0), end_ms);
-        }
-        if let Some(args) = ffmpeg_args {
-            if !args.is_empty() {
-                pipeline.set_encoder_args(args);
-            }
-        }
-        if let Some(t) = tonemap {
-            pipeline.set_tonemap(match t.as_str() {
-                "always" => senmei_media::Tonemap::Always,
-                "off" => senmei_media::Tonemap::Off,
-                _ => senmei_media::Tonemap::Auto,
-            });
-        }
-        let cancel = CANCEL_RENDER
-            .get_or_init(|| Arc::new(AtomicBool::new(false)))
-            .clone();
-        cancel.store(false, Ordering::Relaxed);
-        pipeline.set_cancel(cancel);
-        let pause = PAUSE_RENDER
-            .get_or_init(|| Arc::new(AtomicBool::new(false)))
-            .clone();
-        pause.store(false, Ordering::Relaxed);
-        pipeline.set_pause(pause);
-        if let Some(f) = fps_multiplier {
-            if f > 1 {
-                // An interpolate model that cannot be loaded (missing weights,
-                // unsupported arch) falls back to the reference blend.
-                let interp = match interp_model.as_deref() {
-                    Some(id) => match engine_for_model(id) {
-                        Ok(e) => Some(senmei_pipeline::Interpolator::with_engine(f, e)),
-                        Err(err) => {
-                            log::warn!(
-                                "interp model {id} unavailable, using reference blend: {err}"
-                            );
-                            None
-                        }
-                    },
-                    None => None,
-                };
-                let interpolator = interp.unwrap_or_else(|| senmei_pipeline::Interpolator::new(f));
-                pipeline.set_interpolator(interpolator);
-            }
-        }
-
-        if let Some(parent) = output.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let processed = Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let total = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let settings = store::load_settings();
+        let cfg = core::RenderConfig {
+            input,
+            output,
+            scale: config.scale,
+            model_id: config.model_id,
+            decompress_model_id: config.decompress_model_id,
+            resize: config.resize,
+            filter: config.filter.map(filter_to_core),
+            output_resize: config.output_resize,
+            fps_multiplier: config.fps_multiplier,
+            interp_model: config.interp_model,
+            ffmpeg_args: config.ffmpeg_args,
+            tonemap: config.tonemap,
+            start_ms: config.start_ms,
+            end_ms: config.end_ms,
+        };
+        let opts = core::RenderOpts {
+            tile_size: settings.tile_size.unwrap_or(0),
+            backend: settings.backend.unwrap_or_default(),
+            cancel: Some(
+                CANCEL_RENDER
+                    .get_or_init(|| Arc::new(AtomicBool::new(false)))
+                    .clone(),
+            ),
+            pause: Some(
+                PAUSE_RENDER
+                    .get_or_init(|| Arc::new(AtomicBool::new(false)))
+                    .clone(),
+            ),
+        };
+        let (processed, total) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicU64::new(0)));
         let (p_ref, t_ref) = (processed.clone(), total.clone());
         let progress_tx = on_progress.clone();
-        let run = pipeline.run(&ffmpeg, &input, &output, move |p| {
+        let steps = core::render(&cfg, &opts, move |p| {
             p_ref.store(p.frames_processed, Ordering::Relaxed);
             t_ref.store(p.total_frames, Ordering::Relaxed);
             let _ = on_progress.send(RenderProgress {
@@ -772,17 +630,15 @@ pub async fn render(
                 total_frames: p.total_frames,
                 steps: Vec::new(),
             });
-        });
+        })?;
         // Final event carries the per-step benchmark (only steps that ran).
-        let steps: Vec<StepTimingInfo> = pipeline
-            .step_timings()
-            .iter()
-            .filter(|t| t.frames > 0)
+        let steps: Vec<StepTimingInfo> = steps
+            .into_iter()
             .map(|t| StepTimingInfo {
-                name: t.name.clone(),
+                name: t.name,
                 frames: t.frames,
-                ms_per_frame: t.total.as_secs_f64() * 1000.0 / t.frames as f64,
-                fps: t.frames as f64 / t.total.as_secs_f64(),
+                ms_per_frame: t.ms_per_frame,
+                fps: t.fps,
             })
             .collect();
         let _ = progress_tx.send(RenderProgress {
@@ -790,15 +646,22 @@ pub async fn render(
             total_frames: total.load(Ordering::Relaxed),
             steps,
         });
-        if let Err(e) = &run {
-            log::error!("render failed: {e}");
-            // Drop the partial file on abort/error so it cannot be mistaken for a result.
-            let _ = std::fs::remove_file(&output);
-        }
-        run.map(|_| "ok".to_string()).map_err(|e| e.to_string())
+        Ok("ok".to_string())
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Map the IPC filter params onto the shared core filter config (same fields).
+fn filter_to_core(f: FilterParams) -> core::FilterConfig {
+    core::FilterConfig {
+        denoise_radius: f.denoise_radius,
+        denoise_model_id: f.denoise_model_id,
+        deblur_amount: f.deblur_amount,
+        deblur_model_id: f.deblur_model_id,
+        dedup_threshold: f.dedup_threshold,
+        ffmpeg_filter: f.ffmpeg_filter,
+    }
 }
 
 /// Abort the active render (the pipeline checks the flag between frames).
@@ -887,6 +750,7 @@ pub fn clear_batch_queue() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::engine_for_model;
 
     #[test]
     fn preview_commands_produce_png_and_info() {

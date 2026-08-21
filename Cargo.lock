@@ -7915,6 +7915,7 @@ dependencies = [
  "liblzma",
  "log",
  "rodio",
+ "senmei-core",
  "senmei-media",
  "senmei-ml",
  "senmei-pipeline",

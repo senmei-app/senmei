@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **refactor: GUI delegates render/models to shared `senmei-core` (2026-08-21)**
+  — `commands.rs` no longer assembles the pipeline or duplicates model loading:
+  `render` maps its IPC config onto `core::RenderConfig` and calls
+  `core::render` (user tile size + backend + cancel/pause flags via
+  `RenderOpts`); `list_models`, `scan_folder`, `get_ffmpeg_status` and
+  `models::engine_for_model` delegate to the core. Core gains
+  `RenderOpts.backend` threaded through `build_steps`,
+  `engine_for_model(model_id, backend)`, `list_models` annotating `downloaded`,
+  and pause reset at render start. ~235 lines of duplication removed from the
+  GUI.
+
 - **refactor: extract transport-free `senmei-core` crate (2026-08-21)** — the
   shared probe/render/models/queue + license/confirm gates move from
   `senmei-server/src/core.rs` into a new `senmei-core` crate (no Tauri, no

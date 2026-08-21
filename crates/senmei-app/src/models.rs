@@ -85,31 +85,10 @@ pub fn load_registry() -> Result<(senmei_ml::Registry, PathBuf), String> {
 }
 
 pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
-    let (registry, dir) = load_registry()?;
-    let meta = registry
-        .models()
-        .iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| format!("model not found: {model_id}"))?;
-    if meta.license_blocked() {
-        return Err(format!(
-            "model {model_id} has an unconfirmed/restrictive license ({}); refusing to load weights",
-            meta.license.as_deref().unwrap_or("none")
-        ));
-    }
-    if !meta.loadable {
-        return Err(format!("model {model_id} has no loadable weights yet"));
-    }
-    let mref = registry
-        .resolve(model_id, &dir)
-        .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
     let backend = crate::store::load_settings()
         .backend
         .unwrap_or(senmei_ml::EngineBackend::Auto);
-    let mut engine = senmei_ml::engine_for_model(&mref, backend, &crate::store::data_dir())
-        .map_err(|e| e.to_string())?;
-    engine.load(&mref).map_err(|e| e.to_string())?;
-    Ok(engine)
+    senmei_core::core::engine_for_model(model_id, backend)
 }
 
 #[cfg(test)]

@@ -82,9 +82,25 @@ pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
     Ok(base64::engine::general_purpose::STANDARD.encode(out.stdout))
 }
 
+/// List registry models, annotating `downloaded` from the on-disk weight files.
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     load_registry()
-        .map(|(registry, _)| registry.models().to_vec())
+        .map(|(registry, dir)| {
+            registry
+                .models()
+                .iter()
+                .cloned()
+                .map(|mut m| {
+                    m.downloaded = m
+                        .weights
+                        .as_ref()
+                        .and_then(|w| w.first())
+                        .map(|w| dir.join(w).is_file())
+                        .unwrap_or(false);
+                    m
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -187,6 +203,30 @@ static PENDING_RENDER: OnceLock<Mutex<Option<RenderConfig>>> = OnceLock::new();
 /// Shared status of the active render, updated from the worker thread.
 #[cfg(feature = "render")]
 static RENDER_STATUS: OnceLock<Arc<Mutex<RenderStatus>>> = OnceLock::new();
+
+/// Extra knobs the caller may pass into [`render`]: the fused-RGB8 tile size
+/// (0 = engine default 640) and the caller's own cancel/pause flags. When
+/// `cancel`/`pause` are `None`, the shared core flags (used by
+/// `confirm_render`/`cancel_render`) are used.
+#[cfg(feature = "render")]
+pub struct RenderOpts {
+    pub tile_size: u32,
+    pub backend: senmei_ml::EngineBackend,
+    pub cancel: Option<Arc<AtomicBool>>,
+    pub pause: Option<Arc<AtomicBool>>,
+}
+
+#[cfg(feature = "render")]
+impl Default for RenderOpts {
+    fn default() -> Self {
+        Self {
+            tile_size: 0,
+            backend: senmei_ml::EngineBackend::default(),
+            cancel: None,
+            pause: None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
@@ -370,7 +410,10 @@ pub fn compare_sample(original: &str, rendered: &str) -> Result<serde_json::Valu
 /// an unloadable arch are errors here — build steps may still fall back to the
 /// reference filter when a model is unavailable (like the GUI).
 #[cfg(feature = "render")]
-pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
+pub fn engine_for_model(
+    model_id: &str,
+    backend: senmei_ml::EngineBackend,
+) -> Result<Box<dyn senmei_ml::InferenceEngine>, String> {
     let (registry, dir) = load_registry()?;
     let meta = registry
         .models()
@@ -389,8 +432,8 @@ pub fn engine_for_model(model_id: &str) -> Result<Box<dyn senmei_ml::InferenceEn
     let mref = registry
         .resolve(model_id, &dir)
         .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &data_dir())
-        .map_err(|e| e.to_string())?;
+    let mut engine =
+        senmei_ml::engine_for_model(&mref, backend, &data_dir()).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
     Ok(engine)
 }
@@ -469,7 +512,7 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
 }
 
 #[cfg(feature = "render")]
-fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
+fn build_steps(config: &RenderConfig, backend: senmei_ml::EngineBackend) -> Vec<Box<dyn senmei_pipeline::Step>> {
     let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Passthrough)];
     if let Some(f) = config.resize {
@@ -479,14 +522,14 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
     // interpolation/upscaling. Skipped when the model can't be loaded.
     if let Some(id) = config.decompress_model_id.as_deref() {
         if !id.is_empty() {
-            let engine = engine_for_model(id).ok();
+            let engine = engine_for_model(id, backend).ok();
             steps.push(Box::new(senmei_pipeline::Upscale::new(1, engine)));
         }
     }
     if let Some(s) = config.scale {
         if s > 1 {
             let engine = match config.model_id.as_deref() {
-                Some(id) => engine_for_model(id).ok(),
+                Some(id) => engine_for_model(id, backend).ok(),
                 None => None,
             };
             steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
@@ -496,7 +539,7 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
         if let Some(r) = f.denoise_radius {
             if r > 0 {
                 let engine = match f.denoise_model_id.as_deref() {
-                    Some(id) => engine_for_model(id).ok(),
+                    Some(id) => engine_for_model(id, backend).ok(),
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Denoise::new(r, engine)));
@@ -505,7 +548,7 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
         if let Some(a) = f.deblur_amount {
             if a > 0.0 {
                 let engine = match f.deblur_model_id.as_deref() {
-                    Some(id) => engine_for_model(id).ok(),
+                    Some(id) => engine_for_model(id, backend).ok(),
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Deblur::new(a, engine)));
@@ -533,13 +576,14 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
 #[cfg(feature = "render")]
 pub fn render(
     config: &RenderConfig,
+    opts: &RenderOpts,
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
 ) -> Result<Vec<StepTimingInfo>, String> {
-    senmei_ml::set_tile_size(640);
+    senmei_ml::set_tile_size(opts.tile_size);
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
     let output = PathBuf::from(&config.output);
-    let mut pipeline = senmei_pipeline::Pipeline::new(build_steps(config));
+    let mut pipeline = senmei_pipeline::Pipeline::new(build_steps(config, opts.backend));
     if config.start_ms.is_some() || config.end_ms.is_some() {
         pipeline.set_range(config.start_ms.unwrap_or(0), config.end_ms);
     }
@@ -555,15 +599,22 @@ pub fn render(
             _ => senmei_media::Tonemap::Auto,
         });
     }
-    let cancel = CANCEL_RENDER
-        .get_or_init(|| Arc::new(AtomicBool::new(false)))
-        .clone();
+    let cancel = match &opts.cancel {
+        Some(c) => c.clone(),
+        None => CANCEL_RENDER
+            .get_or_init(|| Arc::new(AtomicBool::new(false)))
+            .clone(),
+    };
     cancel.store(false, Ordering::Relaxed);
     pipeline.set_cancel(cancel);
+    if let Some(p) = &opts.pause {
+        p.store(false, Ordering::Relaxed);
+        pipeline.set_pause(p.clone());
+    }
     if let Some(f) = config.fps_multiplier {
         if f > 1 {
             let interp = match config.interp_model.as_deref() {
-                Some(id) => engine_for_model(id)
+                Some(id) => engine_for_model(id, opts.backend)
                     .ok()
                     .map(|e| senmei_pipeline::Interpolator::with_engine(f, e)),
                 None => None,
@@ -632,7 +683,7 @@ pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> 
         (Some(s), Some(e)) if e > s => (s, e),
         _ => return Err("render_sample requires start_ms < end_ms".into()),
     };
-    render(&config, |_| {})?;
+    render(&config, &RenderOpts::default(), |_| {})?;
 
     let mid = start + (end - start) / 2;
     let ff = ffmpeg();
@@ -685,7 +736,7 @@ pub fn confirm_render() -> Result<String, String> {
     }
     std::thread::spawn(move || {
         let progress_status = status.clone();
-        let result = render(&config, move |p| {
+        let result = render(&config, &RenderOpts::default(), move |p| {
             let mut s = progress_status.lock().unwrap();
             s.frames_processed = p.frames_processed;
             s.total_frames = p.total_frames;
