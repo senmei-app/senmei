@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **ui: drop model-download step from onboarding wizard (2026-08-21)** —
+  `OnboardingWizard` is now welcome→ffmpeg→engine→done (models are added in
+  Settings); removes `RECOMMENDED_MODELS`/`downloadModel` and the dead
+  `onboard.model.*` i18n keys.
+
 - **refactor: dedup burn/tch into shared `engine::core` (2026-08-21)** — the
   generic `Model<B>` enum, 13-branch `load_arch`, and `infer` /
   `infer_interp` (pad 32/16) / `infer_denoise` (FFDNet-σ, blind, DRUNet-σ-map

@@ -3,12 +3,7 @@ import type { BackendInfo, FfmpegStatus } from "@senmei/bridge";
 import { backend } from "../backend";
 import { useI18n } from "../i18n";
 
-const RECOMMENDED_MODELS = [
-  { id: "realesrgan-animevideo-x4", labelKey: "onboard.model.animevideo" },
-  { id: "realesrgan-x4plus-anime", labelKey: "onboard.model.x4plus" },
-];
-
-const STEPS = ["welcome", "ffmpeg", "engine", "model", "done"];
+const STEPS = ["welcome", "ffmpeg", "engine", "done"];
 
 export default function OnboardingWizard({ open, onDone }: { open: boolean; onDone: () => void }) {
   const { t } = useI18n();
@@ -17,9 +12,6 @@ export default function OnboardingWizard({ open, onDone }: { open: boolean; onDo
   const [ffmpegPct, setFfmpegPct] = useState<number | null>(null);
   const [ffmpegErr, setFfmpegErr] = useState<string | null>(null);
   const [info, setInfo] = useState<BackendInfo | null>(null);
-  const [downloading, setDownloading] = useState<string | null>(null);
-  const [dlPct, setDlPct] = useState<number | null>(null);
-  const [dlErr, setDlErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -44,22 +36,6 @@ export default function OnboardingWizard({ open, onDone }: { open: boolean; onDo
     } catch (e) {
       setFfmpegErr(String((e as Error)?.message ?? e));
       setFfmpegPct(null);
-    }
-  };
-
-  const downloadModel = async (id: string) => {
-    setDlErr(null);
-    setDownloading(id);
-    setDlPct(0);
-    try {
-      await (await backend()).downloadModel(id, (p) =>
-        setDlPct(p.total ? Math.round((p.downloaded / p.total) * 100) : 0),
-      );
-      setDlPct(null);
-    } catch (e) {
-      setDlErr(String((e as Error)?.message ?? e));
-    } finally {
-      setDownloading(null);
     }
   };
 
@@ -179,39 +155,6 @@ export default function OnboardingWizard({ open, onDone }: { open: boolean; onDo
         )}
 
         {step === 3 && (
-          <div>
-            <h2 className="mb-2 text-base font-semibold">{t("onboard.modelTitle")}</h2>
-            <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{t("onboard.modelHint")}</p>
-            <div className="space-y-2">
-              {RECOMMENDED_MODELS.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-xs">{t(m.labelKey)}</div>
-                    <div className="truncate font-mono text-[10px] text-slate-400">{m.id}</div>
-                  </div>
-                  {downloading === m.id ? (
-                    <span className="shrink-0 font-mono text-[10px] text-indigo-500">
-                      {dlPct != null ? `${dlPct}%` : "…"}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => downloadModel(m.id)}
-                      className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-indigo-500"
-                    >
-                      {t("onboard.modelDownload")}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {dlErr && <p className="mt-2 text-[11px] text-rose-500">{dlErr}</p>}
-          </div>
-        )}
-
-        {step === 4 && (
           <div>
             <h2 className="mb-2 text-base font-semibold">{t("onboard.doneTitle")}</h2>
             <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{t("onboard.doneText")}</p>
