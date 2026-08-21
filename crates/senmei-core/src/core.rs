@@ -115,11 +115,16 @@ pub fn scan_folder(dir: &str) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Download a model's weights (`.pth`/`.onnx`, sha256-verified when pinned) and
-/// convert them to the f16 `.bpk` burnpack. Mirrors the GUI's `download_model`
-/// without Tauri. Needs the `render` feature (burn convert).
+/// Download a model's weights (`.pth`/`.onnx`/ncnn `.bin`, sha256-verified when
+/// pinned) and convert to the f16 `.bpk` burnpack. Handles RIFE's ncnn release
+/// zips (extract one entry) and skips when the target already exists. Mirrors
+/// the GUI's `download_model` without Tauri. Needs the `render` feature (burn
+/// convert). `on_progress` receives (downloaded, total) bytes.
 #[cfg(feature = "render")]
-pub fn download_model(model_id: &str) -> Result<String, String> {
+pub fn download_model(
+    model_id: &str,
+    mut on_progress: impl FnMut(u64, u64) + Send,
+) -> Result<String, String> {
     let (registry, dir) = load_registry()?;
     let meta = registry
         .models()
@@ -152,36 +157,88 @@ pub fn download_model(model_id: &str) -> Result<String, String> {
         .and_then(|w| w.first())
         .cloned()
         .ok_or_else(|| format!("model {model_id} has no weights"))?;
-    if !weight.ends_with(".bpk") {
-        return Err(format!("expected f16 burnpack weight, got {weight}"));
+    let is_ncnn = weight.ends_with(".bin");
+    if !weight.ends_with(".bpk") && !is_ncnn {
+        return Err(format!("expected f16 burnpack or ncnn weight, got {weight}"));
     }
-    let bpk_path = dir.join(&weight);
+    let is_archive = url.ends_with(".zip");
+    // Multi-model archives (e.g. the nihui rife release zip bundles every
+    // version) need a version-specific entry; default to the weight filename.
+    let extract_suffix = meta
+        .metadata
+        .get("extract_suffix")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&weight)
+        .to_string();
+    let target = dir.join(&weight);
+    if target.is_file() {
+        log::info!("download_model: {model_id} already present, skipping");
+        return Ok(target.to_string_lossy().into_owned());
+    }
     let onnx = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("onnx");
+    let ext = if onnx {
+        "onnx"
+    } else if is_archive {
+        "zip"
+    } else {
+        "pth"
+    };
+    log::info!("download_model: {model_id} <- {url} -> {}", dir.display());
     let base = weight.trim_end_matches(".f16.bpk");
     let source = senmei_media::download_to_temp(
         &url,
         &dir,
-        &format!("{base}.{}", if onnx { "onnx" } else { "pth" }),
+        &format!("{base}.{ext}"),
         meta.sha256.as_deref(),
-        &mut |_, _| {},
+        &mut on_progress,
     )
-    .map_err(|e| e.to_string())?;
-    let res = if onnx {
-        senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &bpk_path, meta.scale, convert_arg)
+    .map_err(|e| {
+        log::error!("download_model {model_id}: download failed: {e}");
+        e.to_string()
+    })?;
+    log::info!(
+        "download_model: {model_id} downloaded to {}",
+        source.display()
+    );
+    // RIFE ships ncnn weights: the .bin is inside a release zip, or a raw
+    // .bin — either way no burnpack conversion.
+    if is_archive {
+        senmei_media::extract_binary(&source, &target, &extract_suffix).map_err(|e| {
+            log::error!("download_model {model_id}: extract failed: {e}");
+            e.to_string()
+        })?;
+        let _ = std::fs::remove_file(&source);
+        log::info!("download_model: {model_id} wrote {}", target.display());
+        return Ok(target.to_string_lossy().into_owned());
+    }
+    if is_ncnn {
+        std::fs::rename(&source, &target).map_err(|e| {
+            log::error!("download_model {model_id}: rename failed: {e}");
+            e.to_string()
+        })?;
+        log::info!("download_model: {model_id} wrote {}", target.display());
+        return Ok(target.to_string_lossy().into_owned());
+    }
+    let conv = if onnx {
+        senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &target, meta.scale, convert_arg)
     } else {
         senmei_ml::convert_pth_to_bpk(
             &meta.arch,
             &source,
-            &bpk_path,
+            &target,
             meta.scale,
             convert_arg,
             layer_norm,
             dysample,
         )
     };
+    if let Err(e) = conv {
+        log::error!("download_model {model_id}: conversion failed: {e}");
+        return Err(e.to_string());
+    }
     let _ = std::fs::remove_file(&source);
-    res.map_err(|e| e.to_string())?;
-    Ok(bpk_path.to_string_lossy().into_owned())
+    log::info!("download_model: {model_id} wrote {}", target.display());
+    Ok(target.to_string_lossy().into_owned())
 }
 
 #[cfg(feature = "render")]

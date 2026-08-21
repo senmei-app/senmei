@@ -133,7 +133,8 @@ async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
 async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return match tokio::task::spawn_blocking(move || core::download_model(&p.model_id)).await
+        return match tokio::task::spawn_blocking(move || core::download_model(&p.model_id, |_, _| {}))
+            .await
         {
             Ok(Ok(path)) => json_ok(&serde_json::json!({ "bpk": path })),
             Ok(Err(e)) => json_err(StatusCode::BAD_REQUEST, e),

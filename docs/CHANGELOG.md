@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **refactor: unify `download_model` in `senmei-core` (2026-08-21)** — the
+  GUI's richer download (ncnn `.bin`, release-zip extract, skip-if-present,
+  progress) moves into `core::download_model(model_id, on_progress)`; the GUI
+  command and HTTP delegate to it. ~135 lines of duplication removed.
+
 - **refactor: GUI delegates render/models to shared `senmei-core` (2026-08-21)**
   — `commands.rs` no longer assembles the pipeline or duplicates model loading:
   `render` maps its IPC config onto `core::RenderConfig` and calls
