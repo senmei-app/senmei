@@ -1,9 +1,33 @@
 // Release builds run as GUI app (no console window); debug keeps the console for logs.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use clap::Parser;
 use tauri::Manager;
 
-fn main() {
+/// Senmei (鮮明) — video enhancer. GUI by default; `--server`/`--mcp-server`
+/// run the same service headless (web UI embedded in the binary).
+#[derive(Parser)]
+#[command(name = "senmei", version, about = "Senmei (鮮明) — video enhancer")]
+struct Cli {
+    /// Serve the web UI + REST API over HTTP (headless, no GUI).
+    #[arg(short, long)]
+    server: bool,
+
+    /// HTTP listen port (default 8765, or $SENMEI_HTTP_PORT).
+    #[arg(short = 'p', long, env = "SENMEI_HTTP_PORT", default_value_t = 8765)]
+    http_port: u16,
+
+    /// Serve MCP over stdio (headless).
+    #[arg(short, long)]
+    mcp_server: bool,
+}
+
+fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    if cli.server || cli.mcp_server {
+        return run_headless(cli.http_port, cli.mcp_server);
+    }
+
     senmei_app::log_hub::init();
     log::info!("Senmei starting");
 
@@ -35,5 +59,16 @@ fn main() {
         })
         .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .map_err(|e| anyhow::anyhow!("error while running tauri application: {e}"))?;
+    Ok(())
+}
+
+/// Headless service. burn model loading needs a big stack (autotune overflows
+/// on RADV), so set RUST_MIN_STACK before the runtime spawns its threads.
+fn run_headless(http_port: u16, mcp: bool) -> anyhow::Result<()> {
+    std::env::set_var("RUST_MIN_STACK", "33554432");
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(senmei_server::run_headless(http_port, mcp))
 }

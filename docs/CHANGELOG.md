@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: one-binary headless server (2026-08-21)** — the `senmei` binary
+  embeds the built web UI (`rust-embed`) and runs the headless service with
+  `--server` (HTTP + REST) / `--mcp-server` (stdio), reusing `senmei-server`
+  core; `--server` sets `RUST_MIN_STACK` for burn model loads. Replaces the
+  Tauri-sidecar idea.
+
 - **ci: fix release notes generation (2026-08-21)** — git-cliff no longer
   fetches GitHub metadata (private-repo 404 panic); notes via
   `orhun/git-cliff-action@v4`, no pinned binary download.

@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
+rust-embed = { version = "8", features = ["mime-guess"], optional = true }
 
 [features]
 default = []
@@ -31,5 +32,5 @@ render = ["dep:senmei-pipeline", "senmei-ml/burn"]
 # Runtime-libtorch (dlopen) engine: CUDA/ROCm libtorch is downloaded on demand
 # into the data dir; Auto then prefers LibTorch when a GPU is present.
 tch = ["senmei-ml/tch"]
-# Full web UI + REST API (axum).
-http = ["dep:axum", "dep:tower-http"]
+# Full web UI + REST API (axum); embeds packages/app/dist via rust-embed.
+http = ["dep:axum", "dep:tower-http", "dep:rust-embed"]

@@ -102,8 +102,13 @@ Senmei runs fully headless over **`senmei-server`** — one transport-agnostic
 - **HTTP (axum)** — `--http` serves the built web UI + a REST API. This is the
   browser/headless path: the whole UI works without a display server.
 
-Start (from repo root):
+The shipped `senmei` binary embeds the built web UI (`rust-embed`) and runs the
+same service headless with `--server` / `--mcp-server`. Dev/standalone uses the
+`senmei-server` binary (disk web dir, `--web-dir` override):
 ```
+# shipped binary (embedded UI)
+RUST_MIN_STACK=33554432 ./target/release/senmei --server
+# dev/standalone
 RUST_MIN_STACK=33554432 cargo run -p senmei-server --features render,http -- --http
 # serves http://127.0.0.1:8765/ (port via SENMEI_HTTP_PORT, web dir via SENMEI_WEB_DIR)
 ```

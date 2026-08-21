@@ -3,12 +3,49 @@
 
 use axum::{
     Json, Router,
-    http::StatusCode,
+    body::Body,
+    http::{Request, Response, StatusCode, header},
     routing::{get, post},
 };
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
 use crate::core;
+
+/// The built web UI (packages/app/dist), embedded at compile time. Empty when
+/// the frontend hasn't been built yet (bare `cargo check`).
+#[derive(RustEmbed)]
+#[folder = "../../packages/app/dist"]
+pub struct WebUi;
+
+/// Serve the embedded UI; unknown paths fall back to `index.html` (SPA), but
+/// `/api/*` 404s so unmatched REST calls don't return HTML.
+async fn embedded_fallback(req: Request<Body>) -> Response<Body> {
+    let path = req.uri().path().trim_start_matches('/');
+    if path.starts_with("api/") {
+        return not_found();
+    }
+    let file = if path.is_empty() {
+        WebUi::get("index.html")
+    } else {
+        WebUi::get(path).or_else(|| WebUi::get("index.html"))
+    };
+    match file {
+        Some(f) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, f.metadata.mimetype())
+            .body(Body::from(f.data.into_owned()))
+            .unwrap(),
+        None => not_found(),
+    }
+}
+
+fn not_found() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .body(Body::empty())
+        .unwrap()
+}
 
 #[derive(Deserialize)]
 struct ProbeParams {
@@ -166,6 +203,7 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
                 .append_index_html_on_directories(true);
             api.layer(cors).fallback_service(serve)
         }
-        None => api.layer(cors),
+        // No dir given: serve the UI embedded in the binary (SPA fallback).
+        None => api.layer(cors).fallback(embedded_fallback),
     }
 }

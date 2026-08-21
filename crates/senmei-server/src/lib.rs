@@ -10,3 +10,30 @@ pub mod core;
 pub mod mcp;
 #[cfg(feature = "http")]
 pub mod http;
+
+use rmcp::{ServiceExt, transport::stdio};
+
+/// Run the headless service (HTTP or MCP over stdio) from the `senmei`
+/// binary. `mcp` wins when both flags are set.
+pub async fn run_headless(http_port: u16, mcp: bool) -> anyhow::Result<()> {
+    env_logger::init();
+    if mcp {
+        log::info!("senmei: serving MCP over stdio");
+        let service = mcp::SenmeiServer.serve(stdio()).await?;
+        service.waiting().await?;
+        return Ok(());
+    }
+    #[cfg(feature = "http")]
+    {
+        log::info!("senmei: HTTP on http://127.0.0.1:{http_port}");
+        let app = http::router(None);
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", http_port)).await?;
+        axum::serve(listener, app).await?;
+        Ok(())
+    }
+    #[cfg(not(feature = "http"))]
+    {
+        let _ = http_port;
+        anyhow::bail!("`http` feature not enabled (build with --features http)")
+    }
+}

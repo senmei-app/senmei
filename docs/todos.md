@@ -8,8 +8,6 @@
 ## Findings
 - libtorch on ROCm 7.14 / nightly
 ## Product / roadmap (2026-08-21)
-- [ ] Ship `senmei-server` as a Tauri sidecar (`externalBin`) so the release
-      bundles include the headless HTTP/MCP service
 - [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
       downloads, license gate
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
