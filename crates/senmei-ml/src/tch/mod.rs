@@ -5,7 +5,10 @@
 //! `crate::runtime`) and dlopen'd via `torch_sys::loader`; no CPU libtorch,
 //! CPU stays on the burn-Vulkan engine.
 
-use crate::arch::{RrdbNet, RifeNet, SrvggNet, UpCunet2x, UpCunet2xFast};
+use crate::arch::{
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, RifeNet, Scunet, Span, SrvggNet,
+    UpCunet2x, UpCunet2xFast,
+};
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -120,6 +123,14 @@ enum Model {
     RrdbNet(RrdbNet<B>),
     SrvggNet(SrvggNet<B>),
     RifeNet(RifeNet<B>),
+    IfrNet(IfrNet<B>),
+    Drunet(Drunet<B>),
+    Dncnn(Dncnn<B>),
+    Ffdnet(Ffdnet<B>),
+    Scunet(Scunet<B>),
+    NafNet(NafNet<B>),
+    RealPlk(RealPlk<B>),
+    Span(Span<B>),
 }
 
 impl Model {
@@ -129,7 +140,15 @@ impl Model {
             Model::UpCunet2xFast(m) => m.forward(x),
             Model::RrdbNet(m) => m.forward(x),
             Model::SrvggNet(m) => m.forward(x),
-            Model::RifeNet(_) => panic!("RifeNet has no single-input forward"),
+            Model::Drunet(m) => m.forward(x),
+            Model::Dncnn(m) => m.forward(x),
+            Model::Scunet(m) => m.forward(x),
+            Model::NafNet(m) => m.forward(x),
+            Model::RealPlk(m) => m.forward(x),
+            Model::Span(m) => m.forward(x),
+            Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
+                panic!("model has no single-input forward")
+            }
         }
     }
 
@@ -141,6 +160,7 @@ impl Model {
     ) -> BurnTensor<B, 4> {
         match self {
             Model::RifeNet(m) => m.forward(a, b, t),
+            Model::IfrNet(m) => m.forward(a, b, t),
             _ => panic!("model has no frame interpolation"),
         }
     }
@@ -201,6 +221,57 @@ impl TchEngine {
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::SrvggNet(m))
             }
+            "ifrnet" => {
+                let mut m = IfrNet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::IfrNet(m))
+            }
+            "drunet" => {
+                let mut m = Drunet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Drunet(m))
+            }
+            "dncnn" => {
+                let mut m = Dncnn::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Dncnn(m))
+            }
+            "ffdnet" => {
+                let mut m = Ffdnet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Ffdnet(m))
+            }
+            "scunet" => {
+                let mut m = Scunet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::Scunet(m))
+            }
+            "nafnet" => {
+                let mut m = NafNet::new(&self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::NafNet(m))
+            }
+            "real-plksr" => {
+                let mut m = RealPlk::new(
+                    model.scale as usize,
+                    model.layer_norm,
+                    model.dysample,
+                    &self.device,
+                );
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::RealPlk(m))
+            }
+            "span" => {
+                let mut m = Span::new(
+                    model.feature_channels as usize,
+                    model.scale as usize,
+                    &self.device,
+                );
+                m.set_no_norm(model.no_norm);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                m.pad_k96(&self.device);
+                Ok(Model::Span(m))
+            }
             other => Err(Error::new(format!("unsupported arch: {other}"))),
         }
     }
@@ -254,7 +325,7 @@ impl InferenceEngine for TchEngine {
             Some(m) => m,
             None => return Some(Err(Error::new("model not loaded"))),
         };
-        if !matches!(model, Model::RifeNet(_)) {
+        if !matches!(model, Model::RifeNet(_) | Model::IfrNet(_)) {
             return None; // not an interpolation model → caller falls back
         }
         let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
@@ -266,11 +337,11 @@ impl InferenceEngine for TchEngine {
             TensorData::new(b.data.clone(), [n, c, h, w]),
             &self.device,
         );
-        // RIFE's internal flow estimation runs at 1/32 scale, so the reference
-        // (rife-ncnn-vulkan) pads the input to multiples of 32. Do the same and
-        // crop the output back to the original dims.
-        let pad_h = (h + 31) / 32 * 32;
-        let pad_w = (w + 31) / 32 * 32;
+        // The flow estimators run on a downscaled grid (RIFE 1/32, IFRNet 1/16
+        // via its pyramid), so pad to a multiple and crop back (like the refs).
+        let pad = if matches!(model, Model::RifeNet(_)) { 32 } else { 16 };
+        let pad_h = (h + pad - 1) / pad * pad;
+        let pad_w = (w + pad - 1) / pad * pad;
         let pad = |x: BurnTensor<B, 4>| {
             let mut x = x;
             if pad_h > h {
@@ -294,6 +365,78 @@ impl InferenceEngine for TchEngine {
             Err(e) => return Some(Err(Error::new(e.to_string()))),
         };
         Some(Ok(Tensor::new(vec![n, c, h, w], data)))
+    }
+
+    /// DRUNet denoise: appends a constant noise-level map (sigma in [0,1]) to
+    /// the 3-channel input, pads the spatial dims to multiples of 8 (the UNet
+    /// downsamples 3× stride-2), runs the model, and crops back. FFDNet gets σ
+    /// directly, DnCNN/SCUNet are blind. Other models return `None`.
+    fn infer_denoise(
+        &mut self,
+        input: &Tensor,
+        sigma: f32,
+        _opts: &InferOptions,
+    ) -> Option<Result<Tensor>> {
+        let model = self.model.as_ref()?;
+        let is_drunet = matches!(model, Model::Drunet(_));
+        if !matches!(
+            model,
+            Model::Drunet(_) | Model::Dncnn(_) | Model::Ffdnet(_) | Model::Scunet(_)
+        ) {
+            return None;
+        }
+        if input.shape.len() != 4 || input.shape[1] != 3 {
+            return Some(Err(Error::new("expected 3-channel NCHW input")));
+        }
+        let [n, c, h, w] = [
+            input.shape[0],
+            input.shape[1],
+            input.shape[2],
+            input.shape[3],
+        ];
+        let device = &self.device;
+        let rgb = BurnTensor::<B, 4>::from_data(
+            TensorData::new(input.data.clone(), [n, c, h, w]),
+            device,
+        );
+        // FFDNet takes the noise level internally; DnCNN/SCUNet are blind
+        // (3ch in, no sigma map); DRUNet gets a constant sigma map + 8-aligned
+        // spatial dims (3× stride-2 downsample) — pad and crop.
+        if let Model::Ffdnet(m) = model {
+            let out = m.forward(rgb, sigma);
+            let data = match out.into_data().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Some(Err(Error::new(e.to_string()))),
+            };
+            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
+        }
+        if !is_drunet {
+            let out = model.forward(rgb);
+            let data = match out.into_data().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Some(Err(Error::new(e.to_string()))),
+            };
+            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
+        }
+        let sigma_map = BurnTensor::<B, 4>::ones([n, 1, h, w], device) * sigma;
+        let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
+        let pad_h = (h + 7) / 8 * 8;
+        let pad_w = (w + 7) / 8 * 8;
+        let mut x = x;
+        if pad_h > h {
+            let z = BurnTensor::<B, 4>::zeros([n, 4, pad_h - h, w], device);
+            x = BurnTensor::cat(vec![x, z], 2);
+        }
+        if pad_w > w {
+            let z = BurnTensor::<B, 4>::zeros([n, 4, pad_h, pad_w - w], device);
+            x = BurnTensor::cat(vec![x, z], 3);
+        }
+        let out = model.forward(x).slice([0..n, 0..3, 0..h, 0..w]);
+        let data = match out.into_data().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
+        Some(Ok(Tensor::new(vec![n, 3, h, w], data)))
     }
 }
 
@@ -336,6 +479,8 @@ mod tests {
             num_block: 4,
             feature_channels: 48,
             no_norm: false,
+            layer_norm: false,
+            dysample: true,
             path: tmp.clone(),
         };
         engine.load(&mref).unwrap();

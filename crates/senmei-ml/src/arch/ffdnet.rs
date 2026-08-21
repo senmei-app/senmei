@@ -118,7 +118,7 @@ impl<B: Backend> Ffdnet<B> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn"))]
 mod tests {
     use super::*;
     use crate::BurnBackend;

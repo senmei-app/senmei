@@ -3,11 +3,13 @@
 //! Partial Large Kernel CNNs for Efficient Super-Resolution
 //! (https://arxiv.org/abs/2404.11848). Used by `4x-alchemy` (DySample
 //! upsampling), the 1x decompress models (`real-plksr-deh264`/`dejpg`,
-//! pixel-shuffle identity) and `real-plksr-2x-public` (DySample +
-//! channel LayerNorm). The GroupNorm models share dim=64 / 28 blocks /
-//! kernel 17 / split 0.25 / EA and differ only in `scale`; the LayerNorm
-//! variant swaps the tail GroupNorm for a per-pixel channel `LayerNorm`
-//! (eps 1e-6) at the block start (`layer_norm: bool`).
+//! pixel-shuffle identity), `real-plksr-2x-public` (DySample + channel
+//! LayerNorm) and `4x-nomoswebphoto` (pixel-shuffle tail, GroupNorm). The
+//! GroupNorm models share dim=64 / 28 blocks / kernel 17 / split 0.25 / EA
+//! and differ only in `scale`; the LayerNorm variant swaps the tail GroupNorm
+//! for a per-pixel channel `LayerNorm` (eps 1e-6) at the block start
+//! (`layer_norm: bool`), and `dysample` picks DySample vs the plain
+//! pixel-shuffle tail.
 
 use burn::module::{Module, Param, ParamId};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
@@ -94,10 +96,10 @@ impl<B: Backend> Ea<B> {
     }
 }
 
-/// Per-pixel channel LayerNorm (mean/var over C), matching the traiNNer-redux
-/// RealPLKSR `layer_norm` variant (eps 1e-6). The affine params stay [C] and
-/// are reshaped to [1,C,1,1] — a plain `mean_dim` reduction (64 channels) is
-/// f16-safe here.
+/// Per-pixel channel norm (mean/var over C, eps 1e-6) at the block start,
+/// matching the traiNNer-redux RealPLKSR `layer_norm` variant (`2x-public`).
+/// The affine params stay [C], reshaped to [1,C,1,1] — a plain `mean_dim`
+/// reduction (64 channels) is f16-safe here.
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
     weight: Param<Tensor<B, 1>>,
@@ -115,20 +117,20 @@ impl<B: Backend> LayerNorm<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>, eps: f32) -> Tensor<B, 4> {
+    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_, c, _, _] = x.dims();
-        let mean = x.clone().mean_dim(1);
-        let d = x - mean;
+        let mean = x.clone().mean_dim(1); // [B, 1, H, W]
+        let d = x.clone() - mean;
         let var = d.clone().square().mean_dim(1);
-        let inv = (var + eps).sqrt().recip();
+        let inv = (var + 1e-6).sqrt().recip();
         d * inv * self.weight.val().reshape([1, c, 1, 1]) + self.bias.val().reshape([1, c, 1, 1])
     }
 }
 
 /// One PLK block: `[layer_norm →] channel mixer → partial large-kernel conv
-/// → attention → refine → [group norm]`, with a residual skip. Exactly one of
-/// the norms is present: GroupNorm models run `layer_norm=None, norm=Some`,
-/// LayerNorm models the reverse.
+/// → attention → refine → [group norm]`, with a residual skip. Exactly one
+/// of the norms is present: GroupNorm models run `layer_norm=None,
+/// norm=Some`, LayerNorm models the reverse.
 #[derive(Module, Debug)]
 pub struct PlkBlock<B: Backend> {
     layer_norm: Option<LayerNorm<B>>,
@@ -169,7 +171,7 @@ impl<B: Backend> PlkBlock<B> {
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let skip = x.clone();
         let h = match &self.layer_norm {
-            Some(ln) => ln.forward(x, 1e-6),
+            Some(ln) => ln.forward(x),
             None => x,
         };
         let h = self.channel_mixer.forward(h);
@@ -210,12 +212,13 @@ fn group_norm<B: Backend>(x: Tensor<B, 4>, norm: &GroupNorm<B>) -> Tensor<B, 4> 
     }
 }
 
-/// Full model: `head → blocks → tail → (+repeat_interleave) → DySample`.
+/// Full model: `head → blocks → tail → (+repeat_interleave) → upsampler`.
 ///
 /// Record keys are `head.*`, `blocks.{i}.*`, `tail.*` plus the DySample convs
-/// `offset.*`/`scope.*`/`end_conv.*` (present only for scale != 1) — the
-/// converter maps the torch `feats.{i}` / `to_img.` keys onto them. scale=1
-/// models have no DySample (PixelShuffle(1) identity), so only `feats` keys.
+/// `offset.*`/`scope.*`/`end_conv.*` (only when `dysample`) — the converter
+/// maps the torch `feats.{i}` / `to_img.` keys onto them. Non-DySample models
+/// (scale=1 identity, or the 4x pixel-shuffle tail like `4x-nomoswebphoto`)
+/// have no DySample convs, so only `feats` keys.
 #[derive(Module, Debug)]
 pub struct RealPlk<B: Backend> {
     head: Conv2d<B>,
@@ -228,10 +231,12 @@ pub struct RealPlk<B: Backend> {
 }
 
 impl<B: Backend> RealPlk<B> {
-    pub fn new(scale: usize, layer_norm: bool, device: &B::Device) -> Self {
+    /// `dysample` selects the DySample upsampler; when false the tail is a
+    /// plain pixel-shuffle (`4x-nomoswebphoto`), at scale=1 identity.
+    pub fn new(scale: usize, layer_norm: bool, dysample: bool, device: &B::Device) -> Self {
         let dim = 64;
         let in_ch = 3 * scale * scale;
-        let dysample = scale > 1;
+        let dysample = dysample && scale > 1;
         let groups = if scale % 2 != 0 { 3 } else { 4 };
         let out = 2 * groups * scale * scale;
         Self {

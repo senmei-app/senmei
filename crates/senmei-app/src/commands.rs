@@ -163,6 +163,10 @@ pub async fn download_model(
         .resolve(&model_id, &dir)
         .map(|m| m.layer_norm)
         .unwrap_or(false);
+    let dysample = registry
+        .resolve(&model_id, &dir)
+        .map(|m| m.dysample)
+        .unwrap_or(true);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -264,6 +268,7 @@ pub async fn download_model(
                 meta.scale,
                 convert_arg,
                 layer_norm,
+                dysample,
             )
         };
         if let Err(e) = conv {

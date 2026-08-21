@@ -83,6 +83,8 @@ pub struct ModelRef {
     pub no_norm: bool,
     /// RealPLKSR blocks use channel LayerNorm instead of GroupNorm.
     pub layer_norm: bool,
+    /// RealPLKSR upsampler: DySample (true) vs pixel-shuffle tail (false).
+    pub dysample: bool,
     pub path: PathBuf,
 }
 
@@ -148,6 +150,11 @@ impl Registry {
                         .get("layer_norm")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false),
+                    dysample: m
+                        .metadata
+                        .get("dysample")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true),
                     path: dir.join(f),
                 })
         })
@@ -191,7 +198,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 35);
+        assert_eq!(registry.models().len(), 36);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -349,6 +356,27 @@ mod tests {
                 .get("feature_channels")
                 .and_then(|v| v.as_u64()),
             Some(48)
+        );
+        assert_eq!(registry.models()[35].id, "4x-nomoswebphoto-realplksr");
+        assert!(matches!(registry.models()[35].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[35].scale, 4);
+        assert_eq!(registry.models()[35].arch, "real-plksr");
+        assert!(registry.models()[35].loadable);
+        assert_eq!(registry.models()[35].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[35].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(
+            registry.models()[35]
+                .metadata
+                .get("dysample")
+                .and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            registry.models()[35]
+                .metadata
+                .get("layer_norm")
+                .and_then(|v| v.as_bool()),
+            Some(false)
         );
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");

@@ -116,6 +116,7 @@ pub fn download_model(model_id: &str) -> Result<String, String> {
         .map(|m| if m.arch == "span" { m.feature_channels } else { m.num_block })
         .unwrap_or(4);
     let layer_norm = registry.resolve(model_id, &dir).map(|m| m.layer_norm).unwrap_or(false);
+    let dysample = registry.resolve(model_id, &dir).map(|m| m.dysample).unwrap_or(true);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -159,6 +160,7 @@ pub fn download_model(model_id: &str) -> Result<String, String> {
             meta.scale,
             convert_arg,
             layer_norm,
+            dysample,
         )
     };
     let _ = std::fs::remove_file(&source);
@@ -219,6 +221,8 @@ pub struct RenderConfig {
     pub scale: Option<u32>,
     /// Upscale model id (kind=upscale, license-gated); empty = reference upscale only.
     pub model_id: Option<String>,
+    /// Decompress model id (scale-1 de-artifact pass, e.g. RealPLKSR 1×).
+    pub decompress_model_id: Option<String>,
     /// Pre-upscale resize factor (>0, e.g. 0.5 to shrink first).
     pub resize: Option<f32>,
     /// Optional filter chain: denoise / deblur / dedup.
@@ -470,6 +474,14 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
         vec![Box::new(senmei_pipeline::Passthrough)];
     if let Some(f) = config.resize {
         steps.push(Box::new(senmei_pipeline::Resize::new(f)));
+    }
+    // Decompress pass runs first: scale-1 de-artifact (RealPLKSR 1×) ahead of
+    // interpolation/upscaling. Skipped when the model can't be loaded.
+    if let Some(id) = config.decompress_model_id.as_deref() {
+        if !id.is_empty() {
+            let engine = engine_for_model(id).ok();
+            steps.push(Box::new(senmei_pipeline::Upscale::new(1, engine)));
+        }
     }
     if let Some(s) = config.scale {
         if s > 1 {

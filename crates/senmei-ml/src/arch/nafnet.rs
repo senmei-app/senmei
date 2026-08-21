@@ -286,7 +286,7 @@ fn conv2s2<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<
         .init(device)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn"))]
 mod tests {
     use super::*;
     use crate::BurnBackend;
