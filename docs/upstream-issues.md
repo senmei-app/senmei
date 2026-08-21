@@ -33,6 +33,12 @@ a shorter segment = the `ordering.len() > operations.len()` condition directly).
 Requires the 0.22 API migration (backend generics removed from the user API).
 `main` now also prints ordering/op-count/optimization lengths to distinguish a
 stale plan from a poisoned queue.
+**Probe 2026-08-21**: the panic does **not** reproduce in isolation on 0.21.0 —
+300–400 fused matmul chains + sync `into_data()` readbacks with cycling
+autotune keys (re-benchmark every iter) run clean on both 0.21.0 and `main`.
+Consistent with laggui's "often secondary to an earlier missing-handle or
+kernel failure": in our flow it fired after the cubecl#1531 OOM corrupted the
+server; on cubecl `main` that precursor no longer corrupts the server (§2).
 
 **Paste-ready text** — post as a comment on burn#4950:
 

@@ -21,6 +21,10 @@
   cubecl#1531 (autotune OOM) verified on cubecl `main` — server no longer
   stays corrupted after a failed allocation, but the failed reserve still
   panics the server worker (recoverable). Statuses in `upstream-issues.md`.
+  burn#4950 probe: the ordering panic does not reproduce in isolation on
+  0.21.0 (300–400 fused readbacks + cycling autotune keys, both 0.21.0 and
+  `main` clean) — it fired only as a secondary symptom of the #1531 OOM
+  corruption, which no longer corrupts the server on cubecl `main`.
 
 - **feat: first-run onboarding wizard (2026-08-21)** — a 5-step setup on
   first launch: welcome, FFmpeg check + download, inference-engine status,
