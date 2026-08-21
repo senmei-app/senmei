@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: SRVGGNetCompact port (2026-08-21)** — new `srvgg` arch in the burn
+  + tch engines makes the two fast anime upscalers
+  (`realesrgan-animevideo-x2/x4`, BSD-3 weights) loadable. Converter maps the
+  flat torch body (16 convs + one shared PReLU) onto a `Vec<Conv2d>` + a
+  single shared PReLU param. Torch-verified: x2/x4 mae ≈0.016 (f16, random
+  weights).
+
 - **docs: upstream answers on burn/cubecl issues (2026-08-21)** — burn#4950
   (ordering panic) fixed on burn `main` (#4962/#5282/#5400); burn#5382
   (GroupNorm f16) #5211 fixed accumulation, denominator division separate;

@@ -9,8 +9,6 @@
 - libtorch on ROCm 7.14 / nightly
 ## Product / roadmap (2026-08-21)
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
-- [ ] RealESRGANv2-animevideo-xs (SRVGGNetCompact port, x2/x4) — enable the two
-      fast anime upscalers (loadable: false today)
 
 ## Models (2026-08-21)
 - [ ] anime1080fixer arch + license verify — removed from catalog 2026-08-21; revisit with the RRDBNet port

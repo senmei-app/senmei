@@ -5,7 +5,7 @@
 //! `crate::runtime`) and dlopen'd via `torch_sys::loader`; no CPU libtorch,
 //! CPU stays on the burn-Vulkan engine.
 
-use crate::arch::{RrdbNet, RifeNet, UpCunet2x, UpCunet2xFast};
+use crate::arch::{RrdbNet, RifeNet, SrvggNet, UpCunet2x, UpCunet2xFast};
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -118,6 +118,7 @@ enum Model {
     UpCunet2x(UpCunet2x<B>),
     UpCunet2xFast(UpCunet2xFast<B>),
     RrdbNet(RrdbNet<B>),
+    SrvggNet(SrvggNet<B>),
     RifeNet(RifeNet<B>),
 }
 
@@ -127,6 +128,7 @@ impl Model {
             Model::UpCunet2x(m) => m.forward(x),
             Model::UpCunet2xFast(m) => m.forward(x),
             Model::RrdbNet(m) => m.forward(x),
+            Model::SrvggNet(m) => m.forward(x),
             Model::RifeNet(_) => panic!("RifeNet has no single-input forward"),
         }
     }
@@ -193,6 +195,11 @@ impl TchEngine {
                 let mut m = RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RrdbNet(m))
+            }
+            "srvgg" => {
+                let mut m = SrvggNet::new(64, 16, model.scale as usize, &self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::SrvggNet(m))
             }
             other => Err(Error::new(format!("unsupported arch: {other}"))),
         }

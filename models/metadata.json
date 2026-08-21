@@ -1,700 +1,698 @@
 [
-  {
-    "id": "fallin-soft",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "fallin-cugan",
-    "family": "real-cugan",
-    "weights": [
-      "2x_Fallin_soft_renarchi_fp16.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
-    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_soft_renarchi_fp16.onnx",
-    "sha256": "17a4c0c6af5a187389f52a9bd026553a8819f148b70dea1a242d1517a352dfec",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "CUGAN retrain (renarchi, CC-BY-4.0); UpCunet2x_fast arch (pad 38) + ONNX initializer import via built-in parser"
-    }
-  },
-  {
-    "id": "fallin-strong",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "fallin-cugan",
-    "family": "real-cugan",
-    "weights": [
-      "2x_Fallin_strong_renarchi_fp16.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
-    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_strong_renarchi_fp16.onnx",
-    "sha256": "f3d636e298a22fd54ad66571e74f6c91afc6cc7929799d224dc6ebb864c128df",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; UpCunet2x_fast arch (pad 38) + ONNX initializer import"
-    }
-  },
-  {
-    "id": "4x-alchemy",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4x_Alchemy.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/4x_Alchemy",
-    "download_url": "https://github.com/renarchi/Re-SISR/releases/download/4x_Alchemy/4x_Alchemy.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0); clean burn port verified vs torch (mae ~0.002). The raw .pth stores weights channels-last (non-contiguous) — convert from a .contiguous()-fixed copy (see senmei-ml-convert)."
-    }
-  },
-  {
-    "id": "real-cugan-x2",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "upcunet2x",
-    "family": "real-cugan",
-    "weights": [
-      "up2x-no-denoise.pth.f16.bpk"
-    ],
-    "license": "Apache-2.0",
-    "source_url": "https://github.com/bilibili/ailab",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_up2x-latest-no-denoise.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "clean re-impl (upcunet_v3, MIT reference); f16 burnpack via convert-f16"
-    }
-  },
-  {
-    "id": "realesrgan-animevideo-x2",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "realesrgan",
-    "family": "real-esrgan",
-    "weights": [
-      "RealESRGANv2-animevideo-xsx2.pth.f16.bpk"
-    ],
-    "license": "BSD-3-Clause",
-    "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx2.pth",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "num_block": 4
-    }
-  },
-  {
-    "id": "realesrgan-animevideo-x4",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "realesrgan",
-    "family": "real-esrgan",
-    "weights": [
-      "RealESRGANv2-animevideo-xsx4.pth.f16.bpk"
-    ],
-    "license": "BSD-3-Clause",
-    "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx4.pth",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "num_block": 4
-    }
-  },
-  {
-    "id": "realesrgan-x4plus-anime",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "realesrgan",
-    "family": "real-esrgan",
-    "weights": [
-      "RealESRGAN_x4plus_anime_6B.pth.f16.bpk"
-    ],
-    "license": "BSD-3-Clause",
-    "source_url": "https://github.com/xinntao/Real-ESRGAN",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGAN_x4plus_anime_6B.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "num_block": 6
-    }
-  },
-  {
-    "id": "bsrgan",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "realesrgan",
-    "family": "esrgan",
-    "weights": [
-      "BSRGAN.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/cszn/KAIR",
-    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/BSRGAN.pth",
-    "loadable": true,
-    "metadata": {
-      "num_block": 23,
-      "input_range": "0..1",
-      "half": true,
-      "note": "BSRGAN (KAIR v1.0, MIT) RRDBNet 23 restoration (denoise/deblur/SR), scale 4; torch-verified mae 0.001; BasicSR key remap (RRDB_trunk/RDB/trunk_conv/upconv1-2/HRconv)"
-    }
-  },
-  {
-    "id": "scunet-denoise",
-    "kind": "denoise",
-    "scale": 1,
-    "arch": "scunet",
-    "family": "scunet",
-    "weights": [
-      "scunet_color_15.pth.f16.bpk"
-    ],
-    "license": "Apache-2.0",
-    "source_url": "https://github.com/cszn/SCUNet",
-    "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/scunet_color_15.pth",
-    "sha256": "fa3a95efb4add693a78917e70757a3d535c5a8c905ace9f93ba7e5897351e1b2",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "in_nc": 3,
-      "note": "SCUNet color σ=15 (cszn, Apache-2.0) Swin-Conv-UNet, config [4,4,4,4,4,4,4] dim 64 window 8 head_dim 32; clean burn port torch-verified mae ~0.0018; preprocess pth to contiguous (relative_position_params is a transposed view)"
-    }
-  },
-  {
-    "id": "real-plksr-deh264",
-    "kind": "decompress",
-    "scale": 1,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "1xDeH264_realplksr.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeH264_realplksr/1xDeH264_realplksr.pth",
-    "sha256": "92829754924fbcf944acf5d09e9cfd1cb3d1f2ee67a208a9921c1c0e4d74d6e7",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": false,
-      "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); CC-BY-4.0 confirmed 2026-08-20"
-    }
-  },
-  {
-    "id": "real-plksr-dejpg",
-    "kind": "decompress",
-    "scale": 1,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "1xDeJPG_realplksr_otf.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf.pth",
-    "sha256": "3bf4959fbd4b39b8877e73ea97a54d4280755371fe4bd64a2836c707d7fd485b",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": false,
-      "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); CC-BY-4.0 confirmed 2026-08-20"
-    }
-  },
-  {
-    "id": "real-plksr-dejpg-60",
-    "kind": "decompress",
-    "scale": 1,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "1xDeJPG_realplksr_otf_60.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf_60.pth",
-    "sha256": "0b43ae985a9f975e5eca0cd5bb8ec7f861cf3728250ef7e5db2cc7439d6f2350",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": false,
-      "note": "1x RealPLKSR_otf DeJPG q60 (Phhofm, CC-BY-4.0 confirmed 2026-08-20); pth is channels-last — bpk requires contiguous preprocessing (in-app convert would need it too); verified vs torch mae ~0.0003"
-    }
-  },
-  {
-    "id": "drunet-color",
-    "kind": "denoise",
-    "scale": 1,
-    "arch": "drunet",
-    "family": "drunet",
-    "weights": [
-      "drunet_color.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/cszn/KAIR",
-    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/drunet_color.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "in_nc": 4,
-      "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending"
-    }
-  },
-  {
-    "id": "dncnn-color",
-    "kind": "denoise",
-    "scale": 1,
-    "arch": "dncnn",
-    "family": "dncnn",
-    "weights": [
-      "dncnn_color_blind.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/cszn/KAIR",
-    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/dncnn_color_blind.pth",
-    "sha256": "dfe11a6b703304df82cdf236f431fc6492766c7b9119d97e943edeb392c710a3",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "in_nc": 3,
-      "note": "DnCNN color blind (KAIR, MIT) 20 conv layers, ReLU between, no BN; residual out=x-model(x); 3ch in (no sigma map); spandrel-verified mae ~0.001"
-    }
-  },
-  {
-    "id": "nafnet-gopro-width32",
-    "kind": "deblur",
-    "scale": 1,
-    "arch": "nafnet",
-    "family": "nafnet",
-    "weights": [
-      "NAFNet-GoPro-width32.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/megvii-research/NAFNet",
-    "download_url": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width32.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/models.md Notes); Deblur-step wiring pending"
-    }
-  },
-  {
-    "id": "rife-v4.6",
-    "kind": "interpolate",
-    "scale": 1,
-    "arch": "rife46",
-    "family": "rife",
-    "weights": [
-      "rife_v4.6_flownet.bin"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/nihui/rife-ncnn-vulkan",
-    "download_url": "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-ubuntu.zip",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "extract_suffix": "rife-v4.6/flownet.bin",
-      "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin; download extracts rife-v4.6/flownet.bin from the nihui release zip into the versioned rife_v4.6_flownet.bin (the hzwer/Practical-RIFE weights are PyTorch .pth on Google Drive/Baidu — not directly downloadable, incompatible with the ncnn loader)"
-    }
-  },
-  {
-    "id": "ifrnet-vimeo90k",
-    "kind": "interpolate",
-    "scale": 1,
-    "arch": "ifrnet",
-    "family": "ifrnet",
-    "weights": [
-      "IFRNet_Vimeo90K.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/ltkong218/IFRNet",
-    "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix)"
-    }
-  },
-  {
-    "id": "ifrnet-gopro",
-    "kind": "interpolate",
-    "scale": 1,
-    "arch": "ifrnet",
-    "family": "ifrnet",
-    "weights": [
-      "IFRNet_GoPro.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/ltkong218/IFRNet",
-    "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded"
-    }
-  },
-  {
-    "id": "span-2x-nomosuni-ldl",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2xNomosUni_span_multijpg_ldl.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg_ldl",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg_ldl/2xNomosUni_span_multijpg_ldl.pth",
-    "sha256": "59d96e844503a93303cbd780ba083d68049745b5307cb90bb3c05aad8180bb49",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× multijpg+ldl; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.917 vs torch"
-    }
-  },
-  {
-    "id": "span-2x-nomosuni-multijpg",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2xNomosUni_span_multijpg.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg/2xNomosUni_span_multijpg.pth",
-    "sha256": "1a981d0a11e2fcbb6cda7ac635f31b97d9903492ba7e4dda09b8be0b274f1ac5",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 48,
-      "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2× universal multijpg; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.686 vs torch"
-    }
-  },
-  {
-    "id": "span-2x-hfa2k",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2xHFA2kSPAN.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2kSPAN",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2kSPAN/2xHFA2kSPAN.pth",
-    "sha256": "59f41331bf32f122b73aaa9938b8baee7cb3e86125bdb55983d26074ac0d7285",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 48,
-      "note": "Phhofm SPAN anime (2xHFA2kSPAN, CC-BY-4.0), 48ch 2×, params-wrapped; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.821 vs torch"
-    }
-  },
-  {
-    "id": "span-2x-modern-spanimation-v1",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2x_ModernSpanimationV1.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1",
-    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1/2x_ModernSpanimationV1.pth",
-    "sha256": "bc6ca08ab1eeb9884a5c43c025eda97a5aa9ccfaa567734f426aedf55cf78327",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 64,
-      "note": "TNTwise ModernSpanimation V1 (MIT), 64ch 2× anime, params-wrapped; f16-safe"
-    }
-  },
-  {
-    "id": "span-2x-modern-spanimation-v1.5",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2x_ModernSpanimationV1.5.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1.5",
-    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1.5/2x_ModernSpanimationV1.5.pth",
-    "sha256": "fd147c3fa41916d390f3b44bd8376a07c000a6a3eb1e87d4b7c5bb1147bde140",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 64,
-      "note": "TNTwise ModernSpanimation V1.5 (MIT), 64ch 2× anime, norm-on"
-    }
-  },
-  {
-    "id": "span-2x-modern-spanimation-v2",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2x_ModernSpanimationV2.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV2",
-    "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV2/2x_ModernSpanimationV2.pth",
-    "sha256": "a13ae9fd8a72d0d320759472e4097eb58483c2ecc6232dec35b971e97275554c",
-    "loadable": false,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 48,
-      "no_norm": true,
-      "note": "TNTwise ModernSpanimation V2 (MIT), 48ch 2× anime; no_norm; disabled: cubek f16 1×1 conv bug K=96×N≥32768 (cubek#519), corr 0.936 vs torch"
-    }
-  },
-  {
-    "id": "span-2x-bhi-small",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "span",
-    "family": "span",
-    "weights": [
-      "2xBHI_small_span_pretrain.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xBHI_small_span_pretrain",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xBHI_small_span_pretrain/2xBHI_small_span_pretrain.pth",
-    "sha256": "74f5cbb6a614c34cb5f280e12e05d716d3a1ca85df723df6de247d43a7e01990",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "feature_channels": 48,
-      "no_norm": true,
-      "note": "Phhofm 2xBHI small (CC-BY-4.0 confirmed 2026-08-20), 48ch 2× anime; no_norm (norm=False)"
-    }
-  },
-  {
-    "id": "real-plksr-denois",
-    "kind": "decompress",
-    "scale": 1,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "1xDeNoise_realplksr_otf.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models",
-    "download_url": "https://github.com/Phhofm/models/releases/download/1xDeNoise_realplksr_otf/1xDeNoise_realplksr_otf.pth",
-    "sha256": "f4774fbe13ceaa9df390343c2baaa980061458ef27292fa6aca6740d87608a8e",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": false,
-      "note": "1x RealPLKSR_otf denoise (Phhofm, CC-BY-4.0 confirmed 2026-08-20)"
-    }
-  },
-  {
-    "id": "4x-nomos2-realplksr",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xNomos2_realplksr_dysample.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xNomos2_realplksr_dysample",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xNomos2_realplksr_dysample/4xNomos2_realplksr_dysample.pth",
-    "sha256": "96c8476ed2c42107628d10562b32ae89e7be3c2f7a53d29504823e9bafe8121d",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample Nomos2 (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
-    }
-  },
-  {
-    "id": "4x-nature-realplksr",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xNature_realplksr_dysample.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xNature_realplksr_dysample",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xNature_realplksr_dysample/4xNature_realplksr_dysample.pth",
-    "sha256": "062b57e5270ac3c37edb658259cb6f2deeb68e063249a5934b086e232dd99c34",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample Nature (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
-    }
-  },
-  {
-    "id": "4x-hfa2k-realplksr",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xHFA2k_ludvae_realplksr_dysample.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xHFA2k_ludvae_realplksr_dysample",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xHFA2k_ludvae_realplksr_dysample/4xHFA2k_ludvae_realplksr_dysample.pth",
-    "sha256": "c6e44af18fd3159787b0dbf81d432a6c1ba12c736fc1184b107ed091e49e327c",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample HFA2k LUDVAE (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
-    }
-  },
-  {
-    "id": "4x-mssim-realplksr",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xmssim_realplksr_dysample_pretrain.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xmssim_realplksr_dysample_pretrain",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xmssim_realplksr_dysample_pretrain/4xmssim_realplksr_dysample_pretrain.pth",
-    "sha256": "0a8706be7239d571a700b4c5bde2ca565d1f78a9386807e197fc02854e26862f",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample mssim (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
-    }
-  },
-  {
-    "id": "4x-bhi-realplksr-real",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xBHI_realplksr_dysample_real.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_real.pth",
-    "sha256": "8e01e91fd857e31e521d1b85ad6674ac41f5c898b51a2edf5e80522fe81cabbe",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample BHI real (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
-    }
-  },
-  {
-    "id": "4x-bhi-realplksr-otf",
-    "kind": "upscale",
-    "scale": 4,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "4xBHI_realplksr_dysample_otf.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
-    "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_otf.pth",
-    "sha256": "a78f5263e5f8ab75a03449ec4fc5091651906e1cf8872f905e58ef458bba8a84",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; pth channels-last — bpk from contiguous-preprocessed state dict (in-app convert needs it too); arch identical to _real; torch mae ~0.005"
-    }
-  },
-  {
-    "id": "ffdnet-color",
-    "kind": "denoise",
-    "scale": 1,
-    "arch": "ffdnet",
-    "family": "ffdnet",
-    "weights": [
-      "ffdnet_color.pth.f16.bpk"
-    ],
-    "license": "MIT",
-    "source_url": "https://github.com/cszn/KAIR",
-    "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/ffdnet_color.pth",
-    "sha256": "286f04f7e3a20254c067ba95efb5d3339f4fc8a09a365a93cd469184d4cdb279",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "in_nc": 13,
-      "sigma": "0..1",
-      "note": "FFDNet color (KAIR, MIT) nb=12/nc=96; even-only replication pad, pixel-unshuffle(2) → 12ch + σ map = 13ch, 12 convs ReLU (no BN), pixel-shuffle(2); torch-verified mae 0.0004"
-    }
-  },
-  {
-    "id": "real-plksr-2x-public",
-    "kind": "upscale",
-    "scale": 2,
-    "arch": "real-plksr",
-    "family": "real-plksr",
-    "weights": [
-      "2xpublic_ln.pth.f16.bpk"
-    ],
-    "license": "CC-BY-4.0",
-    "source_url": "https://github.com/Phhofm/models/releases/tag/2xPublic_realplksr_dysample_layernorm_real_nn",
-    "download_url": "https://github.com/Phhofm/models/releases/download/2xPublic_realplksr_dysample_layernorm_real_nn/2xPublic_realplksr_dysample_layernorm_real_nn.pth",
-    "sha256": "ccde158249395a94d60404e267f33f4d609c14705937ebe9f390d4d616995b13",
-    "loadable": true,
-    "metadata": {
-      "input_range": "0..1",
-      "half": true,
-      "dysample": true,
-      "layer_norm": true,
-      "note": "2x RealPLKSR_Dysample LayerNorm real_nn (Phhofm, CC-BY-4.0); dim 64/28 blocks, per-pixel channel LayerNorm (eps 1e-6) at block start. The flat contiguous .pth converts directly (converter strips optional params wrapper); ONNX-verified mae ~0.0016."
-    }
+ {
+  "id": "fallin-soft",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "fallin-cugan",
+  "family": "real-cugan",
+  "weights": [
+   "2x_Fallin_soft_renarchi_fp16.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
+  "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_soft_renarchi_fp16.onnx",
+  "sha256": "17a4c0c6af5a187389f52a9bd026553a8819f148b70dea1a242d1517a352dfec",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "CUGAN retrain (renarchi, CC-BY-4.0); UpCunet2x_fast arch (pad 38) + ONNX initializer import via built-in parser"
   }
+ },
+ {
+  "id": "fallin-strong",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "fallin-cugan",
+  "family": "real-cugan",
+  "weights": [
+   "2x_Fallin_strong_renarchi_fp16.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/Fallin",
+  "download_url": "https://github.com/renarchi/Re-SISR/releases/download/Fallin/2x_Fallin_strong_renarchi_fp16.onnx",
+  "sha256": "f3d636e298a22fd54ad66571e74f6c91afc6cc7929799d224dc6ebb864c128df",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "CUGAN retrain (renarchi, CC-BY-4.0); oversharpened sibling of fallin-soft; UpCunet2x_fast arch (pad 38) + ONNX initializer import"
+  }
+ },
+ {
+  "id": "4x-alchemy",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4x_Alchemy.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/renarchi/Re-SISR/releases/tag/4x_Alchemy",
+  "download_url": "https://github.com/renarchi/Re-SISR/releases/download/4x_Alchemy/4x_Alchemy.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample (renarchi, CC-BY-4.0); clean burn port verified vs torch (mae ~0.002). The raw .pth stores weights channels-last (non-contiguous) \u2014 convert from a .contiguous()-fixed copy (see senmei-ml-convert)."
+  }
+ },
+ {
+  "id": "real-cugan-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "upcunet2x",
+  "family": "real-cugan",
+  "weights": [
+   "up2x-no-denoise.pth.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/bilibili/ailab",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_up2x-latest-no-denoise.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "clean re-impl (upcunet_v3, MIT reference); f16 burnpack via convert-f16"
+  }
+ },
+ {
+  "id": "realesrgan-animevideo-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "srvgg",
+  "family": "real-esrgan",
+  "weights": [
+   "RealESRGANv2-animevideo-xsx2.pth.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx2.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true
+  }
+ },
+ {
+  "id": "realesrgan-animevideo-x4",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "srvgg",
+  "family": "real-esrgan",
+  "weights": [
+   "RealESRGANv2-animevideo-xsx4.pth.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGANv2-animevideo-xsx4.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true
+  }
+ },
+ {
+  "id": "realesrgan-x4plus-anime",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "realesrgan",
+  "family": "real-esrgan",
+  "weights": [
+   "RealESRGAN_x4plus_anime_6B.pth.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/RealESRGAN_x4plus_anime_6B.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 6
+  }
+ },
+ {
+  "id": "bsrgan",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "realesrgan",
+  "family": "esrgan",
+  "weights": [
+   "BSRGAN.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/cszn/KAIR",
+  "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/BSRGAN.pth",
+  "loadable": true,
+  "metadata": {
+   "num_block": 23,
+   "input_range": "0..1",
+   "half": true,
+   "note": "BSRGAN (KAIR v1.0, MIT) RRDBNet 23 restoration (denoise/deblur/SR), scale 4; torch-verified mae 0.001; BasicSR key remap (RRDB_trunk/RDB/trunk_conv/upconv1-2/HRconv)"
+  }
+ },
+ {
+  "id": "scunet-denoise",
+  "kind": "denoise",
+  "scale": 1,
+  "arch": "scunet",
+  "family": "scunet",
+  "weights": [
+   "scunet_color_15.pth.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/cszn/SCUNet",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/scunet_color_15.pth",
+  "sha256": "fa3a95efb4add693a78917e70757a3d535c5a8c905ace9f93ba7e5897351e1b2",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "in_nc": 3,
+   "note": "SCUNet color \u03c3=15 (cszn, Apache-2.0) Swin-Conv-UNet, config [4,4,4,4,4,4,4] dim 64 window 8 head_dim 32; clean burn port torch-verified mae ~0.0018; preprocess pth to contiguous (relative_position_params is a transposed view)"
+  }
+ },
+ {
+  "id": "real-plksr-deh264",
+  "kind": "decompress",
+  "scale": 1,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "1xDeH264_realplksr.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models",
+  "download_url": "https://github.com/Phhofm/models/releases/download/1xDeH264_realplksr/1xDeH264_realplksr.pth",
+  "sha256": "92829754924fbcf944acf5d09e9cfd1cb3d1f2ee67a208a9921c1c0e4d74d6e7",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": false,
+   "note": "1x RealPLKSR (Phhofm) clean burn port verified vs torch (mae ~0.002); CC-BY-4.0 confirmed 2026-08-20"
+  }
+ },
+ {
+  "id": "real-plksr-dejpg",
+  "kind": "decompress",
+  "scale": 1,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "1xDeJPG_realplksr_otf.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models",
+  "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf.pth",
+  "sha256": "3bf4959fbd4b39b8877e73ea97a54d4280755371fe4bd64a2836c707d7fd485b",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": false,
+   "note": "1x RealPLKSR_otf (Phhofm) clean burn port verified vs torch (mae ~0.0002); CC-BY-4.0 confirmed 2026-08-20"
+  }
+ },
+ {
+  "id": "real-plksr-dejpg-60",
+  "kind": "decompress",
+  "scale": 1,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "1xDeJPG_realplksr_otf_60.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models",
+  "download_url": "https://github.com/Phhofm/models/releases/download/1xDeJPG_realplksr_otf/1xDeJPG_realplksr_otf_60.pth",
+  "sha256": "0b43ae985a9f975e5eca0cd5bb8ec7f861cf3728250ef7e5db2cc7439d6f2350",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": false,
+   "note": "1x RealPLKSR_otf DeJPG q60 (Phhofm, CC-BY-4.0 confirmed 2026-08-20); pth is channels-last \u2014 bpk requires contiguous preprocessing (in-app convert would need it too); verified vs torch mae ~0.0003"
+  }
+ },
+ {
+  "id": "drunet-color",
+  "kind": "denoise",
+  "scale": 1,
+  "arch": "drunet",
+  "family": "drunet",
+  "weights": [
+   "drunet_color.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/cszn/KAIR",
+  "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/drunet_color.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "in_nc": 4,
+   "note": "DRUNet (DPIR, MIT) UNetRes; torch-verified mae 0.001; input RGB + constant noise-level map (in_nc=4), all convs bias=false; pipeline Denoise-step wiring pending"
+  }
+ },
+ {
+  "id": "dncnn-color",
+  "kind": "denoise",
+  "scale": 1,
+  "arch": "dncnn",
+  "family": "dncnn",
+  "weights": [
+   "dncnn_color_blind.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/cszn/KAIR",
+  "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/dncnn_color_blind.pth",
+  "sha256": "dfe11a6b703304df82cdf236f431fc6492766c7b9119d97e943edeb392c710a3",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "in_nc": 3,
+   "note": "DnCNN color blind (KAIR, MIT) 20 conv layers, ReLU between, no BN; residual out=x-model(x); 3ch in (no sigma map); spandrel-verified mae ~0.001"
+  }
+ },
+ {
+  "id": "nafnet-gopro-width32",
+  "kind": "deblur",
+  "scale": 1,
+  "arch": "nafnet",
+  "family": "nafnet",
+  "weights": [
+   "NAFNet-GoPro-width32.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/megvii-research/NAFNet",
+  "download_url": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width32.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "NAFNet-GoPro width32 (MIT) NAFBlock port; torch-verified mae 0.0007 on real content; fp16-safe for image content, random/noise inputs overflow (docs/models.md Notes); Deblur-step wiring pending"
+  }
+ },
+ {
+  "id": "rife-v4.6",
+  "kind": "interpolate",
+  "scale": 1,
+  "arch": "rife46",
+  "family": "rife",
+  "weights": [
+   "rife_v4.6_flownet.bin"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/nihui/rife-ncnn-vulkan",
+  "download_url": "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-ubuntu.zip",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "extract_suffix": "rife-v4.6/flownet.bin",
+   "note": "clean burn port of ncnn flownet (v4.6, MIT); weights loaded from ncnn fp16 .bin; download extracts rife-v4.6/flownet.bin from the nihui release zip into the versioned rife_v4.6_flownet.bin (the hzwer/Practical-RIFE weights are PyTorch .pth on Google Drive/Baidu \u2014 not directly downloadable, incompatible with the ncnn loader)"
+  }
+ },
+ {
+  "id": "ifrnet-vimeo90k",
+  "kind": "interpolate",
+  "scale": 1,
+  "arch": "ifrnet",
+  "family": "ifrnet",
+  "weights": [
+   "IFRNet_Vimeo90K.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/ltkong218/IFRNet",
+  "download_url": "https://huggingface.co/pavlichenko/ifrnet_vimeo/resolve/main/IFRNet_Vimeo90K.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix)"
+  }
+ },
+ {
+  "id": "ifrnet-gopro",
+  "kind": "interpolate",
+  "scale": 1,
+  "arch": "ifrnet",
+  "family": "ifrnet",
+  "weights": [
+   "IFRNet_GoPro.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/ltkong218/IFRNet",
+  "download_url": "https://huggingface.co/pavlichenko/ifrnet_gopro/resolve/main/IFRNet_GoPro.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "IFRNet base (MIT) clean burn port, torch-verified mae 0.005 on fused Vulkan<f16> (ResBlock c5 fix); GoPro weights not yet downloaded"
+  }
+ },
+ {
+  "id": "span-2x-nomosuni-ldl",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2xNomosUni_span_multijpg_ldl.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg_ldl",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg_ldl/2xNomosUni_span_multijpg_ldl.pth",
+  "sha256": "59d96e844503a93303cbd780ba083d68049745b5307cb90bb3c05aad8180bb49",
+  "loadable": false,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2\u00d7 multijpg+ldl; disabled: cubek f16 1\u00d71 conv bug K=96\u00d7N\u226532768 (cubek#519), corr 0.917 vs torch"
+  }
+ },
+ {
+  "id": "span-2x-nomosuni-multijpg",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2xNomosUni_span_multijpg.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xNomosUni_span_multijpg",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xNomosUni_span_multijpg/2xNomosUni_span_multijpg.pth",
+  "sha256": "1a981d0a11e2fcbb6cda7ac635f31b97d9903492ba7e4dda09b8be0b274f1ac5",
+  "loadable": false,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "note": "Phhofm SPAN (CC-BY-4.0, norm=True), 48ch 2\u00d7 universal multijpg; disabled: cubek f16 1\u00d71 conv bug K=96\u00d7N\u226532768 (cubek#519), corr 0.686 vs torch"
+  }
+ },
+ {
+  "id": "span-2x-hfa2k",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2xHFA2kSPAN.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2kSPAN",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2kSPAN/2xHFA2kSPAN.pth",
+  "sha256": "59f41331bf32f122b73aaa9938b8baee7cb3e86125bdb55983d26074ac0d7285",
+  "loadable": false,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "note": "Phhofm SPAN anime (2xHFA2kSPAN, CC-BY-4.0), 48ch 2\u00d7, params-wrapped; disabled: cubek f16 1\u00d71 conv bug K=96\u00d7N\u226532768 (cubek#519), corr 0.821 vs torch"
+  }
+ },
+ {
+  "id": "span-2x-modern-spanimation-v1",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2x_ModernSpanimationV1.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1",
+  "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1/2x_ModernSpanimationV1.pth",
+  "sha256": "bc6ca08ab1eeb9884a5c43c025eda97a5aa9ccfaa567734f426aedf55cf78327",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 64,
+   "note": "TNTwise ModernSpanimation V1 (MIT), 64ch 2\u00d7 anime, params-wrapped; f16-safe"
+  }
+ },
+ {
+  "id": "span-2x-modern-spanimation-v1.5",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2x_ModernSpanimationV1.5.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV1.5",
+  "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV1.5/2x_ModernSpanimationV1.5.pth",
+  "sha256": "fd147c3fa41916d390f3b44bd8376a07c000a6a3eb1e87d4b7c5bb1147bde140",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 64,
+   "note": "TNTwise ModernSpanimation V1.5 (MIT), 64ch 2\u00d7 anime, norm-on"
+  }
+ },
+ {
+  "id": "span-2x-modern-spanimation-v2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2x_ModernSpanimationV2.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/TNTwise/Models/releases/tag/2x_ModernSpanimationV2",
+  "download_url": "https://github.com/TNTwise/Models/releases/download/2x_ModernSpanimationV2/2x_ModernSpanimationV2.pth",
+  "sha256": "a13ae9fd8a72d0d320759472e4097eb58483c2ecc6232dec35b971e97275554c",
+  "loadable": false,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "no_norm": true,
+   "note": "TNTwise ModernSpanimation V2 (MIT), 48ch 2\u00d7 anime; no_norm; disabled: cubek f16 1\u00d71 conv bug K=96\u00d7N\u226532768 (cubek#519), corr 0.936 vs torch"
+  }
+ },
+ {
+  "id": "span-2x-bhi-small",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2xBHI_small_span_pretrain.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xBHI_small_span_pretrain",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xBHI_small_span_pretrain/2xBHI_small_span_pretrain.pth",
+  "sha256": "74f5cbb6a614c34cb5f280e12e05d716d3a1ca85df723df6de247d43a7e01990",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "no_norm": true,
+   "note": "Phhofm 2xBHI small (CC-BY-4.0 confirmed 2026-08-20), 48ch 2\u00d7 anime; no_norm (norm=False)"
+  }
+ },
+ {
+  "id": "real-plksr-denois",
+  "kind": "decompress",
+  "scale": 1,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "1xDeNoise_realplksr_otf.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models",
+  "download_url": "https://github.com/Phhofm/models/releases/download/1xDeNoise_realplksr_otf/1xDeNoise_realplksr_otf.pth",
+  "sha256": "f4774fbe13ceaa9df390343c2baaa980061458ef27292fa6aca6740d87608a8e",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": false,
+   "note": "1x RealPLKSR_otf denoise (Phhofm, CC-BY-4.0 confirmed 2026-08-20)"
+  }
+ },
+ {
+  "id": "4x-nomos2-realplksr",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xNomos2_realplksr_dysample.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xNomos2_realplksr_dysample",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xNomos2_realplksr_dysample/4xNomos2_realplksr_dysample.pth",
+  "sha256": "96c8476ed2c42107628d10562b32ae89e7be3c2f7a53d29504823e9bafe8121d",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample Nomos2 (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+  }
+ },
+ {
+  "id": "4x-nature-realplksr",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xNature_realplksr_dysample.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xNature_realplksr_dysample",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xNature_realplksr_dysample/4xNature_realplksr_dysample.pth",
+  "sha256": "062b57e5270ac3c37edb658259cb6f2deeb68e063249a5934b086e232dd99c34",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample Nature (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+  }
+ },
+ {
+  "id": "4x-hfa2k-realplksr",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xHFA2k_ludvae_realplksr_dysample.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xHFA2k_ludvae_realplksr_dysample",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xHFA2k_ludvae_realplksr_dysample/4xHFA2k_ludvae_realplksr_dysample.pth",
+  "sha256": "c6e44af18fd3159787b0dbf81d432a6c1ba12c736fc1184b107ed091e49e327c",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample HFA2k LUDVAE (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+  }
+ },
+ {
+  "id": "4x-mssim-realplksr",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xmssim_realplksr_dysample_pretrain.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xmssim_realplksr_dysample_pretrain",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xmssim_realplksr_dysample_pretrain/4xmssim_realplksr_dysample_pretrain.pth",
+  "sha256": "0a8706be7239d571a700b4c5bde2ca565d1f78a9386807e197fc02854e26862f",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample mssim (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+  }
+ },
+ {
+  "id": "4x-bhi-realplksr-real",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xBHI_realplksr_dysample_real.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_real.pth",
+  "sha256": "8e01e91fd857e31e521d1b85ad6674ac41f5c898b51a2edf5e80522fe81cabbe",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample BHI real (Phhofm, CC-BY-4.0); dim 64/28 blocks; weights-only on real-plksr arch"
+  }
+ },
+ {
+  "id": "4x-bhi-realplksr-otf",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "4xBHI_realplksr_dysample_otf.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
+  "download_url": "https://github.com/Phhofm/models/releases/download/4xbhi_realplksr/4xBHI_realplksr_dysample_otf.pth",
+  "sha256": "a78f5263e5f8ab75a03449ec4fc5091651906e1cf8872f905e58ef458bba8a84",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "note": "4x RealPLKSR_Dysample BHI otf (Phhofm, CC-BY-4.0); dim 64/28 blocks; pth channels-last \u2014 bpk from contiguous-preprocessed state dict (in-app convert needs it too); arch identical to _real; torch mae ~0.005"
+  }
+ },
+ {
+  "id": "ffdnet-color",
+  "kind": "denoise",
+  "scale": 1,
+  "arch": "ffdnet",
+  "family": "ffdnet",
+  "weights": [
+   "ffdnet_color.pth.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/cszn/KAIR",
+  "download_url": "https://github.com/cszn/KAIR/releases/download/v1.0/ffdnet_color.pth",
+  "sha256": "286f04f7e3a20254c067ba95efb5d3339f4fc8a09a365a93cd469184d4cdb279",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "in_nc": 13,
+   "sigma": "0..1",
+   "note": "FFDNet color (KAIR, MIT) nb=12/nc=96; even-only replication pad, pixel-unshuffle(2) \u2192 12ch + \u03c3 map = 13ch, 12 convs ReLU (no BN), pixel-shuffle(2); torch-verified mae 0.0004"
+  }
+ },
+ {
+  "id": "real-plksr-2x-public",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "real-plksr",
+  "family": "real-plksr",
+  "weights": [
+   "2xpublic_ln.pth.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xPublic_realplksr_dysample_layernorm_real_nn",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xPublic_realplksr_dysample_layernorm_real_nn/2xPublic_realplksr_dysample_layernorm_real_nn.pth",
+  "sha256": "ccde158249395a94d60404e267f33f4d609c14705937ebe9f390d4d616995b13",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "dysample": true,
+   "layer_norm": true,
+   "note": "2x RealPLKSR_Dysample LayerNorm real_nn (Phhofm, CC-BY-4.0); dim 64/28 blocks, per-pixel channel LayerNorm (eps 1e-6) at block start. The flat contiguous .pth converts directly (converter strips optional params wrapper); ONNX-verified mae ~0.0016."
+  }
+ }
 ]

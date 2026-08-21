@@ -15,7 +15,7 @@ mod real_plksr;
 mod scunet;
 mod span;
 
-use crate::arch::{RrdbNet, RifeNet, UpCunet2x, UpCunet2xFast};
+use crate::arch::{RrdbNet, RifeNet, SrvggNet, UpCunet2x, UpCunet2xFast};
 use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -49,6 +49,7 @@ enum Model {
     UpCunet2x(UpCunet2x<BurnBackend<f16>>),
     UpCunet2xFast(UpCunet2xFast<BurnBackend<f16>>),
     RrdbNet(RrdbNet<BurnBackend<f16>>),
+    SrvggNet(SrvggNet<BurnBackend<f16>>),
     RifeNet(RifeNet<BurnBackend<f16>>),
     IfrNet(IfrNet<BurnBackend<f16>>),
     Drunet(Drunet<BurnBackend<f16>>),
@@ -69,6 +70,7 @@ impl Model {
             Model::UpCunet2x(m) => Ok(m.forward(x)),
             Model::UpCunet2xFast(m) => Ok(m.forward(x)),
             Model::RrdbNet(m) => Ok(m.forward(x)),
+            Model::SrvggNet(m) => Ok(m.forward(x)),
             Model::RealPlk(m) => Ok(m.forward(x)),
             Model::Drunet(m) => Ok(m.forward(x)),
             Model::Dncnn(m) => Ok(m.forward(x)),
@@ -131,6 +133,12 @@ impl BurnEngine {
                     RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
                 Ok(Model::RrdbNet(m))
+            }
+            "srvgg" => {
+                // animevideo-xs: 64 features, 16 convs (registered models are fixed).
+                let mut m = SrvggNet::new(64, 16, model.scale as usize, &self.device);
+                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                Ok(Model::SrvggNet(m))
             }
             "ifrnet" => {
                 let mut m = IfrNet::new(&self.device);
@@ -447,7 +455,8 @@ pub fn convert_pth_to_bpk(
     layer_norm: bool,
 ) -> Result<()> {
     let device = WgpuDevice::DiscreteGpu(0);
-    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
+    let mut save = BurnpackStore::from_file(bpk_path)
+        .with_to_adapter(HalfPrecisionAdapter::new().with_module("Prelu"));
     match arch {
         "upcunet2x" | "upcunet2x-fast" | "fallin-cugan" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -470,6 +479,29 @@ pub fn convert_pth_to_bpk(
                         .map_err(|e| Error::new(e.to_string()))?;
                 }
             }
+        }
+        "srvgg" => {
+            // Torch SRVGG body is flat (`body.{0,2,4,…}` = convs, `body.{1,3,…}`
+            // = the ONE shared PReLU). Remap the even conv indices onto the Vec;
+            // `body.1.weight` feeds the shared PReLU and the duplicate odd
+            // weights stay unused. 4× upsampler convs sit at `upsampler.0/.2`
+            // (PixelShuffle between), so `.2` becomes the Vec's `.1`.
+            let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(
+                    r"body\.(1|3|5|7|9|11|13|15|17|19|21|23|25|27|29)\.weight",
+                    "prelu.weight",
+                );
+            for i in 0..16u32 {
+                let from = format!(r"body\.{}\.(weight|bias)", i * 2);
+                let to = format!("body.{}.$1", i);
+                store = store.with_key_remapping(from, to);
+            }
+            store = store.with_key_remapping(r"upsampler\.2\.", "upsampler.1.");
+            let mut m = SrvggNet::<BurnBackend>::new(64, 16, scale as usize, &device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
         }
         "realesrgan" => {
             // Also handles BSRGAN (KAIR): same RRDBNet, but its keys use the

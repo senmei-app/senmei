@@ -203,7 +203,11 @@ mod tests {
         assert_eq!(registry.models()[3].scale, 2);
         assert!(registry.models()[3].loadable);
         assert_eq!(registry.models()[4].id, "realesrgan-animevideo-x2");
+        assert_eq!(registry.models()[4].arch, "srvgg");
+        assert!(registry.models()[4].loadable);
         assert_eq!(registry.models()[5].id, "realesrgan-animevideo-x4");
+        assert_eq!(registry.models()[5].arch, "srvgg");
+        assert!(registry.models()[5].loadable);
         assert_eq!(registry.models()[6].id, "realesrgan-x4plus-anime");
         assert_eq!(registry.models()[6].scale, 4);
         assert_eq!(registry.models()[7].id, "bsrgan");

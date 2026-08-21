@@ -5,9 +5,11 @@
 
 pub mod realesrgan;
 pub mod rife;
+pub mod srvgg;
 pub mod upcunet;
 pub mod warp;
 
 pub use realesrgan::RrdbNet;
 pub use rife::RifeNet;
+pub use srvgg::SrvggNet;
 pub use upcunet::{UpCunet2x, UpCunet2xFast};
