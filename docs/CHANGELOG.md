@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **refactor: split `app/store.rs` into `store/` modules (2026-08-21)** —
+  settings (`Settings` + load/save) move to `store/settings.rs`, project
+  management (entries, tar.xz import/export, delete) to `store/projects.rs`;
+  `store/mod.rs` keeps the shared `data_dir`, re-exports and the tests.
+
 - **refactor: extract `.pth`/`.onnx` converter into `src/convert.rs`
   (2026-08-21)** — `convert_pth_to_bpk`, `convert_onnx_to_bpk` and helpers
   move out of `burn/mod.rs` into a dedicated `convert` module (burn-gated);
