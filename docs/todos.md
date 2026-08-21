@@ -30,9 +30,6 @@
 - [ ] Queue persistence + resume after crash, ETA per batch
 - [ ] RealESRGANv2-animevideo-xs (SRVGGNetCompact port, x2/x4) — enable the two
       fast anime upscalers (loadable: false today)
-- [ ] Fix maximize/restore icon (top-right): show restore glyph after
-      maximizing
-- [ ] Header width: match Koharu/VS Code (currently wider)
 
 ## Models (2026-08-21)
 - [ ] anime1080fixer arch + license verify — removed from catalog 2026-08-21; revisit with the RRDBNet port
@@ -78,9 +75,6 @@
       decides, off by default)? — decision deferred 2026-08-20, hard gate stays
 
 ## Web / headless
-- [ ] senmei-server CLI via clap: `--help`/`-h`, `--server`/`-s` (enable HTTP),
-      `--http-port`/`-p`, `--mcp-server`/`-m` — replace env-only config + the
-      naive `--http` arg check in `main.rs`
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
       native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer
       option A: server streams the raw file with Range requests (new

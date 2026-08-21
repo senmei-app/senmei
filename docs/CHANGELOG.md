@@ -17,6 +17,21 @@
   ships the CUDA/ROCm engine compiled in; the libtorch runtime itself is
   still downloaded on demand.
 
+- **feat: senmei-server CLI via clap (2026-08-21)** — `--server`/`-s`,
+  `--http-port`/`-p`, `--mcp-server`/`-m`, `--web-dir`; env fallbacks
+  (SENMEI_HTTP/PORT/WEB_DIR) and `--http` alias kept.
+
+- **ui: maximize/restore window-control icon (2026-08-21)** — toggles
+  between a hollow square and the overlapping-rectangle restore glyph,
+  synced via the window resize event.
+
+- **ui: slim header to h-10 (2026-08-21)** — matches the Koharu/VS Code
+  title-bar height (was h-12).
+
+- **ci: harden build against runner disk/net flakes (2026-08-21)** —
+  `CARGO_INCREMENTAL=0` + free check artifacts before tests (runner disk);
+  retry `bun install` (network).
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a
