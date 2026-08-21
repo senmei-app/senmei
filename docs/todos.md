@@ -12,7 +12,6 @@
       bundles include the headless HTTP/MCP service
 - [ ] Model manager in Settings: installed weights (size, source), SHA256
       verify, delete
-- [ ] Pipeline presets (art templates): save/load named step chains
 - [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
       downloads, license gate
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)

@@ -3,6 +3,7 @@ import type { ModelMetadata } from "@senmei/bridge";
 import { backend } from "../backend";
 import { useI18n } from "../i18n";
 import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
+import { deletePreset, loadPresets, savePreset, type PipelinePreset } from "../presets";
 import StepEditor from "./StepEditor";
 
 export default function Inspector({
@@ -49,6 +50,31 @@ export default function Inspector({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
   const [dlPct, setDlPct] = useState(0);
+  const [presets, setPresets] = useState<PipelinePreset[]>([]);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  useEffect(() => {
+    setPresets(loadPresets());
+  }, []);
+
+  const applyPreset = (p: PipelinePreset) => {
+    onChange(JSON.parse(JSON.stringify(p.steps)));
+    setExpanded(p.steps[0]?.id ?? null);
+  };
+
+  const commitPreset = () => {
+    const name = presetName.trim() || `Preset ${presets.length + 1}`;
+    savePreset(name, steps);
+    setPresets(loadPresets());
+    setPresetName("");
+    setSaveOpen(false);
+  };
+
+  const removePreset = (name: string) => {
+    deletePreset(name);
+    setPresets(loadPresets());
+  };
 
   useEffect(() => {
     backend()
@@ -237,6 +263,64 @@ export default function Inspector({
 
   return (
     <aside className="h-full w-full overflow-y-auto border-l border-slate-200 bg-slate-100/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
+      <div className="mb-3 rounded-xl border border-slate-200 bg-white/60 p-2 dark:border-slate-800 dark:bg-slate-900/60">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            {t("presets.title")}
+          </span>
+          <button
+            onClick={() => setSaveOpen((o) => !o)}
+            className="rounded-md px-2 py-0.5 text-[11px] text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300"
+          >
+            {t("presets.saveCurrent")}
+          </button>
+        </div>
+        {saveOpen && (
+          <div className="mt-1.5 flex gap-1">
+            <input
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPreset();
+                if (e.key === "Escape") setSaveOpen(false);
+              }}
+              placeholder={t("presets.namePlaceholder")}
+              className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            />
+            <button
+              onClick={commitPreset}
+              className="rounded-md bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white"
+            >
+              {t("presets.save")}
+            </button>
+          </div>
+        )}
+        {presets.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {presets.map((p) => (
+              <span
+                key={p.name}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-200/70 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                <button
+                  onClick={() => applyPreset(p)}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-300"
+                >
+                  {p.name}
+                </button>
+                <button
+                  onClick={() => removePreset(p.name)}
+                  title={t("presets.delete")}
+                  className="text-slate-400 hover:text-rose-500"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       {steps.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700">
           {t("stack.empty")}

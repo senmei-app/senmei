@@ -44,6 +44,9 @@
   `logs/*.log` + `diagnostics.json` (settings, backend, ffmpeg) as a
   `.tar.xz` for bug reports.
 
+- **feat: pipeline templates (art presets) (2026-08-21)** — save/load named
+  step chains in the stack panel (localStorage, all transports).
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a
