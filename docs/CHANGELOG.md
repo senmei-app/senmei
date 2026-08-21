@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **refactor: split frontend i18n + Monitor helpers (2026-08-21)** — the
+  en/de message dictionaries move out of `i18n.tsx` into `src/i18n/{en,de}.ts`
+  (`i18n/index.tsx` keeps the provider/hook); Monitor's pure time/format
+  helpers move to `monitor/format.ts`. TS build unchanged.
+
 - **refactor: split `app/store.rs` into `store/` modules (2026-08-21)** —
   settings (`Settings` + load/save) move to `store/settings.rs`, project
   management (entries, tar.xz import/export, delete) to `store/projects.rs`;
