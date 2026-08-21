@@ -32,6 +32,10 @@
   `CARGO_INCREMENTAL=0` + free check artifacts before tests (runner disk);
   retry `bun install` (network).
 
+- **ci: split release bundle into its own job (2026-08-21)** — check+test and
+  the bundle build each get a fresh runner (disk); `Free check artifacts`
+  runs in bash on Windows.
+
 - **feat: rotating log file (2026-08-21)** — Info+ records append to
   `<data-dir>/logs/senmei.log` (5 MB cap, 3 rotations) with module/file:line,
   so logs survive crashes (base for the diagnose export).
