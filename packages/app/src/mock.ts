@@ -259,6 +259,17 @@ export const mockBackend: Backend = {
     return demoVideos;
   },
 
+  async suggestPipeline() {
+    return JSON.stringify({
+      anime: true,
+      steps: [
+        { stepType: "interpolation", params: { fpsMultiplier: 2, modelId: "rife-v4.6" } },
+        { stepType: "upscale", params: { scale: 4, modelId: "realesrgan-animevideo-x4" } },
+        { stepType: "output", params: {} },
+      ],
+    });
+  },
+
   async loadProjectSettings(path) {
     return (projectSettings.get(path) ?? { steps: [], files: [], outputDir: null }) as never;
   },

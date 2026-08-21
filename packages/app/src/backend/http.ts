@@ -166,6 +166,10 @@ export const httpBackend: Backend = {
     });
   },
 
+  async suggestPipeline(_input) {
+    throw new Error("suggest pipeline is not available over HTTP yet");
+  },
+
   async loadProjectSettings(path): Promise<ProjectSettings> {
     const raw = localStorage.getItem(`${PROJECTS_KEY}.${path}`);
     return raw ? JSON.parse(raw) : { steps: [], files: [], outputDir: null };

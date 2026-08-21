@@ -10,10 +10,12 @@ export default function RightPanel({
   steps,
   outputDir,
   onChange,
+  onSuggest,
 }: {
   steps: PipelineStep[];
   outputDir?: string | null;
   onChange: (steps: PipelineStep[]) => void;
+  onSuggest?: () => void;
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<"stack" | "logs">("stack");
@@ -33,7 +35,11 @@ export default function RightPanel({
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {tab === "stack" ? <Inspector steps={steps} outputDir={outputDir} onChange={onChange} /> : <LogsPanel />}
+        {tab === "stack" ? (
+          <Inspector steps={steps} outputDir={outputDir} onChange={onChange} onSuggest={onSuggest} />
+        ) : (
+          <LogsPanel />
+        )}
       </div>
     </div>
   );

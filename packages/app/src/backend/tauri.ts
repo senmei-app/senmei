@@ -112,6 +112,9 @@ export const tauriBackend: Backend = {
   scanFolder(dir) {
     return bridge.scanFolder(dir);
   },
+  suggestPipeline(input) {
+    return bridge.suggestPipeline(input);
+  },
 
   loadProjectSettings(path) {
     return bridge.loadProjectSettings(path);

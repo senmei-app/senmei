@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: content-aware pipeline defaults (2026-08-21)** — „Suggest“ in the
+  stack panel probes the current file (anime vs live-action via a
+  flatness/edge heuristic on sampled frames, input resolution, fps) and
+  populates a suggested step chain (interpolation, upscaler choice, denoise
+  for live footage).
+
 - **feat: hardware encoders (2026-08-21)** — the encoder picker prefers
   verified hardware encoders (`hevc_nvenc`/VAAPI/QSV/AMF on Linux,
   VideoToolbox on macOS, HEVC before H.264); each is confirmed with a cached

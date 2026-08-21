@@ -10,10 +10,12 @@ export default function Inspector({
   steps,
   outputDir,
   onChange,
+  onSuggest,
 }: {
   steps: PipelineStep[];
   outputDir?: string | null;
   onChange: (steps: PipelineStep[]) => void;
+  onSuggest?: () => void;
 }) {
   const { t } = useI18n();
   const [models, setModels] = useState<ModelMetadata[]>([]);
@@ -268,12 +270,22 @@ export default function Inspector({
           <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             {t("presets.title")}
           </span>
-          <button
-            onClick={() => setSaveOpen((o) => !o)}
-            className="rounded-md px-2 py-0.5 text-[11px] text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300"
-          >
-            {t("presets.saveCurrent")}
-          </button>
+          <div className="flex items-center gap-1">
+            {onSuggest && (
+              <button
+                onClick={onSuggest}
+                className="rounded-md px-2 py-0.5 text-[11px] text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-300"
+              >
+                ✨ {t("presets.suggest")}
+              </button>
+            )}
+            <button
+              onClick={() => setSaveOpen((o) => !o)}
+              className="rounded-md px-2 py-0.5 text-[11px] text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300"
+            >
+              {t("presets.saveCurrent")}
+            </button>
+          </div>
         </div>
         {saveOpen && (
           <div className="mt-1.5 flex gap-1">

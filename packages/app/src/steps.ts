@@ -100,7 +100,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
   },
 };
 
-function newId(): string {
+export function newStepId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `step-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -111,7 +111,7 @@ export function isStepType(v: string): v is StepType {
 }
 
 export function createStep(type: StepType): PipelineStep {
-  return { id: newId(), stepType: type, enabled: true, params: { ...DEFAULTS[type] } };
+  return { id: newStepId(), stepType: type, enabled: true, params: { ...DEFAULTS[type] } };
 }
 
 export function defaultSteps(): PipelineStep[] {

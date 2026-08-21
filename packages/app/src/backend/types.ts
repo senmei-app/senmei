@@ -93,6 +93,8 @@ export interface Backend {
   importFolder(dir: string): Promise<string[]>;
   /// Recursively collect all videos under `dir` (batch folder processing).
   scanFolder(dir: string): Promise<string[]>;
+  /// Probe content and suggest a default pipeline (JSON string: anime + steps).
+  suggestPipeline(input: string): Promise<string>;
   loadProjectSettings(path: string): Promise<ProjectSettings>;
   saveProjectSettings(path: string, settings: ProjectSettings): Promise<void>;
 

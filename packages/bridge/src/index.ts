@@ -35,6 +35,7 @@ export const render = (
 
 export const importFolder = (dir: string) => commands.importFolder(dir);
 export const scanFolder = (dir: string) => commands.scanFolder(dir);
+export const suggestPipeline = (input: string) => commands.suggestPipeline(input);
 
 export const getSettings = () => commands.getSettings();
 export const saveSettings = (settings: Settings) => commands.saveSettings(settings);

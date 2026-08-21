@@ -12,8 +12,6 @@
       downloads, license gate
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
 - [ ] Model A/B compare: two pipelines side by side (not only source vs result)
-- [ ] Content-aware defaults from probe: anime vs live-action → suggest
-      models/steps
 - [ ] Queue persistence + resume after crash, ETA per batch
 - [ ] RealESRGANv2-animevideo-xs (SRVGGNetCompact port, x2/x4) — enable the two
       fast anime upscalers (loadable: false today)

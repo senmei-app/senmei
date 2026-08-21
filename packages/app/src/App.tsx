@@ -10,7 +10,7 @@ import type {
 } from "@senmei/bridge";
 import { backend as getBackend } from "./backend";
 import { I18nProvider, type Lang } from "./i18n";
-import { defaultSteps, normalizeSteps, type PipelineStep } from "./steps";
+import { defaultSteps, isStepType, newStepId, normalizeSteps, type PipelineStep, type StepParams, type StepType } from "./steps";
 import { defaultHotkey, comboFromEvent, resolveHotkeys } from "./hotkeys";
 import { basename } from "./paths";
 import { useBatch } from "./useBatch";
@@ -224,6 +224,36 @@ export default function App() {
     }
     setFiles((prev) => [...prev, ...found]);
     void batch.startBatch(false, null, found);
+  };
+
+  // Content-aware defaults: probe the current file (anime vs live-action,
+  // resolution, fps) and populate the pipeline with a suggested step chain.
+  const suggestPipeline = async () => {
+    if (!currentFile) return;
+    const be = await getBackend();
+    try {
+      const raw = await be.suggestPipeline(currentFile);
+      const sug = JSON.parse(raw) as {
+        anime: boolean;
+        steps: { stepType: string; params?: StepParams }[];
+      };
+      const mapped = sug.steps
+        .filter((s) => isStepType(s.stepType))
+        .map((s) => ({
+          id: newStepId(),
+          stepType: s.stepType as StepType,
+          enabled: true,
+          params: s.params ?? {},
+        }));
+      if (!mapped.length) {
+        setHealth("suggest produced no steps");
+        return;
+      }
+      setSteps(mapped);
+      setHealth(`Suggested pipeline: ${sug.anime ? "anime" : "live-action"} · ${mapped.length} steps`);
+    } catch (e) {
+      setHealth(`suggest failed: ${e}`);
+    }
   };
 
   const handleCreateProject = async (name: string) => {
@@ -459,7 +489,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>
-                <RightPanel steps={steps} outputDir={outputDir} onChange={setSteps} />
+                <RightPanel steps={steps} outputDir={outputDir} onChange={setSteps} onSuggest={suggestPipeline} />
               </Panel>
             </PanelGroup>
             <StatusBar

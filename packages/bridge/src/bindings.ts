@@ -35,6 +35,13 @@ export const commands = {
 	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
+	/**
+	 *  Probe content and suggest a default pipeline (content-aware defaults):
+	 *  anime vs live-action, input resolution, frame rate. Returns a JSON string
+	 *  (`{ anime, steps: [{ stepType, params }] }`); a `serde_json::Value` return
+	 *  makes specta's TS export recurse forever.
+	 */
+	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
 	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
 	/**  Load an extracted audio file (MP3); playback stays paused until `audio_play`. */
