@@ -32,6 +32,10 @@
   `CARGO_INCREMENTAL=0` + free check artifacts before tests (runner disk);
   retry `bun install` (network).
 
+- **feat: rotating log file (2026-08-21)** — Info+ records append to
+  `<data-dir>/logs/senmei.log` (5 MB cap, 3 rotations) with module/file:line,
+  so logs survive crashes (base for the diagnose export).
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a

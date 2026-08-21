@@ -15,8 +15,6 @@
 - [ ] Pipeline presets (art templates): save/load named step chains
 - [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
       downloads, license gate
-- [ ] File-based logging (rotating, data dir) — survives crashes, base for
-      diagnose export
 - [ ] Diagnose export: one-click bundle (logs + ffprobe + backend info +
       settings)
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
