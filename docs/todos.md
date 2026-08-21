@@ -8,8 +8,6 @@
 ## Findings
 - libtorch on ROCm 7.14 / nightly
 ## Product / roadmap (2026-08-21)
-- [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
-      downloads, license gate
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
 - [ ] RealESRGANv2-animevideo-xs (SRVGGNetCompact port, x2/x4) — enable the two
       fast anime upscalers (loadable: false today)

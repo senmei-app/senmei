@@ -17,6 +17,7 @@ import { useBatch } from "./useBatch";
 import TopBar from "./components/TopBar";
 import MediaLibrary from "./components/MediaLibrary";
 import Monitor from "./components/Monitor";
+import OnboardingWizard from "./components/OnboardingWizard";
 import RightPanel from "./components/RightPanel";
 import StatusBar from "./components/StatusBar";
 import ProjectScreen from "./components/ProjectScreen";
@@ -44,6 +45,7 @@ export default function App() {
   const [selected, setSelected] = useState<string[]>([]);
   const [mediaView, setMediaView] = useState<"library" | "queue">("library");
   const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
+  const [onboarded, setOnboarded] = useState(() => localStorage.getItem("senmei.onboarded") === "1");
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
@@ -400,6 +402,13 @@ export default function App() {
   return (
     <I18nProvider lang={lang} setLang={changeLang}>
       <div className={resolvedTheme === "dark" ? "dark" : ""}>
+        <OnboardingWizard
+          open={!onboarded}
+          onDone={() => {
+            localStorage.setItem("senmei.onboarded", "1");
+            setOnboarded(true);
+          }}
+        />
         {settingsOpen ? (
           <SettingsPage
             language={lang}

@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: first-run onboarding wizard (2026-08-21)** — a 5-step setup on
+  first launch: welcome, FFmpeg check + download, inference-engine status,
+  starter model download, get-started (dismissed once via a localStorage
+  flag).
+
 - **feat: model A/B compare (2026-08-21)** — render twice (e.g. with a
   different pipeline); the Monitor keeps the previous result and the new A/B
   tab shows both renders side by side.
