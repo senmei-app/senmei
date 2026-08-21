@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@senmei/ui";
-import type { BackendInfo, EngineBackend } from "@senmei/bridge";
+import type { BackendInfo, EngineBackend, ModelFileInfo } from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
 import { backend as getBackend } from "../backend";
@@ -8,7 +8,7 @@ import { HOTKEY_ACTIONS, comboFromEvent } from "../hotkeys";
 import WindowControls from "./WindowControls";
 
 type Theme = "light" | "dark" | "system";
-type Section = "appearance" | "hotkeys" | "info";
+type Section = "appearance" | "hotkeys" | "models" | "info";
 
 const KEY_ENCODERS = [
   "libx264",
@@ -57,6 +57,27 @@ export default function SettingsPage({
   const [tileDraft, setTileDraft] = useState(String(tileSize));
   const [exporting, setExporting] = useState(false);
   const [diagMsg, setDiagMsg] = useState<string | null>(null);
+  const [modelFiles, setModelFiles] = useState<ModelFileInfo[]>([]);
+
+  useEffect(() => {
+    getBackend()
+      .then((b) => b.modelFiles())
+      .then(setModelFiles)
+      .catch(() => {});
+  }, []);
+
+  const removeModel = async (id: string) => {
+    const be = await getBackend();
+    await be.deleteModelFile(id);
+    setModelFiles(await be.modelFiles());
+  };
+
+  const fmtSize = (n: number) =>
+    n >= 1 << 30
+      ? `${(n / (1 << 30)).toFixed(1)} GiB`
+      : n >= 1 << 20
+        ? `${(n / (1 << 20)).toFixed(1)} MiB`
+        : `${(n / 1024).toFixed(0)} KiB`;
   const commitTileSize = () => {
     const n = Math.round(Number(tileDraft));
     if (Number.isFinite(n)) {
@@ -126,6 +147,7 @@ export default function SettingsPage({
   const sections: { key: Section; label: string }[] = [
     { key: "appearance", label: t("settings.section.appearance") },
     { key: "hotkeys", label: t("settings.section.hotkeys") },
+    { key: "models", label: t("settings.section.models") },
     { key: "info", label: t("settings.section.info") },
   ];
 
@@ -303,6 +325,34 @@ export default function SettingsPage({
                 );
               })}
               <p className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">{t("hotkeys.hint")}</p>
+            </div>
+          )}
+
+          {section === "models" && (
+            <div className="max-w-xl space-y-2">
+              {modelFiles.length === 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("settings.models.empty")}</p>
+              )}
+              {modelFiles.map((mf) => (
+                <div
+                  key={mf.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">{mf.id}</p>
+                    <p className="truncate font-mono text-[11px] text-slate-500">
+                      {mf.file} · {fmtSize(mf.size)}
+                      {mf.verified ? " · ✓" : " · ✗"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeModel(mf.id)}
+                    className="shrink-0 rounded-md px-2 py-1 text-[11px] text-rose-500 hover:bg-rose-500/10"
+                  >
+                    {t("settings.models.delete")}
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 

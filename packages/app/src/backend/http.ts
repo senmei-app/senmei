@@ -7,6 +7,7 @@ import type {
   FfmpegStatus,
   HardwareSnapshot,
   LogEntry,
+  ModelFileInfo,
   ModelMetadata,
   ProjectEntry,
   ProjectSettings,
@@ -72,6 +73,12 @@ export const httpBackend: Backend = {
   async listModels() {
     return api<ModelMetadata[]>("/api/models");
   },
+
+  async modelFiles(): Promise<ModelFileInfo[]> {
+    return []; // file sizes/verify aren't exposed over HTTP yet
+  },
+
+  async deleteModelFile() {},
 
   async probeVideo(input) {
     return api<VideoInfo>("/api/probe", { method: "POST", body: JSON.stringify({ input }) });

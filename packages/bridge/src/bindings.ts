@@ -23,6 +23,10 @@ export const commands = {
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
+	/**  List installed weight files with size + sha256 verification. */
+	modelFiles: () => __TAURI_INVOKE<ModelFileInfo[]>("model_files"),
+	/**  Delete a model's weight files to free disk space. */
+	deleteModelFile: (id: string) => __TAURI_INVOKE<null>("delete_model_file", { id }),
 	/**
 	 *  Download a model's weights (`.pth`, sha256-verified when pinned) and
 	 *  convert them to the app's f16 `.bpk` burnpack.
@@ -129,6 +133,14 @@ export type LogEntry = {
 	level: string,
 	message: string,
 	timestamp: number,
+};
+
+/**  One model's on-disk weight info (size + sha256 check). */
+export type ModelFileInfo = {
+	id: string,
+	file: string,
+	size: number,
+	verified: boolean,
 };
 
 export type ModelKind = "interpolate" | "upscale" | "denoise" | "decompress" | "deblur";

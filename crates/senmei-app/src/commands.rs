@@ -76,6 +76,69 @@ pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
         .unwrap_or_default()
 }
 
+/// One model's on-disk weight info (size + sha256 check).
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelFileInfo {
+    pub id: String,
+    pub file: String,
+    pub size: u64,
+    pub verified: bool,
+}
+
+/// List installed weight files with size + sha256 verification.
+#[tauri::command]
+#[specta::specta]
+pub fn model_files() -> Vec<ModelFileInfo> {
+    let Ok((registry, dir)) = load_registry() else {
+        return Vec::new();
+    };
+    registry
+        .models()
+        .iter()
+        .filter_map(|m| {
+            let file = m.weights.as_ref()?.first()?;
+            let path = dir.join(file);
+            let Ok(meta) = std::fs::metadata(&path) else {
+                return None;
+            };
+            if !meta.is_file() {
+                return None;
+            }
+            let verified = match m.sha256.as_deref() {
+                Some(expected) => senmei_media::sha256_hex(&path)
+                    .map(|a| a.eq_ignore_ascii_case(expected))
+                    .unwrap_or(false),
+                None => true,
+            };
+            Some(ModelFileInfo {
+                id: m.id.clone(),
+                file: file.clone(),
+                size: meta.len(),
+                verified,
+            })
+        })
+        .collect()
+}
+
+/// Delete a model's weight files to free disk space.
+#[tauri::command]
+#[specta::specta]
+pub fn delete_model_file(id: String) -> Result<(), String> {
+    let (registry, dir) = load_registry()?;
+    let Some(model) = registry.models().iter().find(|m| m.id == id) else {
+        return Err(format!("model {id} not found"));
+    };
+    for w in model.weights.as_deref().unwrap_or_default() {
+        let path = dir.join(w);
+        if path.is_file() {
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+            log::info!("delete_model_file: removed {}", path.display());
+        }
+    }
+    Ok(())
+}
+
 /// Download a model's weights (`.pth`, sha256-verified when pinned) and
 /// convert them to the app's f16 `.bpk` burnpack.
 #[tauri::command]

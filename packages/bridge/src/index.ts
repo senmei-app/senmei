@@ -12,6 +12,7 @@ export type {
   DownloadProgress,
   ModelMetadata,
   ModelKind,
+  ModelFileInfo,
   VideoInfo,
   FfmpegInfo as FfmpegStatus,
   RenderConfig,
@@ -54,6 +55,8 @@ export const downloadFfmpeg = (onProgress: Channel<DownloadProgress>) =>
   commands.downloadFfmpeg(onProgress);
 
 export const listModels = () => commands.listModels();
+export const modelFiles = () => commands.modelFiles();
+export const deleteModelFile = (id: string) => commands.deleteModelFile(id);
 
 export const downloadModel = (modelId: string, onProgress: Channel<DownloadProgress>) =>
   commands.downloadModel(modelId, onProgress);

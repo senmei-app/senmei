@@ -45,6 +45,14 @@ export const tauriBackend: Backend = {
     return bridge.listModels();
   },
 
+  modelFiles() {
+    return bridge.modelFiles();
+  },
+
+  async deleteModelFile(id) {
+    await bridge.deleteModelFile(id);
+  },
+
   async probeVideo(input) {
     return bridge.probeVideo(input);
   },

@@ -14,6 +14,7 @@ import type {
   FfmpegStatus,
   HardwareSnapshot,
   LogEntry,
+  ModelFileInfo,
   ModelMetadata,
   ProjectEntry,
   ProjectSettings,
@@ -76,6 +77,10 @@ export interface Backend {
   listModels(): Promise<ModelMetadata[]>;
   /// Download + convert a model; resolves to the `.bpk` path on success.
   downloadModel(modelId: string, onProgress: (p: DownloadProgress) => void): Promise<string>;
+  /// Installed weight files with size + sha256 verification (model manager).
+  modelFiles(): Promise<ModelFileInfo[]>;
+  /// Delete a model's weight files (model manager).
+  deleteModelFile(id: string): Promise<void>;
 
   // Projects
   listProjects(): Promise<ProjectEntry[]>;

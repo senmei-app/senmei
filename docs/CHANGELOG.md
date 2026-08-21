@@ -47,6 +47,9 @@
 - **feat: pipeline templates (art presets) (2026-08-21)** — save/load named
   step chains in the stack panel (localStorage, all transports).
 
+- **feat: model manager in Settings (2026-08-21)** — list installed weight
+  files with size + sha256 check, delete to free disk.
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a

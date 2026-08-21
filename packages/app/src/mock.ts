@@ -200,6 +200,12 @@ export const mockBackend: Backend = {
     return demoModels;
   },
 
+  async modelFiles() {
+    return [];
+  },
+
+  async deleteModelFile() {},
+
   async probeVideo(_input) {
     return demoProbe();
   },
