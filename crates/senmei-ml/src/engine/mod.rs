@@ -1,7 +1,13 @@
+#[cfg(any(feature = "burn", feature = "tch"))]
+pub mod core;
+
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
 use std::path::Path;
+
+#[cfg(any(feature = "burn", feature = "tch"))]
+pub use core::Model;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EngineCaps {

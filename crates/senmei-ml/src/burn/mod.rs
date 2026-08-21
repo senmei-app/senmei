@@ -1,23 +1,21 @@
 //! burn inference engine (Vulkan, Metal on macOS).
 //!
-//! Runs clean re-implementations of the adopted SR archs on the GPU backend
-//! (`Vulkan<f16>` everywhere, `Metal<f16>` on macOS). Weights are loaded from a
-//! pre-converted f16 burnpack (`.bpk`) — `PytorchStore` cannot cast f32→f16 at
-//! load, so the app consumes the converted format (see `rust-sr-bench`'s
-//! `convert-f16` for the one-time conversion). The arch is chosen from `ModelRef::arch`.
+//! Thin wrapper over the backend-generic `engine::core`: holds the loaded
+//! `Model<BurnBackend<f16>>` and delegates load/infer there. Weights are f16
+//! burnpacks (`.bpk`); RIFE loads the raw ncnn `flownet.bin`.
 
 use crate::arch::{
     Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, RifeNet, Scunet, Span, SrvggNet,
     UpCunet2x, UpCunet2xFast,
 };
-use crate::engine::{EngineCaps, InferOptions, InferenceEngine};
+use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::BurnBackend;
 use crate::{Error, Result};
 use burn::module::ParamId;
 use burn::tensor::backend::Backend;
-use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
+use burn::tensor::{f16, TensorData};
 use burn_store::{
     BurnpackStore, HalfPrecisionAdapter, KeyRemapper, ModuleSnapshot, PytorchStore, TensorSnapshot,
 };
@@ -25,61 +23,9 @@ use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
 pub struct BurnEngine {
-    model: Option<Model>,
+    model: Option<Model<BurnBackend<f16>>>,
     device: WgpuDevice,
     scale: u32,
-}
-
-enum Model {
-    UpCunet2x(UpCunet2x<BurnBackend<f16>>),
-    UpCunet2xFast(UpCunet2xFast<BurnBackend<f16>>),
-    RrdbNet(RrdbNet<BurnBackend<f16>>),
-    SrvggNet(SrvggNet<BurnBackend<f16>>),
-    RifeNet(RifeNet<BurnBackend<f16>>),
-    IfrNet(IfrNet<BurnBackend<f16>>),
-    Drunet(Drunet<BurnBackend<f16>>),
-    Dncnn(Dncnn<BurnBackend<f16>>),
-    Ffdnet(Ffdnet<BurnBackend<f16>>),
-    Scunet(Scunet<BurnBackend<f16>>),
-    NafNet(NafNet<BurnBackend<f16>>),
-    RealPlk(RealPlk<BurnBackend<f16>>),
-    Span(Span<BurnBackend<f16>>),
-}
-
-impl Model {
-    fn forward(
-        &self,
-        x: BurnTensor<BurnBackend<f16>, 4>,
-    ) -> Result<BurnTensor<BurnBackend<f16>, 4>> {
-        match self {
-            Model::UpCunet2x(m) => Ok(m.forward(x)),
-            Model::UpCunet2xFast(m) => Ok(m.forward(x)),
-            Model::RrdbNet(m) => Ok(m.forward(x)),
-            Model::SrvggNet(m) => Ok(m.forward(x)),
-            Model::RealPlk(m) => Ok(m.forward(x)),
-            Model::Drunet(m) => Ok(m.forward(x)),
-            Model::Dncnn(m) => Ok(m.forward(x)),
-            Model::Scunet(m) => Ok(m.forward(x)),
-            Model::NafNet(m) => Ok(m.forward(x)),
-            Model::Span(m) => Ok(m.forward(x)),
-            Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
-                Err(Error::new("no single-input forward"))
-            }
-        }
-    }
-
-    fn interp(
-        &self,
-        a: BurnTensor<BurnBackend<f16>, 4>,
-        b: BurnTensor<BurnBackend<f16>, 4>,
-        t: BurnTensor<BurnBackend<f16>, 4>,
-    ) -> Result<BurnTensor<BurnBackend<f16>, 4>> {
-        match self {
-            Model::RifeNet(m) => Ok(m.forward(a, b, t)),
-            Model::IfrNet(m) => Ok(m.forward(a, b, t)),
-            _ => Err(Error::new("model has no frame interpolation")),
-        }
-    }
 }
 
 impl BurnEngine {
@@ -92,88 +38,13 @@ impl BurnEngine {
     }
 
     /// RIFE loads from the raw ncnn `flownet.bin` (fp16 weights), not a burnpack.
-    fn load_rife(&self, path: &Path) -> Result<Model> {
+    fn load_rife(&self, path: &Path) -> Result<Model<BurnBackend<f16>>> {
         let bytes = std::fs::read(path).map_err(|e| Error::new(e.to_string()))?;
         let mut m = RifeNet::new(&self.device);
         m.load_from_ncnn(&bytes, &self.device).map_err(Error::new)?;
         Ok(Model::RifeNet(m))
     }
 
-    fn load_arch(&self, model: &ModelRef, store: &mut BurnpackStore) -> Result<Model> {
-        match model.arch.as_str() {
-            "upcunet2x" => {
-                let mut m = UpCunet2x::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::UpCunet2x(m))
-            }
-            "upcunet2x-fast" | "fallin-cugan" => {
-                // Fallin (renarchi CUGAN retrain) is an `UpCunet2x_fast` with
-                // the same 38px reflect pad — only the weights differ.
-                let mut m = UpCunet2xFast::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::UpCunet2xFast(m))
-            }
-            "realesrgan" => {
-                let mut m =
-                    RrdbNet::new(model.scale as usize, model.num_block as usize, &self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::RrdbNet(m))
-            }
-            "srvgg" => {
-                // animevideo-xs: 64 features, 16 convs (registered models are fixed).
-                let mut m = SrvggNet::new(64, 16, model.scale as usize, &self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::SrvggNet(m))
-            }
-            "ifrnet" => {
-                let mut m = IfrNet::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::IfrNet(m))
-            }
-            "drunet" => {
-                let mut m = Drunet::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::Drunet(m))
-            }
-            "dncnn" => {
-                let mut m = Dncnn::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::Dncnn(m))
-            }
-            "ffdnet" => {
-                let mut m = Ffdnet::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::Ffdnet(m))
-            }
-            "scunet" => {
-                let mut m = Scunet::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::Scunet(m))
-            }
-            "nafnet" => {
-                let mut m = NafNet::new(&self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::NafNet(m))
-            }
-            "real-plksr" => {
-                let mut m = RealPlk::new(model.scale as usize, model.layer_norm, model.dysample, &self.device);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                Ok(Model::RealPlk(m))
-            }
-            "span" => {
-                let mut m = Span::new(
-                    model.feature_channels as usize,
-                    model.scale as usize,
-                    &self.device,
-                );
-                m.set_no_norm(model.no_norm);
-                m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
-                m.pad_k96(&self.device);
-                Ok(Model::Span(m))
-            }
-            other => Err(Error::new(format!("unsupported arch: {other}"))),
-        }
-    }
 }
 
 impl InferenceEngine for BurnEngine {
@@ -186,7 +57,7 @@ impl InferenceEngine for BurnEngine {
             "rife425" | "rife46" => self.load_rife(&model.path)?,
             _ => {
                 let mut store = BurnpackStore::from_file(&model.path);
-                self.load_arch(model, &mut store)?
+                core::load_arch(model, &mut store, &self.device)?
             }
         });
         self.scale = model.scale;
@@ -198,96 +69,17 @@ impl InferenceEngine for BurnEngine {
             .model
             .as_ref()
             .ok_or_else(|| Error::new("model not loaded"))?;
-        if input.shape.len() != 4 {
-            return Err(Error::new("expected NCHW input"));
-        }
-        let n = input.shape[0];
-        let c = input.shape[1];
-        let h = input.shape[2];
-        let w = input.shape[3];
-
-        let data = TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>();
-        let x = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, &self.device);
-        let out = model.forward(x)?;
-        let [_, _, oh, ow] = out.dims();
-        let data = out
-            .into_data()
-            .convert::<f32>()
-            .to_vec()
-            .map_err(|e| Error::new(e.to_string()))?;
-        Ok(Tensor::new(vec![n, c, oh, ow], data))
+        core::infer(model, input, &self.device)
     }
 
-    /// Fused RGB8 path: hands back packed rgb24 bytes. The model runs on the
-    /// GPU (autotuned, f16) in 640px tiles (avoids the full-frame im2col OOM,
-    /// see docs/upstream-issues.md §2; 640 beats 512 and 768 — docs/benchmarks.md).
-    /// Tiles are accumulated into one f16 canvas on the GPU (overlap averaging)
-    /// and read back as a single packed frame — one readback instead of one u8
-    /// readback per tile plus a CPU stitch.
-    /// Only used when the requested scale matches the model.
+    /// Fused RGB8: only when the requested scale matches the model — the
+    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`.
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         if self.scale != scale {
             return None;
         }
         let model = self.model.as_ref()?;
-        if input.shape.len() != 4 {
-            return Some(Err(Error::new("expected NCHW input")));
-        }
-        let c = input.shape[1];
-        let h = input.shape[2];
-        let w = input.shape[3];
-        let tile = crate::current_tile_size();
-        let overlap = tile / 4;
-        let step = tile - overlap;
-        let num_y = (h.saturating_sub(tile)).div_ceil(step) + 1;
-        let num_x = (w.saturating_sub(tile)).div_ceil(step) + 1;
-        let ph = (num_y - 1) * step + tile;
-        let pw = (num_x - 1) * step + tile;
-        let padded = crate::pad_to(input, ph, pw);
-        let tiles = crate::uniform_tile(&padded, tile, step);
-        let device = &self.device;
-
-        let scale_f = self.scale as f32;
-        let out_h = (ph as f32 * scale_f).round() as usize;
-        let out_w = (pw as f32 * scale_f).round() as usize;
-        // Accumulate tiles into one f16 canvas (overlap averaging) on the GPU.
-        // Tiles run one-by-one: larger batched matmuls are pathologically
-        // slower on this backend (see docs/benchmarks.md tile-size note).
-        let mut acc = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, c, out_h, out_w], device);
-        let mut cov = BurnTensor::<BurnBackend<f16>, 4>::zeros([1, 1, out_h, out_w], device);
-        for (x, y, t) in &tiles {
-            let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<f16>();
-            let xt = BurnTensor::<BurnBackend<f16>, 4>::from_data(data, device);
-            let out = match model.forward(xt) {
-                Ok(o) => o,
-                Err(e) => return Some(Err(e)),
-            };
-            let [_, _, oh, ow] = out.dims();
-            let sx = (*x as f32 * scale_f).round() as usize;
-            let sy = (*y as f32 * scale_f).round() as usize;
-            // Clamp before accumulating: out-of-range values (>1.0 at hard
-            // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
-            let out = out.clamp(0.0, 1.0);
-            acc = acc.slice_assign([0..1, 0..c, sy..sy + oh, sx..sx + ow], out);
-            let ones = BurnTensor::<BurnBackend<f16>, 4>::ones([1, 1, oh, ow], device);
-            cov = cov.slice_assign([0..1, 0..1, sy..sy + oh, sx..sx + ow], ones);
-        }
-        let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-        // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
-        // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
-        // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays on CPU.
-        let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
-            Ok(v) => v,
-            Err(e) => return Some(Err(Error::new(e.to_string()))),
-        };
-        let mut bytes = Vec::with_capacity(data.len());
-        for v in data {
-            bytes.push((v + 0.5) as u8);
-        }
-        let out_h_t = (h as f32 * scale_f).round() as usize;
-        let out_w_t = (w as f32 * scale_f).round() as usize;
-        let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);
-        Some(Ok((cropped, out_w_t as u32, out_h_t as u32)))
+        core::infer_rgb8(model, input, self.scale, &self.device)
     }
 
     fn infer_interp(
@@ -301,57 +93,7 @@ impl InferenceEngine for BurnEngine {
             Some(m) => m,
             None => return Some(Err(Error::new("model not loaded"))),
         };
-        if !matches!(model, Model::RifeNet(_) | Model::IfrNet(_)) {
-            return None; // not an interpolation model → caller falls back
-        }
-        // The flow estimators work on a downscaled grid (RIFE 1/32, IFRNet
-        // 1/16 via the 4-level pyramid), so the input is padded to a multiple
-        // and cropped back to the original dims (same as the references).
-        let pad = if matches!(model, Model::RifeNet(_)) { 32 } else { 16 };
-        let [n, c, h, w] = [a.shape[0], a.shape[1], a.shape[2], a.shape[3]];
-        let a_t = BurnTensor::<BurnBackend<f16>, 4>::from_data(
-            TensorData::new(a.data.clone(), [n, c, h, w]).convert::<f16>(),
-            &self.device,
-        );
-        let b_t = BurnTensor::<BurnBackend<f16>, 4>::from_data(
-            TensorData::new(b.data.clone(), [n, c, h, w]).convert::<f16>(),
-            &self.device,
-        );
-        // RIFE's internal flow estimation runs at 1/32 scale, so the reference
-        // (rife-ncnn-vulkan) pads the input to multiples of 32. Do the same and
-        // crop the output back to the original dims.
-        let pad_h = (h + pad - 1) / pad * pad;
-        let pad_w = (w + pad - 1) / pad * pad;
-        let pad = |x: BurnTensor<BurnBackend<f16>, 4>| {
-            let mut x = x;
-            if pad_h > h {
-                let z =
-                    BurnTensor::<BurnBackend<f16>, 4>::zeros([n, c, pad_h - h, w], &self.device);
-                x = BurnTensor::cat(vec![x, z], 2);
-            }
-            if pad_w > w {
-                let z = BurnTensor::<BurnBackend<f16>, 4>::zeros(
-                    [n, c, pad_h, pad_w - w],
-                    &self.device,
-                );
-                x = BurnTensor::cat(vec![x, z], 3);
-            }
-            x
-        };
-        let a_t = pad(a_t);
-        let b_t = pad(b_t);
-        // ncnn broadcasts the scalar timestep over the (padded) spatial grid.
-        let t_t = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, pad_h, pad_w], &self.device) * t;
-        let out = match model.interp(a_t, b_t, t_t) {
-            Ok(o) => o,
-            Err(e) => return Some(Err(e)),
-        };
-        let out = out.slice([0..n, 0..c, 0..h, 0..w]);
-        let data = match out.into_data().convert::<f32>().to_vec() {
-            Ok(v) => v,
-            Err(e) => return Some(Err(Error::new(e.to_string()))),
-        };
-        Some(Ok(Tensor::new(vec![n, c, h, w], data)))
+        core::infer_interp(model, a, b, t, &self.device)
     }
 
     /// DRUNet denoise: appends a constant noise-level map (sigma in [0,1]) to
@@ -365,74 +107,7 @@ impl InferenceEngine for BurnEngine {
         _opts: &InferOptions,
     ) -> Option<Result<Tensor>> {
         let model = self.model.as_ref()?;
-        let is_drunet = matches!(model, Model::Drunet(_));
-        if !matches!(
-            model,
-            Model::Drunet(_) | Model::Dncnn(_) | Model::Ffdnet(_) | Model::Scunet(_)
-        ) {
-            return None;
-        }
-        if input.shape.len() != 4 || input.shape[1] != 3 {
-            return Some(Err(Error::new("expected 3-channel NCHW input")));
-        }
-        let [n, c, h, w] = [
-            input.shape[0],
-            input.shape[1],
-            input.shape[2],
-            input.shape[3],
-        ];
-        let device = &self.device;
-        let rgb = BurnTensor::<BurnBackend<f16>, 4>::from_data(
-            TensorData::new(input.data.clone(), [n, c, h, w]).convert::<f16>(),
-            device,
-        );
-        // DnCNN is blind (3ch in, no sigma map) and all stride-1 convs — run it
-        // directly. FFDNet takes the noise level internally (σ). DRUNet gets a
-        // constant noise-level map and needs 8-aligned spatial dims (3× stride-2
-        // downsample): pad + crop.
-        if let Model::Ffdnet(m) = model {
-            let out = m.forward(rgb, sigma);
-            let data = match out.into_data().convert::<f32>().to_vec() {
-                Ok(v) => v,
-                Err(e) => return Some(Err(Error::new(e.to_string()))),
-            };
-            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
-        }
-        if !is_drunet {
-            let out = match model.forward(rgb) {
-                Ok(o) => o,
-                Err(e) => return Some(Err(e)),
-            };
-            let data = match out.into_data().convert::<f32>().to_vec() {
-                Ok(v) => v,
-                Err(e) => return Some(Err(Error::new(e.to_string()))),
-            };
-            return Some(Ok(Tensor::new(vec![n, 3, h, w], data)));
-        }
-        let sigma_map = BurnTensor::<BurnBackend<f16>, 4>::ones([n, 1, h, w], device) * sigma;
-        let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
-        // UNetRes needs multiples of 8 (3× stride-2 downsample); pad + crop.
-        let pad_h = (h + 7) / 8 * 8;
-        let pad_w = (w + 7) / 8 * 8;
-        let mut x = x;
-        if pad_h > h {
-            let z = BurnTensor::<BurnBackend<f16>, 4>::zeros([n, 4, pad_h - h, w], device);
-            x = BurnTensor::cat(vec![x, z], 2);
-        }
-        if pad_w > w {
-            let z = BurnTensor::<BurnBackend<f16>, 4>::zeros([n, 4, pad_h, pad_w - w], device);
-            x = BurnTensor::cat(vec![x, z], 3);
-        }
-        let out = match model.forward(x) {
-            Ok(o) => o,
-            Err(e) => return Some(Err(e)),
-        }
-        .slice([0..n, 0..3, 0..h, 0..w]);
-        let data = match out.into_data().convert::<f32>().to_vec() {
-            Ok(v) => v,
-            Err(e) => return Some(Err(Error::new(e.to_string()))),
-        };
-        Some(Ok(Tensor::new(vec![n, 3, h, w], data)))
+        core::infer_denoise(model, input, sigma, &self.device)
     }
 }
 

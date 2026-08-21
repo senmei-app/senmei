@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **refactor: dedup burn/tch into shared `engine::core` (2026-08-21)** — the
+  generic `Model<B>` enum, 13-branch `load_arch`, and `infer` /
+  `infer_interp` (pad 32/16) / `infer_denoise` (FFDNet-σ, blind, DRUNet-σ-map
+  pad 8) / `infer_rgb8` moved out of `burn/mod.rs` + `tch/mod.rs` into
+  `src/engine/core.rs`, backend-generic over `B::FloatElem` (burn f16, tch
+  f32). Both engines are now thin wrappers (per-engine: dlopen, `load_rife`,
+  store adapters, converter stay). `engine.rs` → `engine/`. ~1030 lines of
+  duplication removed; the f32-readback workaround (burn-bug-1) preserved.
+  Verified: burn tests, tch GPU roundtrip, `senmei-server` links with tch.
+
 - **ml: add 4× NomosWebPhoto RealPLKSR (2026-08-21)** — the flat
   `4xNomosWebPhoto_RealPLKSR.pth` (Phhofm, CC-BY-4.0, sha256-pinned) is
   GroupNorm(4) + a pixel-shuffle tail (no DySample, no LayerNorm; the ONNX
