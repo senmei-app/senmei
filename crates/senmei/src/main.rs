@@ -23,6 +23,9 @@ struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    // burn autotune stack-overflows on RADV with the default 2 MiB; set before
+    // any thread spawns so both the GUI and headless runtimes inherit it.
+    std::env::set_var("RUST_MIN_STACK", "33554432");
     let cli = Cli::parse();
     if cli.server || cli.mcp_server {
         return run_headless(cli.http_port, cli.mcp_server);
@@ -63,10 +66,9 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Headless service. burn model loading needs a big stack (autotune overflows
-/// on RADV), so set RUST_MIN_STACK before the runtime spawns its threads.
+/// Headless service. RUST_MIN_STACK is set at the top of `main`; the runtime
+/// threads inherit it from there.
 fn run_headless(http_port: u16, mcp: bool) -> anyhow::Result<()> {
-    std::env::set_var("RUST_MIN_STACK", "33554432");
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?

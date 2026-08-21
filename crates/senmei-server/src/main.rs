@@ -35,14 +35,22 @@ struct Cli {
     web_dir: Option<PathBuf>,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    // burn autotune stack-overflows on RADV with the default 2 MiB (see the
+    // GUI main); set before the runtime spawns any thread so workers and the
+    // render threads inherit it.
+    std::env::set_var("RUST_MIN_STACK", "33554432");
     env_logger::init();
     let cli = Cli::parse();
 
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(run(&cli))
+}
+
+async fn run(cli: &Cli) -> anyhow::Result<()> {
     #[cfg(feature = "http")]
     if cli.server || std::env::var("SENMEI_HTTP").is_ok() {
-        return serve_http(&cli).await;
+        return serve_http(cli).await;
     }
 
     #[cfg(not(feature = "http"))]

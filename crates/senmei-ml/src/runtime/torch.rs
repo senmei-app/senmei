@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 
 use crate::runtime::hardware::{Hardware, Device};
 
-/// Torch release with ROCm-7 libtorch builds (see download.pytorch.org). Must
-/// stay in sync with the torch-sys fork's headers used to build the wrapper.
+/// Torch release with ROCm-7 libtorch builds (see download.pytorch.org) used
+/// when no local `LIBTORCH` install is set. Must stay in sync with the
+/// torch-sys fork's headers for LIBTORCH-less builds.
 const TORCH_VERSION: &str = "2.11.0";
 
 /// Relative install dir inside the data dir (mirrors Koharu's `Store` layout).
@@ -84,6 +85,28 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
 /// Resolve the libtorch install under `data_dir`, downloading on first use.
 /// Returns `None` when no CUDA/ROCm device was detected (CPU-only → burn).
 pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInstall>, String> {
+    // Prefer a local torch install (build-time `LIBTORCH`) — its ABI matches
+    // the compiled shim exactly, while a downloaded release can mismatch (e.g.
+    // a 2.13-built wrapper against the pinned 2.11 download). CPU-only installs
+    // are ignored (tch needs a GPU build); we fall back to the download.
+    if let Some(dir) = std::env::var_os("LIBTORCH") {
+        let lib = PathBuf::from(&dir).join("lib");
+        if lib.join("libtorch.so").is_file() {
+            let variant = if lib.join("libtorch_hip.so").is_file() {
+                Some(TorchVariant::Rocm("rocm7.1"))
+            } else if lib.join("libtorch_cuda.so").is_file() {
+                Some(TorchVariant::Cuda("cu128"))
+            } else {
+                None
+            };
+            if let Some(variant) = variant {
+                return Ok(Some(TorchInstall {
+                    variant,
+                    lib_dir: lib,
+                }));
+            }
+        }
+    }
     let Some(variant) = pick_variant(hardware) else {
         return Ok(None);
     };

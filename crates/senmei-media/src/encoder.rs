@@ -111,7 +111,14 @@ fn pick_from_caps(
             return (codec.into(), Vec::new());
         }
     }
+    // libopenh264 hard-caps at 4096x4096 — for larger frames skip it so the
+    // chain falls through to libx264 (or the native h264 fallback) instead of
+    // failing the encode at >4K output (e.g. x4 from 1080p).
+    let openh264_ok = width <= 4096 && height <= 4096;
     for codec in ["libkvazaar", "libopenh264", "libx264", "h264_nvenc", "h264"] {
+        if codec == "libopenh264" && !openh264_ok {
+            continue;
+        }
         if caps.iter().any(|e| e == codec) {
             return match codec {
                 "libkvazaar" => (
