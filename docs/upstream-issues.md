@@ -138,10 +138,14 @@ per-group element count via `div_scalar`; for counts ≥ 2¹⁴ the f16 reciproc
 explodes (observed ±318 vs torch ±1.3). `mean_dim` (native scaled kernel) stays
 accurate. Workaround: compute the norm with `mean_dim` instead of
 `sum + div_scalar` (`crates/senmei-ml/src/burn/real_plksr.rs::group_norm`).
-Upstream (2026-08-21, nathanielsimard): #5211 fixed the **norm accumulation**
-part; the **denominator division** (the `div_scalar` reciprocal underflow that
-flushes to 0) is a separate fix he says they "could also" do — assumed not yet
-fixed on `main`. The `mean_dim` workaround stays until confirmed.
+Upstream: #5211 fixed the **norm accumulation** part, and **#5410
+("fix(nn): use mean reduction in group norm", laggui, merged 2026-08-21,
+commit 8832b00)** fixed the **denominator division** the same way we do —
+`sum_dim(2) / N` → `mean_dim(2)`, with a test that reproduces our exact case
+(GroupNorm(4, 64), 65536/group, f16). Issue closed as completed. Our `mean_dim`
+workaround is byte-for-byte the upstream approach, so it stays until a burn
+bump pulls in the fix, then the custom `group_norm` helper in
+`real_plksr.rs` can be deleted in favour of burn's native GroupNorm.
 
 **Paste-ready text** (Title + Body):
 
