@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: A/B keeps its pair when re-rendering the same input (2026-08-21)** —
+  `startBatch` no longer clears the previous result for a single-input
+  re-render (model A → B); a file switch or multi-file batch still clears it.
+  Monitor's single-view fallback is gated off while the A/B/compare panes are
+  shown.
+
 - **fix: remove the multi-tile seam grid on SPAN renders (2026-08-21)** —
   `infer_rgb8` now sums tiles with a feather ramp (partition of unity) into
   the canvas instead of `slice_assign`-replacing the overlap. The model emits

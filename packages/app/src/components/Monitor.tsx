@@ -73,6 +73,11 @@ export default function Monitor({
   const tlSource = mode === "source";
   const effRendered = renderedFile;
   const src = mode === "result" && effRendered ? effRendered : (file ?? null);
+  // A/B + compare render side-by-side panes; the single-view fallback
+  // (video/frame/placeholder) must not also render underneath.
+  const showingCompare =
+    (mode === "ab" && prevRenderedFile && effRendered) ||
+    (mode === "compare" && file && effRendered);
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [posMs, setPosMs] = useState(0);
   const inMs = sampleInMs;
@@ -488,35 +493,36 @@ export default function Monitor({
           prevRenderedFile={prevRenderedFile}
           frames={frames}
         />
-        {nativeSrc ? (
-          <video
-            key={nativeSrc}
-            ref={(el) => {
-              videoRef.current = el;
-              if (el) el.volume = volume;
-            }}
-            src={nativeSrc}
-            muted
-            onError={() => setNativeFailed(true)}
-            onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
-            onTimeUpdate={onVideoTime}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            className="h-full w-full object-contain opacity-80"
-          />
-        ) : src && frames[src] ? (
-          <img
-            src={frames[src]}
-            alt="preview"
-            className="h-full w-full object-contain opacity-80"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
-            <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
-              {name ?? t("monitor.placeholder")}
-            </span>
-          </div>
-        )}
+        {!showingCompare &&
+          (nativeSrc ? (
+            <video
+              key={nativeSrc}
+              ref={(el) => {
+                videoRef.current = el;
+                if (el) el.volume = volume;
+              }}
+              src={nativeSrc}
+              muted
+              onError={() => setNativeFailed(true)}
+              onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
+              onTimeUpdate={onVideoTime}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              className="h-full w-full object-contain opacity-80"
+            />
+          ) : src && frames[src] ? (
+            <img
+              src={frames[src]}
+              alt="preview"
+              className="h-full w-full object-contain opacity-80"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
+              <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">
+                {name ?? t("monitor.placeholder")}
+              </span>
+            </div>
+          ))}
 
         <ModeTabs
           mode={mode}

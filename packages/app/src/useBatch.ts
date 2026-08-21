@@ -45,6 +45,9 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   // compared side by side (render once, tweak, render again).
   const [prevRenderedFile, setPrevRenderedFile] = useState<string | null>(null);
   const renderedRef = useRef<string | null>(null);
+  // Input of the last completed render; A/B keeps its pair when the same
+  // single input is rendered again (model A → B).
+  const lastInputRef = useRef<string | null>(null);
 
   // Setting the result to null (file switch) also clears the A/B pair.
   const setRenderedFile = (v: string | null) => {
@@ -193,7 +196,14 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setJobs(initial);
     setRendering(true);
     setPaused(false);
-    setRenderedFile(null);
+    // Reset the result view but keep the A/B pair when re-rendering the same
+    // single input (model A → B). A file switch or multi-file batch clears it.
+    const keepPair = inputs.length === 1 && inputs[0] === lastInputRef.current;
+    setRenderedFileState(null);
+    if (!keepPair) {
+      renderedRef.current = null;
+      setPrevRenderedFile(null);
+    }
     setTimings([]);
     const q0: BatchQueueState = {
       inputs: initial.map((j) => j.input),
@@ -228,6 +238,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
           setPrevRenderedFile(renderedRef.current);
           renderedRef.current = output;
           setRenderedFile(output);
+          lastInputRef.current = initial[i].input;
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
             void be.pruneSamples(dirname(output), 5);
