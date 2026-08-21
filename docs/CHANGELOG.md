@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **refactor: split `pipeline/step.rs` into `steps/` modules (2026-08-21)** —
+  each step (`Filter`, `Denoise`, `Deblur`, `Dedup`, `Upscale`, `Resize`)
+  moves into its own `steps/<step>.rs`; `steps/mod.rs` keeps the `Step`
+  trait, `Passthrough`, the shared `TILE_SIZE`, re-exports and the tests.
+
 - **refactor: unify `download_model` in `senmei-core` (2026-08-21)** — the
   GUI's richer download (ncnn `.bin`, release-zip extract, skip-if-present,
   progress) moves into `core::download_model(model_id, on_progress)`; the GUI
