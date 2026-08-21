@@ -15,6 +15,13 @@ export interface BatchJob {
   error?: string;
 }
 
+/** Persisted batch queue state (crash-safe resume). */
+export interface BatchQueueState {
+  inputs: string[];
+  done: string[];
+  updatedAt: number;
+}
+
 export type StepType =
   | "interpolation"
   | "decompress"

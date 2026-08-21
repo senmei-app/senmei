@@ -95,6 +95,12 @@ export interface Backend {
   scanFolder(dir: string): Promise<string[]>;
   /// Probe content and suggest a default pipeline (JSON string: anime + steps).
   suggestPipeline(input: string): Promise<string>;
+  /// Persist the batch queue state (JSON string) so a crash doesn't lose it.
+  saveBatchQueue(state: string): Promise<void>;
+  /// Load the persisted batch queue state, if any.
+  loadBatchQueue(): Promise<string | null>;
+  /// Drop the persisted batch queue state.
+  clearBatchQueue(): Promise<void>;
   loadProjectSettings(path: string): Promise<ProjectSettings>;
   saveProjectSettings(path: string, settings: ProjectSettings): Promise<void>;
 

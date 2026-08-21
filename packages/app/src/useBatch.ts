@@ -2,10 +2,10 @@
 // file is just a batch of one. Errors mark the job failed and continue;
 // cancel stops after the current file; pause freezes the running file.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RenderConfig, RenderProgress, StepTimingInfo } from "@senmei/bridge";
 import { backend, isWeb } from "./backend";
-import { buildEncoderArgs, type BatchJob, type PipelineStep } from "./steps";
+import { buildEncoderArgs, type BatchJob, type BatchQueueState, type PipelineStep } from "./steps";
 import { basename, dirname, joinPath } from "./paths";
 
 function fmtTs(ms: number): string {
@@ -41,6 +41,54 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [timings, setTimings] = useState<StepTimingInfo[]>([]);
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
+  // Crash-safe queue resume: the batch is persisted on start and pruned as
+  // jobs finish, so a restart can re-enqueue the files that never completed.
+  const [savedQueue, setSavedQueue] = useState<BatchQueueState | null>(null);
+  const queueRef = useRef<BatchQueueState | null>(null);
+
+  const persistQueue = (q: BatchQueueState | null) => {
+    void backend().then((b) => {
+      if (q) void b.saveBatchQueue(JSON.stringify(q)).catch(() => {});
+      else void b.clearBatchQueue().catch(() => {});
+    });
+  };
+
+  useEffect(() => {
+    let on = true;
+    void backend()
+      .then((b) => b.loadBatchQueue())
+      .then((raw) => {
+        if (!on || !raw) return;
+        try {
+          const q = JSON.parse(raw) as BatchQueueState;
+          if (q.inputs?.length) {
+            queueRef.current = q;
+            setSavedQueue(q);
+          }
+        } catch {
+          // corrupt state: ignore
+        }
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, []);
+
+  const markDone = (input: string) => {
+    const qi = queueRef.current;
+    if (!qi) return;
+    const qn = { ...qi, done: [...qi.done, input], updatedAt: Date.now() };
+    if (qn.done.length >= qn.inputs.length) {
+      queueRef.current = null;
+      setSavedQueue(null);
+      persistQueue(null);
+    } else {
+      queueRef.current = qn;
+      setSavedQueue(qn);
+      persistQueue(qn);
+    }
+  };
 
   const desiredPath = (
     input: string,
@@ -134,6 +182,14 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setPaused(false);
     setRenderedFile(null);
     setTimings([]);
+    const q0: BatchQueueState = {
+      inputs: initial.map((j) => j.input),
+      done: [],
+      updatedAt: Date.now(),
+    };
+    queueRef.current = q0;
+    setSavedQueue(q0);
+    persistQueue(q0);
 
     const patch = (i: number, p: Partial<BatchJob>) =>
       setJobs((prev) => prev.map((j, k) => (k === i ? { ...j, ...p } : j)));
@@ -155,6 +211,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
             if (p.steps.length) setTimings(p.steps);
           });
           patch(i, { status: "done" });
+          markDone(initial[i].input);
           setRenderedFile(output);
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
@@ -168,6 +225,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
             break; // stop the batch
           }
           patch(i, { status: "failed", error: msg });
+          markDone(initial[i].input); // don't re-run known failures on resume
           onError(`render failed: ${shortReason(msg)}`);
           // continue with the next file
         }
@@ -197,6 +255,23 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     });
   };
 
+  const resumeQueue = () => {
+    const q = queueRef.current;
+    if (!q) return;
+    const remaining = q.inputs.filter((f) => !q.done.includes(f));
+    if (!remaining.length) {
+      discardQueue();
+      return;
+    }
+    void startBatch(false, null, remaining);
+  };
+
+  const discardQueue = () => {
+    queueRef.current = null;
+    setSavedQueue(null);
+    persistQueue(null);
+  };
+
   return {
     jobs,
     setJobs,
@@ -210,6 +285,9 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setTimings,
     renderedFile,
     setRenderedFile,
+    savedQueue,
+    resumeQueue,
+    discardQueue,
     startBatch,
     cancel,
     togglePause,

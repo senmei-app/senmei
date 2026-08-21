@@ -115,6 +115,15 @@ export const tauriBackend: Backend = {
   suggestPipeline(input) {
     return bridge.suggestPipeline(input);
   },
+  async saveBatchQueue(state) {
+    await bridge.saveBatchQueue(state);
+  },
+  loadBatchQueue() {
+    return bridge.loadBatchQueue();
+  },
+  async clearBatchQueue() {
+    await bridge.clearBatchQueue();
+  },
 
   loadProjectSettings(path) {
     return bridge.loadProjectSettings(path);

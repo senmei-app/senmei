@@ -270,6 +270,12 @@ export const mockBackend: Backend = {
     });
   },
 
+  async saveBatchQueue() {},
+  async loadBatchQueue() {
+    return null;
+  },
+  async clearBatchQueue() {},
+
   async loadProjectSettings(path) {
     return (projectSettings.get(path) ?? { steps: [], files: [], outputDir: null }) as never;
   },

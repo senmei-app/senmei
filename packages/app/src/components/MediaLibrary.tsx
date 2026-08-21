@@ -27,6 +27,9 @@ export default function MediaLibrary({
   onMultiSelectChange,
   view,
   onViewChange,
+  savedQueue,
+  onResumeQueue,
+  onDiscardQueue,
 }: {
   files: string[];
   onOpen: () => void;
@@ -43,6 +46,9 @@ export default function MediaLibrary({
   multiSelect: boolean;
   onMultiSelectChange: (v: boolean) => void;
   view: "library" | "queue";
+  savedQueue?: { inputs: string[]; done: string[] } | null;
+  onResumeQueue?: () => void;
+  onDiscardQueue?: () => void;
   onViewChange: (v: "library" | "queue") => void;
 }) {
   const { t } = useI18n();
@@ -95,6 +101,31 @@ export default function MediaLibrary({
           </button>
         </div>
       </div>
+
+      {savedQueue && !rendering && (
+        <div className="mb-2 rounded-lg border border-indigo-500/40 bg-indigo-600/10 px-2 py-1.5">
+          <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="text-indigo-600 dark:text-indigo-300">
+              {t("queue.resumeBatch")} ({savedQueue.inputs.length - savedQueue.done.length})
+            </span>
+            <div className="flex shrink-0 gap-1">
+              <button
+                onClick={onResumeQueue}
+                className="rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-indigo-500"
+              >
+                {t("queue.resumeGo")}
+              </button>
+              <button
+                onClick={onDiscardQueue}
+                title={t("queue.resumeDiscard")}
+                className="rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {view === "library" ? (

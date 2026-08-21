@@ -846,6 +846,39 @@ pub fn unique_path(path: String) -> Result<String, String> {
     Err("no free output name found".into())
 }
 
+/// Persist the batch queue state (JSON) so a crash doesn't lose it.
+#[tauri::command]
+#[specta::specta]
+pub fn save_batch_queue(state: String) -> Result<(), String> {
+    let path = store::data_dir().join("batch-queue.json");
+    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::write(&path, state).map_err(|e| e.to_string())
+}
+
+/// Load the persisted batch queue state, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn load_batch_queue() -> Result<Option<String>, String> {
+    let path = store::data_dir().join("batch-queue.json");
+    match std::fs::read_to_string(&path) {
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Drop the persisted batch queue state.
+#[tauri::command]
+#[specta::specta]
+pub fn clear_batch_queue() -> Result<(), String> {
+    let path = store::data_dir().join("batch-queue.json");
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

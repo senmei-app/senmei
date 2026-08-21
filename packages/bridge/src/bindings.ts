@@ -69,6 +69,12 @@ export const commands = {
 	 *  free name, so batch renders never overwrite an existing file.
 	 */
 	uniquePath: (path: string) => __TAURI_INVOKE<string>("unique_path", { path }),
+	/**  Persist the batch queue state (JSON) so a crash doesn't lose it. */
+	saveBatchQueue: (state: string) => __TAURI_INVOKE<null>("save_batch_queue", { state }),
+	/**  Load the persisted batch queue state, if any. */
+	loadBatchQueue: () => __TAURI_INVOKE<string | null>("load_batch_queue"),
+	/**  Drop the persisted batch queue state. */
+	clearBatchQueue: () => __TAURI_INVOKE<null>("clear_batch_queue"),
 	/**  Buffered entries for the Logs panel when it opens. */
 	getLogs: () => __TAURI_INVOKE<LogEntry[]>("get_logs"),
 	/**  Empty the buffered log history (Logs panel "Clear"). */

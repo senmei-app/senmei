@@ -468,6 +468,9 @@ export default function App() {
                   onMultiSelectChange={setMultiSelect}
                   view={mediaView}
                   onViewChange={setMediaView}
+                  savedQueue={batch.savedQueue}
+                  onResumeQueue={batch.resumeQueue}
+                  onDiscardQueue={batch.discardQueue}
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />

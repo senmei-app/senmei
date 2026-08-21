@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: queue persistence + resume (2026-08-21)** — the batch queue is
+  persisted to `<data-dir>/batch-queue.json` when a batch starts and pruned
+  as jobs finish; after a restart a banner offers to resume the files that
+  never completed (or discard the saved queue).
+
 - **feat: content-aware pipeline defaults (2026-08-21)** — „Suggest“ in the
   stack panel probes the current file (anime vs live-action via a
   flatness/edge heuristic on sampled frames, input resolution, fps) and

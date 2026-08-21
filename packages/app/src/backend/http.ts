@@ -170,6 +170,12 @@ export const httpBackend: Backend = {
     throw new Error("suggest pipeline is not available over HTTP yet");
   },
 
+  async saveBatchQueue() {}, // best-effort: queue resume is a desktop feature
+  async loadBatchQueue() {
+    return null;
+  },
+  async clearBatchQueue() {},
+
   async loadProjectSettings(path): Promise<ProjectSettings> {
     const raw = localStorage.getItem(`${PROJECTS_KEY}.${path}`);
     return raw ? JSON.parse(raw) : { steps: [], files: [], outputDir: null };
