@@ -243,6 +243,8 @@ export const mockBackend: Backend = {
 
   async exportProject() {},
 
+  async exportDiagnostics() {},
+
   async importFolder() {
     return demoVideos;
   },

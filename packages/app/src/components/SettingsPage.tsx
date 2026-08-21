@@ -3,6 +3,7 @@ import { Button } from "@senmei/ui";
 import type { BackendInfo, EngineBackend } from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
+import { backend as getBackend } from "../backend";
 import { HOTKEY_ACTIONS, comboFromEvent } from "../hotkeys";
 import WindowControls from "./WindowControls";
 
@@ -54,6 +55,8 @@ export default function SettingsPage({
   const [recording, setRecording] = useState<string | null>(null);
   const { status, downloading, pct, error, download } = useFfmpeg();
   const [tileDraft, setTileDraft] = useState(String(tileSize));
+  const [exporting, setExporting] = useState(false);
+  const [diagMsg, setDiagMsg] = useState<string | null>(null);
   const commitTileSize = () => {
     const n = Math.round(Number(tileDraft));
     if (Number.isFinite(n)) {
@@ -62,6 +65,22 @@ export default function SettingsPage({
       onTileSizeChange(clamped);
     } else {
       setTileDraft(String(tileSize));
+    }
+  };
+
+  const exportDiagnostics = async () => {
+    const be = await getBackend();
+    const dest = await be.pickSaveFile("senmei-diagnostics.tar.xz", ["tar.xz"]);
+    if (!dest) return;
+    setExporting(true);
+    setDiagMsg(null);
+    try {
+      await be.exportDiagnostics(dest);
+      setDiagMsg(t("settings.diagnostics.exported"));
+    } catch (e) {
+      setDiagMsg(String(e));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -369,6 +388,21 @@ export default function SettingsPage({
                     </p>
                   )}
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  {t("settings.section.diagnostics")}
+                </h3>
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                  {t("settings.diagnostics.hint")}
+                </p>
+                {diagMsg && (
+                  <p className="mb-2 text-xs text-slate-600 dark:text-slate-300">{diagMsg}</p>
+                )}
+                <Button onClick={exportDiagnostics} disabled={exporting}>
+                  {exporting ? "…" : t("settings.diagnostics.export")}
+                </Button>
               </div>
             </div>
           )}

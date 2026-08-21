@@ -378,6 +378,13 @@ pub fn export_project(src: String, dest: String) -> Result<(), String> {
     store::export_project(&src, &dest)
 }
 
+/// Package logs + system info into a `.tar.xz` (diagnose export).
+#[tauri::command]
+#[specta::specta]
+pub fn export_diagnostics(dest: String) -> Result<(), String> {
+    crate::diagnostics::export(&dest)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn open_project(file: String) -> Result<String, String> {

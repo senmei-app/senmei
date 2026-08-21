@@ -83,6 +83,8 @@ export interface Backend {
   deleteProject(path: string): Promise<void>;
   openProject(archive: string): Promise<string>;
   exportProject(src: string, dest: string): Promise<void>;
+  /// Package logs + system info into a `.tar.xz` (diagnose export).
+  exportDiagnostics(dest: string): Promise<void>;
   importFolder(dir: string): Promise<string[]>;
   loadProjectSettings(path: string): Promise<ProjectSettings>;
   saveProjectSettings(path: string, settings: ProjectSettings): Promise<void>;

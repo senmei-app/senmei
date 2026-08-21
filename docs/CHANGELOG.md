@@ -36,6 +36,10 @@
   `<data-dir>/logs/senmei.log` (5 MB cap, 3 rotations) with module/file:line,
   so logs survive crashes (base for the diagnose export).
 
+- **feat: one-click diagnose export (2026-08-21)** — Settings → Info packages
+  `logs/*.log` + `diagnostics.json` (settings, backend, ffmpeg) as a
+  `.tar.xz` for bug reports.
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a

@@ -1,5 +1,6 @@
 mod audio;
 mod commands;
+mod diagnostics;
 pub mod log_hub;
 pub mod models;
 mod preview;
@@ -24,6 +25,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::create_project,
             commands::delete_project,
             commands::export_project,
+            commands::export_diagnostics,
             commands::open_project,
             commands::load_project_settings,
             commands::save_project_settings,

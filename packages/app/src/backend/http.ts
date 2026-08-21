@@ -142,6 +142,10 @@ export const httpBackend: Backend = {
     throw new Error("project export is not available over HTTP yet");
   },
 
+  async exportDiagnostics(_dest) {
+    throw new Error("diagnostics export is not available over HTTP yet");
+  },
+
   async importFolder(dir) {
     const info = await this.probeVideo(dir);
     return info ? [dir] : [];

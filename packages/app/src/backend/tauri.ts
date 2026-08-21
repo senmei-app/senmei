@@ -94,6 +94,10 @@ export const tauriBackend: Backend = {
     await bridge.exportProject(src, dest);
   },
 
+  async exportDiagnostics(dest) {
+    await bridge.exportDiagnostics(dest);
+  },
+
   importFolder(dir) {
     return bridge.importFolder(dir);
   },

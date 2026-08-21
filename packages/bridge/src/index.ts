@@ -42,6 +42,7 @@ export const listProjects = () => commands.listProjects();
 export const createProject = (name: string) => commands.createProject(name);
 export const deleteProject = (path: string) => commands.deleteProject(path);
 export const exportProject = (src: string, dest: string) => commands.exportProject(src, dest);
+export const exportDiagnostics = (dest: string) => commands.exportDiagnostics(dest);
 export const openProject = (file: string) => commands.openProject(file);
 
 export const loadProjectSettings = (path: string) => commands.loadProjectSettings(path);

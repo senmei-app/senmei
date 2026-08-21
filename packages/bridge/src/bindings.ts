@@ -15,6 +15,8 @@ export const commands = {
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
 	exportProject: (src: string, dest: string) => __TAURI_INVOKE<null>("export_project", { src, dest }),
+	/**  Package logs + system info into a `.tar.xz` (diagnose export). */
+	exportDiagnostics: (dest: string) => __TAURI_INVOKE<null>("export_diagnostics", { dest }),
 	openProject: (file: string) => __TAURI_INVOKE<string>("open_project", { file }),
 	loadProjectSettings: (path: string) => __TAURI_INVOKE<ProjectSettings>("load_project_settings", { path }),
 	saveProjectSettings: (path: string, settings: ProjectSettings) => __TAURI_INVOKE<null>("save_project_settings", { path, settings }),
