@@ -134,6 +134,8 @@ export type ModelMetadata = {
 	kind: ModelKind,
 	scale?: number,
 	arch: string,
+	/**  Model family/lineage the weights descend from (e.g. `real-cugan`). */
+	family?: string | null,
 	/**  Weight files (e.g. `.pth`, `.bpk`), first entry is the primary. */
 	weights?: string[] | null,
 	license?: string | null,

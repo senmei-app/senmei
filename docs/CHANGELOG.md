@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: record model family lineage in the catalog (2026-08-21)** — every
+  `metadata.json` entry now carries the `family` it descends from
+  (real-esrgan, real-cugan, real-plksr, span, rife, …) alongside `arch`;
+  `ModelMetadata.family` flows through the TS bindings, the model dropdown
+  shows it, and `docs/models.md` gains Family + Arch columns.
+
 - **docs: align PLAN/README with the optional tch backend (2026-08-20)** —
   binding decisions now note the optional libtorch engine (`tch` feature,
   runtime dlopen, CUDA/ROCm only) next to the shipped burn-Vulkan default.

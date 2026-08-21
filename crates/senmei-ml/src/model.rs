@@ -21,6 +21,9 @@ pub struct ModelMetadata {
     #[serde(default)]
     pub scale: u32,
     pub arch: String,
+    /// Model family/lineage the weights descend from (e.g. `real-cugan`).
+    #[serde(default)]
+    pub family: Option<String>,
     /// Weight files (e.g. `.pth`, `.bpk`), first entry is the primary.
     #[serde(default)]
     pub weights: Option<Vec<String>>,
@@ -358,6 +361,7 @@ mod tests {
             kind: ModelKind::Upscale,
             scale: 2,
             arch: "upcunet2x".into(),
+            family: None,
             weights: None,
             license: license.map(str::to_string),
             source_url: None,

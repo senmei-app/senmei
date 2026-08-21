@@ -73,6 +73,7 @@ export default function StepEditor(props: StepEditorProps) {
       <option value="">—</option>
       {models.map((m) => (
         <option key={m.id} value={m.id}>
+          {m.family ? `${m.family} · ` : ""}
           {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
         </option>
       ))}
