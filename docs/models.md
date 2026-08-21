@@ -93,11 +93,14 @@ Candidates per stack; each needs a clean burn port + permissive license before
   HF/Phhofm, so the RVE-hosted copy stays **unverified → blocked** (2026-08-19).
   The SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port.
 - SPAN f16: intermediates fit f16 (no overflow), but a cubek-convolution f16 1×1
-  conv bug (K=96 × N≥32768, `docs/upstream-issues.md` §6) degrades some 48ch
-  norm-on checkpoints — HFA2k_LUDVAE worst (corr 0.57 vs torch, dropped
-  2026-08-20), 2xHFA2kSPAN 0.82, multijpg 0.68. V1.5 (64ch) matches torch exactly
-  (corr 1.00), V2 (48ch no_norm) 0.94. bf16 all-NaN on RADV. V1/V1.5 = 64 channels,
-  V2 = 48.
+  conv bug (K=96 × N≥32768, `docs/upstream-issues.md` §6) degraded the 48ch
+  checkpoints — HFA2k_LUDVAE worst (corr 0.57 vs torch), 2xHFA2kSPAN 0.82,
+  multijpg 0.68. **Workaround 2026-08-21**: `Span::pad_k96` zero-pads every 1×1
+  conv2 96→128 (K=128/K=192 verified correct at N≥32768), which unblocks all
+  48ch models (nomosuni-ldl/multijpg, HFA2k, ModernSpanimation V2 re-enabled).
+  Measured: the padded K=128 path is not slower than the broken K=96 (−9% on the
+  conv; K=128 tiles better). V1.5 (64ch) matches torch exactly (corr 1.00).
+  bf16 all-NaN on RADV. V1/V1.5 = 64 channels, V2 = 48.
 - RealPLKSR_Dysample family (CC-BY-4.0, `Phhofm/models` releases; arch ported via
   4x_Alchemy = dim 64 / 28 blocks / GroupNorm4 → **weights-only only for that config**):
   1× DeNoise/DeJPG/DeH264 (+ DeJPG `_60` q60 variant, 2026-08-20) + 4×

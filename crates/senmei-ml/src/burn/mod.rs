@@ -183,6 +183,7 @@ impl BurnEngine {
                 );
                 m.set_no_norm(model.no_norm);
                 m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+                m.pad_k96(&self.device);
                 Ok(Model::Span(m))
             }
             other => Err(Error::new(format!("unsupported arch: {other}"))),
@@ -287,10 +288,17 @@ impl InferenceEngine for BurnEngine {
             cov = cov.slice_assign([0..1, 0..1, sy..sy + oh, sx..sx + ow], ones);
         }
         let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-        let bytes: Vec<u8> = match avg.cast(burn::tensor::IntDType::U8).into_data().to_vec() {
+        // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
+        // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
+        // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays on CPU.
+        let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
             Ok(v) => v,
             Err(e) => return Some(Err(Error::new(e.to_string()))),
         };
+        let mut bytes = Vec::with_capacity(data.len());
+        for v in data {
+            bytes.push((v + 0.5) as u8);
+        }
         let out_h_t = (h as f32 * scale_f).round() as usize;
         let out_w_t = (w as f32 * scale_f).round() as usize;
         let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);

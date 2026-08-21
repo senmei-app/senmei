@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **ml: cubek#519 workaround — pad 1×1 conv K=96→128, re-enable 48ch SPAN
+  (2026-08-21)** — a f16 1×1 conv with 96 in-channels returns wrong values at
+  H·W ≥ 32768 (upstream-issues.md §6). `Span::pad_k96` zero-pads every conv2
+  weight into a K=128 conv + pads the input at forward (K=128 verified correct
+  at N=76800). Measured: the padded path is not slower than the broken K=96
+  (−9% on the conv; K=128 tiles better), so the workaround is perf-free. The 4
+  disabled 48ch SPAN models (nomosuni-ldl/multijpg, HFA2k, ModernSpanimation
+  V2) re-enabled. Covered by `pad_k96_pads_all_conv2` + the extended
+  `conv1x1_repro` (PAD-vs-f32-reference check).
+
 - **feat: SRVGGNetCompact port (2026-08-21)** — new `srvgg` arch in the burn
   + tch engines makes the two fast anime upscalers
   (`realesrgan-animevideo-x2/x4`, BSD-3 weights) loadable. Converter maps the

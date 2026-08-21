@@ -312,6 +312,13 @@ Target repo: **`tracel-ai/cubek`** (crate `cubek-convolution`), not cubecl — t
 conv kernel lives in cubek. Filed as **`tracel-ai/cubek#519`** (2026-08-20); no
 duplicate at filing time (search `is:issue conv` returned only closed #20, a
 bias-gradient reduce-sum bug).
+**Workaround (2026-08-21)**: pad the 1×1 conv's input channels 96→128 (zero-pad
+the weight into a K=128 conv + zero-pad the input at forward) — K=128 and K=192
+are verified correct at N=76800, so `Span::pad_k96` unblocks the 48ch models.
+Perf: K=128 padded is *not* slower than the broken K=96 (measured −9% on the
+conv; K=128 tiles better). 4 disabled 48ch SPAN models re-enabled. The
+forward-conv kernel (`kernels/forward/`) is unchanged since 2026-06-10, so the
+upstream bug persists until a real fix.
 
 **Paste-ready text** (Title + Body):
 

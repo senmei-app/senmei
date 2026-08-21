@@ -4,7 +4,7 @@
 //! `eval_conv` ignored. f16-safe on real frames (overflow only on synthetic
 //! noise); bf16 broken on RADV. Output is [0,1] for norm-on checkpoints.
 
-use burn::module::Module;
+use burn::module::{Module, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::{sigmoid, silu};
@@ -24,12 +24,18 @@ fn conv2d<B: Backend>(
 }
 
 /// Conv3XC: 1×1 → 3×3 → 1×1 plus a 1×1 skip (gain1 = 2).
+///
+/// The final 1×1 `conv2` has `2*c_out` input channels — 96 for the 48ch
+/// models, where cubek#519 returns wrong f16 results at H·W ≥ 32768. `pad_k96`
+/// rebinds it into a K=128 conv (zero-padded weight) so the kernel takes the
+/// correct path; forward then pads the input to 128 channels.
 #[derive(Module, Debug)]
 pub struct Conv3Xc<B: Backend> {
     conv0: Conv2d<B>,
     conv1: Conv2d<B>,
     conv2: Conv2d<B>,
     sk: Conv2d<B>,
+    pad_k96: bool,
 }
 
 impl<B: Backend> Conv3Xc<B> {
@@ -39,13 +45,45 @@ impl<B: Backend> Conv3Xc<B> {
             conv1: conv2d(c_in * 2, c_out * 2, 3, 1, device),
             conv2: conv2d(c_out * 2, c_out, 1, 0, device),
             sk: conv2d(c_in, c_out, 1, 0, device),
+            pad_k96: false,
         }
     }
 
+    /// Workaround for cubek#519 (upstream-issues.md §6): a f16 1×1 conv with
+    /// K=96 in-channels is wrong at H·W ≥ 32768. Zero-pad the weight into a
+    /// K=128 conv (a verified-correct path) and pad the input at forward.
+    /// Only the weight Param is swapped — burn derives the conv's in/out
+    /// channels from the weight shape, and the bias is unchanged.
+    pub fn pad_k96(&mut self, device: &B::Device) {
+        let [o, c, kh, kw] = self.conv2.weight.val().dims();
+        if c != 96 {
+            return;
+        }
+        let w = self.conv2.weight.val().detach();
+        let padded = Tensor::cat(
+            vec![w, Tensor::<B, 4>::zeros([o, 128 - c, kh, kw], device)],
+            1,
+        );
+        self.conv2.weight = Param::initialized(burn::module::ParamId::new(), padded);
+        self.pad_k96 = true;
+    }
+
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let out = self.conv2.forward(self.conv1.forward(self.conv0.forward(x.clone())));
+        let h = self.conv1.forward(self.conv0.forward(x.clone()));
+        let h = if self.pad_k96 { pad_channels_to(h, 128) } else { h };
+        let out = self.conv2.forward(h);
         out + self.sk.forward(x)
     }
+}
+
+/// Zero-pad `x` to `target` channels (cubek#519 pad path).
+fn pad_channels_to<B: Backend>(x: Tensor<B, 4>, target: usize) -> Tensor<B, 4> {
+    let [b, c, h, w] = x.dims();
+    if c >= target {
+        return x;
+    }
+    let zeros = Tensor::<B, 4>::zeros([b, target - c, h, w], &x.device());
+    Tensor::cat(vec![x, zeros], 1)
 }
 
 /// SPAB: three Conv3XC with SiLU, plus `sigmoid(out3) - 0.5` gating.
@@ -63,6 +101,12 @@ impl<B: Backend> Spab<B> {
             c2_r: Conv3Xc::new(ch, ch, device),
             c3_r: Conv3Xc::new(ch, ch, device),
         }
+    }
+
+    fn pad_k96(&mut self, device: &B::Device) {
+        self.c1_r.pad_k96(device);
+        self.c2_r.pad_k96(device);
+        self.c3_r.pad_k96(device);
     }
 
     /// `(out, out1_act, att)`; `out1_act` (post-SiLU) feeds the head concat.
@@ -127,6 +171,19 @@ impl<B: Backend> Span<B> {
         self.no_norm = no_norm;
     }
 
+    /// cubek#519 workaround for 48ch models (conv2 K=96): pads every conv2 to
+    /// K=128. No-op for 64ch models (their conv2 is already K=128).
+    pub fn pad_k96(&mut self, device: &B::Device) {
+        self.conv_1.pad_k96(device);
+        self.block_1.pad_k96(device);
+        self.block_2.pad_k96(device);
+        self.block_3.pad_k96(device);
+        self.block_4.pad_k96(device);
+        self.block_5.pad_k96(device);
+        self.block_6.pad_k96(device);
+        self.conv_2.pad_k96(device);
+    }
+
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         // (x - mean) * 255 — norm-on checkpoints; mean (0.4488, 0.4371, 0.4040).
         let x = if self.no_norm {
@@ -174,11 +231,16 @@ mod tests {
         };
 
         // K=96 with H*W >= 32768 is broken; other K are fine at any N.
+        // 128/192/256 probe the pad targets (96→128 for conv2; conv_cat is
+        // K=192 at full frame).
         let cases = [
             (96usize, 128usize, 128usize),
             (96, 128, 256),
             (96, 240, 320),
             (64, 240, 320),
+            (128, 240, 320),
+            (192, 240, 320),
+            (256, 240, 320),
         ];
         println!("cubek-convolution f16 1x1 conv repro (K=96 x N>=32768 broken):");
         for (k, h, w) in cases {
@@ -236,6 +298,183 @@ mod tests {
             mae /= out.len() as f32;
             println!("  K={k} N={n} ({h}x{w}): max_abs={maxe:.5} mean_abs={mae:.6}");
         }
+
+        // Verify the pad-96→128 workaround on the broken K=96/N=76800 case:
+        // padding the weight into a K=128 conv + padding the input must match
+        // the f32 reference (the raw K=96 path is wrong, the padded path not).
+        {
+            let (k, h, w) = (96usize, 240usize, 320usize);
+            let n = h * w;
+            let mut wv = vec![0.0f32; 48 * k];
+            let mut bv = vec![0.0f32; 48];
+            let mut xv = vec![0.0f32; k * n];
+            for v in &mut wv {
+                *v = (rnd() - 0.5) * 0.16;
+            }
+            for v in &mut bv {
+                *v = (rnd() - 0.5) * 0.1;
+            }
+            for v in &mut xv {
+                *v = (rnd() - 0.5) * 6.0;
+            }
+            let mut refv = vec![0.0f32; 48 * n];
+            for j in 0..48 {
+                for p in 0..n {
+                    let mut acc = 0.0f32;
+                    for c in 0..k {
+                        acc += wv[j * k + c] * xv[c * n + p];
+                    }
+                    refv[j * n + p] = acc + bv[j];
+                }
+            }
+            // Pad weight [48,96]→[48,128] (zeros per row) and input
+            // [1,96]→[1,128] (zeros per channel), matching the module's cat.
+            let mut wp = Vec::with_capacity(48 * 128);
+            for j in 0..48 {
+                wp.extend_from_slice(&wv[j * 96..(j + 1) * 96]);
+                wp.extend(std::iter::repeat(0.0).take(32));
+            }
+            let mut xp = Vec::with_capacity(128 * n);
+            for c in 0..96 {
+                xp.extend_from_slice(&xv[c * n..(c + 1) * n]);
+            }
+            xp.resize(128 * n, 0.0);
+
+            let wt = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(wp, [48, 128, 1, 1]).convert::<f16>(),
+                &device,
+            );
+            let b = Tensor::<BurnBackend<f16>, 1>::from_data(
+                TensorData::new(bv, [48]).convert::<f16>(),
+                &device,
+            );
+            let x = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(xp, [1, 128, h, w]).convert::<f16>(),
+                &device,
+            );
+            let mut conv = Conv2dConfig::new([128, 48], [1, 1]).init(&device);
+            conv.weight = Param::from_tensor(wt);
+            conv.bias = Some(Param::from_tensor(b));
+
+            let out: Vec<f32> = conv.forward(x).into_data().convert::<f32>().to_vec().unwrap();
+            let mut maxe = 0.0f32;
+            let mut mae = 0.0f32;
+            for (o, r) in out.iter().zip(&refv) {
+                let e = (o - f16::from_f32(*r).to_f32()).abs();
+                maxe = maxe.max(e);
+                mae += e;
+            }
+            mae /= out.len() as f32;
+            println!("  PAD K=96→128 N={n} (240x320): max_abs={maxe:.5} mean_abs={mae:.6}");
+            assert!(maxe < 0.02, "padded conv deviates from f32 reference");
+        }
+
+        // Perf impact of the pad: time the K=96 vs the padded K=128 1×1 conv
+        // at N=76800 (same weights/input, padded variant). Sync each iter.
+        {
+            let (k, h, w) = (96usize, 240usize, 320usize);
+            let n = h * w;
+            let mut wv = vec![0.0f32; 48 * k];
+            let mut xv = vec![0.0f32; k * n];
+            for v in &mut wv {
+                *v = (rnd() - 0.5) * 0.16;
+            }
+            for v in &mut xv {
+                *v = (rnd() - 0.5) * 6.0;
+            }
+            let b = Tensor::<BurnBackend<f16>, 1>::from_data(
+                TensorData::new(vec![0.0f32; 48], [48]).convert::<f16>(),
+                &device,
+            );
+            let x = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(xv.clone(), [1, k, h, w]).convert::<f16>(),
+                &device,
+            );
+            let mut conv96 = Conv2dConfig::new([k, 48], [1, 1]).init(&device);
+            conv96.weight = Param::from_tensor(
+                Tensor::<BurnBackend<f16>, 4>::from_data(
+                    TensorData::new(wv.clone(), [48, k, 1, 1]).convert::<f16>(),
+                    &device,
+                ),
+            );
+            conv96.bias = Some(Param::from_tensor(b.clone()));
+
+            let mut wp = Vec::with_capacity(48 * 128);
+            for j in 0..48 {
+                wp.extend_from_slice(&wv[j * 96..(j + 1) * 96]);
+                wp.extend(std::iter::repeat(0.0).take(32));
+            }
+            let xp: Vec<f32> = {
+                let mut v = Vec::with_capacity(128 * n);
+                for c in 0..96 {
+                    v.extend_from_slice(&xv[c * n..(c + 1) * n]);
+                }
+                v.resize(128 * n, 0.0);
+                v
+            };
+            let mut conv128 = Conv2dConfig::new([128, 48], [1, 1]).init(&device);
+            conv128.weight = Param::from_tensor(
+                Tensor::<BurnBackend<f16>, 4>::from_data(
+                    TensorData::new(wp, [48, 128, 1, 1]).convert::<f16>(),
+                    &device,
+                ),
+            );
+            conv128.bias = Some(Param::from_tensor(b));
+            let x128 = Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(xp, [1, 128, h, w]).convert::<f16>(),
+                &device,
+            );
+
+            let iters = 100usize;
+            let time = |conv: &burn::nn::conv::Conv2d<BurnBackend<f16>>, inp: &Tensor<BurnBackend<f16>, 4>| {
+                let t0 = std::time::Instant::now();
+                for _ in 0..iters {
+                    conv.forward(inp.clone()).into_data();
+                }
+                t0.elapsed().as_secs_f64() * 1e3 / iters as f64
+            };
+            let t96 = time(&conv96, &x);
+            let t128 = time(&conv128, &x128);
+            println!(
+                "  PERF N={n}: K=96 {t96:.3} ms, K=128-padded {t128:.3} ms, delta {:.1}%",
+                (t128 / t96 - 1.0) * 100.0
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "needs Vulkan; verifies the cubek#519 pad reaches every conv2 in a 48ch Span"]
+    fn pad_k96_pads_all_conv2() {
+        let device = WgpuDevice::DiscreteGpu(0);
+        let mut m = Span::<BurnBackend<f16>>::new(48, 2, &device);
+        m.pad_k96(&device);
+
+        // 1 (conv_1) + 18 (6 Spab × 3) + 1 (conv_2) = 20 Conv3Xc, all ch=48
+        // → all 20 conv2 must become K=128. conv_cat (K=192) / upsampler
+        // (K=48) are untouched by design.
+        let mut padded = 0usize;
+        let mut check = |c: &Conv3Xc<BurnBackend<f16>>| {
+            if c.pad_k96 {
+                assert_eq!(c.conv2.weight.val().dims()[1], 128);
+                padded += 1;
+            }
+        };
+        check(&m.conv_1);
+        check(&m.conv_2);
+        for b in [&m.block_1, &m.block_2, &m.block_3, &m.block_4, &m.block_5, &m.block_6] {
+            check(&b.c1_r);
+            check(&b.c2_r);
+            check(&b.c3_r);
+        }
+        assert_eq!(padded, 20, "expected all 20 conv2 padded to K=128");
+        assert_eq!(m.conv_cat.weight.val().dims()[1], 192);
+        assert_eq!(m.upsampler.weight.val().dims()[1], 48);
+
+        // pad_k96 queues async device tensors; force a sync so the wgpu
+        // teardown doesn't crash on the pending queue at exit (test-only).
+        let _ = m.conv_1.conv2.weight.val().into_data();
+        println!("pad_k96: all 20 conv2 → K=128; conv_cat/upsampler untouched");
+        drop(m);
     }
 
     #[test]

@@ -260,7 +260,7 @@ mod tests {
         assert!(matches!(registry.models()[18].kind, ModelKind::Upscale));
         assert_eq!(registry.models()[18].scale, 2);
         assert_eq!(registry.models()[18].arch, "span");
-        assert!(!registry.models()[18].loadable);
+        assert!(registry.models()[18].loadable);
         assert_eq!(registry.models()[18].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(
             registry.models()[18]
