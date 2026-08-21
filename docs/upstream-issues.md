@@ -26,8 +26,13 @@ optimization's plan-time `ordering` against the execution-time `operations`
 queue; a drain between plan and execute leaves a stale ordering → panic.
 Workaround: `infer_rgb8` is tiled internally (640 px) so no full-frame matmul
 reaches autotune — reliable, 186 ms / 5.4 FPS; autotune OFF is reliable but ~5×
-slower. Upstream status: still present on `main` (2026-08-18), only the message
-got more verbose.
+slower. Upstream status: **fixed on burn `main`** — maintainer answer
+(2026-08-21, laggui): #4962 (cross-thread handle lifetime), #5282 (readbacks no
+longer cut pending fusion compositions), #5400 (cached plan no longer applied to
+a shorter segment = the `ordering.len() > operations.len()` condition directly).
+Requires the 0.22 API migration (backend generics removed from the user API).
+`main` now also prints ordering/op-count/optimization lengths to distinguish a
+stale plan from a poisoned queue.
 
 **Paste-ready text** — post as a comment on burn#4950:
 
@@ -69,8 +74,17 @@ deterministically (~4.6 s in, 4/4 runs, 2026-08-18):
 shape only a full-frame forward produces. The failed 4.4 GB allocation leaves
 the server invalid ("Memory page 0 doesn't exist"), surfacing as the tuner panic
 (Bug 2) and/or the ordering panic (Bug 1). Workaround: the tiled path (640 px)
-avoids the 4M-column matmul. No upstream fix. Related: `#1384` closed, `#1401`
-CUDA.
+avoids the 4M-column matmul. Related: `#1384` closed, `#1401` CUDA.
+Upstream: #1494 (memory pools + **lazy handle→memory binding**, so autotune
+dry-run no longer materializes oversized candidates) merged on `main`
+2026-08-12, not yet in a release; #1438 (retry allocation after reclaiming
+cached pages) closed unmerged. **Verified on cubecl `main` 2026-08-21**
+(standalone Vulkan probe, 24 GiB reserve on 16 GiB card): a failed allocation
+still panics the wgpu server worker (`server.rs:318 failed to reserve`) and that
+launch's `sync()` errors "server is in an invalid state", but the server **no
+longer stays corrupted** — subsequent operations succeed (readback correct).
+So the persistent corruption symptom is fixed; the failure is recoverable but
+not yet graceful.
 
 **Paste-ready text** (Title + Body):
 
@@ -118,6 +132,10 @@ per-group element count via `div_scalar`; for counts ≥ 2¹⁴ the f16 reciproc
 explodes (observed ±318 vs torch ±1.3). `mean_dim` (native scaled kernel) stays
 accurate. Workaround: compute the norm with `mean_dim` instead of
 `sum + div_scalar` (`crates/senmei-ml/src/burn/real_plksr.rs::group_norm`).
+Upstream (2026-08-21, nathanielsimard): #5211 fixed the **norm accumulation**
+part; the **denominator division** (the `div_scalar` reciprocal underflow that
+flushes to 0) is a separate fix he says they "could also" do — assumed not yet
+fixed on `main`. The `mean_dim` workaround stays until confirmed.
 
 **Paste-ready text** (Title + Body):
 

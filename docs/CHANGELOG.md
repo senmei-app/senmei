@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **docs: upstream answers on burn/cubecl issues (2026-08-21)** — burn#4950
+  (ordering panic) fixed on burn `main` (#4962/#5282/#5400); burn#5382
+  (GroupNorm f16) #5211 fixed accumulation, denominator division separate;
+  cubecl#1531 (autotune OOM) verified on cubecl `main` — server no longer
+  stays corrupted after a failed allocation, but the failed reserve still
+  panics the server worker (recoverable). Statuses in `upstream-issues.md`.
+
 - **feat: first-run onboarding wizard (2026-08-21)** — a 5-step setup on
   first launch: welcome, FFmpeg check + download, inference-engine status,
   starter model download, get-started (dismissed once via a localStorage
