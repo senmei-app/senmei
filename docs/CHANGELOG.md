@@ -8,6 +8,20 @@
 
 ## Unreleased
 
+- **fix: remove the multi-tile seam grid on SPAN renders (2026-08-21)** —
+  `infer_rgb8` now sums tiles with a feather ramp (partition of unity) into
+  the canvas instead of `slice_assign`-replacing the overlap. The model emits
+  a 1-2px dark line at every tile edge (border context is cut off); replacing
+  the overlap left the next tile's edge line visible, showing as a "6-band"
+  grid on 1280×720 (3×2 tiles). Weights are ~0 at a tile edge bordering a
+  neighbour and 1 at the canvas border; the intermediate slice view is scoped
+  so the backend writes in place (no copy-on-write). Seam jumps at x=960/1920
+  dropped from ~41 to ~0 on a constant-gray probe; single-tile and warm 6-tile
+  cost unchanged (~24 ms stitch). The CPU `tiling::stitch` (used by
+  `run_tiled` for >1080p denoise/filter) gets the same feather ramp; the
+  weighted sum keeps brightness (no partition-of-unity drift), verified by
+  new unit tests.
+
 - **fix: SPAN inversion — burn-store now respects `.pth` strides (2026-08-21)** —
   `PytorchReader` read storage linearly, so TNTwise/Phhofm `params`-wrapped
   SPAN checkpoints (non-contiguous 3×3 `conv1`, strides `(54,1,18,6)`) loaded

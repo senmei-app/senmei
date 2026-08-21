@@ -215,9 +215,34 @@ pub fn infer_rgb8<B: Backend>(
     let scale_f = scale as f32;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
-    // Accumulate tiles into one canvas (overlap averaging) on the device.
-    // Tiles run one-by-one: larger batched matmuls are pathologically
-    // slower on this backend (see docs/benchmarks.md tile-size note).
+    let ov = (overlap as f32 * scale_f).round() as usize;
+    // Feather ramp (partition of unity): a tile edge bordering a neighbour
+    // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
+    // lines vanish at the seams; the canvas border keeps full weight
+    // (single coverage, nothing to blend with).
+    let feather = |n: usize, low: bool, high: bool| -> Vec<f32> {
+        let mut w = vec![1.0f32; n];
+        let o = ov.min(n);
+        if low {
+            for k in 0..o {
+                w[k] = (k as f32 + 1.0) / (ov as f32 + 1.0);
+            }
+        }
+        if high {
+            for k in 0..o {
+                w[n - 1 - k] = (k as f32 + 1.0) / (ov as f32 + 1.0);
+            }
+        }
+        w
+    };
+    // Accumulate tiles into one weighted canvas on the device. Tiles run
+    // one-by-one (larger batched matmuls are pathologically slower on this
+    // backend — docs/benchmarks.md). We sum rather than replace so the
+    // overlap is truly averaged: slice_assign alone leaves the next tile's
+    // edge line visible at every seam. The intermediate view is scoped so
+    // the backend can write in place instead of copy-on-write. A single
+    // readback at the end avoids the burn-fusion ordering panic
+    // (docs/burn-bugs.md Bug 1).
     let mut acc = BurnTensor::<B, 4>::zeros([1, c, out_h, out_w], device);
     let mut cov = BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device);
     for (x, y, t) in &tiles {
@@ -233,9 +258,31 @@ pub fn infer_rgb8<B: Backend>(
         // Clamp before accumulating: out-of-range values (>1.0 at hard
         // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
         let out = out.clamp(0.0, 1.0);
-        acc = acc.slice_assign([0..1, 0..c, sy..sy + oh, sx..sx + ow], out);
-        let ones = BurnTensor::<B, 4>::ones([1, 1, oh, ow], device);
-        cov = cov.slice_assign([0..1, 0..1, sy..sy + oh, sx..sx + ow], ones);
+        let wy = feather(oh, *y > 0, *y + tile < ph);
+        let wx = feather(ow, *x > 0, *x + tile < pw);
+        let mut wv = Vec::with_capacity(oh * ow);
+        for yy in 0..oh {
+            let wyy = wy[yy];
+            for xx in 0..ow {
+                wv.push(wyy * wx[xx]);
+            }
+        }
+        let wmask = BurnTensor::<B, 4>::from_data(
+            TensorData::new(wv, [1, 1, oh, ow]).convert::<B::FloatElem>(),
+            device,
+        );
+        let region = [0..1, 0..c, sy..sy + oh, sx..sx + ow];
+        let sum = {
+            let cur = acc.clone().slice(region.clone());
+            cur + out.mul(wmask.clone())
+        };
+        acc = acc.slice_assign(region, sum);
+        let cregion = [0..1, 0..1, sy..sy + oh, sx..sx + ow];
+        let csum = {
+            let ccur = cov.clone().slice(cregion.clone());
+            ccur + wmask
+        };
+        cov = cov.slice_assign(cregion, csum);
     }
     let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
     // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a

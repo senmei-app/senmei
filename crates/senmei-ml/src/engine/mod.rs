@@ -167,7 +167,11 @@ fn run_tiled(
             (sx, sy, t.clone())
         })
         .collect();
-    let stitched = crate::stitch(&scaled, out_h, out_w, input.shape[1]);
+    let ov = (
+        (overlap as f32 * scale_h).round() as usize,
+        (overlap as f32 * scale_w).round() as usize,
+    );
+    let stitched = crate::stitch(&scaled, out_h, out_w, input.shape[1], ov);
     let out_h_target = (h as f32 * scale_h).round() as usize;
     let out_w_target = (w as f32 * scale_w).round() as usize;
     Ok(crate::crop(&stitched, out_h_target, out_w_target))
