@@ -12,6 +12,11 @@
   fetches GitHub metadata (private-repo 404 panic); notes via
   `orhun/git-cliff-action@v4`, no pinned binary download.
 
+- **ci: release bundles built with the tch (libtorch) engine (2026-08-21)** —
+  `tauri build --features tch` (Linux/Windows; macOS skipped — no CUDA/ROCm)
+  ships the CUDA/ROCm engine compiled in; the libtorch runtime itself is
+  still downloaded on demand.
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a

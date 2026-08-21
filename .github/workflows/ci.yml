@@ -150,8 +150,14 @@ jobs:
         shell: bash
         run: rm -rf target/debug
 
+      # Release ships the optional libtorch (tch) engine on Linux/Windows
+      # (no CUDA/ROCm path on macOS); the runtime itself downloads on demand.
       - name: Build app bundle
-        run: bunx @tauri-apps/cli@^2 build
+        shell: bash
+        run: |
+          TCH_ARGS=""
+          if [ "$RUNNER_OS" != "macOS" ]; then TCH_ARGS="--features tch"; fi
+          bunx @tauri-apps/cli@^2 build $TCH_ARGS
 
       - name: Upload bundle
         uses: actions/upload-artifact@v5
