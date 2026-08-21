@@ -184,17 +184,12 @@ jobs:
 
       # Only the final installers are published; bundle dirs also hold build
       # intermediates (extracted libs, deb/rpm control files, AppImage glue).
+      # Checkout points at the tag, so --current emits exactly this release.
       - name: Build release notes
-        # Grouped by conventional-commit type (see cliff.toml), like Koharu.
-        # Checkout points at the tag, so --current emits exactly this release.
-        run: |
-          V="2.13.1"
-          curl -sSfL -o /tmp/git-cliff.tar.gz \
-            "https://github.com/orhun/git-cliff/releases/download/v${V}/git-cliff-${V}-x86_64-unknown-linux-gnu.tar.gz"
-          tar -xzf /tmp/git-cliff.tar.gz -C /tmp
-          install -m755 "/tmp/git-cliff-${V}/git-cliff" "$HOME/.cargo/bin/git-cliff"
-          export PATH="$HOME/.cargo/bin:$PATH"
-          git-cliff --current --strip all > release-notes.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --current --strip all --output release-notes.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

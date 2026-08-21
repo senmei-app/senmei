@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **ci: fix release notes generation (2026-08-21)** — git-cliff no longer
+  fetches GitHub metadata (private-repo 404 panic); notes via
+  `orhun/git-cliff-action@v4`, no pinned binary download.
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a

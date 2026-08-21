@@ -2,16 +2,12 @@
 # https://git-cliff.org/docs/configuration
 # Adapted from Koharu (https://github.com/mayocream/koharu, MIT OR Apache-2.0).
 
-[remote.github]
-owner = "senmei-app"
-repo = "senmei"
-
 [changelog]
 # A Tera template to be rendered for each release in the changelog.
 # See https://keats.github.io/tera/docs/#introduction
 body = """
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/senmei-app/senmei
 {%- endmacro -%}
 
 {% macro print_commit(commit) -%}
