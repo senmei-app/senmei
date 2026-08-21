@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **refactor: split Monitor into `monitor/` sub-components (2026-08-21)** — the
+  pure presentational blocks move into `monitor/{CompareView,ModeTabs,Timeline,
+  Benchmark}.tsx`; the stateful Monitor keeps the video/transport/sample editor
+  and shrinks 903→757. (A/B + compare, mode tabs, scrubber + in/out bar,
+  per-step benchmark.)
+
 - **refactor: split frontend i18n + Monitor helpers (2026-08-21)** — the
   en/de message dictionaries move out of `i18n.tsx` into `src/i18n/{en,de}.ts`
   (`i18n/index.tsx` keeps the provider/hook); Monitor's pure time/format

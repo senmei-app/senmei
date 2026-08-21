@@ -5,6 +5,10 @@ import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
 import { basename } from "../paths";
 import { fmt, fmtDuration, parseDuration, snapFrame } from "./monitor/format";
+import Benchmark from "./monitor/Benchmark";
+import CompareView from "./monitor/CompareView";
+import ModeTabs from "./monitor/ModeTabs";
+import Timeline from "./monitor/Timeline";
 
 export default function Monitor({
   file,
@@ -468,11 +472,6 @@ export default function Monitor({
     return { fps, eta: fmtEta(remaining) };
   })();
 
-  const tabCls = (active: boolean) =>
-    active
-      ? "rounded-md border border-indigo-500/40 bg-indigo-600/40 px-2 py-1 text-[10px] font-mono text-indigo-200 backdrop-blur"
-      : "rounded-md bg-black/50 px-2 py-1 text-[10px] font-mono text-slate-300 backdrop-blur hover:bg-black/60";
-
   return (
     <main ref={rootRef} className={"relative flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (isFull ? "" : " p-4")}>
       <div
@@ -482,69 +481,14 @@ export default function Monitor({
           (isFull ? "" : " rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-800")
         }
       >
-        {mode === "ab" && prevRenderedFile && effRendered ? (
-          <div className="flex h-full w-full">
-            <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
-              {frames[prevRenderedFile] ? (
-                <img src={frames[prevRenderedFile]} alt="A" className="h-full w-full object-contain opacity-80" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
-                  <span className="truncate px-4 font-mono text-sm text-slate-500">{basename(prevRenderedFile)}</span>
-                </div>
-              )}
-              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">
-                A
-              </span>
-            </div>
-            <div className="relative flex-1 overflow-hidden">
-              {frames[effRendered] ? (
-                <img src={frames[effRendered]} alt="B" className="h-full w-full object-contain opacity-80" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
-                  <span className="truncate px-4 font-mono text-sm text-slate-500">{basename(effRendered)}</span>
-                </div>
-              )}
-              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
-                B
-              </span>
-            </div>
-          </div>
-        ) : mode === "compare" && file && effRendered ? (
-          <div className="flex h-full w-full">
-            <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
-              {frames[file] ? (
-                <img src={frames[file]} alt="original" className="h-full w-full object-contain opacity-80" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
-                  <span className="truncate px-4 font-mono text-sm text-slate-500">
-                    {basename(file)}
-                  </span>
-                </div>
-              )}
-              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
-                {t("monitor.original")}
-              </span>
-            </div>
-            <div className="relative flex-1 overflow-hidden">
-              {frames[effRendered] ? (
-                <img
-                  src={frames[effRendered]}
-                  alt="result"
-                  className="h-full w-full object-contain opacity-80"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
-                  <span className="truncate px-4 font-mono text-sm text-slate-500">
-                    {basename(effRendered)}
-                  </span>
-                </div>
-              )}
-              <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                {t("monitor.result")}
-              </span>
-            </div>
-          </div>
-        ) : nativeSrc ? (
+        <CompareView
+          mode={mode}
+          file={file}
+          effRendered={effRendered}
+          prevRenderedFile={prevRenderedFile}
+          frames={frames}
+        />
+        {nativeSrc ? (
           <video
             key={nativeSrc}
             ref={(el) => {
@@ -574,34 +518,13 @@ export default function Monitor({
           </div>
         )}
 
-        <div className="absolute top-3 left-3 flex space-x-2">
-          <button onClick={() => setMode("source")} className={tabCls(mode === "source")}>
-            {t("monitor.original")}
-            {mode === "source" && info ? ` ${info.width}x${info.height}` : ""}
-          </button>
-          <button
-            onClick={() => setMode("compare")}
-            disabled={!effRendered}
-            className={tabCls(mode === "compare")}
-          >
-            {t("monitor.compare")}
-          </button>
-          <button
-            onClick={() => setMode("ab")}
-            disabled={!effRendered || !prevRenderedFile}
-            className={tabCls(mode === "ab")}
-            title={t("monitor.ab")}
-          >
-            A/B
-          </button>
-          <button
-            onClick={() => setMode("result")}
-            disabled={!effRendered}
-            className={tabCls(mode === "result")}
-          >
-            {t("monitor.result")}
-          </button>
-        </div>
+        <ModeTabs
+          mode={mode}
+          onMode={setMode}
+          effRendered={effRendered}
+          prevRenderedFile={prevRenderedFile}
+          info={info}
+        />
 
         {loading && (
           <div className="absolute top-3 right-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur">
@@ -807,47 +730,17 @@ export default function Monitor({
             </button>
           )}
         </div>
-        <div className="relative">
-          <div className="pointer-events-none absolute top-1/2 z-0 h-1.5 w-full -translate-y-1/2 rounded-full bg-slate-300 dark:bg-slate-700" />
-          <div
-            className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-300 dark:bg-indigo-400/60"
-            style={{ width: `${scrubPct}%` }}
-          />
-          {info && (
-            <div
-              className="pointer-events-none absolute top-1/2 z-0 h-1.5 -translate-y-1/2 rounded-full bg-indigo-600 ring-1 ring-indigo-400 dark:bg-indigo-500 dark:ring-indigo-300"
-              style={{ left: `${inPct}%`, width: `${Math.max(0, outPct - inPct)}%` }}
-            />
-          )}
-          <input
-            type="range"
-            min={tlMin}
-            max={tlMax}
-            step={50}
-            value={Math.min(Math.max(tlPos, tlMin), tlMax)}
-            onChange={(e) => onScrub(Number(e.target.value))}
-            disabled={!info}
-            className="scrubber relative z-10 w-full cursor-ew-resize"
-          />
-        </div>
-        {timings.length > 0 && (
-          <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-800">
-            <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              {t("monitor.benchmark")}
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
-              {timings.map((s) => (
-                <div key={s.name} className="flex items-baseline justify-between gap-2 font-mono text-[10px]">
-                  <span className="truncate text-slate-600 dark:text-slate-300">{s.name}</span>
-                  <span className="shrink-0 text-slate-400 dark:text-slate-500">
-                    {s.msPerFrame != null ? `${s.msPerFrame.toFixed(1)} ms/f` : "–"} ·{" "}
-                    {s.fps != null ? `${s.fps.toFixed(1)} fps` : "–"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <Timeline
+          tlMin={tlMin}
+          tlMax={tlMax}
+          tlPos={tlPos}
+          scrubPct={scrubPct}
+          inPct={inPct}
+          outPct={outPct}
+          onScrub={onScrub}
+          disabled={!info}
+        />
+        <Benchmark timings={timings} />
         {info && (
           <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-500">
             <span>
