@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: Windows libtorch (tch) backend via dlopen fork (2026-08-22)** — the
+  `senmei-app/tch-rs` fork now builds the wrapper with CMake + MSVC on Windows
+  (`tch.dll`, SHARED + `WINDOWS_EXPORT_ALL_SYMBOLS`) instead of bailing; the
+  loader preloads libtorch's DLLs (`c10`/`torch_cpu`/`torch`/…) and loads the
+  wrapper via LoadLibraryW. Tag bumped to `v0.22.0-senmei-win`, so the Windows
+  bundle ships the tch backend again.
+
 ## 0.1.5 (2026-08-22)
 
 - **fix: A/B keeps its pair when re-rendering the same input (2026-08-21)** —

@@ -1713,6 +1713,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
+name = "cmake"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9184,7 +9193,7 @@ dependencies = [
 [[package]]
 name = "tch"
 version = "0.22.0"
-source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#a86154d9ee96c2e0de2db9cd5253a8a0767864bb"
+source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#a8ff08418dfa3fada65f953314e3169ea8c079da"
 dependencies = [
  "half",
  "lazy_static",
@@ -9680,9 +9689,10 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "torch-sys"
 version = "0.22.0"
-source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-dlopen#a86154d9ee96c2e0de2db9cd5253a8a0767864bb"
+source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#a8ff08418dfa3fada65f953314e3169ea8c079da"
 dependencies = [
  "anyhow",
+ "cmake",
  "libc",
  "libloading 0.9.0",
  "serde",
