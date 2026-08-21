@@ -12,6 +12,10 @@
   fetches GitHub metadata (private-repo 404 panic); notes via
   `orhun/git-cliff-action@v4`, no pinned binary download.
 
+- **ci: split release bundle into its own job (2026-08-21)** — check+test and
+  the bundle build each get a fresh runner (disk); `Free check artifacts`
+  runs in bash on Windows.
+
 ## 0.1.4 (2026-08-21)
 
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a
