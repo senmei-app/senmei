@@ -24,6 +24,7 @@ export default function LogsPanel() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [minLevel, setMinLevel] = useState<string>("INFO");
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottom = useRef(true);
 
   useEffect(() => {
     let un: (() => void) | undefined;
@@ -44,12 +45,65 @@ export default function LogsPanel() {
     };
   }, [t]);
 
+  // Follow new entries only while the user is pinned to the bottom; once they
+  // scroll up, leave the viewport alone until they scroll back down.
+  const onScroll = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    stickToBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  };
   useEffect(() => {
-    if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
+    if (stickToBottom.current && boxRef.current) {
+      boxRef.current.scrollTop = boxRef.current.scrollHeight;
+    }
   }, [entries]);
 
   const minSev = LEVEL_SEV[minLevel] ?? 0;
   const shown = entries.filter((e) => (LEVEL_SEV[e.level] ?? 0) >= minSev);
+  const [copied, setCopied] = useState(false);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Copy all shown entries (HH:MM:SS LEVEL message) as one text blob.
+  const copyAll = () => {
+    const text = shown.map((e) => `${fmtTime(e.timestamp)} ${e.level} ${e.message}`).join("\n");
+    if (!text) return;
+    const done = () => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    };
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* noop */
+      }
+      document.body.removeChild(ta);
+      done();
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  };
+
+  // Select the whole log body on a plain click (drag still selects a range).
+  const selectAll = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
   const levels = ["ALL", "ERROR", "WARN", "INFO"] as const;
   const chipCls = (active: boolean) =>
     active
@@ -66,14 +120,36 @@ export default function LogsPanel() {
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setEntries([])}
-          className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-        >
-          {t("logs.clear")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={copyAll}
+            className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          >
+            {copied ? t("logs.copied") : t("logs.copy")}
+          </button>
+          <button
+            onClick={() => {
+              setEntries([]);
+              // Also empty the backend buffer so re-mounts don't reload old logs.
+              backend().then((b) => b.clearLogs().catch(() => {}));
+            }}
+            className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          >
+            {t("logs.clear")}
+          </button>
+        </div>
       </div>
-      <div ref={boxRef} className="min-h-0 flex-1 select-text overflow-y-auto px-3 py-2 font-mono text-[10px] leading-relaxed">
+      <div
+        ref={boxRef}
+        onScroll={onScroll}
+        onMouseDown={(e) => (dragStart.current = { x: e.clientX, y: e.clientY })}
+        onMouseUp={(e) => {
+          const d = dragStart.current;
+          dragStart.current = null;
+          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 5) selectAll();
+        }}
+        className="min-h-0 flex-1 select-text overflow-y-auto px-3 py-2 font-mono text-[10px] leading-relaxed"
+      >
         {shown.length === 0 && <p className="text-slate-400">{t("logs.empty")}</p>}
         {shown.map((e, i) => (
           <div key={i} className="flex gap-2">

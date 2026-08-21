@@ -93,3 +93,10 @@ pub fn attach(app: &AppHandle) {
 pub fn get_logs() -> Vec<LogEntry> {
     hub().lock().unwrap().entries.iter().cloned().collect()
 }
+
+/// Empty the buffered log history (Logs panel "Clear").
+#[tauri::command]
+#[specta::specta]
+pub fn clear_logs() {
+    hub().lock().unwrap().entries.clear();
+}

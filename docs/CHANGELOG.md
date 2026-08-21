@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a
+  copy button (single click selects all), a backend `clear_logs` so Clear
+  sticks (buffer emptied, no reload on re-mount), and stick-to-bottom
+  scrolling that leaves the viewport alone once scrolled up. The render
+  pipeline logs per-stage timing (process/encode ms) and the selected engine,
+  making slow renders diagnosable.
+
 - **feat: model download end-to-end (2026-08-21)** — `download_model` now
   handles every weight format (`.bpk`/`.pth`/`.onnx`/ncnn-`.bin`/release-zip
   with `extract_suffix`), logs start/result/errors, and skips

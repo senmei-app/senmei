@@ -223,6 +223,7 @@ pub fn engine_for_model(
         EngineBackend::Vulkan => {
             #[cfg(feature = "burn")]
             {
+                log::info!("engine: burn-Vulkan ({})", model.id);
                 Ok(Box::new(crate::burn::BurnEngine::new()))
             }
             #[cfg(not(feature = "burn"))]
@@ -235,6 +236,7 @@ pub fn engine_for_model(
         EngineBackend::LibTorch => {
             #[cfg(feature = "tch")]
             {
+                log::info!("engine: libtorch ({})", model.id);
                 Ok(Box::new(crate::tch::TchEngine::runtime(data_dir)?))
             }
             #[cfg(not(feature = "tch"))]
@@ -247,10 +249,12 @@ pub fn engine_for_model(
         EngineBackend::Auto => {
             #[cfg(feature = "tch")]
             if let Ok(engine) = crate::tch::TchEngine::runtime(data_dir) {
+                log::info!("engine: auto -> libtorch ({})", model.id);
                 return Ok(Box::new(engine));
             }
             #[cfg(feature = "burn")]
             {
+                log::info!("engine: auto -> burn-Vulkan ({})", model.id);
                 return Ok(Box::new(crate::burn::BurnEngine::new()));
             }
             #[cfg(not(feature = "burn"))]

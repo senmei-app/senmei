@@ -44,7 +44,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::pause_render,
             commands::prune_samples,
             commands::unique_path,
-            log_hub::get_logs
+            log_hub::get_logs,
+            log_hub::clear_logs
         ])
 }
 

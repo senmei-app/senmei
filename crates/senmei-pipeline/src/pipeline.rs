@@ -109,13 +109,24 @@ impl Pipeline {
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
+            let mut enc_n = 0u64;
+            let mut enc_acc = std::time::Duration::ZERO;
             while let Ok(frame) = out_rx.recv() {
+                let t0 = std::time::Instant::now();
                 enc.write_frame(&frame)?;
+                enc_acc += t0.elapsed();
+                enc_n += 1;
                 processed += 1;
                 on_progress(Progress {
                     frames_processed: processed,
                     total_frames,
                 });
+                if enc_n % 60 == 0 {
+                    log::info!(
+                        "pipeline: encode {:.1} ms/frame",
+                        enc_acc.as_secs_f64() * 1000.0 / enc_n as f64
+                    );
+                }
             }
             enc.finish().map_err(Error::from)
         });
@@ -131,6 +142,8 @@ impl Pipeline {
         });
 
         let mut main_err: Option<Error> = None;
+        let mut proc_n = 0u64;
+        let mut proc_acc = std::time::Duration::ZERO;
         for frame in first_batch {
             if out_tx.send(frame).is_err() {
                 main_err = Some(Error::new("encode channel closed"));
@@ -154,6 +167,7 @@ impl Pipeline {
                         main_err = Some(Error::cancelled());
                         break;
                     }
+                    let t0 = std::time::Instant::now();
                     let mut batch = match self.emit(frame) {
                         Ok(b) => b,
                         Err(e) => {
@@ -181,6 +195,15 @@ impl Pipeline {
                             main_err = Some(Error::new("encode channel closed"));
                             break;
                         }
+                    }
+                    proc_n += 1;
+                    proc_acc += t0.elapsed();
+                    if proc_n % 60 == 0 {
+                        log::info!(
+                            "pipeline: process {:.1} ms/frame ({:.1} fps)",
+                            proc_acc.as_secs_f64() * 1000.0 / proc_n as f64,
+                            proc_n as f64 / proc_acc.as_secs_f64()
+                        );
                     }
                 }
                 Err(_) => break, // decoder finished
