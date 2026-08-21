@@ -471,6 +471,19 @@ pub fn save_project_settings(path: String, settings: store::ProjectSettings) -> 
 pub struct RenderProgress {
     pub frames_processed: u64,
     pub total_frames: u64,
+    /// Per-step ms/frame + fps; empty during the run, populated on the final
+    /// event once the render finishes (the FPS benchmark report).
+    pub steps: Vec<StepTimingInfo>,
+}
+
+/// One pipeline step's timing (FPS benchmark).
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StepTimingInfo {
+    pub name: String,
+    pub frames: u64,
+    pub ms_per_frame: f64,
+    pub fps: f64,
 }
 
 /// Optional reference filter steps (denoise/deblur/dedup) for a render.
@@ -678,11 +691,35 @@ pub async fn render(
         if let Some(parent) = output.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
+        let processed = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let total = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (p_ref, t_ref) = (processed.clone(), total.clone());
+        let progress_tx = on_progress.clone();
         let run = pipeline.run(&ffmpeg, &input, &output, move |p| {
+            p_ref.store(p.frames_processed, Ordering::Relaxed);
+            t_ref.store(p.total_frames, Ordering::Relaxed);
             let _ = on_progress.send(RenderProgress {
                 frames_processed: p.frames_processed,
                 total_frames: p.total_frames,
+                steps: Vec::new(),
             });
+        });
+        // Final event carries the per-step benchmark (only steps that ran).
+        let steps: Vec<StepTimingInfo> = pipeline
+            .step_timings()
+            .iter()
+            .filter(|t| t.frames > 0)
+            .map(|t| StepTimingInfo {
+                name: t.name.clone(),
+                frames: t.frames,
+                ms_per_frame: t.total.as_secs_f64() * 1000.0 / t.frames as f64,
+                fps: t.frames as f64 / t.total.as_secs_f64(),
+            })
+            .collect();
+        let _ = progress_tx.send(RenderProgress {
+            frames_processed: processed.load(Ordering::Relaxed),
+            total_frames: total.load(Ordering::Relaxed),
+            steps,
         });
         if let Err(e) = &run {
             log::error!("render failed: {e}");

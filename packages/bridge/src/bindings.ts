@@ -212,6 +212,11 @@ export type RenderConfig = {
 export type RenderProgress = {
 	framesProcessed: number,
 	totalFrames: number,
+	/**
+	 *  Per-step ms/frame + fps; empty during the run, populated on the final
+	 *  event once the render finishes (the FPS benchmark report).
+	 */
+	steps: StepTimingInfo[],
 };
 
 export type Settings = {
@@ -273,6 +278,14 @@ export type StepParams = {
 	outputMode?: string | null,
 	/**  Custom output folder (when output_mode == "custom"). */
 	outputFolder?: string | null,
+};
+
+/**  One pipeline step's timing (FPS benchmark). */
+export type StepTimingInfo = {
+	name: string,
+	frames: number,
+	msPerFrame: number | null,
+	fps: number | null,
 };
 
 export type VideoInfo = {

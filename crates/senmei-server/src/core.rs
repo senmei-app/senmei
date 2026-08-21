@@ -511,7 +511,7 @@ fn build_steps(config: &RenderConfig) -> Vec<Box<dyn senmei_pipeline::Step>> {
 pub fn render(
     config: &RenderConfig,
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
-) -> Result<(), String> {
+) -> Result<Vec<StepTimingInfo>, String> {
     senmei_ml::set_tile_size(640);
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
@@ -556,7 +556,18 @@ pub fn render(
         log::error!("render failed: {e}");
         let _ = std::fs::remove_file(&output);
     }
-    run.map_err(|e| e.to_string())
+    let steps = pipeline
+        .step_timings()
+        .iter()
+        .filter(|t| t.frames > 0)
+        .map(|t| StepTimingInfo {
+            name: t.name.clone(),
+            frames: t.frames,
+            ms_per_frame: t.total.as_secs_f64() * 1000.0 / t.frames as f64,
+            fps: t.frames as f64 / t.total.as_secs_f64(),
+        })
+        .collect();
+    run.map(|_| steps).map_err(|e| e.to_string())
 }
 
 /// Extract one frame as PNG (fast seek) — best effort.
@@ -658,7 +669,10 @@ pub fn confirm_render() -> Result<String, String> {
         });
         let mut s = status.lock().unwrap();
         match result {
-            Ok(()) => s.state = "done".into(),
+            Ok(steps) => {
+                s.state = "done".into();
+                s.steps = steps;
+            }
             Err(e) => {
                 s.state = "failed".into();
                 s.error = Some(e);
@@ -666,6 +680,17 @@ pub fn confirm_render() -> Result<String, String> {
         }
     });
     Ok("render started — poll render_status".into())
+}
+
+/// One pipeline step's timing (FPS benchmark; ms/frame + fps).
+#[cfg(feature = "render")]
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StepTimingInfo {
+    pub name: String,
+    pub frames: u64,
+    pub ms_per_frame: f64,
+    pub fps: f64,
 }
 
 /// Render lifecycle status (polled over MCP; no push notifications yet).
@@ -678,6 +703,8 @@ pub struct RenderStatus {
     pub frames_processed: u64,
     pub total_frames: u64,
     pub error: Option<String>,
+    /// Per-step timing once the render finishes (FPS benchmark).
+    pub steps: Vec<StepTimingInfo>,
 }
 
 #[cfg(feature = "render")]
@@ -688,6 +715,7 @@ impl Default for RenderStatus {
             frames_processed: 0,
             total_frames: 0,
             error: None,
+            steps: Vec::new(),
         }
     }
 }

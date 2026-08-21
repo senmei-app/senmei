@@ -15,7 +15,6 @@
       LGPL-safe
 - [ ] Batch folder processing: dir + subdirs, naming scheme, queue
 - [ ] Model A/B compare: two pipelines side by side (not only source vs result)
-- [ ] Per-step FPS benchmark report (engine choice Vulkan vs LibTorch)
 - [ ] Content-aware defaults from probe: anime vs live-action → suggest
       models/steps
 - [ ] Queue persistence + resume after crash, ETA per batch

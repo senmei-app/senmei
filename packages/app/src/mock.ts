@@ -131,10 +131,10 @@ function startDemoRender(onProgress: (p: RenderProgress) => void): Promise<strin
   return new Promise((resolve) => {
     let frames = 0;
     const total = 3000;
-    onProgress({ framesProcessed: 0, totalFrames: total });
+    onProgress({ framesProcessed: 0, totalFrames: total, steps: [] });
     demoRenderTimer = setInterval(() => {
       frames += 25;
-      onProgress({ framesProcessed: frames, totalFrames: total });
+      onProgress({ framesProcessed: frames, totalFrames: total, steps: [] });
       if (frames >= total) {
         if (demoRenderTimer) clearInterval(demoRenderTimer);
         demoRenderTimer = null;

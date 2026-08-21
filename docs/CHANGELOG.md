@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: per-step FPS benchmark (2026-08-21)** — the pipeline times each
+  step (ms/frame + fps) and reports it in the final render progress event
+  (GUI Monitor panel) and in `RenderStatus.steps` (MCP/HTTP); a per-step
+  summary is also logged at the end of every render.
+
 - **feat: one-binary headless server (2026-08-21)** — the `senmei` binary
   embeds the built web UI (`rust-embed`) and runs the headless service with
   `--server` (HTTP + REST) / `--mcp-server` (stdio), reusing `senmei-server`

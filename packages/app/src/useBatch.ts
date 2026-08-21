@@ -3,7 +3,7 @@
 // cancel stops after the current file; pause freezes the running file.
 
 import { useState } from "react";
-import type { RenderConfig, RenderProgress } from "@senmei/bridge";
+import type { RenderConfig, RenderProgress, StepTimingInfo } from "@senmei/bridge";
 import { backend, isWeb } from "./backend";
 import { buildEncoderArgs, type BatchJob, type PipelineStep } from "./steps";
 import { basename, dirname, joinPath } from "./paths";
@@ -39,6 +39,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   const [rendering, setRendering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
+  const [timings, setTimings] = useState<StepTimingInfo[]>([]);
   const [renderedFile, setRenderedFile] = useState<string | null>(null);
 
   const desiredPath = (
@@ -132,6 +133,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setRendering(true);
     setPaused(false);
     setRenderedFile(null);
+    setTimings([]);
 
     const patch = (i: number, p: Partial<BatchJob>) =>
       setJobs((prev) => prev.map((j, k) => (k === i ? { ...j, ...p } : j)));
@@ -150,6 +152,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
           await be.render(initial[i].input, output, config, (p) => {
             patch(i, { progress: p });
             setProgress(p);
+            if (p.steps.length) setTimings(p.steps);
           });
           patch(i, { status: "done" });
           setRenderedFile(output);
@@ -203,6 +206,8 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setPaused,
     progress,
     setProgress,
+    timings,
+    setTimings,
     renderedFile,
     setRenderedFile,
     startBatch,

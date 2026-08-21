@@ -433,6 +433,7 @@ export default function App() {
                   renderedFile={batch.renderedFile}
                   rendering={batch.rendering}
                   progress={batch.progress}
+                  timings={batch.timings}
                   projectDir={projectDir}
                   sampleInMs={sampleRange?.inMs ?? 0}
                   sampleOutMs={sampleRange?.outMs ?? 0}

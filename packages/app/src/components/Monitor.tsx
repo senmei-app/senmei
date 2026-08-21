@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import type { RenderProgress, VideoInfo } from "@senmei/bridge";
+import type { RenderProgress, StepTimingInfo, VideoInfo } from "@senmei/bridge";
 import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
@@ -50,6 +50,7 @@ export default function Monitor({
   renderedFile,
   rendering,
   progress,
+  timings = [],
   sampleInMs = 0,
   sampleOutMs = 0,
   projectDir,
@@ -62,6 +63,8 @@ export default function Monitor({
   renderedFile: string | null;
   rendering: boolean;
   progress: RenderProgress | null;
+  /** Per-step timing from the last finished render (FPS benchmark). */
+  timings?: StepTimingInfo[];
   sampleInMs?: number;
   sampleOutMs?: number;
   projectDir?: string | null;
@@ -825,6 +828,24 @@ export default function Monitor({
             className="scrubber relative z-10 w-full cursor-ew-resize"
           />
         </div>
+        {timings.length > 0 && (
+          <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-800">
+            <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              {t("monitor.benchmark")}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+              {timings.map((s) => (
+                <div key={s.name} className="flex items-baseline justify-between gap-2 font-mono text-[10px]">
+                  <span className="truncate text-slate-600 dark:text-slate-300">{s.name}</span>
+                  <span className="shrink-0 text-slate-400 dark:text-slate-500">
+                    {s.msPerFrame != null ? `${s.msPerFrame.toFixed(1)} ms/f` : "–"} ·{" "}
+                    {s.fps != null ? `${s.fps.toFixed(1)} fps` : "–"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {info && (
           <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-500">
             <span>

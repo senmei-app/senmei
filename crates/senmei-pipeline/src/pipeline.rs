@@ -12,8 +12,17 @@ pub struct Progress {
     pub total_frames: u64,
 }
 
+/// Accumulated per-step timing for the FPS benchmark report.
+#[derive(Debug, Clone)]
+pub struct StepTiming {
+    pub name: String,
+    pub frames: u64,
+    pub total: std::time::Duration,
+}
+
 pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
+    timings: Vec<StepTiming>,
     interpolator: Option<Interpolator>,
     cancel: Arc<AtomicBool>,
     pause: Arc<AtomicBool>,
@@ -24,8 +33,17 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn new(steps: Vec<Box<dyn Step>>) -> Self {
+        let timings = steps
+            .iter()
+            .map(|s| StepTiming {
+                name: s.name().to_string(),
+                frames: 0,
+                total: std::time::Duration::ZERO,
+            })
+            .collect();
         Self {
             steps,
+            timings,
             interpolator: None,
             cancel: Arc::new(AtomicBool::new(false)),
             pause: Arc::new(AtomicBool::new(false)),
@@ -85,8 +103,8 @@ impl Pipeline {
             None => return Err(Error::new("no frames decoded")),
         };
         let mut first_batch = self.emit(first)?;
-        for step in &mut self.steps {
-            first_batch = run_step(step.as_mut(), first_batch)?;
+        for (i, step) in self.steps.iter_mut().enumerate() {
+            first_batch = run_step(&mut self.timings[i], step.as_mut(), first_batch)?;
         }
         let (w, h) = (first_batch[0].width, first_batch[0].height);
 
@@ -176,9 +194,9 @@ impl Pipeline {
                         }
                     };
                     let mut failed = false;
-                    for step in &mut self.steps {
+                    for (i, step) in self.steps.iter_mut().enumerate() {
                         let next = std::mem::take(&mut batch);
-                        match run_step(step.as_mut(), next) {
+                        match run_step(&mut self.timings[i], step.as_mut(), next) {
                             Ok(kept) => batch = kept,
                             Err(e) => {
                                 main_err = Some(e);
@@ -230,7 +248,23 @@ impl Pipeline {
             Err(e) => return Err(e),
             Ok(()) => {}
         }
-        dec_res
+        if let Err(e) = dec_res {
+            return Err(e);
+        }
+        for t in &self.timings {
+            if t.frames == 0 {
+                continue;
+            }
+            let ms = t.total.as_secs_f64() * 1000.0 / t.frames as f64;
+            let fps = t.frames as f64 / t.total.as_secs_f64();
+            log::info!("pipeline: step {} — {ms:.2} ms/frame ({fps:.1} fps)", t.name);
+        }
+        Ok(())
+    }
+
+    /// Per-step timing accumulated over the run (empty until `run`).
+    pub fn step_timings(&self) -> &[StepTiming] {
+        &self.timings
     }
 
     fn emit(&mut self, frame: senmei_media::Frame) -> Result<Vec<senmei_media::Frame>> {
@@ -241,16 +275,23 @@ impl Pipeline {
     }
 }
 
-/// Run a batch through one step, keeping only frames the step doesn't drop.
+/// Run a batch through one step, keeping only frames the step doesn't drop;
+/// accumulate elapsed time for the FPS report.
 fn run_step(
+    timing: &mut StepTiming,
     step: &mut dyn Step,
     batch: Vec<senmei_media::Frame>,
 ) -> Result<Vec<senmei_media::Frame>> {
+    let t0 = std::time::Instant::now();
     let mut kept = Vec::with_capacity(batch.len());
+    let mut n = 0u64;
     for mut frame in batch {
+        n += 1;
         if step.process(&mut frame)? {
             kept.push(frame);
         }
     }
+    timing.frames += n;
+    timing.total += t0.elapsed();
     Ok(kept)
 }

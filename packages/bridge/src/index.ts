@@ -13,6 +13,7 @@ export type {
   ModelMetadata,
   ModelKind,
   ModelFileInfo,
+  StepTimingInfo,
   VideoInfo,
   FfmpegInfo as FfmpegStatus,
   RenderConfig,

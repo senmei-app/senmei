@@ -12,6 +12,7 @@ import type {
   ProjectEntry,
   ProjectSettings,
   Settings,
+  StepTimingInfo,
   VideoInfo,
 } from "@senmei/bridge";
 import type { Backend, FrameSource } from "./types";
@@ -216,9 +217,14 @@ export const httpBackend: Backend = {
         framesProcessed?: number;
         totalFrames?: number;
         error?: string | null;
+        steps?: StepTimingInfo[];
       }>("/api/render/status");
-      if (st.framesProcessed != null) {
-        onProgress({ framesProcessed: st.framesProcessed, totalFrames: st.totalFrames ?? 0 });
+      if (st.framesProcessed != null || st.steps) {
+        onProgress({
+          framesProcessed: st.framesProcessed ?? 0,
+          totalFrames: st.totalFrames ?? 0,
+          steps: st.steps ?? [],
+        });
       }
       if (st.state === "done") return output;
       if (st.state === "failed") throw new Error(st.error ?? "render failed");
