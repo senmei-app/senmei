@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: SPAN inversion — burn-store now respects `.pth` strides (2026-08-21)** —
+  `PytorchReader` read storage linearly, so TNTwise/Phhofm `params`-wrapped
+  SPAN checkpoints (non-contiguous 3×3 `conv1`, strides `(54,1,18,6)`) loaded
+  `(out,kh,kw,in)`-scrambled and rendered inverted. All burn crates +
+  burn-tch/burn-store now come from the `senmei-app/burn` fork tag
+  `v0.21.0-senmei-burn-store-strides` (strides + dlopen), tch/torch-sys from
+  `senmei-app/tch-rs` `v0.22.0-senmei-dlopen`; the original non-contiguous
+  `.pth` converts correctly (global_mae=0.00001) without preprocess.
+
 - **refactor: split Monitor into `monitor/` sub-components (2026-08-21)** — the
   pure presentational blocks move into `monitor/{CompareView,ModeTabs,Timeline,
   Benchmark}.tsx`; the stateful Monitor keeps the video/transport/sample editor

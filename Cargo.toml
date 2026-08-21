@@ -25,7 +25,18 @@ gpu-allocator = { git = "https://github.com/senmei-app/gpu-allocator", tag = "v0
 # Runtime libtorch via dlopen: torch-sys loads libtorch at runtime (no
 # build-time link), so tch/burn-tch must not add libtorch link args. Tags:
 #   tch-rs v0.22.0-senmei-dlopen (torch-sys/ + tch at root, upstream layout),
-#   burn v0.21.0-senmei-burn-tch-dlopen (burn-tch)
+#   burn v0.21.0-senmei-burn-store-strides (burn-tch dlopen + burn-store
+#   stride-respecting PytorchReader, on the senmei-0.21.0 workspace base)
 torch-sys = { git = "https://github.com/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
 tch = { git = "https://github.com/senmei-app/tch-rs", tag = "v0.22.0-senmei-dlopen" }
-burn-tch = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-tch-dlopen" }
+# burn-tch/burn-store come from the senmei-0.21.0 workspace fork (dlopen +
+# stride-respecting PytorchReader); the core burn crates are patched from the
+# same tag so the fork's workspace deps unify instead of duplicating
+# burn-core/burn-backend as separate git instances.
+burn-tch = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-store = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-core = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-tensor = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-backend = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-std = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }
+burn-derive = { git = "https://github.com/senmei-app/burn", tag = "v0.21.0-senmei-burn-store-strides" }

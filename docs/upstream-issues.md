@@ -191,7 +191,14 @@ Workaround: compute the normalization with mean_dim instead of sum + div_scalar.
 but discards it, reading storage linearly — a non-contiguous `.pth`
 (channels-last, e.g. `4x_Alchemy`: shape `[o,i,k,k]`, strides `(27,1,9,3)`)
 loads silently scrambled (head weight correlation 0.24). Workaround: preprocess
-the state dict with `{k: v.contiguous() for k, v in sd.items()}`.
+the state dict with `{k: v.contiguous() for k, v in sd.items()}`. Confirmed
+again on real production weights (2026-08-21): TNTwise/Phhofm `params`-wrapped
+SPAN checkpoints (`2xHFA2kSPAN`, `2x_ModernSpanimationV1/V1.5`,
+`2xBHI_small_span_pretrain`) store their 3×3 `conv1` weights non-contiguous
+(shape `[128,6,3,3]`, strides `(54,1,18,6)`), so every 3×3 kernel loads in
+`(out,kh,kw,in)` order and the models render inverted/scrambled; 1×1 kernels
+(conv0/conv2/sk) stay correct since kh=kw=1 moves nothing. The contiguous
+preprocess fixes all of them (verified end-to-end).
 
 **Fix PR** (2026-08-20): `tracel-ai/burn#5392` „fix(store): respect PyTorch
 tensor strides" — parses/validates strides in both rebuild paths and materializes
