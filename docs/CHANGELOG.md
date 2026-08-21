@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.1.4 (2026-08-21)
+
 - **feat: logs panel + render timing (2026-08-21)** — the Logs panel gets a
   copy button (single click selects all), a backend `clear_logs` so Clear
   sticks (buffer emptied, no reload on re-mount), and stick-to-bottom
