@@ -28,7 +28,7 @@ download URL + sha256).
 | Restoration | Real-ESRGAN | x4plus-anime (6B) | 4 | RRDBNet (6 blocks) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | ESRGAN | BSRGAN | 4 | RRDBNet (23 blocks) | MIT | loadable (torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
-| Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
+| Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, HFA2k LUDVAE, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.
@@ -97,7 +97,8 @@ Candidates per stack; each needs a clean burn port + permissive license before
   checkpoints — HFA2k_LUDVAE worst (corr 0.57 vs torch), 2xHFA2kSPAN 0.82,
   multijpg 0.68. **Workaround 2026-08-21**: `Span::pad_k96` zero-pads every 1×1
   conv2 96→128 (K=128/K=192 verified correct at N≥32768), which unblocks all
-  48ch models (nomosuni-ldl/multijpg, HFA2k, ModernSpanimation V2 re-enabled).
+  48ch models (nomosuni-ldl/multijpg, HFA2k, HFA2k_LUDVAE, ModernSpanimation
+  V2 re-enabled; LUDVAE = flat channels-last pth, contiguous-preprocessed).
   Measured: the padded K=128 path is not slower than the broken K=96 (−9% on the
   conv; K=128 tiles better). V1.5 (64ch) matches torch exactly (corr 1.00).
   bf16 all-NaN on RADV. V1/V1.5 = 64 channels, V2 = 48.

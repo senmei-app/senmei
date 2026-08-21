@@ -191,7 +191,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 34);
+        assert_eq!(registry.models().len(), 35);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -336,6 +336,20 @@ mod tests {
         assert_eq!(registry.models()[33].license.as_deref(), Some("CC-BY-4.0"));
         assert_eq!(registry.models()[33].sha256.as_deref().unwrap().len(), 64);
         assert!(registry.models()[33].metadata.get("layer_norm").is_some());
+        assert_eq!(registry.models()[34].id, "span-2x-hfa2k-ludvae");
+        assert!(matches!(registry.models()[34].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[34].scale, 2);
+        assert_eq!(registry.models()[34].arch, "span");
+        assert!(registry.models()[34].loadable);
+        assert_eq!(registry.models()[34].license.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(registry.models()[34].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(
+            registry.models()[34]
+                .metadata
+                .get("feature_channels")
+                .and_then(|v| v.as_u64()),
+            Some(48)
+        );
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

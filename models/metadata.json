@@ -694,5 +694,26 @@
    "layer_norm": true,
    "note": "2x RealPLKSR_Dysample LayerNorm real_nn (Phhofm, CC-BY-4.0); dim 64/28 blocks, per-pixel channel LayerNorm (eps 1e-6) at block start. The flat contiguous .pth converts directly (converter strips optional params wrapper); ONNX-verified mae ~0.0016."
   }
+ },
+ {
+  "id": "span-2x-hfa2k-ludvae",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "span",
+  "family": "span",
+  "weights": [
+   "2xHFA2k_LUDVAE_SPAN.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2k_LUDVAE_SPAN",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2k_LUDVAE_SPAN/2xHFA2k_LUDVAE_SPAN.pth",
+  "sha256": "1efe96d6729e82883618a01eca77a23eae873dd4f8a374aa5fe2e2f15f64d104",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "feature_channels": 48,
+   "note": "Phhofm SPAN anime LUDVAE (2xHFA2k_LUDVAE_SPAN, CC-BY-4.0), 48ch 2\u00d7, flat + channels-last pth (contiguous-preprocess before convert); cubek#519 workaround (pad 1\u00d71 conv2 K=96\u2192128) applied at load"
+  }
  }
 ]

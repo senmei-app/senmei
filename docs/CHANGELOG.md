@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **ml: add SPAN 2× HFA2k LUDVAE (2026-08-21)** — registers
+  `span-2x-hfa2k-ludvae` (Phhofm `2xHFA2k_LUDVAE_SPAN`, CC-BY-4.0,
+  sha256-pinned), the LUDVAE variant dropped 2026-08-20 for the cubek#519 f16
+  bug. Flat channels-last pth (contiguous-preprocessed to convert); the
+  `pad_k96` workaround applies at load. Verified: loads + infers 256²→512²,
+  no NaN, plausible [0,1] output.
+
 - **ml: cubek#519 workaround — pad 1×1 conv K=96→128, re-enable 48ch SPAN
   (2026-08-21)** — a f16 1×1 conv with 96 in-channels returns wrong values at
   H·W ≥ 32768 (upstream-issues.md §6). `Span::pad_k96` zero-pads every conv2
