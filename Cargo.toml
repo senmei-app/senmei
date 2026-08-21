@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/senmei",
     "crates/senmei-app",
+    "crates/senmei-core",
     "crates/senmei-pipeline",
     "crates/senmei-ml",
     "crates/senmei-media",

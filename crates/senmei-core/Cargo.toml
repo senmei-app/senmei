@@ -1,0 +1,25 @@
+[package]
+name = "senmei-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Transport-agnostic Senmei core: probe/render/models/queue + license/confirm gates."
+
+[dependencies]
+senmei-media = { path = "../senmei-media", version = "0.1.2" }
+senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
+senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2", optional = true }
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+log = "0.4"
+
+[features]
+default = []
+# Real render: pulls the burn inference stack + pipeline (heavy build).
+render = ["dep:senmei-pipeline", "senmei-ml/burn"]
+# Runtime-libtorch (dlopen) engine: CUDA/ROCm libtorch is downloaded on demand
+# into the data dir; Auto then prefers LibTorch when a GPU is present.
+tch = ["senmei-ml/tch"]

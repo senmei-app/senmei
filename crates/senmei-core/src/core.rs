@@ -1,6 +1,6 @@
-//! Transport-agnostic Senmei service. No Tauri, no webview — only
+//! Transport-agnostic Senmei core. No Tauri, no webview — only
 //! `senmei-media` / `senmei-ml` (+ `senmei-pipeline` for render). Every
-//! adapter (MCP, later HTTP) calls into here, so license/confirm gates live
+//! adapter (MCP, HTTP, GUI) calls into here, so license/confirm gates live
 //! once.
 
 use std::path::{Path, PathBuf};

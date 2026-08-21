@@ -7,9 +7,9 @@ repository.workspace = true
 description = "Headless Senmei service (MCP stdio first; HTTP behind a feature)."
 
 [dependencies]
+senmei-core = { path = "../senmei-core", version = "0.1.4" }
 senmei-media = { path = "../senmei-media", version = "0.1.2" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
-senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2", optional = true }
 
 rmcp = { version = "3", features = ["server", "transport-io"] }
 axum = { version = "0.8", optional = true }
@@ -28,9 +28,9 @@ rust-embed = { version = "8", features = ["mime-guess"], optional = true }
 [features]
 default = []
 # Real render: pulls the burn inference stack + pipeline (heavy build).
-render = ["dep:senmei-pipeline", "senmei-ml/burn"]
+render = ["senmei-ml/burn", "senmei-core/render"]
 # Runtime-libtorch (dlopen) engine: CUDA/ROCm libtorch is downloaded on demand
 # into the data dir; Auto then prefers LibTorch when a GPU is present.
-tch = ["senmei-ml/tch"]
+tch = ["senmei-ml/tch", "senmei-core/tch"]
 # Full web UI + REST API (axum); embeds packages/app/dist via rust-embed.
 http = ["dep:axum", "dep:tower-http", "dep:rust-embed"]

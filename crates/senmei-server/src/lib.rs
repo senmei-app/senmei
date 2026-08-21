@@ -1,12 +1,12 @@
-//! Headless Senmei service: transport-agnostic `core` + adapters.
+//! Headless Senmei service: transport-agnostic `senmei-core` + adapters.
 //!
-//! Decision (2026-08-19): `senmei-server` = thin `core` service (probe/models/
+//! Decision (2026-08-19): `senmei-core` = thin service (probe/models/
 //! render/queue + license & confirm gates) with adapters. **MCP (stdio) first**;
 //! REST/HTTP is an optional cargo feature, added only when a real consumer
 //! exists (YAGNI). MCP is a transport, not the core — an HTTP API later must
 //! not require a refactor.
 
-pub mod core;
+pub use senmei_core::core;
 pub mod mcp;
 #[cfg(feature = "http")]
 pub mod http;

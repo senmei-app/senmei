@@ -7929,6 +7929,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "senmei-core"
+version = "0.1.4"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "schemars 1.2.2",
+ "senmei-media",
+ "senmei-ml",
+ "senmei-pipeline",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "senmei-media"
 version = "0.1.4"
 dependencies = [
@@ -7988,9 +8002,9 @@ dependencies = [
  "rmcp",
  "rust-embed",
  "schemars 1.2.2",
+ "senmei-core",
  "senmei-media",
  "senmei-ml",
- "senmei-pipeline",
  "serde",
  "serde_json",
  "tokio",

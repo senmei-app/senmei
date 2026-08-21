@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **refactor: extract transport-free `senmei-core` crate (2026-08-21)** — the
+  shared probe/render/models/queue + license/confirm gates move from
+  `senmei-server/src/core.rs` into a new `senmei-core` crate (no Tauri, no
+  transport); `senmei-server` re-exports it, so the MCP/HTTP adapters are
+  unchanged. Foundation for the GUI to delegate to the same core instead of
+  duplicating it in `commands.rs`.
+
 - **ui: drop model-download step from onboarding wizard (2026-08-21)** —
   `OnboardingWizard` is now welcome→ffmpeg→engine→done (models are added in
   Settings); removes `RECOMMENDED_MODELS`/`downloadModel` and the dead
