@@ -71,8 +71,9 @@ jobs:
           cache-dependency-path: ./bun.lock
 
       - name: Install frontend deps
-        # Network flakes (registry / bun download) are common on fresh
-        # runners; retry before failing.
+        # Bash on all runners (Windows default is pwsh; the retry loop is
+        # bash syntax). Retries registry/bun-download flakes.
+        shell: bash
         run: |
           for i in 1 2 3; do
             if bun install --frozen-lockfile; then break; fi
