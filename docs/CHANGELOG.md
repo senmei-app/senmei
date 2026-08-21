@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.1.5 (2026-08-22)
+
 - **fix: A/B keeps its pair when re-rendering the same input (2026-08-21)** —
   `startBatch` no longer clears the previous result for a single-input
   re-render (model A → B); a file switch or multi-file batch still clears it.
