@@ -6,13 +6,35 @@
 - Documentation / user guide
 
 ## Findings
-- Double rectangle in top-right icon after maximizing
-- Header is wider than in Koharu and VS Code
-- Include libtorch in the release
 - libtorch on ROCm 7.14 / nightly
+## Product / roadmap (2026-08-21)
+- [ ] Ship `senmei-server` as a Tauri sidecar (`externalBin`) so the release
+      bundles include the headless HTTP/MCP service
+- [ ] Model manager in Settings: installed weights (size, source), SHA256
+      verify, delete
+- [ ] Pipeline presets (art templates): save/load named step chains
+- [ ] Onboarding wizard (first run): FFmpeg, engine check, first model
+      downloads, license gate
+- [ ] File-based logging (rotating, data dir) — survives crashes, base for
+      diagnose export
+- [ ] Diagnose export: one-click bundle (logs + ffprobe + backend info +
+      settings)
+- [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
+- [ ] Hardware encoders: `hevc_nvenc`, VAAPI (Linux), VideoToolbox (macOS),
+      LGPL-safe
+- [ ] Batch folder processing: dir + subdirs, naming scheme, queue
+- [ ] Model A/B compare: two pipelines side by side (not only source vs result)
+- [ ] Per-step FPS benchmark report (engine choice Vulkan vs LibTorch)
+- [ ] Content-aware defaults from probe: anime vs live-action → suggest
+      models/steps
+- [ ] Queue persistence + resume after crash, ETA per batch
+- [ ] RealESRGANv2-animevideo-xs (SRVGGNetCompact port, x2/x4) — enable the two
+      fast anime upscalers (loadable: false today)
+- [ ] Fix maximize/restore icon (top-right): show restore glyph after
+      maximizing
+- [ ] Header width: match Koharu/VS Code (currently wider)
 
 ## Models (2026-08-21)
-- [ ] RealESRGANv2-animevideo-xs arch (xsx2/xsx4) — catalog entries stay `loadable: false` until the SRVGGNetCompact-like port
 - [ ] anime1080fixer arch + license verify — removed from catalog 2026-08-21; revisit with the RRDBNet port
 
 
@@ -37,11 +59,6 @@
 - [ ] Unify `zip` duplicate: 2.4.2 (senmei-media) vs 8.6.0 (burn-store) —
       deferred 2026-08-20: touches `senmei-ml/Cargo.toml` + `Cargo.lock`
       (libtorch WIP), marginal win (0.6.6/7.2.0 transitives remain either way)
-## Release review (2026-08-19)
-
-> 0.1.0 complete — see `docs/RELEASING.md`. macOS FFmpeg system-only (no LGPL
-> prebuilt; `brew install ffmpeg`) — revisit if LGPL rule relaxes.
-
 ## Models
 
 - [ ] RealPLKSR rest: NomosWebPhoto non-dysample port
@@ -61,6 +78,9 @@
       decides, off by default)? — decision deferred 2026-08-20, hard gate stays
 
 ## Web / headless
+- [ ] senmei-server CLI via clap: `--help`/`-h`, `--server`/`-s` (enable HTTP),
+      `--http-port`/`-p`, `--mcp-server`/`-m` — replace env-only config + the
+      naive `--http` arg check in `main.rs`
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
       native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer
       option A: server streams the raw file with Range requests (new
@@ -69,3 +89,5 @@
       2026-08-20: deferred, backlog)
 - [ ] License policy (web): model download over HTTP uses POST without progress
       events — add progress once streaming lands (or poll download status)
+- [ ] Web UI hardware/GPU status: `httpBackend.hardwareStatus` returns `null`
+      (Tauri-only for now)
