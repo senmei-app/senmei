@@ -67,6 +67,12 @@
 - [ ] Phase 2: FACTOR port (NIMA fallback) behind QualityProfile — benchmark vs code first, adopt only if it wins
 - [ ] Auto-Enhance transport-agnostic (Tauri + MCP + HTTP; suggest is Tauri-only today)
 
+## Testing (2026-08-23)
+- [ ] Frontend: Vitest + React Testing Library, erste Smoke-Tests (step builder, suggest mapping) — UI komplett ungetestet
+- [ ] senmei-server: HTTP/REST-Adapter-Unit-Tests (MCP via agent_loop abgedeckt, HTTP hat 0)
+- [ ] CI: optionaler Workflow für `#[ignore]` GPU/Modell-Tests (torch↔burn mae) — laufen nur lokal
+- [ ] senmei-ml: Arch-Unit-Tests für real_plksr (0; auch upcunet/scunet/dncnn)
+
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
       native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer

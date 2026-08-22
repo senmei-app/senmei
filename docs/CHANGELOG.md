@@ -8,6 +8,20 @@
 
 ## Unreleased
 
+- **docs: testing todos (2026-08-23)** — coverage-review gaps logged for the
+  next release: frontend (0 tests), HTTP adapter (0), `#[ignore]` model/GPU
+  tests local-only, arch tests (real_plksr et al.).
+
+- **fix: libtorch runtime ignores a stale `LIBTORCH` env (2026-08-23)** — a
+  foreign `LIBTORCH` in the launch shell (e.g. a Python venv) no longer hijacks
+  the shipped/pinned runtime; the local install is only used when explicitly
+  opted in via `SENMEI_LIBTORCH_ENV=1`. Fixes the packaged-app ABI mismatch.
+- **feat: adaptive fused VRAM guard (2026-08-23)** — the fused RGB8 peak
+  ceiling scales with the system: half the GPU's total VRAM on smaller cards,
+  crash-safe 2.5 GiB cap on larger ones (just under the ~3.2 GB wgpu/burn
+  single-allocation OOM at 1080p×4). SD/720p×4 and 1080p×2 now render;
+  1080p×4 stays blocked (deep burn fix still open).
+
 - **docs: PLAN §17 Auto-Enhance decision (2026-08-23)** — `QualityProfile`
   seam (code-first analyzers, NR-IQA optional behind it); model shortlist
   FACTOR/NIMA (Apache-2.0), PaQ-2-PiQ + CLIP-IQA excluded (NC licenses);
