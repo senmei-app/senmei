@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: README + screenshots (2026-08-22)** — hero screenshot, status note,
+  Installation + System requirements sections, Quickstart renamed "from source";
+  all six UI screenshots re-captured at 1280×800 and cropped to content (no
+  letterbox).
+
 - **feat: VRAM guard for the fused RGB8 path (2026-08-22)** — oversized fused
   renders are rejected with a clear error *before* the ~3.2 GB single
   allocation OOM (which lost the wgpu device handle) instead of silently

@@ -8,6 +8,12 @@ Built as a clean-room **burn** port: every model architecture is re-implemented
 from a permissively-licensed reference (no TorchScript/ONNX Runtime at runtime)
 and runs on **Vulkan fp16**.
 
+<p align="center">
+  <img src="docs/screenshots/06-main.png" alt="Senmei main window" width="820">
+</p>
+
+> **Status:** pre-alpha — works daily, expect rough edges. macOS is experimental.
+
 ## Features
 
 - **ML processing stack** — composable steps, applied per frame:
@@ -52,7 +58,31 @@ flowchart LR
 - `packages/app` / `packages/ui` — React frontend + shared UI kit
 - `packages/bridge` — generated TS types (tauri-specta)
 
-## Quickstart
+## Installation
+
+Prebuilt bundles are published per version tag on
+[GitHub Releases](https://github.com/senmei-app/senmei/releases) — Linux,
+Windows and macOS (see [docs/RELEASING.md](docs/RELEASING.md) for what CI
+builds). Models are **never bundled**: they download on first use from the app
+(Settings → model dropdowns → "Download weights"), sha256-pinned and
+license-gated.
+
+FFmpeg: system FFmpeg is preferred; on Linux/Windows the app falls back to a
+portable **LGPL** build (macOS uses system FFmpeg only).
+
+## System requirements
+
+- **GPU:** Vulkan-capable (fp16 recommended); a CPU fallback exists for all
+  models.
+- **OS:** Linux (webkit2gtk) · Windows (WebView2) · macOS (WKWebView,
+  experimental).
+- **VRAM:** tiling keeps memory bounded, so even large frames (4K+) work on
+  mid-range cards; more VRAM speeds up bigger resolutions.
+- **Optional LibTorch backend** (CUDA/ROCm): ⚠️ on **AMD RDNA4 + ROCm** this
+  path can GPU-hang/reset the desktop — prefer the default Vulkan backend on
+  AMD and enable tch only if you know what you're doing.
+
+## Quickstart (from source)
 
 ```sh
 bun install          # frontend deps
