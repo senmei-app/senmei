@@ -51,6 +51,9 @@
       re-enable once fixed upstream (still loadable: 64ch V1/V1.5 + BHI)
 - [ ] License policy: opt-in toggle for non-commercial/unverified models (user
       decides, off by default)? — decision deferred 2026-08-20, hard gate stays
+- [ ] Engine Auto: prefer burn-Vulkan; tch/ROCm opt-in + RDNA4 warning (next
+      release) — RDNA4 ROCm 7.14 can GPU-hang/reset the desktop (see
+      engine-decision); don't auto-select tch on AMD, warn when chosen
 
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
