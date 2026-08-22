@@ -54,6 +54,10 @@
 - [ ] Engine Auto: prefer burn-Vulkan; tch/ROCm opt-in + RDNA4 warning (next
       release) — RDNA4 ROCm 7.14 can GPU-hang/reset the desktop (see
       engine-decision); don't auto-select tch on AMD, warn when chosen
+- [ ] Fused RGB8 only fires at the model's native scale — x2 models rendered
+      at x4 (fallin-soft/strong) take the slow CPU-convert path. Fix: GPU-side
+      re-scale in `infer_rgb8` (audit 2026-08-22, real win for the shipped use
+      case). Batching itself regresses on RDNA4 (benchmarks.md).
 
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
