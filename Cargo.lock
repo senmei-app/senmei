@@ -9193,7 +9193,7 @@ dependencies = [
 [[package]]
 name = "tch"
 version = "0.22.0"
-source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#a8ff08418dfa3fada65f953314e3169ea8c079da"
+source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#2b3711b0a61cbc0bf56c0d6c5f3447a9b3b46e14"
 dependencies = [
  "half",
  "lazy_static",
@@ -9689,7 +9689,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "torch-sys"
 version = "0.22.0"
-source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#a8ff08418dfa3fada65f953314e3169ea8c079da"
+source = "git+https://github.com/senmei-app/tch-rs?tag=v0.22.0-senmei-win#2b3711b0a61cbc0bf56c0d6c5f3447a9b3b46e14"
 dependencies = [
  "anyhow",
  "cmake",
