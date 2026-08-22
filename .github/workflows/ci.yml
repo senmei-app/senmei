@@ -66,9 +66,6 @@ jobs:
 
       - name: Install bun
         uses: oven-sh/setup-bun@v2
-        with:
-          cache: node_modules
-          cache-dependency-path: ./bun.lock
 
       - name: Install frontend deps
         # Bash on all runners (Windows default is pwsh; the retry loop is
@@ -195,9 +192,6 @@ jobs:
 
       - name: Install bun
         uses: oven-sh/setup-bun@v2
-        with:
-          cache: node_modules
-          cache-dependency-path: ./bun.lock
 
       - name: Install frontend deps
         shell: bash

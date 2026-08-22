@@ -197,10 +197,22 @@ mod hip {
             return (None, None);
         };
         unsafe {
-            let get_count = *library.get::<GetDeviceCount>(b"hipGetDeviceCount\0").ok()?;
-            let get_props = *library.get::<GetDeviceProperties>(b"hipGetDeviceProperties\0").ok()?;
-            let get_name = *library.get::<GetDeviceName>(b"hipDeviceGetName\0").ok()?;
-            let get_mem = *library.get::<GetDeviceMemory>(b"hipDeviceTotalMem\0").ok()?;
+            let get_count = match library.get::<GetDeviceCount>(b"hipGetDeviceCount\0") {
+                Ok(f) => *f,
+                Err(_) => return (None, None),
+            };
+            let get_props = match library.get::<GetDeviceProperties>(b"hipGetDeviceProperties\0") {
+                Ok(f) => *f,
+                Err(_) => return (None, None),
+            };
+            let get_name = match library.get::<GetDeviceName>(b"hipDeviceGetName\0") {
+                Ok(f) => *f,
+                Err(_) => return (None, None),
+            };
+            let get_mem = match library.get::<GetDeviceMemory>(b"hipDeviceTotalMem\0") {
+                Ok(f) => *f,
+                Err(_) => return (None, None),
+            };
             let mut count = 0;
             if get_count(&mut count) != 0 || count <= 0 {
                 return (Some(Vec::new()), None);
