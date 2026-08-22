@@ -55,6 +55,8 @@ flowchart LR
 - `crates/senmei-pipeline` — step orchestration, batch queue, events
 - `crates/senmei-ml` — `InferenceEngine`, `BurnEngine`, burn archs, registry
 - `crates/senmei-media` — FFmpeg decode/encode, probe, preview, downloader
+- `crates/senmei-core` — transport-agnostic core: probe/render/models/queue + license/confirm gates
+- `crates/senmei-server` — headless service: MCP (stdio) + HTTP (axum) adapters
 - `packages/app` / `packages/ui` — React frontend + shared UI kit
 - `packages/bridge` — generated TS types (tauri-specta)
 
