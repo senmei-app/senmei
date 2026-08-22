@@ -63,9 +63,9 @@ flowchart LR
 Prebuilt bundles are published per version tag on
 [GitHub Releases](https://github.com/senmei-app/senmei/releases) — Linux,
 Windows and macOS (see [docs/RELEASING.md](docs/RELEASING.md) for what CI
-builds). Models are **never bundled**: they download on first use from the app
-(Settings → model dropdowns → "Download weights"), sha256-pinned and
-license-gated.
+builds). Models are **never bundled**: the app downloads them on demand from
+the Processing Stack (step → **Download weights**), sha256-pinned and
+license-gated; downloaded files are managed in Settings → Models.
 
 FFmpeg: system FFmpeg is preferred; on Linux/Windows the app falls back to a
 portable **LGPL** build (macOS uses system FFmpeg only).
@@ -82,6 +82,45 @@ portable **LGPL** build (macOS uses system FFmpeg only).
   path can GPU-hang/reset the desktop — prefer the default Vulkan backend on
   AMD and enable tch only if you know what you're doing.
 
+## First run
+
+The first launch walks you through setup in a short wizard (four screens):
+
+<p align="center">
+  <img src="docs/screenshots/01-onboarding.png" alt="Welcome" width="380">
+  <img src="docs/screenshots/02-ffmpeg.png" alt="FFmpeg check" width="380">
+</p>
+<p align="center">
+  <img src="docs/screenshots/03-engine.png" alt="Inference engine" width="380">
+  <img src="docs/screenshots/04-ready.png" alt="Ready" width="380">
+</p>
+
+Then create a project (or open an existing one) and you're in the main window
+(hero screenshot at the top):
+
+<p align="center">
+  <img src="docs/screenshots/05-project.png" alt="Create a project" width="380">
+</p>
+
+1. **Create or open a project** — name one and hit Create.
+2. **Add a video** — drag it onto the Media panel (MP4/MKV/MOV up to 4K).
+3. **Build your processing stack** — enable steps like *Interpolate ×2* or
+   *Upscale ×2*; pick a model and hit **Download weights** if it isn't local.
+4. **Render** — process a short sample or the full range.
+
+## FAQ
+
+- **No Vulkan GPU?** — every model has a CPU fallback (slower, but works).
+- **Model download fails?** — weights come from GitHub Releases over HTTPS,
+  sha256-pinned; check your connection and retry (Settings → Models).
+- **AMD RDNA4 + ROCm?** — stick with the default Vulkan backend; the optional
+  LibTorch/ROCm path can GPU-reset the desktop on RDNA4 (see System
+  requirements).
+- **What does "pre-alpha" mean?** — it works daily for the author, but expect
+  rough edges; macOS is experimental.
+- **What do I get as output?** — LGPL-safe encodes: HEVC (libkvazaar), H.264
+  (libopenh264) or AV1 (SVT-AV1), with audio passthrough.
+
 ## Quickstart (from source)
 
 ```sh
@@ -90,7 +129,7 @@ bun run dev          # full app: cargo tauri dev (Vite + Rust, hot reload)
 bun run ui:dev       # frontend only
 ```
 
-Models download on first use (Settings → model dropdowns → "Download weights").
+Models download on first use (Processing Stack → step → "Download weights").
 To convert a model manually: `cargo run -p senmei-ml --features burn --bin
 senmei-ml-convert -- <arch> <model.pth|onnx> <out.bpk> [scale] [num_block]`.
 
@@ -100,9 +139,10 @@ See [`docs/models.md`](docs/models.md) for the full matrix (adopted, backlog,
 licenses, sources). Every model is torch-verified against the port before it is
 marked loadable; weights are recorded per artifact with license + source.
 
-## Docs
+## For developers
 
-One truth per fact — cross-reference, don't duplicate. New decision → `PLAN.md`;
+User-facing docs live in this README; the repo keeps one truth per fact —
+cross-reference, don't duplicate. New decision → `PLAN.md`;
 model added → `models.md` (numbers → `benchmarks.md`); upstream bug →
 `upstream-issues.md`; implemented work →
 `CHANGELOG.md`; still open → `todos.md`.

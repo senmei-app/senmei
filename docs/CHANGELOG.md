@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **docs: README — first-run guide, FAQ, download path fix (2026-08-22)** —
+  new "First run" walkthrough (wizard screenshots now used), FAQ section,
+  corrected "Download weights" path, dev docs renamed "For developers".
+
 - **docs: module structure — senmei-core + senmei-server (2026-08-22)** —
   AGENTS.md + PLAN.md now list the two headless crates (transport-agnostic core
   + MCP/HTTP service); the matching `todos.md` entry is closed.
