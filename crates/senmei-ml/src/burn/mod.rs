@@ -5,7 +5,7 @@
 //! burnpacks (`.bpk`); RIFE loads the raw ncnn `flownet.bin`.
 
 use crate::arch::RifeNet;
-use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model};
+use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::BurnBackend;
@@ -88,28 +88,33 @@ impl InferenceEngine for BurnEngine {
         core::infer(model, input, &self.device)
     }
 
-    /// Fused RGB8: only when the requested scale matches the model — the
-    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`.
+    /// Fused RGB8 (GPU re-sample when the requested scale ≠ model scale — the
+    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
-        if self.scale != scale {
-            return None;
-        }
         let model = self.model.as_ref()?;
-        core::infer_rgb8(model, input, self.scale, &self.device)
+        core::infer_rgb8(model, input, self.scale, scale, &self.device)
     }
 
-    /// Fused multi-frame RGB8 — only when the requested scale matches the
-    /// model (see `engine::core::infer_rgb8_batch`).
+    /// Fused multi-frame RGB8 with a deferred readback, so the caller can
+    /// queue the next forward before blocking on this batch's transfer.
+    fn infer_rgb8_submit(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Box<dyn Rgb8Batch>>> {
+        let model = self.model.as_ref()?;
+        core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device)
+            .map(|r| r.map(|b| Box::new(b) as Box<dyn Rgb8Batch>))
+    }
+
+    /// Fused multi-frame RGB8 (synchronous — resolves the submit immediately).
     fn infer_rgb8_batch(
         &mut self,
         inputs: &[Tensor],
         scale: u32,
     ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
-        if self.scale != scale {
-            return None;
-        }
-        let model = self.model.as_ref()?;
-        core::infer_rgb8_batch(model, inputs, self.scale, &self.device)
+        self.infer_rgb8_submit(inputs, scale)
+            .map(|r| r.and_then(|b| b.resolve()))
     }
 
     fn infer_interp(
@@ -675,6 +680,17 @@ mod tests {
             let (bytes, rw, rh) = engine.infer_rgb8(&input, 2).unwrap().unwrap();
             assert_eq!(rw, (w * 2) as u32);
             assert_eq!(rh, (h * 2) as u32);
+            assert_eq!(bytes.len(), (rw * rh * 3) as usize);
+        }
+
+        // Scale mismatch: the x2 model at requested x4 must stay on the fused
+        // path (GPU bilinear re-sample of each tile) and produce 4x output.
+        let (h, w): (usize, usize) = (540, 960); // 2x1 tiles @640 — tiled path
+        let input = Tensor::new(vec![1, 3, h, w], vec![0.5f32; 1 * 3 * h * w]);
+        for _ in 0..4 {
+            let (bytes, rw, rh) = engine.infer_rgb8(&input, 4).unwrap().unwrap();
+            assert_eq!(rw, (w * 4) as u32);
+            assert_eq!(rh, (h * 4) as u32);
             assert_eq!(bytes.len(), (rw * rh * 3) as usize);
         }
     }

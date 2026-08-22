@@ -11,8 +11,11 @@ use crate::arch::{
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
+use super::Rgb8Batch;
 use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor as BurnTensor, TensorData};
+#[cfg(feature = "burn")]
+use burn::tensor::{module::interpolate, ops::{InterpolateMode, InterpolateOptions}};
 use burn_store::{BurnpackStore, ModuleSnapshot};
 
 /// The loaded arch, generic over the backend (`BurnBackend<f16>` or
@@ -196,17 +199,21 @@ pub fn infer<B: Backend>(model: &Model<B>, input: &Tensor, device: &B::Device) -
 /// see docs/upstream-issues.md §2; 640 beats 512 and 768 — docs/benchmarks.md).
 /// Tiles are accumulated into one canvas on the device (overlap averaging)
 /// and read back as a single packed frame — one readback instead of one u8
-/// readback per tile plus a CPU stitch.
-/// Only called when the requested scale matches the model (engine checks).
-/// Burn-only for now: the tch engine relies on the trait default (`None`).
+/// readback per tile plus a CPU stitch. `native_scale` is the model's own
+/// upscale factor; a requested `scale` above/below it is applied on the GPU
+/// (bilinear re-sample of each tile output) so the fused path works for e.g.
+/// x2 models rendered at x4. Burn-only: the tch engine relies on the trait
+/// default (`None`).
 #[cfg(feature = "burn")]
 pub fn infer_rgb8<B: Backend>(
     model: &Model<B>,
     input: &Tensor,
+    native_scale: u32,
     scale: u32,
     device: &B::Device,
 ) -> Option<Result<(Vec<u8>, u32, u32)>> {
-    let batch = infer_rgb8_batch(model, std::slice::from_ref(input), scale, device)?;
+    let batch =
+        infer_rgb8_batch(model, std::slice::from_ref(input), native_scale, scale, device)?;
     Some(batch.map(|mut v| v.pop().unwrap()))
 }
 
@@ -221,9 +228,29 @@ pub fn infer_rgb8<B: Backend>(
 pub fn infer_rgb8_batch<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
+    native_scale: u32,
     scale: u32,
     device: &B::Device,
 ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+    let batch = match infer_rgb8_batch_prepare(model, inputs, native_scale, scale, device) {
+        Some(Ok(b)) => b,
+        Some(Err(e)) => return Some(Err(e)),
+        None => return None,
+    };
+    Some(Box::new(batch).resolve())
+}
+
+/// Forward + GPU canvas accumulation for one batch; the readback is deferred
+/// to [`BurnRgb8Batch::resolve`] so the caller can queue the next forward
+/// before blocking on this one (readback pipelining).
+#[cfg(feature = "burn")]
+pub fn infer_rgb8_batch_prepare<B: Backend>(
+    model: &Model<B>,
+    inputs: &[Tensor],
+    native_scale: u32,
+    scale: u32,
+    device: &B::Device,
+) -> Option<Result<BurnRgb8Batch<B>>> {
     if inputs.is_empty() {
         return Some(Err(Error::new("empty batch")));
     }
@@ -261,6 +288,7 @@ pub fn infer_rgb8_batch<B: Backend>(
     let ntiles = frames[0].len();
 
     let scale_f = scale as f32;
+    let resample = scale != native_scale;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
     let ov = (overlap as f32 * scale_f).round() as usize;
@@ -309,6 +337,20 @@ pub fn infer_rgb8_batch<B: Backend>(
             Ok(o) => o,
             Err(e) => return Some(Err(e)),
         };
+        // Re-sample the model's native-scale tile output to the requested
+        // scale on the GPU (e.g. x2 model at x4), so the canvas placement
+        // and feather mask below match `scale` exactly.
+        let out = if resample {
+            let oh = (tile as f32 * scale_f).round() as usize;
+            let ow = (tile as f32 * scale_f).round() as usize;
+            interpolate(
+                out,
+                [oh, ow],
+                InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false),
+            )
+        } else {
+            out
+        };
         let [_, _, oh, ow] = out.dims();
         let sx = (x as f32 * scale_f).round() as usize;
         let sy = (y as f32 * scale_f).round() as usize;
@@ -351,24 +393,48 @@ pub fn infer_rgb8_batch<B: Backend>(
     }
     let out_h_t = (h as f32 * scale_f).round() as usize;
     let out_w_t = (w as f32 * scale_f).round() as usize;
-    let mut result = Vec::with_capacity(n);
-    for (acc, cov) in accs.into_iter().zip(covs) {
-        let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-        // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
-        // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
-        // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays on CPU.
-        let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
-            Ok(v) => v,
-            Err(e) => return Some(Err(Error::new(e.to_string()))),
-        };
-        let mut bytes = Vec::with_capacity(data.len());
-        for v in data {
-            bytes.push((v + 0.5) as u8);
+    Some(Ok(BurnRgb8Batch {
+        accs,
+        covs,
+        out_w,
+        out_w_t,
+        out_h_t,
+    }))
+}
+
+/// Deferred readback of one fused batch: blocks on the GPU→CPU transfer, then
+/// converts to packed rgb24 on the CPU (same steps `infer_rgb8_batch` used).
+#[cfg(feature = "burn")]
+pub struct BurnRgb8Batch<B: Backend> {
+    accs: Vec<BurnTensor<B, 4>>,
+    covs: Vec<BurnTensor<B, 4>>,
+    out_w: usize,
+    out_w_t: usize,
+    out_h_t: usize,
+}
+
+#[cfg(feature = "burn")]
+impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
+    fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>> {
+        let mut result = Vec::with_capacity(self.accs.len());
+        for (acc, cov) in self.accs.into_iter().zip(self.covs) {
+            let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
+            // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
+            // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
+            // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays CPU.
+            let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
+                Ok(v) => v,
+                Err(e) => return Err(Error::new(e.to_string())),
+            };
+            let mut bytes = Vec::with_capacity(data.len());
+            for v in data {
+                bytes.push((v + 0.5) as u8);
+            }
+            let cropped = crate::crop_rgb24(&bytes, self.out_w, self.out_h_t, self.out_w_t);
+            result.push((cropped, self.out_w_t as u32, self.out_h_t as u32));
         }
-        let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);
-        result.push((cropped, out_w_t as u32, out_h_t as u32));
+        Ok(result)
     }
-    Some(Ok(result))
 }
 
 pub fn infer_interp<B: Backend>(

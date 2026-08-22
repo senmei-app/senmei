@@ -54,10 +54,18 @@
 - [ ] Engine Auto: prefer burn-Vulkan; tch/ROCm opt-in + RDNA4 warning (next
       release) — RDNA4 ROCm 7.14 can GPU-hang/reset the desktop (see
       engine-decision); don't auto-select tch on AMD, warn when chosen
-- [ ] Fused RGB8 only fires at the model's native scale — x2 models rendered
-      at x4 (fallin-soft/strong) take the slow CPU-convert path. Fix: GPU-side
-      re-scale in `infer_rgb8` (audit 2026-08-22, real win for the shipped use
-      case). Batching itself regresses on RDNA4 (benchmarks.md).
+- [ ] Fused RGB8 x4 re-scale works but 1080p OOMs autotune (3.2 GB alloc —
+      `docs/upstream-issues.md` §2 pattern). VRAM guard: DRM-Sysfs budget,
+      autotune off on big canvases, no CPU fallback (Koharu approach)
+- [ ] Readback pooling: `infer_rgb8` allocates one staging buffer per frame —
+      a small bounded readback pool would cut allocation + sync cost per frame
+      (Koharu-style; audit 2026-08-22)
+- [ ] Huge single frames (8K+): pre-check the input against a sensible VRAM
+      budget before relying on the tile path (mirror Koharu `max_pixels`;
+      audit 2026-08-22)
+- [ ] Drop in-repo workarounds on the next burn bump: custom `group_norm`
+      helper (burn#5410 merged — native mean_dim) + `Span::pad_k96` (cubek#519,
+      once fixed); re-check tiling/pipelining after the bump (2026-08-22)
 
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no

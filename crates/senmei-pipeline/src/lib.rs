@@ -3,10 +3,25 @@ mod interpolate;
 mod pipeline;
 mod steps;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 pub use frame::{frame_to_tensor, tensor_to_frame};
 pub use interpolate::Interpolator;
 pub use pipeline::{Pipeline, Progress, StepTiming};
 pub use steps::{Deblur, Dedup, Denoise, Filter, Passthrough, Resize, Step, Upscale};
+
+/// How many batches the upscale step keeps in flight (readback pipelining).
+/// Set per render via [`set_pipeline_depth`]; more depth overlaps the readback
+/// with more GPU forwards, at the cost of VRAM and cancel latency.
+static PIPELINE_DEPTH: AtomicUsize = AtomicUsize::new(1);
+
+pub fn set_pipeline_depth(depth: usize) {
+    PIPELINE_DEPTH.store(depth.max(1), Ordering::Relaxed);
+}
+
+pub fn pipeline_depth() -> usize {
+    PIPELINE_DEPTH.load(Ordering::Relaxed)
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
 

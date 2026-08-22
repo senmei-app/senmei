@@ -60,7 +60,7 @@ pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk};
 pub use tch::{TchDevice, TchEngine};
 pub use engine::{
     backend_info, engine_for_model, infer_denoise_tiled, infer_tiled, BackendInfo, EngineBackend,
-    EngineCaps, InferOptions, InferenceEngine,
+    EngineCaps, InferOptions, InferenceEngine, Rgb8Batch,
 };
 pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};

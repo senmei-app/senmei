@@ -156,6 +156,25 @@ CPU `tensor_to_frame` + CPU bilinear). Denoise/Deblur/interp also still convert
 on the CPU. Closing the x4 gap (GPU-side re-scale in `infer_rgb8`) is the real
 win for the shipped use case; not done yet.
 
+## Readback pipelining (2026-08-22)
+
+`bench_upscale_pipelined` (fallin-soft 1080p, Vulkan fp16, autotune + fusion):
+the forward is split from the readback (`infer_rgb8_submit` → `Rgb8Batch`); the
+next batch's GPU work is queued **before** the oldest readback resolves, so the
+GPU stays busy during the transfer.
+
+| Path | ms/frame | FPS |
+|---|---|---|
+| per-frame (sync readback) | 285.2 | 3.5 |
+| pipelined depth 1 | **221.6** | **4.5** |
+| pipelined depth 2 | 220.3 | 4.5 |
+| pipelined depth 3 | 221.4 | 4.5 |
+
+~22 % faster than the sync path. Depth 1 (double-buffered readback) captures
+nearly all of it — depth 2/3 add nothing here because the bench has no encoder
+write to hide behind the GPU (the full app may benefit). Default depth = 1,
+configurable via `pipeline_depth`.
+
 ## Alternatives
 
 ### torch-ROCm (2026-08-17, ROCm 7.14)

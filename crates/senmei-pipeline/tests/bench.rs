@@ -36,6 +36,15 @@ fn backend() -> senmei_ml::EngineBackend {
     }
 }
 
+/// Resolve `BENCH_SCALE` (requested upscale factor; default 2 — the model's
+/// native scale, so the fused path runs without re-sampling).
+fn bench_scale() -> u32 {
+    std::env::var("BENCH_SCALE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2)
+}
+
 /// Generate a 2s 1080p24 testsrc and decode it to frames.
 fn bench_frames() -> Vec<senmei_media::Frame> {
     let dir = std::env::temp_dir().join("senmei-bench-1080p");
@@ -137,7 +146,7 @@ fn bench_upscale_step() {
     let mut frames = bench_frames();
     let total = frames.len();
 
-    let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+    let mut step = senmei_pipeline::Upscale::new(bench_scale(), Some(engine));
     step.process(&mut frames[0]).unwrap(); // warm-up
     let s0 = Instant::now();
     for f in &mut frames {
@@ -146,7 +155,8 @@ fn bench_upscale_step() {
     let s_el = s0.elapsed().as_secs_f64() / total as f64;
     println!("\n==== {model_id} Upscale step (tiled, app path) ====");
     println!(
-        "frames: {total} | step {:.1} ms/frame | {:.1} FPS",
+        "frames: {total} | scale {} | step {:.1} ms/frame | {:.1} FPS",
+        bench_scale(),
         s_el * 1000.0,
         1.0 / s_el
     );
@@ -162,11 +172,12 @@ fn bench_upscale_batch() {
     let mref = model();
     let frames = bench_frames();
     let total = frames.len();
+    let scale = bench_scale();
 
     // Per-frame fused single-RGB8 path — reference.
     let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
     engine.load(&mref).unwrap();
-    let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+    let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
     let mut fs = frames.clone();
     step.process(&mut fs[0]).unwrap(); // warm-up
     let t0 = Instant::now();
@@ -176,7 +187,7 @@ fn bench_upscale_batch() {
     let single_ms = t0.elapsed().as_secs_f64() * 1000.0 / total as f64;
     drop(step);
 
-    println!("\n==== {model_id} Upscale step: per-frame vs process_batch ====");
+    println!("\n==== {model_id} Upscale step: per-frame vs process_batch (scale {scale}) ====");
     println!(
         "frames: {total} | per-frame {single_ms:.1} ms/frame ({:.1} FPS)",
         1000.0 / single_ms
@@ -185,7 +196,7 @@ fn bench_upscale_batch() {
         let mut engine =
             senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
         engine.load(&mref).unwrap();
-        let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+        let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
         let mut fb = frames.clone();
         let mut warm = fb[..batch.min(fb.len())].to_vec();
         step.process_batch(&mut warm).unwrap(); // warm-up
@@ -202,6 +213,51 @@ fn bench_upscale_batch() {
             ms * 100.0 / single_ms
         );
     }
+    println!("===================================================");
+}
+
+/// App path with readback pipelining: 1-frame batches (BATCH_SIZE=1) through
+/// `process_batch`, with `pipeline_depth` 1..3. Measures whether deferred
+/// readbacks keep the GPU busier than the synchronous per-frame path.
+#[test]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
+fn bench_upscale_pipelined() {
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
+    let mref = model();
+    let frames = bench_frames();
+    let total = frames.len();
+    let scale = bench_scale();
+
+    for depth in [1usize, 2, 3] {
+        let mut engine =
+            senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
+        engine.load(&mref).unwrap();
+        senmei_pipeline::set_pipeline_depth(depth);
+        let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
+
+        // First frame fixes the dims (resolves synchronously).
+        let mut first = vec![frames[0].clone()];
+        step.process_batch(&mut first).unwrap();
+        assert_eq!(first.len(), 1, "first batch must resolve synchronously");
+
+        let t0 = Instant::now();
+        let mut out_n = 0usize;
+        for f in &frames[1..] {
+            let mut batch = vec![f.clone()];
+            step.process_batch(&mut batch).unwrap();
+            out_n += batch.len();
+        }
+        let mut tail = Vec::new();
+        step.flush(&mut tail).unwrap();
+        out_n += tail.len();
+        let ms = t0.elapsed().as_secs_f64() * 1000.0 / (total - 1) as f64;
+        assert_eq!(out_n, total - 1, "deferred frames must all come out");
+        println!(
+            "pipelined depth {depth}: {ms:.1} ms/frame ({:.1} FPS) | out {out_n}",
+            1000.0 / ms
+        );
+    }
+    senmei_pipeline::set_pipeline_depth(1);
     println!("===================================================");
 }
 

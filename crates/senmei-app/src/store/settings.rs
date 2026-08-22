@@ -17,6 +17,11 @@ pub struct Settings {
     /// Fused RGB8 tile size in px; `None` = engine default (640).
     #[serde(default)]
     pub tile_size: Option<u32>,
+    /// Readback pipeline depth (batches kept in flight); `None` = 1. More
+    /// depth overlaps the readback with more GPU forwards (higher utilisation,
+    /// more VRAM + cancel latency).
+    #[serde(default)]
+    pub pipeline_depth: Option<u32>,
     /// Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan).
     #[serde(default)]
     pub backend: Option<senmei_ml::EngineBackend>,
@@ -29,6 +34,7 @@ impl Default for Settings {
             theme: "dark".into(),
             hotkeys: None,
             tile_size: None,
+            pipeline_depth: None,
             backend: None,
         }
     }

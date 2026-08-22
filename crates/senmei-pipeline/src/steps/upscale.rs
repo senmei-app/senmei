@@ -1,5 +1,7 @@
+use std::collections::VecDeque;
+
 use senmei_media::Frame;
-use senmei_ml::{InferOptions, InferenceEngine};
+use senmei_ml::{InferOptions, InferenceEngine, Rgb8Batch};
 
 use crate::frame::{frame_to_tensor, tensor_to_frame};
 use crate::Step;
@@ -8,9 +10,19 @@ use super::{process_individually, TILE_SIZE};
 
 /// Upscale step: runs the input frame through an ML engine, or falls back
 /// to a CPU bilinear scaler when no engine is available.
+///
+/// Readback pipelining: when the engine offers `infer_rgb8_submit`, batches
+/// are deferred by the configured [`crate::pipeline_depth`] — the next batch's
+/// GPU work is queued before the oldest readback resolves, so the GPU stays
+/// busy during the transfer. The first batch (which fixes the encoder dims)
+/// resolves synchronously; the trailing deferred batches come out on `flush`.
 pub struct Upscale {
     scale: u32,
     engine: Option<Box<dyn InferenceEngine>>,
+    /// Deferred batches whose readbacks are still pending (oldest first).
+    inflight: VecDeque<Box<dyn Rgb8Batch>>,
+    depth: usize,
+    started: bool,
 }
 
 impl Upscale {
@@ -18,6 +30,9 @@ impl Upscale {
         Self {
             scale: scale.max(1),
             engine,
+            inflight: VecDeque::new(),
+            depth: crate::pipeline_depth(),
+            started: false,
         }
     }
 }
@@ -72,8 +87,48 @@ impl Step for Upscale {
     }
 
     fn process_batch(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
-        // Fused multi-frame RGB8 path: only when the engine supports it and
-        // every input shares dimensions (the batch API requires that).
+        let Some(engine) = self.engine.as_mut() else {
+            return process_individually(self, frames);
+        };
+        let inputs: Vec<_> = frames.iter().map(frame_to_tensor).collect();
+        let handle = match engine.infer_rgb8_submit(&inputs, self.scale) {
+            Some(Ok(h)) => h,
+            Some(Err(e)) => return Err(crate::Error::new(e.to_string())),
+            // Engine without a deferred path (e.g. tch): synchronous batch.
+            None => return self.process_batch_sync(frames),
+        };
+        if !self.started {
+            // First batch (fixes the encoder dims): resolve synchronously so
+            // the pipeline sees the output size; nothing deferred yet.
+            self.started = true;
+            *frames = resolve_frames(handle)?;
+            return Ok(());
+        }
+        // Steady state: keep up to `depth` batches in flight. When the queue
+        // is full, resolve the oldest — the GPU is busy with the batch we
+        // just submitted, so its readback overlaps the next forward.
+        self.inflight.push_back(handle);
+        *frames = if self.inflight.len() > self.depth {
+            let oldest = self.inflight.pop_front().unwrap();
+            resolve_frames(oldest)?
+        } else {
+            Vec::new()
+        };
+        Ok(())
+    }
+
+    fn flush(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
+        while let Some(h) = self.inflight.pop_front() {
+            frames.extend(resolve_frames(h)?);
+        }
+        Ok(())
+    }
+}
+
+impl Upscale {
+    /// Synchronous batch path for engines without `infer_rgb8_submit`: fused
+    /// `infer_rgb8_batch` when inputs share dims, else per-frame.
+    fn process_batch_sync(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
         let batchable = frames.len() > 1
             && self.engine.is_some()
             && frames
@@ -99,4 +154,17 @@ impl Step for Upscale {
         }
         process_individually(self, frames)
     }
+}
+
+/// Turn a resolved readback's packed rgb24 batches into frames.
+fn resolve_frames(h: Box<dyn Rgb8Batch>) -> crate::Result<Vec<Frame>> {
+    let outs = h.resolve().map_err(|e| crate::Error::new(e.to_string()))?;
+    Ok(outs
+        .into_iter()
+        .map(|(data, width, height)| Frame {
+            width,
+            height,
+            data,
+        })
+        .collect())
 }

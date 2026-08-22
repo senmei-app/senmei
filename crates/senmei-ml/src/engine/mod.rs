@@ -19,6 +19,14 @@ pub struct InferOptions {
     pub tile_size: Option<u32>,
 }
 
+/// A fused RGB8 batch whose GPU readback is still pending. `resolve` blocks
+/// until the transfer completes and converts to packed rgb24 on the CPU. Split
+/// from the forward so the caller can queue the next batch's GPU work before
+/// resolving the previous readback (keeps the GPU busy during the transfer).
+pub trait Rgb8Batch: Send {
+    fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>>;
+}
+
 pub trait InferenceEngine: Send + Sync {
     fn capabilities(&self) -> EngineCaps;
     fn load(&mut self, model: &ModelRef) -> Result<()>;
@@ -54,6 +62,20 @@ pub trait InferenceEngine: Send + Sync {
         inputs: &[Tensor],
         scale: u32,
     ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+        let _ = (inputs, scale);
+        None
+    }
+
+    /// Fused multi-frame RGB8, split for readback pipelining: queues the GPU
+    /// work and returns a handle whose `resolve` performs the readback + CPU
+    /// conversion. The caller keeps one batch in flight so the next forward
+    /// overlaps the previous readback (the wgpu queue interleaves them).
+    /// `None` falls back to `infer_rgb8_batch` / per-frame `infer_rgb8`.
+    fn infer_rgb8_submit(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let _ = (inputs, scale);
         None
     }

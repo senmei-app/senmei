@@ -297,6 +297,8 @@ impl Drop for RenderGate {
 #[cfg(feature = "render")]
 pub struct RenderOpts {
     pub tile_size: u32,
+    /// Readback pipeline depth (batches kept in flight); 0 = default (1).
+    pub pipeline_depth: usize,
     pub backend: senmei_ml::EngineBackend,
     pub cancel: Option<Arc<AtomicBool>>,
     pub pause: Option<Arc<AtomicBool>>,
@@ -307,6 +309,7 @@ impl Default for RenderOpts {
     fn default() -> Self {
         Self {
             tile_size: 0,
+            pipeline_depth: 0,
             backend: senmei_ml::EngineBackend::default(),
             cancel: None,
             pause: None,
@@ -688,6 +691,7 @@ pub fn render(
 ) -> Result<Vec<StepTimingInfo>, String> {
     let _gate = RenderGate::acquire()?;
     senmei_ml::set_tile_size(opts.tile_size);
+    senmei_pipeline::set_pipeline_depth(opts.pipeline_depth);
     let cancel = match &opts.cancel {
         Some(c) => c.clone(),
         None => CANCEL_RENDER

@@ -299,6 +299,142 @@ mod tests {
         assert_eq!((frames[1].width, frames[1].height), (12, 8));
     }
 
+    // Fake engine whose `infer_rgb8` re-samples to the requested scale on the
+    // "GPU" (like the real fused path now does for a scale mismatch): native
+    // 2x model, any requested scale honored.
+    struct ResampleEngine;
+
+    impl senmei_ml::InferenceEngine for ResampleEngine {
+        fn capabilities(&self) -> senmei_ml::EngineCaps {
+            senmei_ml::EngineCaps { tiles: false }
+        }
+        fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
+            Ok(())
+        }
+        fn infer(
+            &mut self,
+            input: &Tensor,
+            _o: &senmei_ml::InferOptions,
+        ) -> senmei_ml::Result<Tensor> {
+            let h = input.shape[2];
+            let w = input.shape[3];
+            Ok(senmei_ml::bilinear(input, h * 2, w * 2))
+        }
+        fn native_scale(&self) -> u32 {
+            2
+        }
+        fn infer_rgb8(
+            &mut self,
+            input: &Tensor,
+            scale: u32,
+        ) -> Option<senmei_ml::Result<(Vec<u8>, u32, u32)>> {
+            let (_, _, h, w) = (input.shape[0], input.shape[1], input.shape[2], input.shape[3]);
+            let out = senmei_ml::bilinear(input, h * scale as usize, w * scale as usize);
+            let mut bytes = vec![0u8; 3 * h * w * scale as usize * scale as usize];
+            for y in 0..h {
+                for x in 0..w {
+                    let i = y * w + x;
+                    for c in 0..3 {
+                        let v = (out.data[c * h * w + i] * 255.0).round() as u8;
+                        for dy in 0..scale as usize {
+                            for dx in 0..scale as usize {
+                                let oy = y * scale as usize + dy;
+                                let ox = x * scale as usize + dx;
+                                bytes[(oy * w * scale as usize + ox) * 3 + c] = v;
+                            }
+                        }
+                    }
+                }
+            }
+            Some(Ok((bytes, (w * scale as usize) as u32, (h * scale as usize) as u32)))
+        }
+    }
+
+    #[test]
+    fn upscale_fused_path_handles_scale_mismatch() {
+        // x2-model engine, requested x4: the fused `infer_rgb8` re-samples and
+        // must win directly — no `infer_tiled` + CPU re-scale fallback.
+        let mut frame = Frame {
+            width: 4,
+            height: 4,
+            data: vec![128u8; 3 * 4 * 4],
+        };
+        let mut step = Upscale::new(4, Some(Box::new(ResampleEngine)));
+        step.process(&mut frame).unwrap();
+        assert_eq!((frame.width, frame.height), (16, 16));
+        assert_eq!(frame.data.len(), 3 * 16 * 16);
+    }
+
+    // Fake handle that yields one packed frame per submitted input on resolve.
+    struct FakeBatch(usize);
+
+    impl senmei_ml::Rgb8Batch for FakeBatch {
+        fn resolve(self: Box<Self>) -> senmei_ml::Result<Vec<(Vec<u8>, u32, u32)>> {
+            Ok((0..self.0)
+                .map(|_| (vec![7u8; 3 * 4 * 4], 4u32, 4u32))
+                .collect())
+        }
+    }
+
+    // Fake engine with the deferred-readback path (`infer_rgb8_submit`).
+    struct PipelinedEngine;
+
+    impl senmei_ml::InferenceEngine for PipelinedEngine {
+        fn capabilities(&self) -> senmei_ml::EngineCaps {
+            senmei_ml::EngineCaps { tiles: false }
+        }
+        fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
+            Ok(())
+        }
+        fn infer(
+            &mut self,
+            input: &Tensor,
+            _o: &senmei_ml::InferOptions,
+        ) -> senmei_ml::Result<Tensor> {
+            let h = input.shape[2];
+            let w = input.shape[3];
+            Ok(senmei_ml::bilinear(input, h * 2, w * 2))
+        }
+        fn native_scale(&self) -> u32 {
+            1
+        }
+        fn infer_rgb8_submit(
+            &mut self,
+            inputs: &[Tensor],
+            _scale: u32,
+        ) -> Option<senmei_ml::Result<Box<dyn senmei_ml::Rgb8Batch>>> {
+            Some(Ok(Box::new(FakeBatch(inputs.len()))))
+        }
+    }
+
+    #[test]
+    fn upscale_process_batch_defers_then_flushes() {
+        let mut step = Upscale::new(2, Some(Box::new(PipelinedEngine)));
+        let mk = |v: u8| Frame {
+            width: 2,
+            height: 2,
+            data: vec![v; 12],
+        };
+
+        // First batch: resolves synchronously (fixes the encoder dims).
+        let mut b1 = vec![mk(1)];
+        step.process_batch(&mut b1).unwrap();
+        assert_eq!(b1.len(), 1);
+
+        // Second batch: deferred — held in-flight, nothing ready yet.
+        let mut b2 = vec![mk(2)];
+        step.process_batch(&mut b2).unwrap();
+        assert!(b2.is_empty());
+
+        // Third batch resolves the second; flush resolves the third.
+        let mut b3 = vec![mk(3)];
+        step.process_batch(&mut b3).unwrap();
+        assert_eq!(b3.len(), 1);
+        let mut tail = Vec::new();
+        step.flush(&mut tail).unwrap();
+        assert_eq!(tail.len(), 1);
+    }
+
     // Fake step that drops frames whose first byte is the marker 42.
     struct DropMarked;
 

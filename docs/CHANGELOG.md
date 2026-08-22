@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: readback pipelining (2026-08-22)** — the fused RGB8 forward is split
+  from its readback (`infer_rgb8_submit` → `Rgb8Batch`); the upscale step keeps
+  `pipeline_depth` batches in flight, queuing the next forward **before**
+  resolving the oldest readback, so the GPU stays busy during the transfer.
+  `bench_upscale_pipelined` (fallin-soft 1080p): 285.2 → **221.6 ms/frame**
+  (3.5 → 4.5 FPS, ~22 %). Depth 1 (double-buffer) captures the win; configurable
+  via new `pipeline_depth` setting (default 1).
+
 - **perf: batch path measured — disabled on RDNA4/Vulkan (2026-08-22)** —
   `bench_upscale_batch` (fallin-soft 1080p, burn-Vulkan fp16) shows multi-frame
   batching regresses: batch 4 = 310.8 ms (109 % of per-frame 285.2), batch 8 =
