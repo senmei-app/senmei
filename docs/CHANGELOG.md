@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **fix: ranged render with audio never finishes (2026-08-22)** — the encode
+  ffmpeg command maps the source audio as a second input (`-map 1:a:0?`),
+  seeked with `-ss` but not duration-limited. For a ranged render the (short)
+  video pipe hits EOF but the copied audio input runs to the end of the source,
+  so ffmpeg never exits and `Encoder::finish` blocks in `child.wait()` — the
+  UI shows 100% (all video frames written) but the render never reaches
+  `done`. `Encoder::open` now takes `duration_ms` and bounds the audio input
+  with `-t` (pipeline passes `end_ms - start_ms`), so ffmpeg exits after the
+  range.
+
 - **fix: ROCm libtorch backend runs (multiple crash bugs, Koharu-style
   (2026-08-22)** — the pytorch.org `2.11.0+rocm7.1` libtorch zip ships
   unversioned ROCm libs but not the versioned SONAMEs (`libMIOpen.so.1`,

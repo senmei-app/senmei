@@ -122,6 +122,7 @@ impl Pipeline {
             h,
             fps,
             start_ms,
+            end_ms.map(|e| e.saturating_sub(start_ms)),
             &self.encoder_args,
         )?;
         let enc_handle = std::thread::spawn(move || -> Result<()> {

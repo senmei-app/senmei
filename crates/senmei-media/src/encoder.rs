@@ -159,7 +159,10 @@ impl Encoder {
     /// user-supplied codec/filter options override the built-in defaults.
     /// `input` is a second ffmpeg input whose audio is mapped (`-map 1:a:0?`,
     /// optional) so the output keeps the source sound unless `-an` is passed.
-    /// `start_ms` seeks the audio input so it stays in sync with a ranged render.
+    /// `start_ms` seeks the audio input so it stays in sync with a ranged render;
+    /// `duration_ms` bounds it (`-t`) to the same range — without it the copied
+    /// audio input runs to the end of the source and ffmpeg never exits after
+    /// the (shorter) video pipe ends.
     pub fn open(
         ffmpeg: &Path,
         input: &Path,
@@ -168,6 +171,7 @@ impl Encoder {
         height: u32,
         fps: f64,
         start_ms: u64,
+        duration_ms: Option<u64>,
         extra_args: &[String],
     ) -> Result<Self> {
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
@@ -203,6 +207,9 @@ impl Encoder {
             .args(["-i", "-"]);
         if start_ms > 0 {
             cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+        }
+        if let Some(dur) = duration_ms {
+            cmd.args(["-t", &format!("{:.3}", dur as f64 / 1000.0)]);
         }
         cmd.arg("-i")
             .arg(input)
@@ -416,7 +423,7 @@ mod tests {
             .status()
             .unwrap();
         assert!(make.success(), "failed to create test input");
-        let mut enc = Encoder::open(&ff, &input, &out, 64, 64, 30.0, 0, &[]).unwrap();
+        let mut enc = Encoder::open(&ff, &input, &out, 64, 64, 30.0, 0, None, &[]).unwrap();
         let frame = Frame {
             width: 64,
             height: 64,
