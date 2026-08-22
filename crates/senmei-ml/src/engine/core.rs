@@ -13,7 +13,7 @@ use crate::tensor::Tensor;
 use crate::{Error, Result};
 use super::Rgb8Batch;
 use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor as BurnTensor, TensorData};
+use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
 #[cfg(feature = "burn")]
 use burn::tensor::{module::interpolate, ops::{InterpolateMode, InterpolateOptions}};
 use burn_store::{BurnpackStore, ModuleSnapshot};
@@ -280,15 +280,10 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     let num_x = (w.saturating_sub(tile)).div_ceil(step) + 1;
     let ph = (num_y - 1) * step + tile;
     let pw = (num_x - 1) * step + tile;
-    // Pad + tile each frame once; all frames share the tile grid.
-    let frames: Vec<Vec<(usize, usize, Tensor)>> = inputs
-        .iter()
-        .map(|inp| crate::uniform_tile(&crate::pad_to(inp, ph, pw), tile, step))
-        .collect();
-    let ntiles = frames[0].len();
-
+    // 8K/oversize pre-check (Koharu max_pixels): reject before the tile grid
+    // is built — at 8K that's 144+ tiles + pad allocations, all wasted if the
+    // fused path can't fit the window below.
     let scale_f = scale as f32;
-    let resample = scale != native_scale;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
     // VRAM guard — no CPU fallback: reject with a clear error before the big
@@ -318,6 +313,13 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             ))));
         }
     }
+    // Pad + tile each frame once; all frames share the tile grid.
+    let resample = scale != native_scale;
+    let frames: Vec<Vec<(usize, usize, Tensor)>> = inputs
+        .iter()
+        .map(|inp| crate::uniform_tile(&crate::pad_to(inp, ph, pw), tile, step))
+        .collect();
+    let ntiles = frames[0].len();
     let ov = (overlap as f32 * scale_f).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
@@ -457,16 +459,19 @@ impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
         let mut result = Vec::with_capacity(self.accs.len());
         for (acc, cov) in self.accs.into_iter().zip(self.covs) {
             let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-            // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
-            // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
-            // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays CPU.
-            let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
+            // Read back in f16 and cast to u8 in plain Rust: cubecl-wgpu already
+            // pools the staging buffers, so the remaining per-frame cost is the
+            // CPU-side convert — reading f16 directly skips the full f32 copy
+            // (a `convert::<u8>()` readback would trip the burn-fusion ordering
+            // panic, docs/burn-bugs.md Bug 1). The fused path only runs on
+            // `BurnBackend<f16>`, so the element type is always f16 here.
+            let data: Vec<f16> = match avg.into_data().to_vec::<f16>() {
                 Ok(v) => v,
                 Err(e) => return Err(Error::new(e.to_string())),
             };
             let mut bytes = Vec::with_capacity(data.len());
             for v in data {
-                bytes.push((v + 0.5) as u8);
+                bytes.push((v.to_f32() + 0.5) as u8);
             }
             let cropped = crate::crop_rgb24(&bytes, self.out_w, self.out_h_t, self.out_w_t);
             result.push((cropped, self.out_w_t as u32, self.out_h_t as u32));
