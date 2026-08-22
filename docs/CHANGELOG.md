@@ -15,8 +15,9 @@
   wrapper via LoadLibraryW. The Rust-stream tensor save/load bridge (which
   left the DLL with unresolved symbols and broke the MSVC link) was dropped —
   nothing in senmei/burn-tch used it, and the wrapper is now self-contained.
-  Tag bumped to `v0.22.0-senmei-win`, so the Windows bundle ships the tch
-  backend again.
+  The ROCm/HIP `RTLD_GLOBAL` preload in `senmei-ml`'s tch engine is cfg-gated
+  to Unix (Windows loads libtorch via LoadLibrary). Tag bumped to
+  `v0.22.0-senmei-win`, so the Windows bundle ships the tch backend again.
 
 ## 0.1.5 (2026-08-22)
 

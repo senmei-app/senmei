@@ -47,13 +47,17 @@ static RUNTIME_LIBTORCH: OnceLock<
 > = OnceLock::new();
 
 /// Handles for the preloaded ROCm/HIP runtime libs, kept alive for the process
-/// lifetime (dropping a `Library` unloads it).
+/// lifetime (dropping a `Library` unloads it). Unix-only: the dlopen
+/// RTLD_GLOBAL preload is a Unix mechanism (Windows loads libtorch via
+/// LoadLibrary in `torch_sys::loader`).
+#[cfg(unix)]
 static PRELOADED: std::sync::Mutex<Vec<libloading::os::unix::Library>> =
     std::sync::Mutex::new(Vec::new());
 
 /// Preload every shared lib in `dir` with RTLD_GLOBAL so the ROCm runtime is in
 /// the global scope when `torch_sys::loader::init` dlopens `libtorch_hip`.
 /// Failures (optional deps, non-loadable files) are skipped.
+#[cfg(unix)]
 fn preload_runtime_libs(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -96,6 +100,7 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 inst.variant,
                 crate::runtime::TorchVariant::Rocm(_)
             ) {
+                #[cfg(unix)]
                 if let Some(dir) = hw.rocm_runtime_dir.as_deref() {
                     preload_runtime_libs(dir);
                 }
