@@ -128,6 +128,34 @@ pipeline 2.8 FPS.
 Fallin Soft/Strong ~2× faster than real-cugan-x2 at ~half the VRAM. VRAM via
 `/sys/class/drm/card1/device/mem_info_vram_used` (baseline ~1.3 GB).
 
+## Multi-frame batch path — verdict (2026-08-22)
+
+`bench_upscale_batch`, fallin-soft 1080p→2160p, burn-Vulkan fp16 (RDNA4),
+autotune + fusion on, `EngineBackend::Vulkan` forced:
+
+| Path | ms/frame | FPS | vs per-frame |
+|---|---|---|---|
+| per-frame (fused single RGB8) | 285.2 | 3.5 | — |
+| batch 2 | 275.4 | 3.6 | 97 % |
+| batch 4 | 310.8 | 3.2 | 109 % |
+| batch 8 | 378.4 | 2.6 | 133 % |
+
+**Batching regresses on RDNA4/Vulkan** — the larger per-tile batched matmuls are
+pathologically slower (same effect as the 1024px tile regression above). The
+pipeline's `BATCH_SIZE` defaults to **1** (off); the fused multi-frame path
+stays for backends where it could win, but is not exercised on the shipped one.
+Per-frame here (285 ms) reads higher than the 2026-08-18 `bench_upscale_step`
+(186 ms): same tile path, run-to-run / thermal variance + this run interleaves
+batch sizes on one hot GPU.
+
+**Fusion coverage audit (2026-08-22):** the upscale hot path is fully fused
+(`infer_rgb8`/`infer_rgb8_batch`: GPU NCHW→RGB8 + GPU tile stitch, one readback).
+**Gap:** the fused path only fires when requested scale == model scale — fallin
+soft/strong are x2, so rendering at **x4 takes the slow path** (`infer_tiled` +
+CPU `tensor_to_frame` + CPU bilinear). Denoise/Deblur/interp also still convert
+on the CPU. Closing the x4 gap (GPU-side re-scale in `infer_rgb8`) is the real
+win for the shipped use case; not done yet.
+
 ## Alternatives
 
 ### torch-ROCm (2026-08-17, ROCm 7.14)

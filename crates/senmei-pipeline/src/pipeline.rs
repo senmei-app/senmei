@@ -20,9 +20,11 @@ pub struct StepTiming {
     pub total: std::time::Duration,
 }
 
-/// Frames accumulated before a batched step pass (fused multi-frame engine
-/// path). Bounded to keep VRAM and cancel latency in check.
-const BATCH_SIZE: usize = 4;
+/// Frames accumulated before a batched step pass. 1 = off: multi-frame
+/// batching regresses on RDNA4/Vulkan (larger batched matmuls are
+/// pathologically slower — docs/benchmarks.md, `bench_upscale_batch`), so the
+/// fused multi-frame path is not exercised on the shipped backend.
+const BATCH_SIZE: usize = 1;
 
 pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,

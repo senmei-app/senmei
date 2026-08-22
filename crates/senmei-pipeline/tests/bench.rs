@@ -13,7 +13,7 @@ use std::time::Instant;
 use senmei_ml::InferOptions;
 use senmei_pipeline::Step;
 
-/// Resolve the `BENCH_MODEL` (or real-cugan-x2) from the registry.
+/// Resolve `BENCH_MODEL` (or real-cugan-x2) from the registry.
 fn model() -> senmei_ml::ModelRef {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
@@ -25,6 +25,15 @@ fn model() -> senmei_ml::ModelRef {
     let bpk = models_dir.join(&mref.path);
     assert!(bpk.exists(), "missing {bpk:?}");
     mref
+}
+
+/// Resolve `BENCH_BACKEND`: `vulkan` (default, burn) or `tch`/`libtorch`
+/// (ROCm; needs the `tch` feature, and only exercises the non-fused path).
+fn backend() -> senmei_ml::EngineBackend {
+    match std::env::var("BENCH_BACKEND").as_deref() {
+        Ok("tch") | Ok("libtorch") | Ok("rocm") => senmei_ml::EngineBackend::LibTorch,
+        _ => senmei_ml::EngineBackend::Vulkan,
+    }
 }
 
 /// Generate a 2s 1080p24 testsrc and decode it to frames.
@@ -122,7 +131,8 @@ fn bench_upscaler_1080p_fullframe() {
 fn bench_upscale_step() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &std::env::temp_dir()).unwrap();
+    let mut engine =
+        senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();
@@ -141,6 +151,58 @@ fn bench_upscale_step() {
         1.0 / s_el
     );
     println!("=================================================");
+}
+
+/// Per-frame vs fused `process_batch` throughput (the app's batch path uses
+/// `BATCH_SIZE = 4`). Batch sizes 2/4/8 shown so the sweet spot is visible.
+#[test]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
+fn bench_upscale_batch() {
+    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
+    let mref = model();
+    let frames = bench_frames();
+    let total = frames.len();
+
+    // Per-frame fused single-RGB8 path — reference.
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
+    engine.load(&mref).unwrap();
+    let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+    let mut fs = frames.clone();
+    step.process(&mut fs[0]).unwrap(); // warm-up
+    let t0 = Instant::now();
+    for f in &mut fs {
+        step.process(f).unwrap();
+    }
+    let single_ms = t0.elapsed().as_secs_f64() * 1000.0 / total as f64;
+    drop(step);
+
+    println!("\n==== {model_id} Upscale step: per-frame vs process_batch ====");
+    println!(
+        "frames: {total} | per-frame {single_ms:.1} ms/frame ({:.1} FPS)",
+        1000.0 / single_ms
+    );
+    for batch in [2usize, 4, 8] {
+        let mut engine =
+            senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
+        engine.load(&mref).unwrap();
+        let mut step = senmei_pipeline::Upscale::new(2, Some(engine));
+        let mut fb = frames.clone();
+        let mut warm = fb[..batch.min(fb.len())].to_vec();
+        step.process_batch(&mut warm).unwrap(); // warm-up
+        let t0 = Instant::now();
+        for chunk in fb.chunks_mut(batch) {
+            let mut v = chunk.to_vec();
+            step.process_batch(&mut v).unwrap();
+            chunk.clone_from_slice(&v);
+        }
+        let ms = t0.elapsed().as_secs_f64() * 1000.0 / total as f64;
+        println!(
+            "batch {batch}: {ms:.1} ms/frame ({:.1} FPS) | vs per-frame {:.0}%",
+            1000.0 / ms,
+            ms * 100.0 / single_ms
+        );
+    }
+    println!("===================================================");
 }
 
 /// End-to-end render speed through the (threaded) pipeline, incl. x264 encode.

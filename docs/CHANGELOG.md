@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **perf: batch path measured — disabled on RDNA4/Vulkan (2026-08-22)** —
+  `bench_upscale_batch` (fallin-soft 1080p, burn-Vulkan fp16) shows multi-frame
+  batching regresses: batch 4 = 310.8 ms (109 % of per-frame 285.2), batch 8 =
+  378.4 ms (133 %). Larger batched matmuls are pathologically slower on this
+  backend. `BATCH_SIZE` now defaults to **1** (per-frame; the fused single
+  `infer_rgb8` path still wins). Audit also notes the fused path only fires at
+  the model's native scale — x2 models rendered at x4 take the slow
+  CPU-convert path (open; the real win for the shipped use case).
+
 - **fix: log the headless/error path (2026-08-22)** —
   - `list_models` no longer swallows a registry load failure (logs it instead
     of silently returning an empty list).
