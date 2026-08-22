@@ -20,7 +20,7 @@ type B = LibTorch<f32>;
 /// libtorch release with ROCm-7 builds that the runtime downloads. Must stay
 /// in sync with `crate::runtime::torch` (and the torch-sys headers used to
 /// build the wrapper).
-pub const LIBTORCH_VERSION: &str = "2.11.0";
+pub const LIBTORCH_VERSION: &str = "2.12.0";
 
 /// Device for the libtorch backend. CPU is intentionally absent — the
 /// burn-Vulkan engine owns the CPU path.
@@ -57,36 +57,6 @@ static PRELOADED: std::sync::Mutex<Vec<libloading::os::unix::Library>> =
 static PRELOADED: std::sync::Mutex<Vec<libloading::Library>> =
     std::sync::Mutex::new(Vec::new());
 
-/// Preload every shared lib in `dir` with RTLD_GLOBAL so the ROCm runtime is in
-/// the global scope when `torch_sys::loader::init` dlopens `libtorch_hip`.
-/// Failures (optional deps, non-loadable files) are skipped.
-#[cfg(unix)]
-fn preload_runtime_libs(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut libs = match PRELOADED.lock() {
-        Ok(g) => g,
-        Err(e) => e.into_inner(),
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let is_so = path.extension().and_then(|e| e.to_str()) == Some("so")
-            || path.file_name().is_some_and(|n| n.to_string_lossy().ends_with(".so"));
-        if !is_so || !path.is_file() {
-            continue;
-        }
-        unsafe {
-            if let Ok(lib) = libloading::os::unix::Library::open(
-                Some(&path),
-                libloading::os::unix::RTLD_NOW | libloading::os::unix::RTLD_GLOBAL,
-            ) {
-                libs.push(lib);
-            }
-        }
-    }
-}
-
 /// Preload the downloaded per-GPU ROCm SDK libs (Koharu's ordered list) with
 /// RTLD_LAZY|GLOBAL so the versioned SONAMEs (`libMIOpen.so.1`, …) that the
 /// pytorch libtorch zip lacks resolve at dlopen time.
@@ -113,22 +83,28 @@ fn preload_sdk(root: &Path) {
     }
 }
 
-/// Probe that a Half tensor can be created through the loaded wrapper. A broken
-/// wrapper/runtime ABI (mismatched torch versions surface as a wrong
-/// dtype/element_size, e.g. "incoherent element sizes in bytes") fails here,
-/// so the caller falls back to burn-Vulkan instead of panicking mid-render.
+/// Probe that Half + Float tensors can be created through the loaded wrapper
+/// **with the right dtype**. A broken wrapper/runtime ABI (wrapper compiled
+/// against other headers than the runtime) surfaces as a wrong dtype — e.g.
+/// Half comes back as Int16 or `torch::zeros` throws "incoherent element sizes
+/// in bytes" — so only checking `is_ok()` gives false positives. The caller
+/// falls back to burn-Vulkan when this fails, instead of corrupting memory
+/// mid-render.
 fn probe_tensor_ok() -> bool {
     std::panic::catch_unwind(|| {
-        tch::Tensor::f_from_data_size(&[0u8; 4], &[2], tch::Kind::Half).is_ok()
+        let half = tch::Tensor::f_from_data_size(&[0u8; 4], &[2], tch::Kind::Half);
+        let float = tch::Tensor::f_from_data_size(&[0u8; 4], &[2], tch::Kind::Float);
+        half.is_ok_and(|t| t.kind() == tch::Kind::Half)
+            && float.is_ok_and(|t| t.kind() == tch::Kind::Float)
     })
     .unwrap_or(false)
 }
 
 /// Resolve (download on first use) and dlopen a CUDA/ROCm libtorch, once per
 /// process. `Ok(None)` when no GPU is present — the caller (burn) owns CPU.
-/// ROCm builds preload the system ROCm runtime first, then fall back to the
-/// per-GPU ROCm SDK when libtorch can't load (missing versioned SONAME libs) or
-/// the tensor probe fails.
+/// ROCm builds preload the per-GPU ROCm SDK (Koharu-style) so the versioned
+/// SONAMEs libtorch dlopens resolve; the tensor probe (dtype-correct) guards
+/// against a wrapper/runtime ABI mismatch → clean fallback to burn-Vulkan.
 fn ensure_loaded(data_dir: &Path) -> Result<()> {
     let install = RUNTIME_LIBTORCH.get_or_init(|| {
         let hw = crate::runtime::detect();
@@ -138,39 +114,26 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 inst.variant,
                 crate::runtime::TorchVariant::Rocm(_)
             ) {
-                // Try the system ROCm runtime, then the per-GPU SDK. A preloaded
-                // system lib shadows the bundled older HIP (RTLD_GLOBAL) —
-                // mixing a bundled HIP with the system HSA runtime crashes.
-                let mut tried_sdk = false;
-                loop {
-                    if !tried_sdk {
-                        #[cfg(unix)]
-                        if let Some(dir) = hw.rocm_runtime_dir.as_deref() {
-                            preload_runtime_libs(dir);
-                        }
-                    } else if let Some(target) = hw.rocm_target.as_deref() {
-                        if let Ok(root) = crate::runtime::rocm::download(data_dir, target) {
-                            preload_sdk(&root);
-                        }
+                // Preload the pinned per-GPU ROCm SDK (Koharu-style). Never
+                // touch the system ROCm: a system HIP/HSA mixed with the SDK's
+                // copies (both RTLD_GLOBAL) gives two HIP runtimes and crashes
+                // at the first kernel launch (`hip::StatC::getStatFunc`). The
+                // SDK's versioned SONAMEs (`libMIOpen.so.1`, …) that libtorch
+                // dlopens resolve via the preload.
+                if let Some(target) = hw.rocm_target.as_deref() {
+                    if let Ok(root) = crate::runtime::rocm::download(data_dir, target) {
+                        preload_sdk(&root);
                     }
-                    if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
-                        if !tried_sdk {
-                            tried_sdk = true;
-                            continue;
-                        }
-                        return Err(e);
-                    }
-                    if probe_tensor_ok() {
-                        return Ok(Some(inst.clone()));
-                    }
-                    if !tried_sdk {
-                        tried_sdk = true;
-                        continue;
-                    }
+                }
+                if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
+                    return Err(e);
+                }
+                if !probe_tensor_ok() {
                     return Err(
                         "libtorch tensor probe failed (wrapper/runtime ABI mismatch)".into()
                     );
                 }
+                return Ok(Some(inst.clone()));
             }
             if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
                 return Err(e);

@@ -32,7 +32,8 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
 }
 
 /// Extract every entry under `prefix` (e.g. `_rocm_sdk_core`) from a zip into
-/// `dest`, preserving relative paths. Used for the on-demand ROCm SDK wheels.
+/// `dest`, keeping the `prefix/` directory so consumers can look up the same
+/// relative paths as the wheel (e.g. `dest/_rocm_sdk_core/lib/...`).
 pub fn extract_zip_prefix(archive: &Path, dest: &Path, prefix: &str) -> Result<()> {
     let file = fs::File::open(archive).map_err(Error::from)?;
     let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
@@ -43,8 +44,7 @@ pub fn extract_zip_prefix(archive: &Path, dest: &Path, prefix: &str) -> Result<(
         if !name.starts_with(&dir_prefix) || entry.is_dir() {
             continue;
         }
-        let rel = name.trim_start_matches(&dir_prefix);
-        let out_path = dest.join(rel);
+        let out_path = dest.join(&name);
         if let Some(parent) = out_path.parent() {
             fs::create_dir_all(parent).map_err(Error::from)?;
         }

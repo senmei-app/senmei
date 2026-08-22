@@ -8,21 +8,33 @@
 
 ## Unreleased
 
-- **fix: libtorch loads on systems without ROCm (Koharu-style SDK fallback,
-  (2026-08-22)** — the pinned `2.11.0+rocm7.1` libtorch zip ships unversioned
-  ROCm libs but not the versioned SONAMEs (`libMIOpen.so.1`,
-  `librocprofiler-sdk.so.1`, `libamdhip64.so.7`) that `libtorch_cpu` dlopens.
-  On a bare system libtorch loads incompletely and the wrapper reads
-  `TensorOptions` wrongly (dtype/device garbage → `element_size()=1` →
-  "incoherent element sizes in bytes" + heap corruption). `TchEngine` now
-  preloads the system ROCm runtime first, probes that a Half tensor can be
-  created through the wrapper, and only then downloads the per-GPU ROCm SDK
-  (`rocm_sdk_core`/`rocm_sdk_libraries`/`rocm_sdk_device_<gfx>` from the AMD
-  wheel index, Koharu-style) and preloads it (RTLD_LAZY|GLOBAL). A wrapper/
-  runtime ABI mismatch is caught by the probe → clean fallback to burn-Vulkan
-  instead of a crash. Hardware detection now exposes the per-GPU `rocm_target`
-  (e.g. `gfx1201`); CI builds the wrapper against the pinned 2.11 CPU headers
-  so the shipped binary's wrapper ABI matches the runtime.
+- **fix: ROCm libtorch backend runs (multiple crash bugs, Koharu-style
+  (2026-08-22)** — the pytorch.org `2.11.0+rocm7.1` libtorch zip ships
+  unversioned ROCm libs but not the versioned SONAMEs (`libMIOpen.so.1`,
+  `librocprofiler-sdk.so.1`, `libamdhip64.so.7`) that `libtorch_cpu` dlopens;
+  on a bare system libtorch loads incompletely and the wrapper reads
+  `TensorOptions` wrongly (dtype/device garbage → heap corruption / SIGSEGV).
+  Fixed four root causes:
+  1. **Runtime/sdk pair** — the ROCm runtime now comes from the **AMD wheel
+     index** (`torch-2.12.0%2Brocm7.14.0` + `amd_torch_device_<gfx>` /
+     `_<family>`), matching the pinned SDK 7.14; `runtime/torch.rs` extracts
+     `torch/lib` + `torch/.kpack` + `torch/lib/aotriton.images`.
+  2. **Wrapper headers** — the tch wrapper must be built against the **same
+     torch headers as the runtime** (2.12). Built against 2.13 it reads
+     `TensorOptions` wrongly (Half comes back as Int16); `probe_tensor_ok`
+     now checks the **dtype** (not just `is_ok()`) so a mismatch is caught
+     → clean fallback to burn-Vulkan. CI + local builds pin 2.12 CPU headers.
+  3. **System-HIP poisoning** — probing the system HIP (e.g. 7.1) initializes
+     HSA, whose runtime state is shared with the kernel driver; the SDK HIP
+     7.14 that torch preloads then reports "No CUDA GPUs are available" and
+     the render crashes. Linux ROCm detection now reads the **kernel KFD
+     topology** (`/sys/class/kfd/…/gfx_target_version` → `gfx1201`), never
+     touching HIP; non-Linux keeps the dlopen probe.
+  4. **SDK extraction** — `extract_zip_prefix` was stripping the
+     `_rocm_sdk_core`/`_rocm_sdk_libraries` root (flat extraction → preload
+     found nothing). `TchEngine` preloads the SDK (`rocm_sdk_core`/`_libraries`/
+     `_device_<gfx>`, RTLD_LAZY|GLOBAL, full ordered list incl. `host-math` +
+     `rocm_sysdeps`) and never touches the system ROCm.
 
 - **fix: no silent resize fallback when the upscale model is missing
   (2026-08-22)** — `build_steps` swallowed `engine_for_model` errors via

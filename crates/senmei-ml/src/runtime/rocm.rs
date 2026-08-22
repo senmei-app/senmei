@@ -8,12 +8,12 @@
 
 use std::path::{Path, PathBuf};
 
-/// ROCm SDK release published on the AMD wheel index; must match what the
-/// pinned libtorch (`rocm7.1`) can use — mirrors Koharu's runtime.
+/// ROCm SDK release published on the AMD wheel index; must match the pinned
+/// libtorch (`rocm7.14`) — mirrors Koharu's runtime.
 pub const ROCM_VERSION: &str = "7.14.0";
-const INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
+pub(crate) const INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
 
-fn wheel_platform() -> &'static str {
+pub(crate) fn wheel_platform() -> &'static str {
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         "win_amd64"
     } else {
@@ -45,6 +45,7 @@ pub fn download(data_dir: &Path, target: &str) -> Result<PathBuf, String> {
     if is_complete(data_dir, target) {
         return Ok(root);
     }
+    let _ = std::fs::remove_dir_all(&root);
     let stage = data_dir.join("rocm").join("stage");
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;

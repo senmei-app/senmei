@@ -1,27 +1,48 @@
 //! Runtime libtorch resolution (CUDA/ROCm only, no CPU) — like FFmpeg, the
 //! libtorch runtime is downloaded on demand into the app data dir and cached.
-//! Pinned to a torch release that publishes a ROCm-7 build (2.11.0+rocm7.1), so
-//! the downloaded `.so` load on a ROCm 7 runtime and are ABI-compatible with
-//! the wrapper.
+//! CUDA comes from the pytorch.org zips; ROCm from the AMD wheel index
+//! (pytorch.org stopped publishing ROCm libtorch builds that match the AMD
+//! ROCm SDK). The AMD wheels pin torch 2.12.0 to ROCm 7.14.0 — the same pair
+//! Koharu ships — so the downloaded `.so` dlopen against the pinned SDK and
+//! stay ABI-compatible with the wrapper.
 
 use std::path::{Path, PathBuf};
 
-use crate::runtime::hardware::{Hardware, Device};
+use crate::runtime::hardware::{Device, Hardware};
+use crate::runtime::rocm;
 
-/// Torch release with ROCm-7 libtorch builds (see download.pytorch.org) used
-/// when no local `LIBTORCH` install is set. Must stay in sync with the
-/// torch-sys fork's headers for LIBTORCH-less builds.
+/// Torch release with CUDA/CPU libtorch zips (download.pytorch.org), used when
+/// no local `LIBTORCH` install is set. The ROCm path uses `ROCM_TORCH_VERSION`.
 const TORCH_VERSION: &str = "2.11.0";
+
+/// ROCm torch release from the AMD wheel index — must match the pinned ROCm
+/// SDK (`rocm::ROCM_VERSION`). Same pair Koharu ships.
+const ROCM_TORCH_VERSION: &str = "2.12.0";
 
 /// Relative install dir inside the data dir (mirrors Koharu's `Store` layout).
 const INSTALL_DIR: &str = "libtorch";
+
+/// AMD wheel index hosting the ROCm torch + SDK packages.
+const ROCM_INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
+
+/// Per-GPU `.kpack`/aotriton kernels live in per-GPU + per-family device
+/// wheels; the family wheel covers the whole arch family (e.g. `gfx12_0`).
+fn torch_family(target: &str) -> Option<&'static str> {
+    if target.starts_with("gfx11") {
+        Some("gfx11")
+    } else if target.starts_with("gfx12") {
+        Some("gfx12_0")
+    } else {
+        None
+    }
+}
 
 /// Which GPU backend variant to fetch. CPU is intentionally excluded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TorchVariant {
     /// NVIDIA CUDA build (e.g. `cu128`).
     Cuda(&'static str),
-    /// AMD ROCm build (e.g. `rocm7.1`).
+    /// AMD ROCm build (e.g. `rocm7.14`).
     Rocm(&'static str),
 }
 
@@ -33,13 +54,42 @@ impl TorchVariant {
         }
     }
 
+    fn version(&self) -> &'static str {
+        match self {
+            TorchVariant::Cuda(_) => TORCH_VERSION,
+            TorchVariant::Rocm(_) => ROCM_TORCH_VERSION,
+        }
+    }
+
     fn url(&self) -> String {
-        // Same URL shape as torch-sys's download-libtorch (Linux/Windows x86_64).
-        format!(
-            "https://download.pytorch.org/libtorch/{}/libtorch-shared-with-deps-{TORCH_VERSION}%2B{}.zip",
-            self.libtorch_dir(),
-            self.libtorch_dir()
-        )
+        match self {
+            TorchVariant::Cuda(device) => format!(
+                "https://download.pytorch.org/libtorch/{device}/libtorch-shared-with-deps-{TORCH_VERSION}%2B{device}.zip"
+            ),
+            // Same URL shape as Koharu's ROCm torch wheel.
+            TorchVariant::Rocm(_) => format!(
+                "{ROCM_INDEX}/torch-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+                rocm::ROCM_VERSION,
+                rocm::wheel_platform()
+            ),
+        }
+    }
+
+    /// Additional ROCm wheels: per-GPU `.kpack` + per-family aotriton kernels.
+    fn rocm_device_urls(&self, target: &str) -> Vec<String> {
+        let mut urls = vec![format!(
+            "{ROCM_INDEX}/amd_torch_device_{target}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+            rocm::ROCM_VERSION,
+            rocm::wheel_platform()
+        )];
+        if let Some(family) = torch_family(target) {
+            urls.push(format!(
+                "{ROCM_INDEX}/amd_torch_device_{family}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+                rocm::ROCM_VERSION,
+                rocm::wheel_platform()
+            ));
+        }
+        urls
     }
 
     fn expected_libs(&self) -> &'static [&'static str] {
@@ -52,12 +102,18 @@ impl TorchVariant {
                 "libc10_cuda.so",
                 "libcaffe2_nvrtc.so",
             ],
+            // Same list as Koharu's ROCm `Torch::library_names`.
             TorchVariant::Rocm(_) => &[
                 "libc10.so",
-                "libtorch.so",
+                "libc10_hip.so",
+                "libaotriton_v2.so.0.11.2",
+                "libcaffe2_nvrtc.so",
+                "libshm.so",
+                "libtorch_global_deps.so",
                 "libtorch_cpu.so",
                 "libtorch_hip.so",
-                "libc10_hip.so",
+                "libtorch_rocshmem.so",
+                "libtorch.so",
             ],
         }
     }
@@ -76,7 +132,7 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
     if hardware.supports_cuda() {
         Some(TorchVariant::Cuda("cu128"))
     } else if hardware.supports_rocm() {
-        Some(TorchVariant::Rocm("rocm7.1"))
+        Some(TorchVariant::Rocm("rocm7.14"))
     } else {
         None
     }
@@ -87,13 +143,13 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
 pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInstall>, String> {
     // Prefer a local torch install (build-time `LIBTORCH`) — its ABI matches
     // the compiled shim exactly, while a downloaded release can mismatch (e.g.
-    // a 2.13-built wrapper against the pinned 2.11 download). CPU-only installs
+    // a 2.13-built wrapper against the pinned 2.12 download). CPU-only installs
     // are ignored (tch needs a GPU build); we fall back to the download.
     if let Some(dir) = std::env::var_os("LIBTORCH") {
         let lib = PathBuf::from(&dir).join("lib");
         if lib.join("libtorch.so").is_file() {
             let variant = if lib.join("libtorch_hip.so").is_file() {
-                Some(TorchVariant::Rocm("rocm7.1"))
+                Some(TorchVariant::Rocm("rocm7.14"))
             } else if lib.join("libtorch_cuda.so").is_file() {
                 Some(TorchVariant::Cuda("cu128"))
             } else {
@@ -110,16 +166,20 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
     let Some(variant) = pick_variant(hardware) else {
         return Ok(None);
     };
+    let rocm_target = match variant {
+        TorchVariant::Rocm(_) => hardware.rocm_target.as_deref(),
+        _ => None,
+    };
     let install = install_dir(data_dir, &variant);
-    if is_complete(&install, &variant) {
+    if is_complete(&install, &variant, rocm_target) {
         return Ok(Some(TorchInstall {
             variant,
             lib_dir: install.join("lib"),
         }));
     }
     let _ = std::fs::remove_dir_all(&install);
-    download(data_dir, &variant)?;
-    if !is_complete(&install, &variant) {
+    download(data_dir, &variant, rocm_target)?;
+    if !is_complete(&install, &variant, rocm_target) {
         return Err("libtorch download incomplete".into());
     }
     Ok(Some(TorchInstall {
@@ -131,46 +191,114 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
 fn install_dir(data_dir: &Path, variant: &TorchVariant) -> PathBuf {
     data_dir
         .join(INSTALL_DIR)
-        .join(format!("{}-{}", TORCH_VERSION, variant.libtorch_dir()))
+        .join(format!("{}-{}", variant.version(), variant.libtorch_dir()))
 }
 
-fn is_complete(install: &Path, variant: &TorchVariant) -> bool {
+fn is_complete(install: &Path, variant: &TorchVariant, rocm_target: Option<&str>) -> bool {
     let lib = install.join("lib");
-    variant
+    if !variant
         .expected_libs()
         .iter()
         .all(|name| lib.join(name).is_file())
+    {
+        return false;
+    }
+    match variant {
+        // ROCm also needs the per-GPU `.kpack` + aotriton kernels (device
+        // wheels) before the runtime is usable.
+        TorchVariant::Rocm(_) => {
+            let target = rocm_target.unwrap_or_default();
+            install
+                .join(".kpack")
+                .join(format!("torch_{target}.kpack"))
+                .is_file()
+                && lib.join("aotriton.images").is_dir()
+        }
+        TorchVariant::Cuda(_) => true,
+    }
 }
 
-/// Download + extract the libtorch zip into `data_dir/libtorch/<ver>-<dev>`.
-fn download(data_dir: &Path, variant: &TorchVariant) -> Result<(), String> {
-    let url = variant.url();
+/// Download + extract the libtorch zip/wheels into `data_dir/libtorch/<ver>-<dev>`.
+fn download(
+    data_dir: &Path,
+    variant: &TorchVariant,
+    rocm_target: Option<&str>,
+) -> Result<(), String> {
     let archive_dir = data_dir.join("libtorch").join("temp");
-    let archive = archive_dir.join("libtorch.zip");
+    let is_rocm = matches!(variant, TorchVariant::Rocm(_));
+    let archive_name = if is_rocm { "libtorch.whl" } else { "libtorch.zip" };
+    let archive = archive_dir.join(archive_name);
     let _ = std::fs::remove_file(&archive);
     senmei_media::download_to_temp(
-        &url,
+        &variant.url(),
         &archive_dir,
-        "libtorch.zip",
-        None, // PyTorch doesn't publish SHA for libtorch zips; size check below
+        archive_name,
+        None, // PyTorch/AMD don't publish SHA for libtorch archives
         &mut |_, _| {},
     )
     .map_err(|e| format!("libtorch download failed: {e}"))?;
 
-    // The zip extracts a `libtorch/` root; move it to the versioned install dir.
     let stage = data_dir.join("libtorch").join("stage");
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
-    unzip(&archive, &stage).map_err(|e| format!("libtorch extract failed: {e}"))?;
-    let root = stage.join("libtorch");
+    if is_rocm {
+        // AMD wheels: torch/lib (main) + torch/.kpack & aotriton kernels
+        // (device wheels); extract the same prefixes from each, Koharu-style.
+        let prefixes = ["torch/lib/", "torch/.kpack/"];
+        extract_wheel_prefixes(&archive, &stage, &prefixes)
+            .map_err(|e| format!("libtorch extract failed: {e}"))?;
+        let target = rocm_target.unwrap_or_default();
+        for url in variant.rocm_device_urls(target) {
+            let whl = archive_dir.join("libtorch-device.whl");
+            let _ = std::fs::remove_file(&whl);
+            senmei_media::fetch(&url, &whl, &mut |_, _| {})
+                .map_err(|e| format!("libtorch device download failed: {e}"))?;
+            extract_wheel_prefixes(&whl, &stage, &prefixes)
+                .map_err(|e| format!("libtorch extract failed: {e}"))?;
+            let _ = std::fs::remove_file(&whl);
+        }
+    } else {
+        unzip(&archive, &stage).map_err(|e| format!("libtorch extract failed: {e}"))?;
+    }
+
+    // The zip/wheel extracts a `libtorch/` / `torch/` root; move it to the
+    // versioned install dir.
+    let root = if is_rocm { stage.join("torch") } else { stage.join("libtorch") };
     if !root.is_dir() {
-        return Err("libtorch zip did not contain a libtorch/ root".into());
+        return Err("libtorch archive did not contain its root dir".into());
     }
     let install = install_dir(data_dir, variant);
     let _ = std::fs::remove_dir_all(&install);
     std::fs::rename(&root, &install).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&archive);
     let _ = std::fs::remove_dir_all(&stage);
+    Ok(())
+}
+
+/// Extract only entries under `prefixes` from a wheel/zip, preserving paths.
+fn extract_wheel_prefixes(
+    archive: &Path,
+    dest: &Path,
+    prefixes: &[&str],
+) -> Result<(), String> {
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        if !prefixes.iter().any(|p| entry.name().starts_with(p)) {
+            continue;
+        }
+        let out = dest.join(entry.name());
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut f).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -234,6 +362,10 @@ mod tests {
     /// twice, with the same lib dir.
     #[test]
     fn resolve_reuses_complete_install() {
+        // `resolve` prefers a build-time `LIBTORCH`; unset it so the download
+        // path (and its cache reuse) is exercised deterministically.
+        let had_libtorch = std::env::var_os("LIBTORCH");
+        std::env::remove_var("LIBTORCH");
         let data_dir = std::env::temp_dir()
             .join(format!("senmei_torch_cache_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&data_dir);
@@ -253,6 +385,9 @@ mod tests {
         assert!(a.lib_dir.join("libtorch.so").is_file());
         assert_eq!(a.variant, variant);
         let _ = std::fs::remove_dir_all(&data_dir);
+        if let Some(dir) = had_libtorch {
+            std::env::set_var("LIBTORCH", dir);
+        }
     }
 
     /// `pick_device` prefers the GPU with the most VRAM (dGPU over APU/iGPU).

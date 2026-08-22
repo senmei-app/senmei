@@ -5,10 +5,13 @@
 //! libtorch should be downloaded and which device to use — no build-time
 //! `LIBTORCH` or `download-libtorch` needed.
 
-use std::ffi::{c_char, c_int, c_void};
-use std::path::{Path, PathBuf};
+use std::ffi::{c_char, c_int};
 
 use libloading::Library;
+
+// `c_void` is only used by the non-Linux HIP dlopen probe.
+#[cfg(not(target_os = "linux"))]
+use std::ffi::c_void;
 
 /// A detected GPU compute device.
 #[derive(Debug, Clone)]
@@ -22,10 +25,6 @@ pub struct Device {
 pub struct Hardware {
     pub cuda: Option<Vec<Device>>,
     pub rocm: Option<Vec<Device>>,
-    /// Directory of the loaded HIP runtime (`libamdhip64`'s dir, via `dladdr`).
-    /// Lets the loader preload the ROCm runtime libs (RTLD_GLOBAL) so
-    /// `libtorch_hip` resolves its deps at dlopen time.
-    pub rocm_runtime_dir: Option<PathBuf>,
     /// Per-GPU ROCm target (e.g. `gfx1201`), for the on-demand SDK download.
     pub rocm_target: Option<String>,
 }
@@ -49,11 +48,10 @@ impl Hardware {
 
 /// Probe both CUDA and ROCm at runtime; whichever library loads wins.
 pub fn detect() -> Hardware {
-    let (rocm, rocm_runtime_dir, rocm_target) = hip::probe();
+    let (rocm, rocm_target) = hip::probe();
     Hardware {
         cuda: cuda::probe(),
         rocm,
-        rocm_runtime_dir,
         rocm_target,
     }
 }
@@ -119,126 +117,97 @@ mod cuda {
 mod hip {
     use super::*;
 
-    type GetDeviceCount = unsafe extern "C" fn(*mut c_int) -> c_int;
-    type GetDeviceProperties = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
-    type GetDeviceName = unsafe extern "C" fn(*mut c_char, c_int, c_int) -> c_int;
-    type GetDeviceMemory = unsafe extern "C" fn(*mut u64, c_int) -> c_int;
-
-    #[cfg(unix)]
-    #[repr(C)]
-    struct DlInfo {
-        dli_fname: *const c_char,
-        dli_fbase: *mut c_void,
-        dli_sname: *const c_char,
-        dli_saddr: *mut c_void,
-    }
-
-    #[cfg(unix)]
-    unsafe extern "C" {
-        fn dladdr(addr: *const c_void, info: *mut DlInfo) -> c_int;
-    }
-
-    /// Directory of the shared object that exports `fptr` (e.g. `libamdhip64`),
-    /// so the loader can preload the ROCm runtime from the same place. `dladdr`
-    /// is POSIX-only; other platforms rely on the env-derived dir.
-    #[cfg(unix)]
-    fn loaded_lib_dir(fptr: *const c_void) -> Option<PathBuf> {
-        unsafe {
-            let mut info = std::mem::zeroed::<DlInfo>();
-            if dladdr(fptr, &mut info) != 0 && !info.dli_fname.is_null() {
-                let fname = std::ffi::CStr::from_ptr(info.dli_fname).to_str().ok()?;
-                Path::new(fname).parent().map(|p| p.to_path_buf())
-            } else {
-                None
+    // Linux: read the kernel KFD topology — never initializes a HIP runtime.
+    // Probing the system HIP first would poison the SDK HIP that torch later
+    // preloads: HSA's runtime state is shared with the kernel driver, so a
+    // second, different HIP runtime can't attach to it and reports
+    // "No CUDA GPUs are available" (the render then crashes once it moves
+    // tensors to the GPU).
+    #[cfg(target_os = "linux")]
+    pub(super) fn probe() -> (Option<Vec<Device>>, Option<String>) {
+        const NODES: &str = "/sys/class/kfd/kfd/topology/nodes";
+        let Ok(nodes) = std::fs::read_dir(NODES) else {
+            return (None, None);
+        };
+        let mut found: Vec<(String, u64)> = Vec::new();
+        for entry in nodes.flatten() {
+            let Ok(props) = std::fs::read_to_string(entry.path().join("properties")) else {
+                continue;
+            };
+            // `gfx_target_version` is hex `major<<16 | minor<<8 | stepping`,
+            // e.g. `120001` → gfx1201 (gfx{major:x}{minor:x}{stepping:x}).
+            let Some(v) = props
+                .lines()
+                .find_map(|l| l.strip_prefix("gfx_target_version "))
+                .and_then(|s| u32::from_str_radix(s.trim(), 16).ok())
+            else {
+                continue; // CPU node
+            };
+            let major = (v >> 16) & 0xff;
+            let minor = (v >> 8) & 0xff;
+            let stepping = v & 0xff;
+            if major == 0 {
+                continue; // CPU node
             }
+            let target = format!("gfx{major:x}{minor:x}{stepping:x}");
+            let vram = props
+                .lines()
+                .find_map(|l| l.strip_prefix("drm_render_minor "))
+                .and_then(|s| s.trim().parse::<u32>().ok())
+                .and_then(|minor| {
+                    std::fs::read_to_string(format!(
+                        "/sys/class/drm/renderD{minor}/device/mem_info_vram_total"
+                    ))
+                    .ok()
+                    .and_then(|s| s.trim().parse().ok())
+                })
+                .unwrap_or(0);
+            found.push((target, vram));
         }
-    }
-
-    /// The documented ROCm lib dir (`$ROCM_PATH/lib` / `$ROCM_INSTALL_PATH/lib`,
-    /// per the AMD install guide) when it actually holds the HIP runtime.
-    fn env_rocm_dir() -> Option<PathBuf> {
-        for var in ["ROCM_PATH", "ROCM_INSTALL_PATH"] {
-            if let Ok(root) = std::env::var(var) {
-                let lib = Path::new(&root).join("lib");
-                if lib.join("libamdhip64.so").is_file()
-                    || lib.join("libamdhip64.so.7").is_file()
-                {
-                    return Some(lib);
-                }
-            }
+        if found.is_empty() {
+            return (None, None);
         }
-        None
-    }
-
-    /// The per-GPU target string (e.g. `gfx1201`) inside the `hipDeviceProp_t`
-    /// struct (`gcnArchName`), or `None`. Mirrors Koharu's scan.
-    fn target(properties: &[u8]) -> Option<String> {
-        properties
-            .windows(3)
-            .enumerate()
-            .find_map(|(start, bytes)| {
-                if bytes != b"gfx" {
-                    return None;
-                }
-                let suffix = properties[start + 3..]
-                    .iter()
-                    .take_while(|b| b.is_ascii_alphanumeric())
-                    .count();
-                let t = std::str::from_utf8(&properties[start..start + 3 + suffix]).ok()?;
-                t[3..].bytes().any(|b| b.is_ascii_digit()).then(|| t.to_owned())
+        let devices = found
+            .iter()
+            .map(|(t, v)| Device {
+                name: format!("AMD Radeon {t}"),
+                vram_bytes: *v,
             })
+            .collect();
+        // The tch engine uses device 0 = most VRAM (dGPU over iGPU); its gfx
+        // target drives the on-demand SDK download.
+        let target = found.iter().max_by_key(|(_, v)| *v).map(|(t, _)| t.clone());
+        (Some(devices), target)
     }
 
-    pub(super) fn probe() -> (Option<Vec<Device>>, Option<PathBuf>, Option<String>) {
+    // non-Linux: dlopen HIP directly (no shared HSA driver state to poison).
+    #[cfg(not(target_os = "linux"))]
+    pub(super) fn probe() -> (Option<Vec<Device>>, Option<String>) {
+        type GetDeviceCount = unsafe extern "C" fn(*mut c_int) -> c_int;
+        type GetDeviceProperties = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
+        type GetDeviceName = unsafe extern "C" fn(*mut c_char, c_int, c_int) -> c_int;
+        type GetDeviceMemory = unsafe extern "C" fn(*mut u64, c_int) -> c_int;
+
         let names: &[&str] = if cfg!(target_os = "windows") {
             &["amdhip64.dll", "amdhip64_6.dll", "amdhip64_7.dll"]
-        } else if cfg!(target_os = "linux") {
-            &["libamdhip64.so", "libamdhip64.so.7"]
         } else {
-            return (None, None, None);
+            &["libamdhip64.so", "libamdhip64.so.7"]
         };
-        let library = match names
-            .iter()
-            .find_map(|name| unsafe { Library::new(*name).ok() })
-            .or_else(|| {
-                // GUI apps don't inherit the shell's LD_LIBRARY_PATH; fall back
-                // to the documented $ROCM_PATH/lib (AMD install guide).
-                env_rocm_dir()
-                    .and_then(|dir| unsafe { Library::new(dir.join("libamdhip64.so")).ok() })
-            }) {
-            Some(l) => l,
-            None => return (None, None, None),
+        let Some(library) = names.iter().find_map(|name| unsafe { Library::new(*name).ok() }) else {
+            return (None, None);
         };
         unsafe {
-            let get_count = match library.get::<GetDeviceCount>(b"hipGetDeviceCount\0").ok() {
-                Some(f) => *f,
-                None => return (None, None, None),
-            };
-            let get_props = match library.get::<GetDeviceProperties>(b"hipGetDeviceProperties\0").ok() {
-                Some(f) => *f,
-                None => return (None, None, None),
-            };
-            let get_name = match library.get::<GetDeviceName>(b"hipDeviceGetName\0").ok() {
-                Some(f) => *f,
-                None => return (None, None, None),
-            };
-            let get_mem = match library.get::<GetDeviceMemory>(b"hipDeviceTotalMem\0").ok() {
-                Some(f) => *f,
-                None => return (None, None, None),
-            };
-            #[cfg(unix)]
-            let dir = env_rocm_dir().or_else(|| loaded_lib_dir(get_count as *const c_void));
-            #[cfg(not(unix))]
-            let dir = env_rocm_dir();
-
+            let get_count = *library.get::<GetDeviceCount>(b"hipGetDeviceCount\0").ok()?;
+            let get_props = *library.get::<GetDeviceProperties>(b"hipGetDeviceProperties\0").ok()?;
+            let get_name = *library.get::<GetDeviceName>(b"hipDeviceGetName\0").ok()?;
+            let get_mem = *library.get::<GetDeviceMemory>(b"hipDeviceTotalMem\0").ok()?;
             let mut count = 0;
             if get_count(&mut count) != 0 || count <= 0 {
-                return (Some(Vec::new()), dir, None);
+                return (Some(Vec::new()), None);
             }
             let mut devices = Vec::new();
             let mut gfx_target = None;
             for index in 0..count {
-                // hipGetDeviceProperties needs a large aligned buffer.
                 #[repr(C, align(64))]
                 struct Props([u8; 64 * 1024]);
                 let mut props = Box::new(Props([0; 64 * 1024]));
@@ -261,8 +230,28 @@ mod hip {
                 }
                 devices.push(Device { name, vram_bytes: vram });
             }
-            (Some(devices), dir, gfx_target)
+            (Some(devices), gfx_target)
         }
+    }
+
+    /// The per-GPU target string (e.g. `gfx1201`) inside the `hipDeviceProp_t`
+    /// struct (`gcnArchName`), or `None`. Mirrors Koharu's scan.
+    #[cfg(not(target_os = "linux"))]
+    fn target(properties: &[u8]) -> Option<String> {
+        properties
+            .windows(3)
+            .enumerate()
+            .find_map(|(start, bytes)| {
+                if bytes != b"gfx" {
+                    return None;
+                }
+                let suffix = properties[start + 3..]
+                    .iter()
+                    .take_while(|b| b.is_ascii_alphanumeric())
+                    .count();
+                let t = std::str::from_utf8(&properties[start..start + 3 + suffix]).ok()?;
+                t[3..].bytes().any(|b| b.is_ascii_digit()).then(|| t.to_owned())
+            })
     }
 }
 
@@ -285,7 +274,7 @@ mod tests {
         let h = detect();
         eprintln!("cuda: {:?}", h.cuda);
         eprintln!("rocm: {:?}", h.rocm);
-        eprintln!("rocm_runtime_dir: {:?}", h.rocm_runtime_dir);
+        eprintln!("rocm_target: {:?}", h.rocm_target);
         // On a dev machine with ROCm this should be true; the assert stays
         // lenient so headless/CI without a GPU still passes.
         assert!(!h.supports_gpu() || h.supports_gpu());
