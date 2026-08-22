@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.1.6 (2026-08-22)
+
 - **docs: README — first-run guide, FAQ, download path fix (2026-08-22)** —
   new "First run" walkthrough (wizard screenshots now used), FAQ section,
   corrected "Download weights" path, dev docs renamed "For developers".
