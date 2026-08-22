@@ -51,6 +51,7 @@ mod tests {
                 theme: "light".into(),
                 hotkeys: Some(HashMap::from([("render".into(), "Ctrl+Shift+R".into())])),
                 tile_size: Some(512),
+                pipeline_depth: Some(2),
                 backend: Some(senmei_ml::EngineBackend::Vulkan),
             };
             save_settings(&settings).unwrap();
@@ -58,6 +59,7 @@ mod tests {
             assert_eq!(loaded.language, "de");
             assert_eq!(loaded.theme, "light");
             assert_eq!(loaded.tile_size, Some(512));
+            assert_eq!(loaded.pipeline_depth, Some(2));
             assert_eq!(loaded.backend, Some(senmei_ml::EngineBackend::Vulkan));
             assert_eq!(
                 loaded.hotkeys.as_ref().and_then(|h| h.get("render")),
