@@ -3,6 +3,7 @@
 //! (CUDA/ROCm only, no CPU), like Koharu, instead of a build-time link.
 
 pub mod hardware;
+pub mod rocm;
 pub mod torch;
 
 pub use hardware::{Hardware, detect};

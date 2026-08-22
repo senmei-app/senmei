@@ -489,6 +489,12 @@ pub fn engine_for_model(
     let mref = registry
         .resolve(model_id, &dir)
         .ok_or_else(|| format!("model weights not resolved: {model_id}"))?;
+    if !mref.path.is_file() {
+        return Err(format!(
+            "model {model_id} weights are not downloaded (expected {}); download the model first",
+            mref.path.display()
+        ));
+    }
     let mut engine =
         senmei_ml::engine_for_model(&mref, backend, &data_dir()).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
@@ -569,25 +575,39 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
 }
 
 #[cfg(feature = "render")]
-fn build_steps(config: &RenderConfig, backend: senmei_ml::EngineBackend) -> Vec<Box<dyn senmei_pipeline::Step>> {
+fn build_steps(
+    config: &RenderConfig,
+    backend: senmei_ml::EngineBackend,
+) -> Result<Vec<Box<dyn senmei_pipeline::Step>>, String> {
     let mut steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Passthrough)];
     if let Some(f) = config.resize {
         steps.push(Box::new(senmei_pipeline::Resize::new(f)));
     }
+    // Optional aux models keep their reference fallback, but a load failure
+    // is logged — never silent.
+    let optional = |id: &str| match engine_for_model(id, backend) {
+        Ok(e) => Some(e),
+        Err(e) => {
+            log::warn!("model {id} unavailable, using reference filter: {e}");
+            None
+        }
+    };
     // Decompress pass runs first: scale-1 de-artifact (RealPLKSR 1×) ahead of
     // interpolation/upscaling. Skipped when the model can't be loaded.
     if let Some(id) = config.decompress_model_id.as_deref() {
         if !id.is_empty() {
-            let engine = engine_for_model(id, backend).ok();
+            let engine = optional(id);
             steps.push(Box::new(senmei_pipeline::Upscale::new(1, engine)));
         }
     }
     if let Some(s) = config.scale {
         if s > 1 {
+            // The main upscale model is mandatory: a missing/unloadable model
+            // is a hard error, not a silent resize.
             let engine = match config.model_id.as_deref() {
-                Some(id) => engine_for_model(id, backend).ok(),
-                None => None,
+                Some(id) if !id.is_empty() => Some(engine_for_model(id, backend)?),
+                _ => None,
             };
             steps.push(Box::new(senmei_pipeline::Upscale::new(s, engine)));
         }
@@ -596,7 +616,7 @@ fn build_steps(config: &RenderConfig, backend: senmei_ml::EngineBackend) -> Vec<
         if let Some(r) = f.denoise_radius {
             if r > 0 {
                 let engine = match f.denoise_model_id.as_deref() {
-                    Some(id) => engine_for_model(id, backend).ok(),
+                    Some(id) => optional(id),
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Denoise::new(r, engine)));
@@ -605,7 +625,7 @@ fn build_steps(config: &RenderConfig, backend: senmei_ml::EngineBackend) -> Vec<
         if let Some(a) = f.deblur_amount {
             if a > 0.0 {
                 let engine = match f.deblur_model_id.as_deref() {
-                    Some(id) => engine_for_model(id, backend).ok(),
+                    Some(id) => optional(id),
                     None => None,
                 };
                 steps.push(Box::new(senmei_pipeline::Deblur::new(a, engine)));
@@ -625,7 +645,7 @@ fn build_steps(config: &RenderConfig, backend: senmei_ml::EngineBackend) -> Vec<
     if let Some(f) = config.output_resize {
         steps.push(Box::new(senmei_pipeline::Resize::new(f)));
     }
-    steps
+    Ok(steps)
 }
 
 /// Run a render (blocking; call from spawn_blocking). Mirrors the GUI's
@@ -640,7 +660,7 @@ pub fn render(
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
     let output = PathBuf::from(&config.output);
-    let mut pipeline = senmei_pipeline::Pipeline::new(build_steps(config, opts.backend));
+    let mut pipeline = senmei_pipeline::Pipeline::new(build_steps(config, opts.backend)?);
     if config.start_ms.is_some() || config.end_ms.is_some() {
         pipeline.set_range(config.start_ms.unwrap_or(0), config.end_ms);
     }
@@ -671,9 +691,13 @@ pub fn render(
     if let Some(f) = config.fps_multiplier {
         if f > 1 {
             let interp = match config.interp_model.as_deref() {
-                Some(id) => engine_for_model(id, opts.backend)
-                    .ok()
-                    .map(|e| senmei_pipeline::Interpolator::with_engine(f, e)),
+                Some(id) => match engine_for_model(id, opts.backend) {
+                    Ok(e) => Some(senmei_pipeline::Interpolator::with_engine(f, e)),
+                    Err(e) => {
+                        log::warn!("interpolation model {id} unavailable, using CPU interpolator: {e}");
+                        None
+                    }
+                },
                 None => None,
             };
             pipeline.set_interpolator(interp.unwrap_or_else(|| senmei_pipeline::Interpolator::new(f)));

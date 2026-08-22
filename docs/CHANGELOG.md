@@ -8,6 +8,32 @@
 
 ## Unreleased
 
+- **fix: libtorch loads on systems without ROCm (Koharu-style SDK fallback,
+  (2026-08-22)** — the pinned `2.11.0+rocm7.1` libtorch zip ships unversioned
+  ROCm libs but not the versioned SONAMEs (`libMIOpen.so.1`,
+  `librocprofiler-sdk.so.1`, `libamdhip64.so.7`) that `libtorch_cpu` dlopens.
+  On a bare system libtorch loads incompletely and the wrapper reads
+  `TensorOptions` wrongly (dtype/device garbage → `element_size()=1` →
+  "incoherent element sizes in bytes" + heap corruption). `TchEngine` now
+  preloads the system ROCm runtime first, probes that a Half tensor can be
+  created through the wrapper, and only then downloads the per-GPU ROCm SDK
+  (`rocm_sdk_core`/`rocm_sdk_libraries`/`rocm_sdk_device_<gfx>` from the AMD
+  wheel index, Koharu-style) and preloads it (RTLD_LAZY|GLOBAL). A wrapper/
+  runtime ABI mismatch is caught by the probe → clean fallback to burn-Vulkan
+  instead of a crash. Hardware detection now exposes the per-GPU `rocm_target`
+  (e.g. `gfx1201`); CI builds the wrapper against the pinned 2.11 CPU headers
+  so the shipped binary's wrapper ABI matches the runtime.
+
+- **fix: no silent resize fallback when the upscale model is missing
+  (2026-08-22)** — `build_steps` swallowed `engine_for_model` errors via
+  `.ok()`, so a render whose model wasn't downloaded silently degraded to a
+  bilinear resize (the sample "looked too fast / no model ran"). The main
+  upscale model is now mandatory: a missing/unloadable model fails the render
+  with a clear "weights are not downloaded" error; optional aux models
+  (decompress/denoise/deblur) and the interpolator keep their reference
+  fallback but log a warning. `engine_for_model` checks the weight file
+  exists and names the expected path.
+
 - **feat: Windows libtorch (tch) backend via dlopen fork (2026-08-22)** — the
   `senmei-app/tch-rs` fork now builds the wrapper with CMake + MSVC on Windows
   (`tch.dll`, SHARED + `WINDOWS_EXPORT_ALL_SYMBOLS`) instead of bailing; the

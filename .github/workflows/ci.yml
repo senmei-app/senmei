@@ -216,6 +216,21 @@ jobs:
 
       # Release ships the optional libtorch (tch) engine on Linux/Windows
       # (no CUDA/ROCm path on macOS); the runtime itself downloads on demand.
+      - name: Set up pinned libtorch headers (tch wrapper build)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # The dlopen wrapper must be compiled against the SAME libtorch
+          # version as the runtime it dlopens (pinned 2.11). Mismatched
+          # headers/headers make the wrapper read TensorOptions wrongly and
+          # panic with "incoherent element sizes in bytes" + heap corruption.
+          # CPU 2.11 headers are ABI-compatible with the ROCm 2.11 runtime.
+          if [ ! -d /tmp/libtorch-cpu-2.11/include ]; then
+            curl -fL --retry 3 -o /tmp/libtorch-cpu.zip \
+              "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.11.0%2Bcpu.zip"
+            (cd /tmp && rm -rf libtorch-cpu-2.11 && mkdir libtorch-cpu-2.11 && cd libtorch-cpu-2.11 && unzip -q ../libtorch-cpu.zip)
+          fi
+          echo "LIBTORCH=/tmp/libtorch-cpu-2.11/libtorch" >> "$GITHUB_ENV"
       - name: Build app bundle
         shell: bash
         run: |

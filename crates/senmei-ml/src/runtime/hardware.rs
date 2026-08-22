@@ -26,6 +26,8 @@ pub struct Hardware {
     /// Lets the loader preload the ROCm runtime libs (RTLD_GLOBAL) so
     /// `libtorch_hip` resolves its deps at dlopen time.
     pub rocm_runtime_dir: Option<PathBuf>,
+    /// Per-GPU ROCm target (e.g. `gfx1201`), for the on-demand SDK download.
+    pub rocm_target: Option<String>,
 }
 
 impl Hardware {
@@ -47,11 +49,12 @@ impl Hardware {
 
 /// Probe both CUDA and ROCm at runtime; whichever library loads wins.
 pub fn detect() -> Hardware {
-    let (rocm, rocm_runtime_dir) = hip::probe();
+    let (rocm, rocm_runtime_dir, rocm_target) = hip::probe();
     Hardware {
         cuda: cuda::probe(),
         rocm,
         rocm_runtime_dir,
+        rocm_target,
     }
 }
 
@@ -167,13 +170,32 @@ mod hip {
         None
     }
 
-    pub(super) fn probe() -> (Option<Vec<Device>>, Option<PathBuf>) {
+    /// The per-GPU target string (e.g. `gfx1201`) inside the `hipDeviceProp_t`
+    /// struct (`gcnArchName`), or `None`. Mirrors Koharu's scan.
+    fn target(properties: &[u8]) -> Option<String> {
+        properties
+            .windows(3)
+            .enumerate()
+            .find_map(|(start, bytes)| {
+                if bytes != b"gfx" {
+                    return None;
+                }
+                let suffix = properties[start + 3..]
+                    .iter()
+                    .take_while(|b| b.is_ascii_alphanumeric())
+                    .count();
+                let t = std::str::from_utf8(&properties[start..start + 3 + suffix]).ok()?;
+                t[3..].bytes().any(|b| b.is_ascii_digit()).then(|| t.to_owned())
+            })
+    }
+
+    pub(super) fn probe() -> (Option<Vec<Device>>, Option<PathBuf>, Option<String>) {
         let names: &[&str] = if cfg!(target_os = "windows") {
             &["amdhip64.dll", "amdhip64_6.dll", "amdhip64_7.dll"]
         } else if cfg!(target_os = "linux") {
             &["libamdhip64.so", "libamdhip64.so.7"]
         } else {
-            return (None, None);
+            return (None, None, None);
         };
         let library = match names
             .iter()
@@ -185,24 +207,24 @@ mod hip {
                     .and_then(|dir| unsafe { Library::new(dir.join("libamdhip64.so")).ok() })
             }) {
             Some(l) => l,
-            None => return (None, None),
+            None => return (None, None, None),
         };
         unsafe {
             let get_count = match library.get::<GetDeviceCount>(b"hipGetDeviceCount\0").ok() {
                 Some(f) => *f,
-                None => return (None, None),
+                None => return (None, None, None),
             };
             let get_props = match library.get::<GetDeviceProperties>(b"hipGetDeviceProperties\0").ok() {
                 Some(f) => *f,
-                None => return (None, None),
+                None => return (None, None, None),
             };
             let get_name = match library.get::<GetDeviceName>(b"hipDeviceGetName\0").ok() {
                 Some(f) => *f,
-                None => return (None, None),
+                None => return (None, None, None),
             };
             let get_mem = match library.get::<GetDeviceMemory>(b"hipDeviceTotalMem\0").ok() {
                 Some(f) => *f,
-                None => return (None, None),
+                None => return (None, None, None),
             };
             #[cfg(unix)]
             let dir = env_rocm_dir().or_else(|| loaded_lib_dir(get_count as *const c_void));
@@ -211,9 +233,10 @@ mod hip {
 
             let mut count = 0;
             if get_count(&mut count) != 0 || count <= 0 {
-                return (Some(Vec::new()), dir);
+                return (Some(Vec::new()), dir, None);
             }
             let mut devices = Vec::new();
+            let mut gfx_target = None;
             for index in 0..count {
                 // hipGetDeviceProperties needs a large aligned buffer.
                 #[repr(C, align(64))]
@@ -221,6 +244,9 @@ mod hip {
                 let mut props = Box::new(Props([0; 64 * 1024]));
                 if get_props(props.0.as_mut_ptr().cast(), index) != 0 {
                     continue;
+                }
+                if gfx_target.is_none() {
+                    gfx_target = target(&props.0);
                 }
                 let mut name_buf = [0u8; 256];
                 if get_name(name_buf.as_mut_ptr().cast(), 256, index) != 0 {
@@ -235,7 +261,7 @@ mod hip {
                 }
                 devices.push(Device { name, vram_bytes: vram });
             }
-            (Some(devices), dir)
+            (Some(devices), dir, gfx_target)
         }
     }
 }

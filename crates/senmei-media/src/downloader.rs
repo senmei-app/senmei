@@ -31,6 +31,29 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
     Ok(())
 }
 
+/// Extract every entry under `prefix` (e.g. `_rocm_sdk_core`) from a zip into
+/// `dest`, preserving relative paths. Used for the on-demand ROCm SDK wheels.
+pub fn extract_zip_prefix(archive: &Path, dest: &Path, prefix: &str) -> Result<()> {
+    let file = fs::File::open(archive).map_err(Error::from)?;
+    let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
+    let dir_prefix = format!("{prefix}/");
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(Error::from)?;
+        let name = entry.name().to_owned();
+        if !name.starts_with(&dir_prefix) || entry.is_dir() {
+            continue;
+        }
+        let rel = name.trim_start_matches(&dir_prefix);
+        let out_path = dest.join(rel);
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent).map_err(Error::from)?;
+        }
+        let mut f = fs::File::create(&out_path).map_err(Error::from)?;
+        std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
+    }
+    Ok(())
+}
+
 /// Pull a single file out of a zip or tar.xz archive by path suffix.
 pub fn extract_binary(archive: &Path, out: &Path, suffix: &str) -> Result<()> {
     let file = fs::File::open(archive).map_err(Error::from)?;
