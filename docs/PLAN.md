@@ -490,3 +490,33 @@ web UI + REST. Both enforce the same license/confirm gates from `core`.
 Run: `cargo run -p senmei-server --features render,http -- --http`
 (port `SENMEI_HTTP_PORT`, web dir `SENMEI_WEB_DIR`; serves the built UI from
 `packages/app/dist` by default).
+
+---
+
+## 17. Auto-Enhance / quality assessment (2026-08-23)
+
+**Decision (2026-08-23):** evolve `suggest_pipeline` (rule-based preset) into
+**Auto-Enhance**: analyze sampled frames → a single `QualityProfile`
+(`noise`, `banding`, `blocking`, `sharpness`, `content_type`) → rules map the
+profile to the full parameter set (denoise strength/model, upscale,
+interpolation, deband, line-enhance, tonemap).
+
+| Piece | Status | Notes |
+|---|---|---|
+| `QualityProfile` seam | todo (Phase 1) | single struct; code analyzers first, model optional later |
+| Code analyzers | todo (Phase 1) | wavelet-σ noise, MPEG-grid blocking, histogram banding, Laplacian sharpness, saturation (anime/live) |
+| NR-IQA model | todo (Phase 2) | behind the same seam; benchmark vs code on real inputs before shipping |
+| Transport | todo | in `senmei-core` (Tauri + MCP + HTTP) — today `suggest_pipeline` is Tauri-only |
+
+**Model selection (licenses verified 2026-08-23):**
+
+| Model | License | Fit |
+|---|---|---|
+| **FACTOR** (Google) | Apache-2.0 | ✅ primary — per-attribute (quality/sharpness/noise/color/distortion) maps onto `QualityProfile` |
+| **NIMA** (Google) | Apache-2.0 | ✅ fallback — CNN, easy port, single score (mapped via heuristics) |
+| PaQ-2-PiQ (Meta) | CC-BY-NC | ❌ excluded |
+| CLIP-IQA (IceClear) | S-Lab 1.0 (non-commercial) | ❌ excluded |
+
+Re-verify licenses at adoption; record per artifact in `metadata.json`.
+Port cost: FACTOR = Swin-V2 transformer (first transformer port in burn);
+NIMA = plain CNN.

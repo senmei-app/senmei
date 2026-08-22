@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: PLAN §17 Auto-Enhance decision (2026-08-23)** — `QualityProfile`
+  seam (code-first analyzers, NR-IQA optional behind it); model shortlist
+  FACTOR/NIMA (Apache-2.0), PaQ-2-PiQ + CLIP-IQA excluded (NC licenses);
+  todos added.
+
 ## 0.1.6 (2026-08-22)
 
 - **docs: README — first-run guide, FAQ, download path fix (2026-08-22)** —

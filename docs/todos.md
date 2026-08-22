@@ -62,6 +62,11 @@
       helper (burn#5410 merged — native mean_dim) + `Span::pad_k96` (cubek#519,
       once fixed); re-check tiling/pipelining after the bump (2026-08-22)
 
+## Auto-Enhance (2026-08-23)
+- [ ] Phase 1: `QualityProfile` seam + code analyzers (noise/banding/blocking/sharpness) in senmei-core; replaces suggest_pipeline
+- [ ] Phase 2: FACTOR port (NIMA fallback) behind QualityProfile — benchmark vs code first, adopt only if it wins
+- [ ] Auto-Enhance transport-agnostic (Tauri + MCP + HTTP; suggest is Tauri-only today)
+
 ## Web / headless
 - [ ] Audio in the web UI (senmei-server --http): currently no sound — no
       native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer
