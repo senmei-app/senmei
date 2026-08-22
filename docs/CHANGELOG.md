@@ -8,6 +8,18 @@
 
 ## Unreleased
 
+- **fix: render/engine edge cases from review (2026-08-22)** —
+  - cancel is set up + cleared *before* the (slow) model load, so a cancel
+    issued while models load is no longer overwritten to false.
+  - `gfx_target_version` parse tolerates a `0x` prefix (some kernels print it).
+  - `aotriton.images` is only required for archs with a family wheel
+    (gfx11/gfx12); demanding it on gfx9/gfx10 made every launch re-download
+    the ~2 GB wheel and fail with "libtorch download incomplete".
+  - the wrapper/runtime ABI probe now also guards the CUDA path (was ROCm-only).
+  - interpolation progress: `total_frames = 1 + (N-1)*factor` (the interpolator
+    emits `factor-1` intermediates per following frame), so progress reaches
+    100% instead of capping below it.
+
 - **fix: killing the app no longer freezes the terminal (2026-08-22)** — the
   ffmpeg decode subprocess inherited the terminal's stdin and the encode
   subprocess inherited its stdout, so an orphaned ffmpeg kept the pty held

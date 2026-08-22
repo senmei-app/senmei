@@ -94,7 +94,10 @@ impl Pipeline {
         let (start_ms, end_ms) = self.range.unwrap_or((0, None));
         let mut decoder = Decoder::open_with_range(ffmpeg, input, start_ms, end_ms, self.tonemap)?;
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
-        let total_frames = decoder.total_frames * factor;
+        // The interpolator emits 1 frame for the first input and `factor` for
+        // each following one, so the output count is `1 + (N-1)*factor`, not
+        // `N*factor` — the latter makes progress cap below 100%.
+        let total_frames = decoder.total_frames.saturating_sub(1) * factor + 1;
         let fps = decoder.fps * factor as f64;
 
         // First frame fixes the encoder dimensions.

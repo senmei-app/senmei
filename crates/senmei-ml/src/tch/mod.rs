@@ -146,6 +146,17 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 log::warn!("libtorch dlopen failed: {e}");
                 return Err(e);
             }
+            // Same ABI guard as the ROCm branch: a mismatched wrapper/runtime
+            // (e.g. a stale LIBTORCH env, or a CUDA download that predates the
+            // wrapper headers) must fail here instead of corrupting memory
+            // mid-render.
+            if !probe_tensor_ok() {
+                return Err(
+                    "libtorch tensor probe failed (wrapper/runtime ABI mismatch; is a stale \
+                     LIBTORCH env overriding the pinned runtime?)"
+                    .into(),
+                );
+            }
         } else if let Err(e) = &resolved {
             log::warn!("libtorch resolve failed: {e}");
         }

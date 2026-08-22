@@ -139,7 +139,7 @@ mod hip {
             let Some(v) = props
                 .lines()
                 .find_map(|l| l.strip_prefix("gfx_target_version "))
-                .and_then(|s| u32::from_str_radix(s.trim(), 16).ok())
+                .and_then(|s| u32::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok())
             else {
                 continue; // CPU node
             };

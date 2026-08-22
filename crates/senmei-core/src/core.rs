@@ -657,6 +657,15 @@ pub fn render(
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
 ) -> Result<Vec<StepTimingInfo>, String> {
     senmei_ml::set_tile_size(opts.tile_size);
+    let cancel = match &opts.cancel {
+        Some(c) => c.clone(),
+        None => CANCEL_RENDER
+            .get_or_init(|| Arc::new(AtomicBool::new(false)))
+            .clone(),
+    };
+    // Clear before the (potentially slow) model load below, so a cancel
+    // issued while models are loading isn't overwritten to false afterwards.
+    cancel.store(false, Ordering::Relaxed);
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
     let output = PathBuf::from(&config.output);
@@ -676,13 +685,6 @@ pub fn render(
             _ => senmei_media::Tonemap::Auto,
         });
     }
-    let cancel = match &opts.cancel {
-        Some(c) => c.clone(),
-        None => CANCEL_RENDER
-            .get_or_init(|| Arc::new(AtomicBool::new(false)))
-            .clone(),
-    };
-    cancel.store(false, Ordering::Relaxed);
     pipeline.set_cancel(cancel);
     if let Some(p) = &opts.pause {
         p.store(false, Ordering::Relaxed);
