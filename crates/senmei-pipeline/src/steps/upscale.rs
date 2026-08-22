@@ -87,6 +87,11 @@ impl Step for Upscale {
     }
 
     fn process_batch(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
+        if frames.is_empty() {
+            // The pipeline may drain a trailing empty batch (decoder EOF); a
+            // no-op here keeps the deferred path from submitting zero inputs.
+            return Ok(());
+        }
         let Some(engine) = self.engine.as_mut() else {
             return process_individually(self, frames);
         };

@@ -435,6 +435,24 @@ mod tests {
         assert_eq!(tail.len(), 1);
     }
 
+    #[test]
+    fn upscale_process_batch_empty_is_noop() {
+        // The pipeline drains a trailing empty batch at decoder EOF — the
+        // deferred path must not submit zero inputs (would error "empty batch").
+        let mut step = Upscale::new(2, Some(Box::new(PipelinedEngine)));
+        let mut frames = Vec::new();
+        step.process_batch(&mut frames).unwrap();
+        assert!(frames.is_empty());
+        // Still usable afterwards: the no-op must not set `started`.
+        let mut b = vec![Frame {
+            width: 2,
+            height: 2,
+            data: vec![1; 12],
+        }];
+        step.process_batch(&mut b).unwrap();
+        assert_eq!(b.len(), 1);
+    }
+
     // Fake step that drops frames whose first byte is the marker 42.
     struct DropMarked;
 

@@ -214,8 +214,8 @@ impl Pipeline {
                             break;
                         }
                     });
-                    // Wait for a full batch — the fused multi-frame engine path
-                    // amortizes launches/readbacks over the batch dim.
+                    // Emit happens per frame; with BATCH_SIZE=1 the step chain
+                    // runs per frame and the upscale step handles pipelining.
                     if pending.len() < BATCH_SIZE {
                         continue;
                     }
@@ -244,20 +244,22 @@ impl Pipeline {
                 Err(_) => {
                     // Decoder finished: push the trailing partial batch through
                     // the steps, then let stateful steps flush their tail.
-                    if let Err(e) =
-                        run_steps_batch(&mut self.timings, &mut self.steps, &mut pending)
-                    {
-                        main_err = Some(e);
-                        break;
-                    }
-                    for frame in pending.drain(..) {
-                        if out_tx.send(frame).is_err() {
-                            main_err = Some(Error::new("encode channel closed"));
+                    if !pending.is_empty() {
+                        if let Err(e) =
+                            run_steps_batch(&mut self.timings, &mut self.steps, &mut pending)
+                        {
+                            main_err = Some(e);
                             break;
                         }
-                    }
-                    if main_err.is_some() {
-                        break;
+                        for frame in pending.drain(..) {
+                            if out_tx.send(frame).is_err() {
+                                main_err = Some(Error::new("encode channel closed"));
+                                break;
+                            }
+                        }
+                        if main_err.is_some() {
+                            break;
+                        }
                     }
                     let mut tail = Vec::new();
                     for (i, step) in self.steps.iter_mut().enumerate() {

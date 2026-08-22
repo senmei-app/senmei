@@ -21,6 +21,19 @@
   all six UI screenshots re-captured at 1280×800 and cropped to content (no
   letterbox).
 
+- **fix: pipeline trailing empty batch (2026-08-22)** — at decoder EOF the
+  pipeline drained an empty batch through the step chain; the deferred upscale
+  path treated it as an empty submit (`"empty batch"`) and failed the render
+  right at the end whenever an engine-backed upscale ran. The upscale step now
+  no-ops on an empty batch and the pipeline skips the trailing empty pass.
+  Test: `upscale_process_batch_empty_is_noop`.
+
+- **perf: f16 readback + 8K pre-check (2026-08-22)** — the fused RGB8 readback
+  goes f16→u8 directly, skipping the full f32 copy per frame (cubecl-wgpu
+  already pools the staging buffers). The VRAM guard now runs *before* the tile
+  grid is built, so 8K+ inputs (144+ tiles) are rejected up front with a clear
+  error instead of wasting tile/pad work (Koharu `max_pixels`).
+
 - **feat: VRAM guard for the fused RGB8 path (2026-08-22)** — oversized fused
   renders are rejected with a clear error *before* the ~3.2 GB single
   allocation OOM (which lost the wgpu device handle) instead of silently
