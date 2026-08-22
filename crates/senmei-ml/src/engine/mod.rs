@@ -258,9 +258,15 @@ pub fn engine_for_model(
         }
         EngineBackend::Auto => {
             #[cfg(feature = "tch")]
-            if let Ok(engine) = crate::tch::TchEngine::runtime(data_dir) {
-                log::info!("engine: auto -> libtorch ({})", model.id);
-                return Ok(Box::new(engine));
+            match crate::tch::TchEngine::runtime(data_dir) {
+                Ok(engine) => {
+                    log::info!("engine: auto -> libtorch ({})", model.id);
+                    return Ok(Box::new(engine));
+                }
+                Err(e) => log::warn!(
+                    "engine: auto -> libtorch unavailable ({}): {e}; falling back to burn-Vulkan",
+                    model.id
+                ),
             }
             #[cfg(feature = "burn")]
             {

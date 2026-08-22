@@ -156,6 +156,7 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
                 None
             };
             if let Some(variant) = variant {
+                log::info!("libtorch: using LIBTORCH env ({variant:?}) at {lib:?}");
                 return Ok(Some(TorchInstall {
                     variant,
                     lib_dir: lib,
@@ -172,12 +173,14 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
     };
     let install = install_dir(data_dir, &variant);
     if is_complete(&install, &variant, rocm_target) {
+        log::info!("libtorch: using cached runtime {variant:?} at {install:?}");
         return Ok(Some(TorchInstall {
             variant,
             lib_dir: install.join("lib"),
         }));
     }
     let _ = std::fs::remove_dir_all(&install);
+    log::info!("libtorch: downloading runtime {variant:?}");
     download(data_dir, &variant, rocm_target)?;
     if !is_complete(&install, &variant, rocm_target) {
         return Err("libtorch download incomplete".into());

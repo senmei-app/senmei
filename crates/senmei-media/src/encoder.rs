@@ -232,7 +232,11 @@ impl Encoder {
             })
             .args(&extra_args)
             .arg(path)
+            // stdout null: the encoder writes to the output file, not the
+            // terminal — inheriting stdout would leave the pty held by an
+            // orphaned ffmpeg after the app is killed.
             .stdin(Stdio::piped())
+            .stdout(Stdio::null())
             .stderr(Stdio::piped());
         let mut child = cmd.spawn()?;
 

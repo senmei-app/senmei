@@ -8,6 +8,19 @@
 
 ## Unreleased
 
+- **fix: killing the app no longer freezes the terminal (2026-08-22)** — the
+  ffmpeg decode subprocess inherited the terminal's stdin and the encode
+  subprocess inherited its stdout, so an orphaned ffmpeg kept the pty held
+  after the app was killed (terminal appeared dead until `reset`). Both now
+  use `Stdio::null()` for the side they don't use.
+
+- **fix: log libtorch fallback reasons (2026-08-22)** — `engine: auto` silently
+  swallowed `TchEngine::runtime` errors, so a failed libtorch (e.g. a stale
+  `LIBTORCH` env pointing at a different torch version) fell back to burn-Vulkan
+  with no trace. `resolve()` now logs which runtime it picked (LIBTORCH env vs
+  cached vs download), `ensure_loaded` logs dlopen/probe/SDK-download failures,
+  and the probe error hints at a stale `LIBTORCH` env.
+
 - **fix: ranged render with audio never finishes (2026-08-22)** — the encode
   ffmpeg command maps the source audio as a second input (`-map 1:a:0?`),
   seeked with `-ss` but not duration-limited. For a ranged render the (short)

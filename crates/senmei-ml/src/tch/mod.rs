@@ -121,30 +121,46 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 // SDK's versioned SONAMEs (`libMIOpen.so.1`, …) that libtorch
                 // dlopens resolve via the preload.
                 if let Some(target) = hw.rocm_target.as_deref() {
-                    if let Ok(root) = crate::runtime::rocm::download(data_dir, target) {
-                        preload_sdk(&root);
+                    match crate::runtime::rocm::download(data_dir, target) {
+                        Ok(root) => preload_sdk(&root),
+                        Err(e) => log::warn!("rocm sdk download failed for {target}: {e}"),
                     }
                 }
                 if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
+                    log::warn!("libtorch dlopen failed: {e}");
                     return Err(e);
                 }
                 if !probe_tensor_ok() {
+                    // Wrapper/runtime ABI mismatch — most often a stale
+                    // `LIBTORCH` env in the launch shell pointing at a
+                    // different torch version than the wrapper was built for.
                     return Err(
-                        "libtorch tensor probe failed (wrapper/runtime ABI mismatch)".into()
+                        "libtorch tensor probe failed (wrapper/runtime ABI mismatch; is a stale \
+                         LIBTORCH env overriding the pinned runtime?)"
+                        .into(),
                     );
                 }
                 return Ok(Some(inst.clone()));
             }
             if let Err(e) = torch_sys::loader::init(&inst.lib_dir) {
+                log::warn!("libtorch dlopen failed: {e}");
                 return Err(e);
             }
+        } else if let Err(e) = &resolved {
+            log::warn!("libtorch resolve failed: {e}");
         }
         resolved
     });
     match install {
         Ok(Some(_)) => Ok(()),
-        Ok(None) => Err(Error::new("no CUDA/ROCm device — CPU stays on burn-Vulkan")),
-        Err(e) => Err(Error::new(e.clone())),
+        Ok(None) => {
+            log::info!("no CUDA/ROCm device — CPU stays on burn-Vulkan");
+            Err(Error::new("no CUDA/ROCm device — CPU stays on burn-Vulkan"))
+        }
+        Err(e) => {
+            log::error!("libtorch backend unavailable: {e}");
+            Err(Error::new(e.clone()))
+        }
     }
 }
 

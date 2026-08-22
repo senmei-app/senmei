@@ -80,7 +80,14 @@ impl Decoder {
             cmd.arg("-vf").arg(filters.join(","));
         }
 
-        let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
+        // stdin null: the decoder never reads stdin, and inheriting the
+        // terminal's stdin would leave the pty held by an orphaned ffmpeg
+        // after the app is killed (terminal appears frozen until `reset`).
+        let mut child = cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
 
         let stdout = child
             .stdout
