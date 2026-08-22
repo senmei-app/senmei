@@ -225,6 +225,7 @@ jobs:
             (cd /tmp && rm -rf libtorch-cpu-2.12 && mkdir libtorch-cpu-2.12 && cd libtorch-cpu-2.12 && unzip -q ../libtorch-cpu.zip)
           fi
           echo "LIBTORCH=/tmp/libtorch-cpu-2.12/libtorch" >> "$GITHUB_ENV"
+          echo "LIBTORCH_BYPASS_VERSION_CHECK=1" >> "$GITHUB_ENV"
       - name: Build app bundle
         shell: bash
         run: |
