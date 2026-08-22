@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **feat: VRAM guard for the fused RGB8 path (2026-08-22)** — oversized fused
+  renders are rejected with a clear error *before* the ~3.2 GB single
+  allocation OOM (which lost the wgpu device handle) instead of silently
+  falling back to the slow CPU path. Hard 2 GiB peak window (1080p×4 is over
+  it — tile size and autotune level don't help; 720p×4 / 1080p×2 stay under)
+  plus a free-VRAM budget read from DRM sysfs. Root cause of the 1080p×4
+  allocation (wgpu/burn internal) still open; the x2 fused path is unaffected.
+
 - **perf: readback pipelining (2026-08-22)** — the fused RGB8 forward is split
   from its readback (`infer_rgb8_submit` → `Rgb8Batch`); the upscale step keeps
   `pipeline_depth` batches in flight, queuing the next forward **before**

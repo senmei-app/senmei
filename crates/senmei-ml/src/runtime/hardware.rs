@@ -56,6 +56,37 @@ pub fn detect() -> Hardware {
     }
 }
 
+/// Free VRAM on the discrete GPU with the most memory (Linux DRM sysfs:
+/// `total − used`), for the fused-path VRAM guard. `None` when unreadable.
+#[cfg(target_os = "linux")]
+pub fn vram_available_bytes() -> Option<u64> {
+    let mut best: Option<(u64, u64)> = None;
+    let entries = std::fs::read_dir("/sys/class/drm").ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with("renderD") {
+            continue;
+        }
+        let base = entry.path().join("device");
+        let read = |f: &str| {
+            std::fs::read_to_string(base.join(f))
+                .ok()
+                .and_then(|s| s.trim().parse::<u64>().ok())
+        };
+        let total = read("mem_info_vram_total")?;
+        let used = read("mem_info_vram_used").unwrap_or(0);
+        if best.map_or(true, |(t, _)| total > t) {
+            best = Some((total, used));
+        }
+    }
+    best.map(|(t, u)| t.saturating_sub(u))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn vram_available_bytes() -> Option<u64> {
+    None
+}
+
 mod cuda {
     use super::*;
 

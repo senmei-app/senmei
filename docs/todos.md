@@ -4,6 +4,9 @@
 
 ## Docs
 - Documentation / user guide
+- [ ] Add `senmei-core` (+ `senmei-server`) to the module structure in
+      AGENTS.md + PLAN.md — the shared core crate (render/models) is
+      undocumented there (2026-08-22)
 
 ## Findings
 - libtorch on ROCm 7.14 / nightly
@@ -54,9 +57,10 @@
 - [ ] Engine Auto: prefer burn-Vulkan; tch/ROCm opt-in + RDNA4 warning (next
       release) — RDNA4 ROCm 7.14 can GPU-hang/reset the desktop (see
       engine-decision); don't auto-select tch on AMD, warn when chosen
-- [ ] Fused RGB8 x4 re-scale works but 1080p OOMs autotune (3.2 GB alloc —
-      `docs/upstream-issues.md` §2 pattern). VRAM guard: DRM-Sysfs budget,
-      autotune off on big canvases, no CPU fallback (Koharu approach)
+- [ ] Fused RGB8 1080p×4 single-allocation OOM (~3.2 GB, tile/autotune
+      independent) — VRAM guard now rejects it with a clear error (no CPU
+      fallback); root cause is a wgpu/burn internal buffer. Deep burn fix or
+      chunked readback needed to actually render 1080p×4 fused
 - [ ] Readback pooling: `infer_rgb8` allocates one staging buffer per frame —
       a small bounded readback pool would cut allocation + sync cost per frame
       (Koharu-style; audit 2026-08-22)

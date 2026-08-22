@@ -291,6 +291,33 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     let resample = scale != native_scale;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
+    // VRAM guard — no CPU fallback: reject with a clear error before the big
+    // canvas/readback allocation instead of silently dropping to the slow CPU
+    // path or hitting the OOM crash (which loses the wgpu device handle). The
+    // fused path's peak allocation scales with the output canvas; a ~3.2 GB
+    // single allocation was observed at 1080p×4, independent of tile size and
+    // autotune level (wgpu/burn internal), so keep large canvases under a hard
+    // 2 GiB window and under the free-VRAM budget.
+    let expected = fused_peak_allocation(n, out_h, out_w, c);
+    const HARD_LIMIT: u64 = 2 * 1024 * 1024 * 1024; // 2 GiB
+    if expected > HARD_LIMIT {
+        return Some(Err(Error::new(format!(
+            "fused RGB8 path needs ~{} MB peak ({} MiB hard limit) — use a lower \
+             scale (e.g. x2) or smaller resolution",
+            expected / (1024 * 1024),
+            HARD_LIMIT / (1024 * 1024),
+        ))));
+    }
+    if let Some(free) = crate::vram_available_bytes() {
+        if expected > free.saturating_mul(85) / 100 {
+            return Some(Err(Error::new(format!(
+                "fused RGB8 path needs ~{} MB VRAM ({} MB free) — close GPU apps or \
+                 lower scale/resolution",
+                expected / (1024 * 1024),
+                free / (1024 * 1024),
+            ))));
+        }
+    }
     let ov = (overlap as f32 * scale_f).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
@@ -400,6 +427,17 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         out_w_t,
         out_h_t,
     }))
+}
+
+/// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
+/// Canvas (f16 accs+covs) + f32 readback, ×4 for ops/COW/autotune overhead —
+/// a ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
+/// tile size and autotune level.
+#[cfg(feature = "burn")]
+fn fused_peak_allocation(n: usize, out_h: usize, out_w: usize, c: usize) -> u64 {
+    let canvas = (n * out_h * out_w * (c + 1) * 2) as u64; // accs + covs (f16)
+    let readback = (n * out_h * out_w * 3 * 4) as u64; // packed rgb24 f32
+    (canvas + readback) * 4
 }
 
 /// Deferred readback of one fused batch: blocks on the GPU→CPU transfer, then
@@ -543,4 +581,20 @@ pub fn infer_denoise<B: Backend>(
     };
     let out = out.slice([0..n, 0..3, 0..h, 0..w]);
     Some(to_tensor(out, [n, 3, h, w]))
+}
+
+#[cfg(all(test, feature = "burn"))]
+mod tests {
+    use super::fused_peak_allocation;
+
+    /// The VRAM guard's hard window: 1080p×4 is over 2 GiB (rejected — matches
+    /// the observed ~3.2 GB single-allocation OOM on RADV); 720p×4 and 1080p×2
+    /// stay under it.
+    #[test]
+    fn fused_vram_guard_window() {
+        const LIMIT: u64 = 2 * 1024 * 1024 * 1024;
+        assert!(fused_peak_allocation(1, 4480, 8320, 3) > LIMIT);
+        assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT);
+        assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT);
+    }
 }
