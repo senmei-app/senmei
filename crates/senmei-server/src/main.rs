@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
     // GUI main); set before the runtime spawns any thread so workers and the
     // render threads inherit it.
     std::env::set_var("RUST_MIN_STACK", "33554432");
-    env_logger::init();
+    senmei_server::logging::init(&senmei_core::core::data_dir());
     let cli = Cli::parse();
 
     let rt = tokio::runtime::Runtime::new()?;

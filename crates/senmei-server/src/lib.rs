@@ -7,6 +7,7 @@
 //! not require a refactor.
 
 pub use senmei_core::core;
+pub mod logging;
 pub mod mcp;
 #[cfg(feature = "http")]
 pub mod http;
@@ -16,7 +17,7 @@ use rmcp::{ServiceExt, transport::stdio};
 /// Run the headless service (HTTP or MCP over stdio) from the `senmei`
 /// binary. `mcp` wins when both flags are set.
 pub async fn run_headless(http_port: u16, mcp: bool) -> anyhow::Result<()> {
-    env_logger::init();
+    logging::init(&core::data_dir());
     if mcp {
         log::info!("senmei: serving MCP over stdio");
         let service = mcp::SenmeiServer.serve(stdio()).await?;

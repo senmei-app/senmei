@@ -84,24 +84,26 @@ pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
 
 /// List registry models, annotating `downloaded` from the on-disk weight files.
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
-    load_registry()
-        .map(|(registry, dir)| {
-            registry
-                .models()
-                .iter()
-                .cloned()
-                .map(|mut m| {
-                    m.downloaded = m
-                        .weights
-                        .as_ref()
-                        .and_then(|w| w.first())
-                        .map(|w| dir.join(w).is_file())
-                        .unwrap_or(false);
-                    m
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    match load_registry() {
+        Ok((registry, dir)) => registry
+            .models()
+            .iter()
+            .cloned()
+            .map(|mut m| {
+                m.downloaded = m
+                    .weights
+                    .as_ref()
+                    .and_then(|w| w.first())
+                    .map(|w| dir.join(w).is_file())
+                    .unwrap_or(false);
+                m
+            })
+            .collect(),
+        Err(e) => {
+            log::warn!("list_models: registry load failed: {e}");
+            Vec::new()
+        }
+    }
 }
 
 /// Recursively list videos under `dir` (batch folder scan over HTTP).
@@ -525,6 +527,7 @@ pub fn engine_for_model(
     let mut engine =
         senmei_ml::engine_for_model(&mref, backend, &data_dir()).map_err(|e| e.to_string())?;
     engine.load(&mref).map_err(|e| e.to_string())?;
+    log::info!("engine: {model_id} weights loaded");
     Ok(engine)
 }
 

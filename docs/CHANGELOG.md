@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **fix: log the headless/error path (2026-08-22)** —
+  - `list_models` no longer swallows a registry load failure (logs it instead
+    of silently returning an empty list).
+  - model weight loads are logged ("weights loaded"): a log tail ending before
+    that line pinpoints a load-time crash vs. one mid-render.
+  - HTTP responses log client rejections (`warn`) and server errors (`error`);
+    `json_ok` no longer returns a silent empty 200 on serialize failure.
+  - `senmei-server` now writes a rotating `senmei.log` (Info+) to the data dir
+    (same scheme as the GUI), so headless/HTTP runs leave a trace.
+
 - **fix: cancel cleans up properly (2026-08-22)** — a cancel used to leave the
   encode ffmpeg to mux the whole output file (`Encoder::finish` → `child.wait`),
   holding the pipeline (and its GPU engine) hostage until it returned; a quick

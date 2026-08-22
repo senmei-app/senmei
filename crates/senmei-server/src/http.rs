@@ -79,11 +79,21 @@ struct CompareParams {
 type ApiResult = (StatusCode, Json<serde_json::Value>);
 
 fn json_ok<T: Serialize>(v: &T) -> ApiResult {
-    (StatusCode::OK, Json(serde_json::to_value(v).unwrap_or_default()))
+    let value = serde_json::to_value(v).unwrap_or_else(|e| {
+        log::error!("http serialization failed: {e}");
+        serde_json::Value::Null
+    });
+    (StatusCode::OK, Json(value))
 }
 
 fn json_err(status: StatusCode, msg: impl Into<String>) -> ApiResult {
-    (status, Json(serde_json::json!({ "error": msg.into() })))
+    let msg = msg.into();
+    if status.is_server_error() {
+        log::error!("http {status}: {msg}");
+    } else {
+        log::warn!("http rejected {status}: {msg}");
+    }
+    (status, Json(serde_json::json!({ "error": msg })))
 }
 
 async fn models() -> ApiResult {
