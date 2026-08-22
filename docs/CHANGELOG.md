@@ -8,6 +8,19 @@
 
 ## Unreleased
 
+- **fix: cancel cleans up properly (2026-08-22)** — a cancel used to leave the
+  encode ffmpeg to mux the whole output file (`Encoder::finish` → `child.wait`),
+  holding the pipeline (and its GPU engine) hostage until it returned; a quick
+  re-render then ran two GPU engines at once (the RDNA4 reset pattern). Cancel
+  now aborts the encoder immediately (`Encoder::abort` = kill + reap), the
+  render gate rejects a new render while the previous one is still running or
+  cleaning up, and cancel is logged (GUI command, core, pipeline).
+
+- **fix: sample render drops audio (2026-08-22)** — ranged sample renders copied
+  the source audio (`-c:a copy`), which needed `-ss`/`-t`/`-copyts` mux surgery
+  and hung at 100% on ranged inputs. Samples now force `-an`: a single
+  rawvideo-pipe stream has no mux-sync hazard.
+
 - **perf: multi-frame fused batching (2026-08-22)** — `InferenceEngine` gains
   `infer_rgb8_batch` (fused tiled RGB8 over the batch dim: one tile grid, one
   feather mask, fewer launches/readbacks; bit-identical to N separate

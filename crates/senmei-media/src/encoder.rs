@@ -304,6 +304,14 @@ impl Encoder {
             }))
         }
     }
+
+    /// Abort the encoder immediately (cancel path): kill ffmpeg and reap it so
+    /// the pipeline frees its resources without waiting for a normal mux
+    /// finalize. The caller discards the output file.
+    pub fn abort(mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 impl Drop for Encoder {

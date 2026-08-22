@@ -130,12 +130,20 @@ impl Pipeline {
             end_ms.map(|e| e.saturating_sub(start_ms)),
             &self.encoder_args,
         )?;
+        let enc_cancel = self.cancel.clone();
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
             let mut processed = 0u64;
             let mut enc_n = 0u64;
             let mut enc_acc = std::time::Duration::ZERO;
             while let Ok(frame) = out_rx.recv() {
+                // Abort ffmpeg on cancel instead of draining the channel and
+                // finalizing: the normal `finish` muxes the whole file and
+                // holds the pipeline (and its GPU engine) until it returns.
+                if enc_cancel.load(Ordering::Relaxed) {
+                    enc.abort();
+                    return Ok(());
+                }
                 let t0 = std::time::Instant::now();
                 enc.write_frame(&frame)?;
                 enc_acc += t0.elapsed();
@@ -151,6 +159,10 @@ impl Pipeline {
                         enc_acc.as_secs_f64() * 1000.0 / enc_n as f64
                     );
                 }
+            }
+            if enc_cancel.load(Ordering::Relaxed) {
+                enc.abort();
+                return Ok(());
             }
             enc.finish().map_err(Error::from)
         });
@@ -264,6 +276,10 @@ impl Pipeline {
                     break;
                 }
             }
+        }
+
+        if main_err.as_ref().is_some_and(|e| e.to_string() == "cancelled") {
+            log::info!("pipeline: cancelled");
         }
 
         drop(out_tx);

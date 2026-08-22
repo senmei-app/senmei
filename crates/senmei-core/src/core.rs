@@ -261,6 +261,33 @@ static PENDING_RENDER: OnceLock<Mutex<Option<RenderConfig>>> = OnceLock::new();
 #[cfg(feature = "render")]
 static RENDER_STATUS: OnceLock<Arc<Mutex<RenderStatus>>> = OnceLock::new();
 
+/// Serializes renders across transports (GUI command, MCP, HTTP): a new render
+/// is rejected while one is still running — including its cleanup, so cancel +
+/// immediate re-render never overlap two GPU engines.
+#[cfg(feature = "render")]
+static RENDER_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// RAII guard that frees [`RENDER_ACTIVE`] on drop, including early `?` returns.
+#[cfg(feature = "render")]
+struct RenderGate;
+
+#[cfg(feature = "render")]
+impl RenderGate {
+    fn acquire() -> Result<Self, String> {
+        if RENDER_ACTIVE.swap(true, Ordering::SeqCst) {
+            return Err("a render is already running".into());
+        }
+        Ok(RenderGate)
+    }
+}
+
+#[cfg(feature = "render")]
+impl Drop for RenderGate {
+    fn drop(&mut self) {
+        RENDER_ACTIVE.store(false, Ordering::SeqCst);
+    }
+}
+
 /// Extra knobs the caller may pass into [`render`]: the fused-RGB8 tile size
 /// (0 = engine default 640) and the caller's own cancel/pause flags. When
 /// `cancel`/`pause` are `None`, the shared core flags (used by
@@ -656,6 +683,7 @@ pub fn render(
     opts: &RenderOpts,
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
 ) -> Result<Vec<StepTimingInfo>, String> {
+    let _gate = RenderGate::acquire()?;
     senmei_ml::set_tile_size(opts.tile_size);
     let cancel = match &opts.cancel {
         Some(c) => c.clone(),
@@ -756,6 +784,11 @@ fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<
 /// Render a short sample range synchronously — no confirm gate (samples are
 /// cheap). Returns the output path plus best-effort before/after PNG frames at
 /// the range midpoint. Rejects while another render is running.
+///
+/// Samples are quality-check only, so audio is dropped (`-an`): the copied
+/// audio input is exactly what needs `-ss`/`-t`/`-copyts`/`-shortest` mux
+/// surgery on ranged renders (and has hung at 100% before). A single
+/// rawvideo-pipe stream has no mux-sync hazard.
 #[cfg(feature = "render")]
 pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> {
     if render_status().state == "running" {
@@ -766,6 +799,14 @@ pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> 
         (Some(s), Some(e)) if e > s => (s, e),
         _ => return Err("render_sample requires start_ms < end_ms".into()),
     };
+    let mut config = config;
+    // Strip any caller audio codec (e.g. `-c:a copy`) then force `-an`.
+    let args = config.ffmpeg_args.get_or_insert_with(Vec::new);
+    args.retain(|a| a != "-an");
+    if let Some(pos) = args.windows(2).position(|w| w[0] == "-c:a") {
+        args.drain(pos..pos + 2);
+    }
+    args.push("-an".into());
     render(&config, &RenderOpts::default(), |_| {})?;
 
     let mid = start + (end - start) / 2;
@@ -891,12 +932,25 @@ pub fn render_status() -> RenderStatus {
 pub fn cancel_render() {
     if let Some(c) = CANCEL_RENDER.get() {
         c.store(true, Ordering::Relaxed);
+        log::info!("render cancelled (flag set)");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn render_gate_serializes() {
+        let gate = RenderGate::acquire().unwrap();
+        assert!(
+            RenderGate::acquire().is_err(),
+            "a second render must be rejected while one is active"
+        );
+        drop(gate);
+        assert!(RenderGate::acquire().is_ok(), "gate must free on drop");
+    }
 
     #[test]
     fn settings_schema_has_slots_and_constraints() {

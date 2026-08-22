@@ -547,6 +547,7 @@ fn filter_to_core(f: FilterParams) -> core::FilterConfig {
 pub fn cancel_render() {
     if let Some(c) = CANCEL_RENDER.get() {
         c.store(true, Ordering::Relaxed);
+        log::info!("render cancelled (flag set)");
     }
 }
 
