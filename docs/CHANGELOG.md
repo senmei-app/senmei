@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **docs: module structure — senmei-core + senmei-server (2026-08-22)** —
+  AGENTS.md + PLAN.md now list the two headless crates (transport-agnostic core
+  + MCP/HTTP service); the matching `todos.md` entry is closed.
+
 - **docs: README + screenshots (2026-08-22)** — hero screenshot, status note,
   Installation + System requirements sections, Quickstart renamed "from source";
   all six UI screenshots re-captured at 1280×800 and cropped to content (no

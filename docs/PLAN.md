@@ -129,7 +129,9 @@ senmei/
 │  ├─ senmei-app/             # Tauri commands, app state, IPC (Channel<PreviewFrame>)
 │  ├─ senmei-pipeline/        # render orchestration, queue, events, progress
 │  ├─ senmei-ml/              # InferenceEngine trait, burn engine (Vulkan fp16), model registry
-│  └─ senmei-media/           # FFmpeg process, frame decode/encode, video probe, encoder profiles
+│  ├─ senmei-media/           # FFmpeg process, frame decode/encode, video probe, encoder profiles
+│  ├─ senmei-core/            # transport-agnostic core: probe/render/models/queue + gates
+│  └─ senmei-server/          # headless service: MCP (stdio) + HTTP (axum)
 ├─ packages/
 │  ├─ ui/                     # reusable UI kit (Base UI + Tailwind)
 │  ├─ bridge/                 # generated types (tauri-specta)

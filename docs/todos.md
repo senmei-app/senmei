@@ -4,9 +4,6 @@
 
 ## Docs
 - Documentation / user guide
-- [ ] Add `senmei-core` (+ `senmei-server`) to the module structure in
-      AGENTS.md + PLAN.md — the shared core crate (render/models) is
-      undocumented there (2026-08-22)
 
 ## Findings
 - libtorch on ROCm 7.14 / nightly
@@ -61,12 +58,6 @@
       independent) — VRAM guard now rejects it with a clear error (no CPU
       fallback); root cause is a wgpu/burn internal buffer. Deep burn fix or
       chunked readback needed to actually render 1080p×4 fused
-- [ ] Readback pooling: `infer_rgb8` allocates one staging buffer per frame —
-      a small bounded readback pool would cut allocation + sync cost per frame
-      (Koharu-style; audit 2026-08-22)
-- [ ] Huge single frames (8K+): pre-check the input against a sensible VRAM
-      budget before relying on the tile path (mirror Koharu `max_pixels`;
-      audit 2026-08-22)
 - [ ] Drop in-repo workarounds on the next burn bump: custom `group_norm`
       helper (burn#5410 merged — native mean_dim) + `Span::pad_k96` (cubek#519,
       once fixed); re-check tiling/pipelining after the bump (2026-08-22)

@@ -37,6 +37,8 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 - `crates/senmei-pipeline` — orchestration, queue, events
 - `crates/senmei-ml` — `InferenceEngine` trait, `BurnEngine` (Vulkan fp16), burn archs (`burn/realesrgan`, `burn/rife`, `burn/upcunet`, `burn/warp`), model registry
 - `crates/senmei-media` — FFmpeg process, frame pipe, encoder profiles
+- `crates/senmei-core` — transport-agnostic core: probe/render/models/queue + license/confirm gates
+- `crates/senmei-server` — headless service: MCP (stdio) + HTTP (axum) adapters
 - `packages/app` — React frontend (3-panel + timeline)
 - `packages/ui` — reusable UI kit
 - `packages/bridge` — generated types (tauri-specta)
