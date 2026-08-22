@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **perf: multi-frame fused batching (2026-08-22)** — `InferenceEngine` gains
+  `infer_rgb8_batch` (fused tiled RGB8 over the batch dim: one tile grid, one
+  feather mask, fewer launches/readbacks; bit-identical to N separate
+  `infer_rgb8` calls). `Step` gains `process_batch`/`flush`; the pipeline
+  accumulates up to 4 frames (`BATCH_SIZE`) and runs the whole chain once per
+  batch, with a trailing flush cascade on decoder EOF. `Upscale` uses the batch
+  path only for equal-sized frames, falling back to per-frame otherwise.
+  `warmup()` runs one tiled forward on load so the autotune cache is warm before
+  the first real frame.
+
 - **fix: render/engine edge cases from review (2026-08-22)** —
   - cancel is set up + cleared *before* the (slow) model load, so a cancel
     issued while models load is no longer overwritten to false.

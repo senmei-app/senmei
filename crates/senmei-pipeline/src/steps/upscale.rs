@@ -4,7 +4,7 @@ use senmei_ml::{InferOptions, InferenceEngine};
 use crate::frame::{frame_to_tensor, tensor_to_frame};
 use crate::Step;
 
-use super::TILE_SIZE;
+use super::{process_individually, TILE_SIZE};
 
 /// Upscale step: runs the input frame through an ML engine, or falls back
 /// to a CPU bilinear scaler when no engine is available.
@@ -69,5 +69,34 @@ impl Step for Upscale {
         let new_h = out.shape[2] as u32;
         *frame = tensor_to_frame(&out, new_w, new_h);
         Ok(true)
+    }
+
+    fn process_batch(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
+        // Fused multi-frame RGB8 path: only when the engine supports it and
+        // every input shares dimensions (the batch API requires that).
+        let batchable = frames.len() > 1
+            && self.engine.is_some()
+            && frames
+                .windows(2)
+                .all(|w| w[0].width == w[1].width && w[0].height == w[1].height);
+        if !batchable {
+            return process_individually(self, frames);
+        }
+        let engine = self.engine.as_mut().expect("checked above");
+        let inputs: Vec<_> = frames.iter().map(frame_to_tensor).collect();
+        // Scale mismatch or an engine without the batch path returns `None`,
+        // which falls back to the per-frame path (incl. bilinear re-scale).
+        if let Some(res) = engine.infer_rgb8_batch(&inputs, self.scale) {
+            let outs = res.map_err(|e| crate::Error::new(e.to_string()))?;
+            for (frame, (bytes, w, h)) in frames.iter_mut().zip(outs) {
+                *frame = Frame {
+                    width: w,
+                    height: h,
+                    data: bytes,
+                };
+            }
+            return Ok(());
+        }
+        process_individually(self, frames)
     }
 }

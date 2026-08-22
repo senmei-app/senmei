@@ -21,6 +21,43 @@ pub trait Step: Send {
     fn name(&self) -> &'static str;
     /// Transform a frame; return `false` to drop it from the output (dedup).
     fn process(&mut self, frame: &mut Frame) -> crate::Result<bool>;
+
+    /// Transform a batch in place; the default runs `process` per frame and
+    /// drops the frames that return `false`. Steps with a fused multi-frame
+    /// engine path override this (see `Upscale`).
+    fn process_batch(&mut self, frames: &mut Vec<Frame>) -> crate::Result<()> {
+        let mut i = 0;
+        while i < frames.len() {
+            if self.process(&mut frames[i])? {
+                i += 1;
+            } else {
+                frames.remove(i);
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit any buffered state after the last batch (default no-op).
+    fn flush(&mut self, _frames: &mut Vec<Frame>) -> crate::Result<()> {
+        Ok(())
+    }
+}
+
+/// Run `process` per frame, removing the frames the step drops. Shared by the
+/// trait default and steps that fall back from a fused batch path.
+pub(crate) fn process_individually(
+    step: &mut dyn Step,
+    frames: &mut Vec<Frame>,
+) -> crate::Result<()> {
+    let mut i = 0;
+    while i < frames.len() {
+        if step.process(&mut frames[i])? {
+            i += 1;
+        } else {
+            frames.remove(i);
+        }
+    }
+    Ok(())
 }
 
 pub struct Passthrough;
@@ -161,6 +198,140 @@ mod tests {
         step.process(&mut frame).unwrap();
         assert_eq!((frame.width, frame.height), (8, 8)); // 4x engine output forced back to 2x
         assert_eq!(frame.data.len(), 3 * 8 * 8);
+    }
+
+    // Fake engine that records `infer_rgb8_batch` calls and bilinearly doubles
+    // each frame (requested scale is honored per frame).
+    struct BatchEngine {
+        calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl BatchEngine {
+        fn new() -> (Self, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+            let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            (Self { calls: calls.clone() }, calls)
+        }
+    }
+
+    impl senmei_ml::InferenceEngine for BatchEngine {
+        fn capabilities(&self) -> senmei_ml::EngineCaps {
+            senmei_ml::EngineCaps { tiles: false }
+        }
+        fn load(&mut self, _m: &senmei_ml::ModelRef) -> senmei_ml::Result<()> {
+            Ok(())
+        }
+        fn infer(
+            &mut self,
+            input: &Tensor,
+            _o: &senmei_ml::InferOptions,
+        ) -> senmei_ml::Result<Tensor> {
+            let h = input.shape[2];
+            let w = input.shape[3];
+            Ok(senmei_ml::bilinear(input, h * 2, w * 2))
+        }
+        fn native_scale(&self) -> u32 {
+            1
+        }
+        fn infer_rgb8_batch(
+            &mut self,
+            inputs: &[Tensor],
+            scale: u32,
+        ) -> Option<senmei_ml::Result<Vec<(Vec<u8>, u32, u32)>>> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let outs = inputs
+                .iter()
+                .map(|t| {
+                    let (_, _, h, w) = (t.shape[0], t.shape[1], t.shape[2], t.shape[3]);
+                    let out = senmei_ml::bilinear(t, h * scale as usize, w * scale as usize);
+                    let mut bytes = vec![0u8; 3 * h * w * scale as usize * scale as usize];
+                    for y in 0..h {
+                        for x in 0..w {
+                            let i = y * w + x;
+                            for c in 0..3 {
+                                let v = (out.data[c * h * w + i] * 255.0).round() as u8;
+                                for dy in 0..scale as usize {
+                                    for dx in 0..scale as usize {
+                                        let oy = y * scale as usize + dy;
+                                        let ox = x * scale as usize + dx;
+                                        bytes[(oy * w * scale as usize + ox) * 3 + c] = v;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    (bytes, (w * scale as usize) as u32, (h * scale as usize) as u32)
+                })
+                .collect();
+            Some(Ok(outs))
+        }
+    }
+
+    #[test]
+    fn process_batch_uses_batch_engine() {
+        let (engine, calls) = BatchEngine::new();
+        let mut step = Upscale::new(2, Some(Box::new(engine)));
+        let mut frames = vec![
+            Frame { width: 4, height: 4, data: vec![10u8; 3 * 4 * 4] },
+            Frame { width: 4, height: 4, data: vec![20u8; 3 * 4 * 4] },
+            Frame { width: 4, height: 4, data: vec![30u8; 3 * 4 * 4] },
+        ];
+        step.process_batch(&mut frames).unwrap();
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert_eq!(frames.len(), 3);
+        for f in &frames {
+            assert_eq!((f.width, f.height), (8, 8));
+            assert_eq!(f.data.len(), 3 * 8 * 8);
+        }
+    }
+
+    #[test]
+    fn process_batch_mixed_sizes_falls_back() {
+        let (engine, calls) = BatchEngine::new();
+        let mut step = Upscale::new(2, Some(Box::new(engine)));
+        let mut frames = vec![
+            Frame { width: 4, height: 4, data: vec![10u8; 3 * 4 * 4] },
+            Frame { width: 6, height: 4, data: vec![20u8; 3 * 4 * 6] },
+        ];
+        step.process_batch(&mut frames).unwrap();
+        // Unequal dims must not hit the batch API; per-frame path still scales.
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 0);
+        assert_eq!((frames[0].width, frames[0].height), (8, 8));
+        assert_eq!((frames[1].width, frames[1].height), (12, 8));
+    }
+
+    // Fake step that drops frames whose first byte is the marker 42.
+    struct DropMarked;
+
+    impl Step for DropMarked {
+        fn name(&self) -> &'static str {
+            "drop-marked"
+        }
+        fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
+            Ok(frame.data[0] != 42)
+        }
+    }
+
+    #[test]
+    fn process_batch_default_drops_frames() {
+        let mut step = DropMarked;
+        let mut frames = vec![
+            Frame { width: 1, height: 1, data: vec![1] },
+            Frame { width: 1, height: 1, data: vec![42] },
+            Frame { width: 1, height: 1, data: vec![3] },
+            Frame { width: 1, height: 1, data: vec![42] },
+        ];
+        step.process_batch(&mut frames).unwrap();
+        assert_eq!(frames.len(), 2);
+        assert_ne!(frames[0].data[0], 42);
+        assert_ne!(frames[1].data[0], 42);
+    }
+
+    #[test]
+    fn flush_default_is_noop() {
+        let mut step = DropMarked;
+        let mut frames = vec![Frame { width: 1, height: 1, data: vec![42] }];
+        step.flush(&mut frames).unwrap();
+        assert_eq!(frames.len(), 1);
     }
 
     #[test]

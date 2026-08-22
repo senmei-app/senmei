@@ -54,7 +54,30 @@ impl InferenceEngine for BurnEngine {
             }
         });
         self.scale = model.scale;
+        // Pre-tune the autotune cache at the real tile shapes so the first
+        // render frame doesn't stutter. Best-effort: models without a
+        // 3-channel single-input forward (DRUNet, RIFE, …) are skipped.
+        self.warmup();
         Ok(())
+    }
+
+    fn warmup(&mut self) {
+        let Some(model) = self.model.as_ref() else { return };
+        if !core::single_input_rgb(model) {
+            return;
+        }
+        let tile = crate::current_tile_size();
+        let x = burn::tensor::Tensor::<BurnBackend<f16>, 4>::from_data(
+            burn::tensor::TensorData::new(vec![0.0f32; 3 * tile * tile], [1, 3, tile, tile])
+                .convert::<f16>(),
+            &self.device,
+        );
+        // into_data forces the kernels (and their autotune) to actually run.
+        let _ = model.forward(x).map(|o| o.into_data());
+    }
+
+    fn native_scale(&self) -> u32 {
+        self.scale
     }
 
     fn infer(&mut self, input: &Tensor, _opts: &InferOptions) -> Result<Tensor> {
@@ -73,6 +96,20 @@ impl InferenceEngine for BurnEngine {
         }
         let model = self.model.as_ref()?;
         core::infer_rgb8(model, input, self.scale, &self.device)
+    }
+
+    /// Fused multi-frame RGB8 — only when the requested scale matches the
+    /// model (see `engine::core::infer_rgb8_batch`).
+    fn infer_rgb8_batch(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+        if self.scale != scale {
+            return None;
+        }
+        let model = self.model.as_ref()?;
+        core::infer_rgb8_batch(model, inputs, self.scale, &self.device)
     }
 
     fn infer_interp(

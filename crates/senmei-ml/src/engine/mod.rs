@@ -22,6 +22,18 @@ pub struct InferOptions {
 pub trait InferenceEngine: Send + Sync {
     fn capabilities(&self) -> EngineCaps;
     fn load(&mut self, model: &ModelRef) -> Result<()>;
+
+    /// Optional warmup: run one representative forward so the backend's
+    /// autotune cache is populated before the first real frame (avoids
+    /// first-render stutter). Default no-op.
+    fn warmup(&mut self) {}
+
+    /// The model's native upscale factor (1 for non-upscale models). Used to
+    /// keep the fused RGB8 path when the requested scale differs.
+    fn native_scale(&self) -> u32 {
+        1
+    }
+
     fn infer(&mut self, input: &Tensor, opts: &InferOptions) -> Result<Tensor>;
 
     /// Optional fused path: infer and hand back packed RGB8 bytes directly,
@@ -31,6 +43,18 @@ pub trait InferenceEngine: Send + Sync {
     /// pass OOMs autotune on large matmuls (see docs/upstream-issues.md §2).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let _ = (input, scale);
+        None
+    }
+
+    /// Optional fused multi-frame path: `n` same-shaped inputs, one RGB8
+    /// result per input, bit-identical to `n` separate `infer_rgb8` calls.
+    /// Returns `None` to fall back to per-frame `infer_rgb8`.
+    fn infer_rgb8_batch(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+        let _ = (inputs, scale);
         None
     }
 

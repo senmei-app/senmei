@@ -174,6 +174,16 @@ fn to_tensor<B: Backend>(out: BurnTensor<B, 4>, shape: [usize; 4]) -> Result<Ten
     Ok(Tensor::new(shape.to_vec(), data))
 }
 
+/// Models whose single-input `forward` takes a 3-channel RGB tensor (used to
+/// pick warmup inputs; DRUNet wants 4ch, FFDNet/RIFE/IFRNet have no
+/// single-input forward at all).
+pub fn single_input_rgb<B: Backend>(model: &Model<B>) -> bool {
+    !matches!(
+        model,
+        Model::Drunet(_) | Model::Ffdnet(_) | Model::RifeNet(_) | Model::IfrNet(_)
+    )
+}
+
 pub fn infer<B: Backend>(model: &Model<B>, input: &Tensor, device: &B::Device) -> Result<Tensor> {
     let x = to_burn::<B>(input, device)?;
     let out = model.forward(x)?;
@@ -196,12 +206,46 @@ pub fn infer_rgb8<B: Backend>(
     scale: u32,
     device: &B::Device,
 ) -> Option<Result<(Vec<u8>, u32, u32)>> {
-    if input.shape.len() != 4 {
+    let batch = infer_rgb8_batch(model, std::slice::from_ref(input), scale, device)?;
+    Some(batch.map(|mut v| v.pop().unwrap()))
+}
+
+/// Fused multi-frame RGB8 path: `n` same-shaped NCHW inputs, each handed back
+/// as packed rgb24 bytes. Tiles still run one tile position at a time (larger
+/// batched matmuls are pathologically slower on this backend —
+/// docs/benchmarks.md), but each forward carries all `n` frames' tile for that
+/// position in the batch dim — fewer launches/readbacks, the per-tile feather
+/// mask is computed once and shared. Output is bit-identical to `n` separate
+/// `infer_rgb8` calls (batch dim is independent in every conv).
+#[cfg(feature = "burn")]
+pub fn infer_rgb8_batch<B: Backend>(
+    model: &Model<B>,
+    inputs: &[Tensor],
+    scale: u32,
+    device: &B::Device,
+) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+    if inputs.is_empty() {
+        return Some(Err(Error::new("empty batch")));
+    }
+    let n = inputs.len();
+    let [_, c, h, w] = [
+        inputs[0].shape[0],
+        inputs[0].shape[1],
+        inputs[0].shape[2],
+        inputs[0].shape[3],
+    ];
+    if inputs[0].shape.len() != 4 {
         return Some(Err(Error::new("expected NCHW input")));
     }
-    let c = input.shape[1];
-    let h = input.shape[2];
-    let w = input.shape[3];
+    for inp in inputs {
+        if inp.shape.len() != 4
+            || inp.shape[1] != c
+            || inp.shape[2] != h
+            || inp.shape[3] != w
+        {
+            return Some(Err(Error::new("batch inputs must share NCHW dims")));
+        }
+    }
     let tile = crate::current_tile_size();
     let overlap = tile / 4;
     let step = tile - overlap;
@@ -209,8 +253,12 @@ pub fn infer_rgb8<B: Backend>(
     let num_x = (w.saturating_sub(tile)).div_ceil(step) + 1;
     let ph = (num_y - 1) * step + tile;
     let pw = (num_x - 1) * step + tile;
-    let padded = crate::pad_to(input, ph, pw);
-    let tiles = crate::uniform_tile(&padded, tile, step);
+    // Pad + tile each frame once; all frames share the tile grid.
+    let frames: Vec<Vec<(usize, usize, Tensor)>> = inputs
+        .iter()
+        .map(|inp| crate::uniform_tile(&crate::pad_to(inp, ph, pw), tile, step))
+        .collect();
+    let ntiles = frames[0].len();
 
     let scale_f = scale as f32;
     let out_h = (ph as f32 * scale_f).round() as usize;
@@ -235,31 +283,40 @@ pub fn infer_rgb8<B: Backend>(
         }
         w
     };
-    // Accumulate tiles into one weighted canvas on the device. Tiles run
-    // one-by-one (larger batched matmuls are pathologically slower on this
-    // backend — docs/benchmarks.md). We sum rather than replace so the
-    // overlap is truly averaged: slice_assign alone leaves the next tile's
-    // edge line visible at every seam. The intermediate view is scoped so
-    // the backend can write in place instead of copy-on-write. A single
-    // readback at the end avoids the burn-fusion ordering panic
-    // (docs/burn-bugs.md Bug 1).
-    let mut acc = BurnTensor::<B, 4>::zeros([1, c, out_h, out_w], device);
-    let mut cov = BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device);
-    for (x, y, t) in &tiles {
-        let data = TensorData::new(t.data.clone(), [1, c, tile, tile]).convert::<B::FloatElem>();
-        let xt = BurnTensor::<B, 4>::from_data(data, device);
-        let out = match model.forward(xt) {
+    // Accumulate tiles into one weighted canvas per frame on the device. We
+    // sum rather than replace so the overlap is truly averaged: slice_assign
+    // alone leaves the next tile's edge line visible at every seam. The
+    // intermediate view is scoped so the backend can write in place instead
+    // of copy-on-write. A single readback per frame at the end avoids the
+    // burn-fusion ordering panic (docs/burn-bugs.md Bug 1).
+    let mut accs: Vec<BurnTensor<B, 4>> = (0..n)
+        .map(|_| BurnTensor::<B, 4>::zeros([1, c, out_h, out_w], device))
+        .collect();
+    let mut covs: Vec<BurnTensor<B, 4>> = (0..n)
+        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device))
+        .collect();
+    for k in 0..ntiles {
+        let (x, y, _) = frames[0][k];
+        let mut data = Vec::with_capacity(n * c * tile * tile);
+        for f in &frames {
+            data.extend_from_slice(&f[k].2.data);
+        }
+        let batch = BurnTensor::<B, 4>::from_data(
+            TensorData::new(data, [n, c, tile, tile]).convert::<B::FloatElem>(),
+            device,
+        );
+        let out = match model.forward(batch) {
             Ok(o) => o,
             Err(e) => return Some(Err(e)),
         };
         let [_, _, oh, ow] = out.dims();
-        let sx = (*x as f32 * scale_f).round() as usize;
-        let sy = (*y as f32 * scale_f).round() as usize;
+        let sx = (x as f32 * scale_f).round() as usize;
+        let sy = (y as f32 * scale_f).round() as usize;
         // Clamp before accumulating: out-of-range values (>1.0 at hard
         // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
         let out = out.clamp(0.0, 1.0);
-        let wy = feather(oh, *y > 0, *y + tile < ph);
-        let wx = feather(ow, *x > 0, *x + tile < pw);
+        let wy = feather(oh, y > 0, y + tile < ph);
+        let wx = feather(ow, x > 0, x + tile < pw);
         let mut wv = Vec::with_capacity(oh * ow);
         for yy in 0..oh {
             let wyy = wy[yy];
@@ -271,35 +328,47 @@ pub fn infer_rgb8<B: Backend>(
             TensorData::new(wv, [1, 1, oh, ow]).convert::<B::FloatElem>(),
             device,
         );
-        let region = [0..1, 0..c, sy..sy + oh, sx..sx + ow];
-        let sum = {
-            let cur = acc.clone().slice(region.clone());
-            cur + out.mul(wmask.clone())
-        };
-        acc = acc.slice_assign(region, sum);
-        let cregion = [0..1, 0..1, sy..sy + oh, sx..sx + ow];
-        let csum = {
-            let ccur = cov.clone().slice(cregion.clone());
-            ccur + wmask
-        };
-        cov = cov.slice_assign(cregion, csum);
-    }
-    let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-    // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
-    // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
-    // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays on CPU.
-    let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
-        Ok(v) => v,
-        Err(e) => return Some(Err(Error::new(e.to_string()))),
-    };
-    let mut bytes = Vec::with_capacity(data.len());
-    for v in data {
-        bytes.push((v + 0.5) as u8);
+        // slice_assign consumes the canvas, so swap a tiny placeholder out of
+        // the Vec and put the updated canvas back (avoids a full-canvas COW).
+        let placeholder = BurnTensor::<B, 4>::zeros([1, 1, 1, 1], device);
+        for f in 0..n {
+            let one = out.clone().slice([f..f + 1, 0..c, 0..oh, 0..ow]);
+            let region = [0..1, 0..c, sy..sy + oh, sx..sx + ow];
+            let sum = {
+                let cur = accs[f].clone().slice(region.clone());
+                cur + one.mul(wmask.clone())
+            };
+            let prev = std::mem::replace(&mut accs[f], placeholder.clone());
+            accs[f] = prev.slice_assign(region, sum);
+            let cregion = [0..1, 0..1, sy..sy + oh, sx..sx + ow];
+            let csum = {
+                let ccur = covs[f].clone().slice(cregion.clone());
+                ccur + wmask.clone()
+            };
+            let prev = std::mem::replace(&mut covs[f], placeholder.clone());
+            covs[f] = prev.slice_assign(cregion, csum);
+        }
     }
     let out_h_t = (h as f32 * scale_f).round() as usize;
     let out_w_t = (w as f32 * scale_f).round() as usize;
-    let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);
-    Some(Ok((cropped, out_w_t as u32, out_h_t as u32)))
+    let mut result = Vec::with_capacity(n);
+    for (acc, cov) in accs.into_iter().zip(covs) {
+        let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
+        // f32 readback (like `infer`) — a u8 `to_vec()` accumulates a
+        // burn-fusion 0.21 + cubecl-autotune ordering panic over repeated
+        // fused calls (see docs/burn-bugs.md Bug 1); the u8 cast stays on CPU.
+        let data: Vec<f32> = match avg.into_data().convert::<f32>().to_vec() {
+            Ok(v) => v,
+            Err(e) => return Some(Err(Error::new(e.to_string()))),
+        };
+        let mut bytes = Vec::with_capacity(data.len());
+        for v in data {
+            bytes.push((v + 0.5) as u8);
+        }
+        let cropped = crate::crop_rgb24(&bytes, out_w, out_h_t, out_w_t);
+        result.push((cropped, out_w_t as u32, out_h_t as u32));
+    }
+    Some(Ok(result))
 }
 
 pub fn infer_interp<B: Backend>(

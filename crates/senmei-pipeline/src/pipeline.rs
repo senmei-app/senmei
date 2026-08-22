@@ -20,6 +20,10 @@ pub struct StepTiming {
     pub total: std::time::Duration,
 }
 
+/// Frames accumulated before a batched step pass (fused multi-frame engine
+/// path). Bounded to keep VRAM and cancel latency in check.
+const BATCH_SIZE: usize = 4;
+
 pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
     timings: Vec<StepTiming>,
@@ -106,9 +110,7 @@ impl Pipeline {
             None => return Err(Error::new("no frames decoded")),
         };
         let mut first_batch = self.emit(first)?;
-        for (i, step) in self.steps.iter_mut().enumerate() {
-            first_batch = run_step(&mut self.timings[i], step.as_mut(), first_batch)?;
-        }
+        run_steps_batch(&mut self.timings, &mut self.steps, &mut first_batch)?;
         let (w, h) = (first_batch[0].width, first_batch[0].height);
 
         // 3-stage pipeline: decode (thread) -> process (main) -> encode (thread).
@@ -166,6 +168,7 @@ impl Pipeline {
         let mut main_err: Option<Error> = None;
         let mut proc_n = 0u64;
         let mut proc_acc = std::time::Duration::ZERO;
+        let mut pending: Vec<senmei_media::Frame> = Vec::with_capacity(BATCH_SIZE);
         for frame in first_batch {
             if out_tx.send(frame).is_err() {
                 main_err = Some(Error::new("encode channel closed"));
@@ -190,35 +193,25 @@ impl Pipeline {
                         break;
                     }
                     let t0 = std::time::Instant::now();
-                    let mut batch = match self.emit(frame) {
+                    pending.extend(match self.emit(frame) {
                         Ok(b) => b,
                         Err(e) => {
                             main_err = Some(e);
                             break;
                         }
-                    };
-                    let mut failed = false;
-                    for (i, step) in self.steps.iter_mut().enumerate() {
-                        let next = std::mem::take(&mut batch);
-                        match run_step(&mut self.timings[i], step.as_mut(), next) {
-                            Ok(kept) => batch = kept,
-                            Err(e) => {
-                                main_err = Some(e);
-                                failed = true;
-                                break;
-                            }
-                        }
+                    });
+                    // Wait for a full batch — the fused multi-frame engine path
+                    // amortizes launches/readbacks over the batch dim.
+                    if pending.len() < BATCH_SIZE {
+                        continue;
                     }
-                    if failed {
+                    if let Err(e) =
+                        run_steps_batch(&mut self.timings, &mut self.steps, &mut pending)
+                    {
+                        main_err = Some(e);
                         break;
                     }
-                    for frame in batch {
-                        if out_tx.send(frame).is_err() {
-                            main_err = Some(Error::new("encode channel closed"));
-                            break;
-                        }
-                    }
-                    proc_n += 1;
+                    proc_n += pending.len() as u64;
                     proc_acc += t0.elapsed();
                     if proc_n % 60 == 0 {
                         log::info!(
@@ -227,8 +220,49 @@ impl Pipeline {
                             proc_n as f64 / proc_acc.as_secs_f64()
                         );
                     }
+                    for frame in pending.drain(..) {
+                        if out_tx.send(frame).is_err() {
+                            main_err = Some(Error::new("encode channel closed"));
+                            break;
+                        }
+                    }
                 }
-                Err(_) => break, // decoder finished
+                Err(_) => {
+                    // Decoder finished: push the trailing partial batch through
+                    // the steps, then let stateful steps flush their tail.
+                    if let Err(e) =
+                        run_steps_batch(&mut self.timings, &mut self.steps, &mut pending)
+                    {
+                        main_err = Some(e);
+                        break;
+                    }
+                    for frame in pending.drain(..) {
+                        if out_tx.send(frame).is_err() {
+                            main_err = Some(Error::new("encode channel closed"));
+                            break;
+                        }
+                    }
+                    if main_err.is_some() {
+                        break;
+                    }
+                    let mut tail = Vec::new();
+                    for (i, step) in self.steps.iter_mut().enumerate() {
+                        if let Err(e) = run_flush(&mut self.timings[i], step.as_mut(), &mut tail) {
+                            main_err = Some(e);
+                            break;
+                        }
+                    }
+                    if main_err.is_some() {
+                        break;
+                    }
+                    for frame in tail {
+                        if out_tx.send(frame).is_err() {
+                            main_err = Some(Error::new("encode channel closed"));
+                            break;
+                        }
+                    }
+                    break;
+                }
             }
         }
 
@@ -279,23 +313,31 @@ impl Pipeline {
     }
 }
 
-/// Run a batch through one step, keeping only frames the step doesn't drop;
-/// accumulate elapsed time for the FPS report.
-fn run_step(
+/// Run a pending batch through every step in order; frames dropped by a step
+/// are removed in place. Accumulate per-step time for the FPS report.
+fn run_steps_batch(
+    timings: &mut [StepTiming],
+    steps: &mut [Box<dyn Step>],
+    batch: &mut Vec<senmei_media::Frame>,
+) -> Result<()> {
+    for (timing, step) in timings.iter_mut().zip(steps.iter_mut()) {
+        let t0 = std::time::Instant::now();
+        let n = batch.len() as u64;
+        step.process_batch(batch)?;
+        timing.frames += n;
+        timing.total += t0.elapsed();
+    }
+    Ok(())
+}
+
+/// Emit a step's buffered tail state (default no-op).
+fn run_flush(
     timing: &mut StepTiming,
     step: &mut dyn Step,
-    batch: Vec<senmei_media::Frame>,
-) -> Result<Vec<senmei_media::Frame>> {
+    frames: &mut Vec<senmei_media::Frame>,
+) -> Result<()> {
     let t0 = std::time::Instant::now();
-    let mut kept = Vec::with_capacity(batch.len());
-    let mut n = 0u64;
-    for mut frame in batch {
-        n += 1;
-        if step.process(&mut frame)? {
-            kept.push(frame);
-        }
-    }
-    timing.frames += n;
+    step.flush(frames)?;
     timing.total += t0.elapsed();
-    Ok(kept)
+    Ok(())
 }
