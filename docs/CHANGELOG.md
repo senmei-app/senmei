@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: preview audio stays in sync during playback (2026-08-23)** — rodio/cpal
+  buffer the output (~100 ms), so the audible track lagged the playhead, and
+  the track free-ran during playback. All audio repositions (play, scrub, mode
+  switch, loop) now seek the source ahead by a fixed lead
+  (`AUDIO_LEAD_MS = 120`) to compensate the output buffer, and playback
+  re-pins the track to the playhead every 500 ms so drift can't accumulate.
+
 - **fix: preview audio is seekable again (WAV, not FLAC) (2026-08-23)** — the
   preview track was extracted as FLAC, but rodio's FLAC decoder is **not
   seekable** (`try_seek` → `NotSupported`), so every seek (play-start, mode

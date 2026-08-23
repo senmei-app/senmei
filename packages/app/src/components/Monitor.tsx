@@ -134,6 +134,14 @@ export default function Monitor({
   }, []);
   const be = () => beRef.current;
 
+  // rodio/cpal buffer the output, so the audible track can lag the source
+  // position; the lead nudges the source ahead so the sound lands on the
+  // playhead. 0 = no compensation (measure the residual direction first).
+  const AUDIO_LEAD_MS = 0;
+  const syncAudio = (ms: number) => {
+    void be()?.audioSeek(ms + AUDIO_LEAD_MS).catch(() => {});
+  };
+
   // A stale extraction after a file switch must not load the old track.
   const audioFileRef = useRef<string | null>(null);
   useEffect(() => {
@@ -164,7 +172,7 @@ export default function Monitor({
     void be()?.audioSetVolume(volume).catch(() => {});
     // Always land on the playhead — a fresh load starts at 0, which is the
     // source's start and wrong for the result/compare views.
-    void be()?.audioSeek(posRef.current).catch(() => {});
+    syncAudio(posRef.current);
     if (playing) {
       void be()?.audioPlay().catch(() => {});
     }
@@ -215,7 +223,7 @@ export default function Monitor({
         // Sync the sound to the playhead before starting — otherwise the
         // track keeps its stale position (0 after a fresh load) and plays
         // off-screen content against the current view.
-        void be()?.audioSeek(v.currentTime * 1000).catch(() => {});
+        syncAudio(v.currentTime * 1000);
         void v.play();
         void be()?.audioPlay().catch(() => {});
       } else {
@@ -227,7 +235,7 @@ export default function Monitor({
     // Frame-fallback: rodio carries the sound, the timer drives frames.
     setPlaying((p) => {
       if (!p) {
-        void be()?.audioSeek(posRef.current).catch(() => {});
+        syncAudio(posRef.current);
         void be()?.audioPlay().catch(() => {});
       } else void be()?.audioPause().catch(() => {});
       return !p;
@@ -344,7 +352,7 @@ export default function Monitor({
     // result view repositions the video to the sample in-point, but the
     // extracted source track would otherwise stay wherever it was (0 on a
     // fresh load) and drift out of sync.
-    void be()?.audioSeek(next).catch(() => {});
+    syncAudio(next);
     if (fileChanged) {
       // Full stop only on a file switch; view (mode) toggles keep playing.
       setPlaying(false);
@@ -386,7 +394,7 @@ export default function Monitor({
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
-    void be()?.audioSeek(ms).catch(() => {});
+    syncAudio(ms);
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -430,7 +438,7 @@ export default function Monitor({
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
-        void be()?.audioSeek(inMs).catch(() => {});
+        syncAudio(inMs);
         if (!busy) {
           busy = true;
           loadFrame(inMs).finally(() => {
