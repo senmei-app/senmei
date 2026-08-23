@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import type { RawFrame } from "../../backend/types";
 
-/// Renders a decoded preview frame (raw RGB24, base64) into a canvas via
-/// `putImageData` — no `<img>`/PNG round-trip, works in any webview. The
+/// Renders a decoded preview frame (raw RGB24, base64) into a canvas. Frames
+/// are decoded into an offscreen buffer, then composited with one `drawImage`
+/// so rapid updates — or a resolution change — never show a torn/blank canvas
+/// on webkit2gtk. The visible canvas is only resized when the frame dimensions
+/// actually change (resizing clears it and can flicker at playback rate). The
 /// canvas keeps its aspect and is contained within the parent (like
-/// `object-contain`), so wrap it in a flex-centered box.
+/// `object-contain`).
 export default function FrameCanvas({
   frame,
   className,
@@ -13,6 +16,7 @@ export default function FrameCanvas({
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  const off = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -28,11 +32,17 @@ export default function FrameCanvas({
       rgba[j + 2] = bin.charCodeAt(i + 2);
       rgba[j + 3] = 255;
     }
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
+    // Decode into an offscreen buffer, then composite atomically.
+    if (!off.current) off.current = document.createElement("canvas");
+    const buf = off.current;
+    buf.width = w;
+    buf.height = h;
+    buf.getContext("2d")?.putImageData(new ImageData(rgba, w, h), 0, 0);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    canvas.getContext("2d")?.drawImage(buf, 0, 0);
   }, [frame]);
 
   return (

@@ -17,6 +17,10 @@
     reach the backend (no-op), so a muted start stayed audible until re-muted.
   - Switching preview views (source/result/A/B/compare) no longer stops
     playback; the full stop (pause audio, reset) happens only on a file switch.
+  - `FrameCanvas` double-buffers: frames decode into an offscreen canvas and
+    composite with one `drawImage`, and the visible canvas is only resized when
+    the dimensions change — direct per-frame `putImageData` tore on webkit2gtk
+    during playback / resolution changes (upscaled results, resize).
 
 - **perf: single preview-decode worker thread (2026-08-23)** — the
   `PreviewCache` (warm decode streams = ring buffer) now lives on one
