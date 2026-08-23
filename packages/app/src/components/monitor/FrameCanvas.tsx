@@ -39,13 +39,7 @@ export default function FrameCanvas({
     <canvas
       ref={ref}
       className={className}
-      style={{
-        maxWidth: "100%",
-        maxHeight: "100%",
-        width: "auto",
-        height: "auto",
-        margin: "auto",
-      }}
+      style={{ width: "100%", height: "100%", objectFit: "contain" }}
     />
   );
 }

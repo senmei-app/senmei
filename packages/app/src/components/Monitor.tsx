@@ -155,10 +155,14 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, beReady]);
 
-  // Audio arrives async (extraction takes seconds); if playback already
-  // started, join it at the current position instead of staying silent.
+  // Audio arrives async (extraction takes seconds). Apply the saved volume
+  // (incl. mute) once the track is loaded — the startup volume effect can't
+  // reach the backend before it resolves — and join playback if it already
+  // started.
   useEffect(() => {
-    if (audioReady && playing) {
+    if (!audioReady) return;
+    void be()?.audioSetVolume(volume).catch(() => {});
+    if (playing) {
       void be()?.audioSeek(posRef.current).catch(() => {});
       void be()?.audioPlay().catch(() => {});
     }
@@ -175,8 +179,10 @@ export default function Monitor({
     localStorage.setItem("senmei.volume", String(v));
   };
   useEffect(() => {
+    // Apply on change and once the backend resolves (the mount-time run has
+    // no backend yet).
     void be()?.audioSetVolume(volume).catch(() => {});
-  }, [volume]);
+  }, [volume, beReady]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -326,8 +332,11 @@ export default function Monitor({
       fileChanged ? 0 : mode === "result" || mode === "compare" ? Math.max(posMs, inMs) : posMs;
     setInfo(null);
     setPosMs(next);
-    setPlaying(false);
-    void be()?.audioPause().catch(() => {});
+    if (fileChanged) {
+      // Full stop only on a file switch; view (mode) toggles keep playing.
+      setPlaying(false);
+      void be()?.audioPause().catch(() => {});
+    }
     setFrames({});
     setError(null);
     setNativeFailed(false);

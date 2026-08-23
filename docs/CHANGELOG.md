@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **fix: preview playback + canvas fixes (2026-08-23)** —
+  - `FrameCanvas` scales like the old `<img>` (`object-fit: contain`), so the
+    preview fills the Full Video Mode overlay instead of keeping its intrinsic
+    size.
+  - The saved volume (incl. mute) is applied once the backend resolves and once
+    the audio track loads — the mount-time volume effect previously couldn't
+    reach the backend (no-op), so a muted start stayed audible until re-muted.
+  - Switching preview views (source/result/A/B/compare) no longer stops
+    playback; the full stop (pause audio, reset) happens only on a file switch.
+
 - **perf: single preview-decode worker thread (2026-08-23)** — the
   `PreviewCache` (warm decode streams = ring buffer) now lives on one
   dedicated worker thread; `read_frame` sends a request and awaits the frame.
