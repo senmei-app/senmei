@@ -9,7 +9,7 @@ import type {
   RenderProgress,
   VideoInfo,
 } from "@senmei/bridge";
-import type { Backend } from "./backend/types";
+import type { Backend, RawFrame } from "./backend/types";
 
 export const demoSettings = { language: "en", theme: "dark" };
 
@@ -109,20 +109,19 @@ function demoProbe(): VideoInfo {
   };
 }
 
-// 320x180 indigo frame (generated with ffmpeg) so the preview shows an image.
-const DEMO_FRAME_B64 =
-  "/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYyLjI4LjEwMgD/2wBDAAgEBAQEBAUFBQUFBQYGBgYGBgYGBgYGBgYHBwcIC" +
-  "AgHBwcGBgcHCAgICAkJCQgICAgJCQoKCgwMCwsODg4RERT/xABNAAEBAAAAAAAAAAAAAAAAAAAABwEBAQEAAAAAAAAAAAAAAA" +
-  "AAAAUGEAEAAAAAAAAAAAAAAAAAAAAAEQEAAAAAAAAAAAAAAAAAAAAA/8AAEQgAtAFAAwEiAAIRAAMRAP/aAAwDAQACEQMRAD8" +
-  "AkgDaLYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD" +
-  "/9k=";
-
-function demoFrame(): string {
-  return `data:image/jpeg;base64,${DEMO_FRAME_B64}`;
+function demoFrame(): RawFrame {
+  // Solid indigo 32x16 raw RGB24 so the preview shows a color in mock/dev.
+  const w = 32;
+  const h = 16;
+  const rgb = new Uint8Array(w * h * 3);
+  for (let i = 0; i < rgb.length; i += 3) {
+    rgb[i] = 79;
+    rgb[i + 1] = 70;
+    rgb[i + 2] = 229;
+  }
+  let bin = "";
+  for (let i = 0; i < rgb.length; i++) bin += String.fromCharCode(rgb[i]);
+  return { width: w, height: h, data: btoa(bin) };
 }
 
 let demoRenderTimer: ReturnType<typeof setInterval> | null = null;

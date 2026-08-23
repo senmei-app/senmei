@@ -57,40 +57,26 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
 /// transfer cheap. Only ever downscales.
 const PREVIEW_MAX_DIM: u32 = 1280;
 
-/// Extract one frame as a base64 PNG (fast seek via an ffmpeg pipe), capped to
-/// `PREVIEW_MAX_DIM` so preview frames match the display, not the source.
-pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
+/// Decode one frame as raw RGB24 (base64) with the preview decode budget.
+/// Returns `(width, height, base64)` so the frontend can build an `ImageData`.
+pub fn frame_raw(input: &str, position_ms: f64) -> Result<(u32, u32, String), String> {
     let ff = ffmpeg();
-    let vf = format!(
-        "scale='min(max(iw,ih),{c})':'min(max(iw,ih),{c})':force_original_aspect_ratio=decrease",
-        c = PREVIEW_MAX_DIM
-    );
-    let out = std::process::Command::new(&ff)
-        .args([
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-ss",
-            &format!("{:.3}", position_ms / 1000.0),
-            "-i",
-            input,
-            "-vf",
-            &vf,
-            "-frames:v",
-            "1",
-            "-c:v",
-            "png",
-            "-f",
-            "image2pipe",
-            "-",
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!("frame extraction failed for {input}"));
-    }
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ff,
+        Path::new(input),
+        position_ms.max(0.0) as u64,
+        None,
+        senmei_media::Tonemap::Auto,
+        Some(PREVIEW_MAX_DIM),
+    )
+    .map_err(|e| e.to_string())?;
+    let frame = dec
+        .next_frame()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("no frame at {position_ms:.0}ms for {input}"))?;
     use base64::Engine as _;
-    Ok(base64::engine::general_purpose::STANDARD.encode(out.stdout))
+    let data = base64::engine::general_purpose::STANDARD.encode(frame.data);
+    Ok((frame.width, frame.height, data))
 }
 
 /// List registry models, annotating `downloaded` from the on-disk weight files.

@@ -39,9 +39,17 @@ export type {
   VideoInfo,
 } from "@senmei/bridge";
 
-/// A preview frame, already usable as an `<img src>` (transport-specific:
-/// Tauri returns an `asset://`/`convertFileSrc` URL, HTTP a data URI).
+/// A URL usable as an `<img>`/`<video>` `src` (Tauri: `asset://`, HTTP: data).
 export type FrameSource = string;
+
+/// A decoded preview frame: raw RGB24 pixels (base64) + dimensions, for direct
+/// canvas rendering via `ImageData` (no `<img>`/PNG round-trip).
+export interface RawFrame {
+  width: number;
+  height: number;
+  /// base64-encoded RGB24 pixels.
+  data: string;
+}
 
 /// Register a drag-and-drop handler; returns an unregister function.
 export type DropHandler = (paths: string[]) => void;
@@ -63,8 +71,8 @@ export interface Backend {
 
   // Media
   probeVideo(input: string): Promise<VideoInfo>;
-  /// Extract a preview frame at `positionMs`; result is img-src ready.
-  readFrame(input: string, positionMs: number, projectDir?: string | null): Promise<FrameSource>;
+  /// Decode a preview frame at `positionMs` (raw RGB24, base64).
+  readFrame(input: string, positionMs: number, projectDir?: string | null): Promise<RawFrame>;
   /// Native-playable URL for a video file; `null` when the transport can't
   /// stream it (web falls back to FFmpeg-decoded frames).
   nativeVideoUrl(input: string): FrameSource | null;

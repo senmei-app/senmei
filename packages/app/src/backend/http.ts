@@ -15,7 +15,7 @@ import type {
   StepTimingInfo,
   VideoInfo,
 } from "@senmei/bridge";
-import type { Backend, FrameSource } from "./types";
+import type { Backend, RawFrame } from "./types";
 import { openPathDialog } from "./pathDialog";
 
 const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? "";
@@ -85,12 +85,12 @@ export const httpBackend: Backend = {
     return api<VideoInfo>("/api/probe", { method: "POST", body: JSON.stringify({ input }) });
   },
 
-  async readFrame(input, positionMs): Promise<FrameSource> {
-    const res = await api<{ data: string; mime: string }>("/api/frame", {
+  async readFrame(input, positionMs): Promise<RawFrame> {
+    const res = await api<{ width: number; height: number; data: string }>("/api/frame", {
       method: "POST",
       body: JSON.stringify({ input, positionMs }),
     });
-    return `data:${res.mime};base64,${res.data}`;
+    return { width: res.width, height: res.height, data: res.data };
   },
 
   nativeVideoUrl() {

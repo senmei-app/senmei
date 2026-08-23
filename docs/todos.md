@@ -32,7 +32,6 @@
       if hardware decode or canvas throughput demands it
 
 ## Preview / Media (2026-08-23, PLAN §18)
-- [ ] Phase 2: raw-frame transport + `FrameSink` trait (Tauri Channel raw → putImageData; HTTP binary); PNG/base64 out
 - [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
 - [ ] Audio: direct cpal/FFmpeg-PCM streaming + web Range-stream — FLAC-rodio path landed, native streaming is the refinement
 - [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open

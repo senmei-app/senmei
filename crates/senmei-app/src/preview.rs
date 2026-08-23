@@ -1,16 +1,37 @@
-//! Frame preview helpers: persistent decode streams + PNG writes.
+//! Frame preview helpers: persistent decode streams + raw-frame delivery.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::store;
 
 static PREVIEW_CACHE: OnceLock<Mutex<Option<senmei_media::PreviewCache>>> = OnceLock::new();
-static PREVIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 /// Preview decode budget (longest edge) — display-sized, keeps scrubbing cheap.
 const PREVIEW_MAX_DIM: u32 = 1280;
+
+/// A decoded preview frame: raw RGB24 bytes, base64-encoded for the IPC/JSON
+/// transport. `width`/`height` let the frontend build an `ImageData` directly
+/// (no `<img>`/PNG round-trip).
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameData {
+    pub width: u32,
+    pub height: u32,
+    /// base64-encoded RGB24 pixels.
+    pub data: String,
+}
+
+impl FrameData {
+    fn from_frame(f: senmei_media::Frame) -> Self {
+        use base64::Engine as _;
+        Self {
+            width: f.width,
+            height: f.height,
+            data: base64::engine::general_purpose::STANDARD.encode(f.data),
+        }
+    }
+}
 
 pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
     let ffmpeg = senmei_media::resolve(&store::data_dir());
@@ -44,22 +65,17 @@ fn preview_dir(project_dir: Option<&str>) -> std::path::PathBuf {
         })
 }
 
-/// Extract one frame at `position_ms` as a PNG file and return its path. Uses
-/// a persistent decode stream (one ffmpeg per file) so playback reads frames
-/// from the pipe instead of spawning a process per frame. Frames are written
-/// under the project (`preview/`) when one is open, else the app data dir;
-/// a non-writable project dir falls back to the data dir.
+/// Decode one frame at `position_ms` as raw RGB24 (base64) for the preview
+/// monitor. Uses a persistent decode stream (one ffmpeg per file) so playback
+/// reads frames from the pipe instead of spawning a process per frame; frames
+/// are downscaled to the preview budget.
 pub fn read_frame_inner(
     input: &str,
     position_ms: f64,
-    project_dir: Option<&str>,
-) -> Result<String, String> {
-    let dir = preview_dir(project_dir);
-    let ns = frame_ns(input);
-
+    _project_dir: Option<&str>,
+) -> Result<FrameData, String> {
     let ffmpeg = senmei_media::resolve(&store::data_dir());
-    // Decode under the lock (fast pipe read) but encode outside it, so the two
-    // compare sides don't serialize their (slow) PNG encode behind each other.
+    // Decode under the lock (fast pipe read); the frame is returned raw.
     let frame = {
         let mut cache = PREVIEW_CACHE
             .get_or_init(|| Mutex::new(None))
@@ -77,37 +93,7 @@ pub fn read_frame_inner(
                 e.to_string()
             })?
     };
-    let png = senmei_media::encode_png(frame.width, frame.height, &frame.data)
-        .map_err(|e| e.to_string())?;
-
-    let seq = PREVIEW_SEQ.fetch_add(1, Ordering::Relaxed);
-    // Stable filename + atomic overwrite: the webview re-fetches on a new query
-    // string (see Monitor) and never hits a pruned/mid-write file.
-    let path = dir.join(format!("frame_{ns}.png"));
-    let tmp = dir.join(format!("frame_{ns}.{seq}.tmp"));
-    std::fs::write(&tmp, &png).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
-    cap_preview_dir(&dir);
-    Ok(path.to_string_lossy().into_owned())
-}
-
-/// Keep the preview dir bounded: drop the oldest files (any namespace) beyond
-/// a cap. Frames now use a stable name, so only cross-file leftovers remain.
-fn cap_preview_dir(dir: &std::path::Path) {
-    const MAX_FILES: usize = 400;
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
-    let mut files: Vec<_> = entries.flatten().map(|e| e.path()).collect();
-    if files.len() <= MAX_FILES {
-        return;
-    }
-    files.sort_by_key(|p| {
-        std::fs::metadata(p)
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-    });
-    for p in files.iter().take(files.len() - MAX_FILES) {
-        let _ = std::fs::remove_file(p);
-    }
+    Ok(FrameData::from_frame(frame))
 }
 
 /// Extract the source audio once as FLAC for the native preview player — any

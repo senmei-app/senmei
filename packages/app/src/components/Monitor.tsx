@@ -7,8 +7,10 @@ import { basename } from "../paths";
 import { fmt, fmtDuration, parseDuration, snapFrame } from "./monitor/format";
 import Benchmark from "./monitor/Benchmark";
 import CompareView from "./monitor/CompareView";
+import FrameCanvas from "./monitor/FrameCanvas";
 import ModeTabs from "./monitor/ModeTabs";
 import Timeline from "./monitor/Timeline";
+import type { RawFrame } from "../backend/types";
 
 export default function Monitor({
   file,
@@ -65,11 +67,10 @@ export default function Monitor({
   const [playing, setPlaying] = useState(false);
   const [customVal, setCustomVal] = useState("");
   const [sampleMenu, setSampleMenu] = useState(false);
-  const [frames, setFrames] = useState<Record<string, string>>({});
+  const [frames, setFrames] = useState<Record<string, RawFrame>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
-  const frameBustRef = useRef(0);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   const name = src ? basename(src) : null;
@@ -268,7 +269,7 @@ export default function Monitor({
       targets.map(({ path, ms: t }) =>
         b
           .readFrame(path, t, projectDir ?? null)
-          .then((src) => ({ path, src }))
+          .then((frame) => ({ path, frame }))
           .catch((e) => {
             console.error("readFrame failed:", e);
             setError(String(e));
@@ -278,14 +279,11 @@ export default function Monitor({
     )
       .then((results) => {
         // Update every side together so compare never shows one ahead of the
-        // other (the result decode is slower than the source decode). Frames
-        // reuse a stable file per source; a query forces the webview to
-        // re-fetch (asset:// URLs cache otherwise). data: URIs are always fresh.
-        const updates: Record<string, string> = {};
+        // other (the result decode is slower than the source decode). Raw
+        // frames are stateless — no cache-busting needed.
+        const updates: Record<string, RawFrame> = {};
         for (const r of results) {
-          if (r) {
-            updates[r.path] = r.src.startsWith("data:") ? r.src : r.src + "?v=" + ++frameBustRef.current;
-          }
+          if (r) updates[r.path] = r.frame;
         }
         if (Object.keys(updates).length) {
           setFrames((prev) => ({ ...prev, ...updates }));
@@ -552,11 +550,9 @@ export default function Monitor({
               />
             </div>
           ) : src && frames[src] ? (
-            <img
-              src={frames[src]}
-              alt="preview"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[src]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">

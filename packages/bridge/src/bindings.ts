@@ -42,7 +42,7 @@ export const commands = {
 	 *  makes specta's TS export recurse forever.
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
-	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
+	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<FrameData>("read_frame", { input, positionMs, projectDir }),
 	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
 	/**
 	 *  Load an extracted audio file (FLAC/lossless PCM); playback stays paused
@@ -134,6 +134,18 @@ export type FilterParams = {
 	 *  1:1 only; runs after the reference/ML filters).
 	 */
 	ffmpegFilter?: string | null,
+};
+
+/**
+ *  A decoded preview frame: raw RGB24 bytes, base64-encoded for the IPC/JSON
+ *  transport. `width`/`height` let the frontend build an `ImageData` directly
+ *  (no `<img>`/PNG round-trip).
+ */
+export type FrameData = {
+	width: number,
+	height: number,
+	/**  base64-encoded RGB24 pixels. */
+	data: string,
 };
 
 export type HardwareSnapshot = {

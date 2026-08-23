@@ -8,7 +8,7 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::models::load_registry;
-use crate::preview::{extract_audio_inner, probe_video_inner, read_frame_inner};
+use crate::preview::{extract_audio_inner, probe_video_inner, read_frame_inner, FrameData};
 use crate::store;
 use senmei_core::core;
 
@@ -229,19 +229,14 @@ pub async fn read_frame(
     input: String,
     position_ms: f64,
     project_dir: Option<String>,
-    app: tauri::AppHandle,
-) -> Result<String, String> {
+) -> Result<FrameData, String> {
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
     // Decode off the main thread so the UI never freezes per frame.
-    let path = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         read_frame_inner(&input, position_ms, project_dir.as_deref())
     })
     .await
-    .map_err(|e| e.to_string())??;
-    let _ = app
-        .state::<tauri::scope::Scopes>()
-        .allow_file(std::path::Path::new(&path));
-    Ok(path)
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -632,7 +627,7 @@ mod tests {
     use crate::models::engine_for_model;
 
     #[test]
-    fn preview_commands_produce_png_and_info() {
+    fn preview_commands_produce_raw_frame_and_info() {
         let dir = std::env::temp_dir().join("senmei-cmd-smoke");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -657,10 +652,14 @@ mod tests {
         assert_eq!((info.width, info.height), (160, 120));
         assert!(info.duration > 0.0);
 
-        let file =
+        let frame =
             read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
-        let png = std::fs::read(&file).unwrap();
-        assert!(png.starts_with(&[0x89, 0x50, 0x4E, 0x47]), "not a PNG");
+        assert_eq!((frame.width, frame.height), (160, 120), "below the 1280 budget");
+        use base64::Engine as _;
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(&frame.data)
+            .expect("valid base64");
+        assert_eq!(raw.len(), 160 * 120 * 3, "raw RGB24 frame bytes");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

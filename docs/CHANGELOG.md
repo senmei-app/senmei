@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: preview frames → raw RGB24 + canvas (2026-08-23)** — the preview
+  transport drops the PNG/`<img>` round-trip on both paths: `read_frame`
+  (Tauri) and `/api/frame` (HTTP) now return raw RGB24 (base64) + dimensions,
+  and the frontend renders via `putImageData` on a canvas (`FrameCanvas`) — no
+  `<img>`, no cache-bust hack. Decode stays in `senmei-media` (transport-
+  agnostic); each transport just frames the payload. HTTP verified end-to-end
+  (1080p source → 1280×720 raw frame).
+
 - **perf: preview audio → lossless FLAC (2026-08-23)** — the native preview
   player no longer transcodes to lossy MP3: any source audio codec is decoded
   by our FFmpeg and re-encoded to lossless FLAC (rodio `flac` feature), so the

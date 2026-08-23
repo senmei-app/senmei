@@ -8,7 +8,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as bridge from "@senmei/bridge";
 import type { DownloadProgress, LogEntry, RenderProgress } from "@senmei/bridge";
-import type { Backend, FrameSource } from "./types";
+import type { Backend, FrameSource, RawFrame } from "./types";
 
 export const tauriBackend: Backend = {
   async healthCheck() {
@@ -57,11 +57,9 @@ export const tauriBackend: Backend = {
     return bridge.probeVideo(input);
   },
 
-  async readFrame(input, positionMs, projectDir = null): Promise<FrameSource> {
-    // bridge.readFrame resolves to the PNG path (string); convertFileSrc turns
-    // it into an asset:// URL the webview may load.
-    const file = await bridge.readFrame(input, positionMs, projectDir);
-    return convertFileSrc(file);
+  async readFrame(input, positionMs, projectDir = null): Promise<RawFrame> {
+    // bridge.readFrame resolves to raw RGB24 (base64) + dimensions.
+    return bridge.readFrame(input, positionMs, projectDir);
   },
 
   nativeVideoUrl(input): FrameSource | null {
