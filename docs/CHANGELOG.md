@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: preview audio follows the playhead (result sync) (2026-08-23)** — the
+  extracted source track started at 0 on a fresh load, but play-start and
+  mode-switch (into result/compare, which clamp the playhead to the sample
+  in-point) never repositioned the audio, so the result view played audio from
+  the beginning of the source video against frames from the sample window.
+  `togglePlay` now seeks the sound to the playhead before starting, the
+  `audioReady` effect always lands on the playhead after load, and the
+  mode-switch effect seeks to the clamped position.
+
 - **fix: preview decode applies the scale filter (2026-08-23)** — the
   `Decoder` built its ffmpeg command with `-vf` after the output URL
   (`-f rawvideo ... -`). This ffmpeg build silently drops a filter graph placed

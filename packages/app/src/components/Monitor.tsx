@@ -162,8 +162,10 @@ export default function Monitor({
   useEffect(() => {
     if (!audioReady) return;
     void be()?.audioSetVolume(volume).catch(() => {});
+    // Always land on the playhead — a fresh load starts at 0, which is the
+    // source's start and wrong for the result/compare views.
+    void be()?.audioSeek(posRef.current).catch(() => {});
     if (playing) {
-      void be()?.audioSeek(posRef.current).catch(() => {});
       void be()?.audioPlay().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,6 +212,10 @@ export default function Monitor({
     if (nativeSrc && videoRef.current) {
       const v = videoRef.current;
       if (v.paused) {
+        // Sync the sound to the playhead before starting — otherwise the
+        // track keeps its stale position (0 after a fresh load) and plays
+        // off-screen content against the current view.
+        void be()?.audioSeek(v.currentTime * 1000).catch(() => {});
         void v.play();
         void be()?.audioPlay().catch(() => {});
       } else {
@@ -220,8 +226,10 @@ export default function Monitor({
     }
     // Frame-fallback: rodio carries the sound, the timer drives frames.
     setPlaying((p) => {
-      if (!p) void be()?.audioPlay().catch(() => {});
-      else void be()?.audioPause().catch(() => {});
+      if (!p) {
+        void be()?.audioSeek(posRef.current).catch(() => {});
+        void be()?.audioPlay().catch(() => {});
+      } else void be()?.audioPause().catch(() => {});
       return !p;
     });
   };
@@ -332,6 +340,11 @@ export default function Monitor({
       fileChanged ? 0 : mode === "result" || mode === "compare" ? Math.max(posMs, inMs) : posMs;
     setInfo(null);
     setPosMs(next);
+    // Keep the sound on the (possibly clamped) playhead: switching into the
+    // result view repositions the video to the sample in-point, but the
+    // extracted source track would otherwise stay wherever it was (0 on a
+    // fresh load) and drift out of sync.
+    void be()?.audioSeek(next).catch(() => {});
     if (fileChanged) {
       // Full stop only on a file switch; view (mode) toggles keep playing.
       setPlaying(false);
