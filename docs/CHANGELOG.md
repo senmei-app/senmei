@@ -8,6 +8,18 @@
 
 ## Unreleased
 
+- **fix: preview decode applies the scale filter (2026-08-23)** — the
+  `Decoder` built its ffmpeg command with `-vf` after the output URL
+  (`-f rawvideo ... -`). This ffmpeg build silently drops a filter graph placed
+  after `-`, so any source larger than the preview budget (i.e. upscaled /
+  resized results > 1280 px) was decoded at full resolution while the decoder
+  read only a `1280×720`-sized chunk of each frame — row-shifted, so the
+  preview showed horizontal "stripes" / a torn crop. `-vf` now precedes the
+  output, and `-noautorotate` precedes `-i` (input options). Verified
+  byte-identical to a direct ffmpeg decode; regression test
+  `max_dim_downscales_matching_direct_ffmpeg` (1920×1080 → 1280×720) fails on
+  the old argument order.
+
 - **fix: preview frames stay monotonic during playback (2026-08-23)** — the
   `PreviewCache` read one frame ahead of the requested position on every call,
   so the decode ran ahead of the playhead and then re-seeked once the request
