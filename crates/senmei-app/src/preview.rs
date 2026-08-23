@@ -118,15 +118,15 @@ pub fn read_frame_inner(
     Ok(FrameData::from_frame(frame))
 }
 
-/// Extract the source audio once as WAV for the native preview player — any
-/// source audio codec (e.g. AC3 in anime files) is decoded by our FFmpeg and
-/// re-encoded losslessly, so rodio never sees an exotic codec. One active
-/// track at a time; stale tracks (incl. old .wav/.flac/.mp3/.webm/.m4a) are
-/// dropped when a new one is extracted.
+/// Extract the source audio once as stereo AAC for the native preview player —
+/// any source audio codec (e.g. AC3 in anime files) is decoded by our FFmpeg
+/// and re-encoded to AAC (small + seekable in rodio). One active track at a
+/// time; stale tracks (incl. old .wav/.flac/.mp3/.webm/.m4a) are dropped when
+/// a new one is extracted.
 pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
     let dir = preview_dir(project_dir);
     let ns = frame_ns(input);
-    let path = dir.join(format!("audio_{ns}.wav"));
+    let path = dir.join(format!("audio_{ns}.aac"));
     // Cache only complete tracks; a failed run must not leave a 0-byte file
     // that later looks "done".
     if path.exists() && std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
@@ -137,7 +137,8 @@ pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<Str
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
             let stale = name.starts_with("audio_")
-                && (name.ends_with(".wav")
+                && (name.ends_with(".aac")
+                    || name.ends_with(".wav")
                     || name.ends_with(".flac")
                     || name.ends_with(".mp3")
                     || name.ends_with(".webm")
@@ -150,9 +151,9 @@ pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<Str
     }
     let ffmpeg = senmei_media::resolve(&store::data_dir());
     // Extract to a temp name and rename only on success so a failure never
-    // leaves a partial track at the cached path. The .wav suffix lets ffmpeg
-    // infer the muxer (it can't from a bare .tmp).
-    let tmp = dir.join(format!("audio_{ns}.tmp.wav"));
+    // leaves a partial track at the cached path. The .aac suffix lets ffmpeg
+    // infer the ADTS muxer (it can't from a bare .tmp).
+    let tmp = dir.join(format!("audio_{ns}.tmp.aac"));
     let _ = std::fs::remove_file(&tmp);
     senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &tmp).map_err(|e| {
         log::warn!("audio extraction failed: {e}");

@@ -45,8 +45,8 @@ export const commands = {
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<FrameData>("read_frame", { input, positionMs, projectDir }),
 	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
 	/**
-	 *  Load an extracted audio file (WAV/lossless PCM); playback stays paused
-	 *  until `audio_play`.
+	 *  Load an extracted audio file (AAC); playback stays paused until
+	 *  `audio_play`.
 	 */
 	audioLoad: (path: string) => __TAURI_INVOKE<null>("audio_load", { path }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),

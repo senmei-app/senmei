@@ -8,12 +8,21 @@
 
 ## Unreleased
 
+- **fix: preview audio → stereo AAC (seekable + small) (2026-08-23)** — raw WAV
+  was the only seekable rodio format, but a long 5.1 source extracted to 3+ GB
+  (98-min movie). The track is now encoded as stereo AAC (~192 kbps): small
+  (~140 MB for a movie) and still seekable via rodio's symphonia decoder
+  (native FLAC/Vorbis/MP3 decoders are not seekable). Extraction now
+  downmixes to stereo; suffix/stale-cleanup/rodio feature
+  (`symphonia-aac`)/docs updated; regression test
+  `extract_audio_aac_is_rodio_seekable` asserts decode + seek.
+
 - **fix: preview audio stays in sync during playback (2026-08-23)** — rodio/cpal
-  buffer the output (~100 ms), so the audible track lagged the playhead, and
-  the track free-ran during playback. All audio repositions (play, scrub, mode
-  switch, loop) now seek the source ahead by a fixed lead
-  (`AUDIO_LEAD_MS = 120`) to compensate the output buffer, and playback
-  re-pins the track to the playhead every 500 ms so drift can't accumulate.
+  buffer the output, so the audible track lagged the playhead and free-ran
+  during playback. All audio repositions (play, scrub, mode switch, loop) now
+  seek the source with a lead to compensate the output buffer
+  (`AUDIO_LEAD_MS`, currently 0 pending measurement). A periodic re-pin during
+  playback was tried but made the audio choppy and was dropped.
 
 - **fix: preview audio is seekable again (WAV, not FLAC) (2026-08-23)** — the
   preview track was extracted as FLAC, but rodio's FLAC decoder is **not

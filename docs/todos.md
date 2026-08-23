@@ -33,7 +33,7 @@
 
 ## Preview / Media (2026-08-23, PLAN §18)
 - [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
-- [ ] Audio: direct cpal/FFmpeg-PCM streaming + web Range-stream — lossless WAV-rodio path landed, native streaming is the refinement
+- [ ] Audio: direct cpal/FFmpeg-PCM streaming + web Range-stream — AAC-rodio path landed, native streaming is the refinement
 - [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open
 
 ## Compliance (2026-08-20)

@@ -35,8 +35,8 @@ fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T,
     })
 }
 
-/// Load an extracted audio file (WAV/lossless PCM); playback stays paused
-/// until `audio_play`.
+/// Load an extracted audio file (AAC); playback stays paused until
+/// `audio_play`.
 #[tauri::command]
 #[specta::specta]
 pub fn audio_load(path: String) -> Result<(), String> {
@@ -113,14 +113,14 @@ pub fn audio_set_volume(volume: f64) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     /// The preview audio path is codec-agnostic: any source is re-encoded to
-    /// lossless WAV by our FFmpeg, and rodio must decode and seek it
-    /// (regression: FLAC is not seekable in rodio — audio stuck at 0).
+    /// stereo AAC by our FFmpeg, and rodio must decode and seek it (regression:
+    /// FLAC is not seekable in rodio, WAV is too large for long sources).
     #[test]
-    fn extract_audio_wav_is_rodio_seekable() {
+    fn extract_audio_aac_is_rodio_seekable() {
         let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
         let dir = std::env::temp_dir();
         let src = dir.join("senmei_audio_src.wav");
-        let out = dir.join("senmei_audio_out.wav");
+        let out = dir.join("senmei_audio_out.aac");
         let ok = std::process::Command::new(&ffmpeg)
             .args([
                 "-y",
@@ -139,15 +139,14 @@ mod tests {
             .unwrap_or(false);
         assert!(ok, "failed to generate source audio");
         senmei_media::extract_audio(std::path::Path::new(&ffmpeg), &src, &out)
-            .expect("extract to wav");
-        let file = std::fs::File::open(&out).expect("wav file");
+            .expect("extract to aac");
+        let file = std::fs::File::open(&out).expect("aac file");
         let mut decoder = rodio::Decoder::new(std::io::BufReader::new(file))
-            .expect("rodio decodes the wav preview track");
-        // Regression: the FLAC preview track was not seekable in rodio, so any
-        // seek (play-start, scrub) silently stayed at 0 — audio from the source
-        // start against result frames. WAV must seek.
+            .expect("rodio decodes the aac preview track");
+        // Regression: seeks must work (FLAC was not seekable in rodio; WAV is
+        // too large for long 5.1 sources).
         rodio::Source::try_seek(&mut decoder, std::time::Duration::from_millis(500))
-            .expect("rodio can seek the wav preview track");
+            .expect("rodio can seek the aac preview track");
         let _ = std::fs::remove_file(&src);
         let _ = std::fs::remove_file(&out);
     }
