@@ -16,6 +16,11 @@
   messages). Regression test `finish_after_stderr_overflows` fails without the
   drain (deadlocks at ~60 s) and passes with it.
 
+- **fix: render ETA shows `--:--:--` instead of `-1:-1:-1` (2026-08-23)** — the
+  remaining-seconds estimate could go negative (frame-count estimate lags the
+  actual emission, or no frames processed yet) and `fmtEta` formatted negative
+  components. Clamped to ≥ 0; not-yet-estimable shows a placeholder.
+
 - **refactor: dedup zip extraction (2026-08-23)** — shared
   `senmei_media::extract_zip(archive, dest, filter)` replaces the three
   near-identical extract loops (`extract_zip_prefix`, torch.rs

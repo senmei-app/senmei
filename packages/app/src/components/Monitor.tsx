@@ -461,6 +461,9 @@ export default function Monitor({
   }, [rendering]);
 
   const fmtEta = (s: number): string => {
+    // Not estimable yet (no frames) or overshoot (framesProcessed > estimate):
+    // show a placeholder instead of negative components like -1:-1:-1.
+    if (!Number.isFinite(s) || s < 0) return "--:--:--";
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = Math.floor(s % 60);
@@ -473,7 +476,10 @@ export default function Monitor({
     }
     const elapsed = Math.max(0.001, (Date.now() - renderStart.current) / 1000);
     const fps = progress.framesProcessed / elapsed;
-    const remaining = fps > 0 ? (progress.totalFrames - progress.framesProcessed) / fps : 0;
+    // Clamp overshoot: the frame-count estimate can lag actual emission, so
+    // remaining must never go negative (that rendered "-1:-1:-1").
+    const remaining =
+      fps > 0 ? Math.max(0, (progress.totalFrames - progress.framesProcessed) / fps) : -1;
     return { fps, eta: fmtEta(remaining) };
   })();
 
