@@ -120,18 +120,26 @@ pub fn infer_tiled(
     input: &Tensor,
     opts: &InferOptions,
 ) -> Result<Tensor> {
-    run_tiled(engine, input, opts, |e, t, o| e.infer(t, o))
+    // Upscale models (convs) are translation-equivariant, so tiling is valid;
+    // keep the 1080p full-frame threshold (GPU saturation).
+    run_tiled(engine, input, opts, 1920 * 1080, |e, t, o| e.infer(t, o))
 }
 
-/// Tiled `infer_denoise` (same tiling/stitching as `infer_tiled`; the engine
-/// must implement `infer_denoise`).
+/// Tiled `infer_denoise`. U-Net denoisers (SCUNet/DRUNet) are **not**
+/// translation-equivariant — window attention (Swin) re-partitions the grid per
+/// tile and the ÷8 down/upsample pyramid has wide border effects, so tiled
+/// output differs from full-frame globally (verified: scunet tiled vs full
+/// mae ≈ 0.13) and reads as ghost copies on moving content. DnCNN/FFDNet tile
+/// fine, but a shared threshold keeps this correct for the models that matter:
+/// run full-frame up to 4K (the models pad internally to their stride) and only
+/// fall back to tiling for very large inputs to bound memory.
 pub fn infer_denoise_tiled(
     engine: &mut dyn InferenceEngine,
     input: &Tensor,
     sigma: f32,
     opts: &InferOptions,
 ) -> Result<Tensor> {
-    run_tiled(engine, input, opts, |e, t, o| {
+    run_tiled(engine, input, opts, 3840 * 2160, |e, t, o| {
         e.infer_denoise(t, sigma, o)
             .unwrap_or_else(|| Err(Error::new("engine has no denoise path")))
     })
@@ -141,6 +149,7 @@ fn run_tiled(
     engine: &mut dyn InferenceEngine,
     input: &Tensor,
     opts: &InferOptions,
+    full_frame_pixels: usize,
     infer: impl Fn(&mut dyn InferenceEngine, &Tensor, &InferOptions) -> Result<Tensor>,
 ) -> Result<Tensor> {
     let caps = engine.capabilities();
@@ -158,9 +167,8 @@ fn run_tiled(
     }
 
     // Full-frame single pass keeps the GPU saturated (matches TensorRT-style
-    // whole-frame inference); tile only for very large inputs.
-    const FULL_FRAME_PIXELS: usize = 1920 * 1080;
-    if h * w <= FULL_FRAME_PIXELS {
+    // whole-frame inference); tile only above the caller's full-frame cap.
+    if h * w <= full_frame_pixels {
         return infer(engine, input, opts);
     }
 

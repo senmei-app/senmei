@@ -978,6 +978,75 @@ mod tests {
         assert!(max_abs < 0.06, "max abs diff {max_abs} exceeds 0.06");
     }
 
+    /// Regression: `infer_denoise_tiled` runs U-Net denoisers full-frame — a
+    /// >1080p (but <4K) input must produce the same result as the plain
+    /// full-frame `infer_denoise`. Tiling SCUNet/DRUNet is invalid (window
+    /// attention + ÷8 pyramid → mae ≈ 0.13 vs full-frame, ghost copies on
+    /// moving content); a shared 4K cap keeps this from regressing.
+    #[test]
+    #[ignore = "diagnostic: needs Vulkan + scunet bpk (senmei-ml-convert)"]
+    fn scunet_tiled_ghosts_at_tile_seams() {
+        let bpk = std::path::Path::new(
+            "/home/mzach/.local/share/senmei/models/scunet_color_15.pth.f16.bpk",
+        );
+        if !bpk.exists() {
+            eprintln!("missing bpk, skipping");
+            return;
+        }
+        let mref = ModelRef {
+            id: "scunet-color".into(),
+            arch: "scunet".into(),
+            scale: 1,
+            num_block: 4,
+            feature_channels: 64,
+            no_norm: false,
+            layer_norm: false,
+            dysample: true,
+            path: bpk.to_path_buf(),
+        };
+        let mut engine = BurnEngine::new();
+        engine.load(&mref).unwrap();
+
+        let (h, w): (usize, usize) = (1500, 1400); // 2.1 MP: above 1080p, below 4K
+        let mut data = Vec::with_capacity(3 * h * w);
+        for y in 0..h {
+            for x in 0..w {
+                let bar = if (x / 180) % 2 == 0 { 0.85f32 } else { 0.25 };
+                let g = (y as f32 / h as f32) * 0.3 + 0.15;
+                let n = (((x * 31 + y * 17) % 97) as f32 / 97.0) * 0.06;
+                for c in 0..3 {
+                    data.push((bar * (1.0 - 0.12 * c as f32) + g + n).clamp(0.0, 1.0));
+                }
+            }
+        }
+        let input = Tensor::new(vec![1, 3, h, w], data);
+        let full = engine
+            .infer_denoise(&input, 0.1, &InferOptions { tile_size: None })
+            .unwrap()
+            .unwrap();
+        let tiled = crate::infer_denoise_tiled(
+            &mut engine,
+            &input,
+            0.1,
+            &InferOptions {
+                tile_size: Some(512),
+            },
+        )
+        .unwrap();
+        assert_eq!(full.shape, tiled.shape);
+
+        let mut mae = 0f64;
+        for (a, b) in full.data.iter().zip(&tiled.data) {
+            assert!(a.is_finite(), "output contains non-finite value");
+            mae += (*a - *b).abs() as f64;
+        }
+        mae /= full.data.len() as f64;
+        eprintln!("scunet denoise full-frame vs infer_denoise_tiled: mae={mae:.5}");
+        // Both go through the same full-frame path now; any tiling regression
+        // shows up as a large diff (the broken tiled path measured mae ≈ 0.13).
+        assert!(mae < 0.001, "denoise tiled path diverged from full-frame (mae {mae:.5})");
+    }
+
     /// NAFNet via the generic `infer` path (what the Deblur step uses): scale-1
     /// 3ch→3ch, pads internally to multiples of 16. Height not a multiple of 16
     /// exercises the internal pad/crop.
