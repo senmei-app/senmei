@@ -28,6 +28,13 @@
   Esc, which `requestFullscreen()` previously provided). Removes the earlier
   webkit2gtk signal wiring (dead code).
 
+- **fix: sample window follows the playhead during playback (2026-08-23)** — the
+  sample range only re-anchored to the playhead on scrubs; playing past the
+  window left it stale, so "Render Sample" clipped content from before the
+  current position (e.g. the default 10 s window). Playback now re-anchors the
+  window to the playhead when it crosses the out-point (source mode, native
+  video and decoded frames), matching the scrub behavior.
+
 - **fix: long renders hang once ffmpeg's stderr fills its pipe (2026-08-23)** —
   `Encoder` captured stderr but only read it after `child.wait()`; on long
   encodes (with any steady warning stream) the 64-KiB pipe filled up, ffmpeg

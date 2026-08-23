@@ -179,10 +179,21 @@ export default function Monitor({
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
-    setPosMs(v.currentTime * 1000);
+    const t = v.currentTime * 1000;
+    setPosMs(t);
     if (v.paused) return; // don't loop while scrubbing
-    // Only result/compare loop the sample window; the original plays to the end.
-    if (mode === "source") return;
+    // The original plays to the end; keep the sample window anchored to the
+    // playhead so "Render Sample" clips from where you're looking (same as a
+    // scrub that passes the window).
+    if (mode === "source") {
+      if (outMs > inMs && t >= outMs) {
+        const fps = info?.fps ?? 0;
+        const dur = outMs - inMs;
+        const p = snapFrame(t, fps);
+        onSampleChange?.(p, snapFrame(p + dur, fps));
+      }
+      return;
+    }
     const endSec = outMs / 1000;
     if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
   };
@@ -382,6 +393,13 @@ export default function Monitor({
       last = now;
       const prev = posRef.current;
       let next = prev + elapsed;
+      // Keep the sample window anchored to the playhead (source mode plays the
+      // whole file): "Render Sample" clips from where you're looking.
+      if (mode === "source" && outMs > inMs && next >= outMs) {
+        const fps = info?.fps ?? 0;
+        const p = snapFrame(next, fps);
+        onSampleChange?.(p, snapFrame(p + (outMs - inMs), fps));
+      }
       if (next >= endMs) {
         if (mode === "source") {
           // End of the video: stop instead of looping the sample window.
