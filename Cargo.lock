@@ -8010,6 +8010,7 @@ dependencies = [
  "base64 0.22.1",
  "clap",
  "env_logger",
+ "http-body-util",
  "log",
  "rmcp",
  "rust-embed",
@@ -8020,6 +8021,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tower",
  "tower-http",
 ]
 

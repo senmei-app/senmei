@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **test: HTTP/REST adapter unit tests (2026-08-23)** — `senmei-server` router
+  smoke tests (9): health, backend-info (camelCase), settings-schema, models,
+  SPA-fallback 404 for unknown `/api/*`, error paths (probe/scan-folder → 400),
+  CORS, method-not-allowed. Run with `cargo test -p senmei-server --features
+  http`; no GPU / no network (system ffmpeg on PATH).
+
 - **fix: sampled renders keep the audio at the sample position (2026-08-23)** —
   muxing the source audio with `-ss`/`-t` between the two ffmpeg inputs +
   `-copyts` was unreliable: the seeked audio kept its source PTS (dropped/

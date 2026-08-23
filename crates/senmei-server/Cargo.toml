@@ -25,6 +25,12 @@ log = "0.4"
 env_logger = "0.11"
 rust-embed = { version = "8", features = ["mime-guess"], optional = true }
 
+[dev-dependencies]
+# Router smoke tests (oneshot + body collect); no GPU / no network (system
+# ffmpeg is on PATH in CI and dev).
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
 [features]
 default = []
 # Real render: pulls the burn inference stack + pipeline (heavy build).

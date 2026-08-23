@@ -231,3 +231,116 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         None => api.layer(cors).fallback(embedded_fallback),
     }
 }
+
+#[cfg(all(test, feature = "http"))]
+mod tests {
+    use super::router;
+    use axum::body::Body;
+    use axum::http::{Method, Request, StatusCode};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    fn app() -> axum::Router {
+        // No web dir: embedded UI (empty in bare test builds) + SPA fallback.
+        router(None)
+    }
+
+    async fn send(req: Request<Body>) -> (StatusCode, Vec<u8>) {
+        let resp = app().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes().to_vec();
+        (status, bytes)
+    }
+
+    fn get(uri: &str) -> Request<Body> {
+        Request::builder().uri(uri).body(Body::empty()).unwrap()
+    }
+
+    fn post_json(uri: &str, json: &str) -> Request<Body> {
+        Request::builder()
+            .method(Method::POST)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(Body::from(json.to_string()))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn health_returns_ok() {
+        let (status, body) = send(get("/api/health")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(String::from_utf8(body).unwrap(), "ok");
+    }
+
+    #[tokio::test]
+    async fn backend_info_is_camel_case_json() {
+        let (status, body) = send(get("/api/backend-info")).await;
+        assert_eq!(status, StatusCode::OK);
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v.get("vulkanCompiled").is_some(), "missing vulkanCompiled: {v}");
+        assert!(v.get("libtorchCompiled").is_some());
+    }
+
+    #[tokio::test]
+    async fn settings_schema_returns_object() {
+        let (status, body) = send(get("/api/settings-schema")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(serde_json::from_slice::<serde_json::Value>(&body)
+            .unwrap()
+            .is_object());
+    }
+
+    #[tokio::test]
+    async fn models_returns_array() {
+        let (status, body) = send(get("/api/models")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(serde_json::from_slice::<serde_json::Value>(&body)
+            .unwrap()
+            .is_array());
+    }
+
+    #[tokio::test]
+    async fn unknown_api_path_404s_instead_of_spa() {
+        let (status, _) = send(get("/api/does-not-exist")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn probe_missing_file_returns_400() {
+        let (status, body) = send(post_json(
+            "/api/probe",
+            r#"{"input":"/nonexistent/video.mkv"}"#,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(serde_json::from_slice::<serde_json::Value>(&body)
+            .unwrap()
+            .get("error")
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn scan_folder_missing_dir_returns_400() {
+        let (status, _) = send(post_json(
+            "/api/scan-folder",
+            r#"{"dir":"/nonexistent/dir"}"#,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn cors_headers_present() {
+        let resp = app().oneshot(get("/api/health")).await.unwrap();
+        assert_eq!(
+            resp.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+            Some("*")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_on_post_endpoint_is_405() {
+        let (status, _) = send(get("/api/probe")).await;
+        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    }
+}
