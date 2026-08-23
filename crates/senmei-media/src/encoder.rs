@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
-use std::sync::{Mutex, OnceLock};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::JoinHandle;
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -10,7 +11,10 @@ use crate::{Error, Result};
 pub struct Encoder {
     child: Child,
     stdin: Option<ChildStdin>,
-    stderr: Option<ChildStderr>,
+    /// ffmpeg's stderr, drained by a background thread so a long encode never
+    /// blocks on a full pipe; the tail is kept for error reporting.
+    stderr: Arc<Mutex<String>>,
+    stderr_thread: Option<JoinHandle<()>>,
     /// Owned trimmed-audio temp file (removed on drop); `None` when muxing the
     /// source audio directly or audio is dropped (`-an`).
     temp_audio: Option<PathBuf>,
@@ -307,12 +311,24 @@ impl Encoder {
             .stdin
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdin".into()))?;
-        let stderr = child.stderr.take();
+        // Drain stderr in a background thread: reading it only after `wait`
+        // lets a 64-KiB pipe fill up on long encodes and deadlock `finish`.
+        let stderr_buf = Arc::new(Mutex::new(String::new()));
+        let stderr_thread = child.stderr.take().map(|mut e| {
+            let buf = stderr_buf.clone();
+            std::thread::spawn(move || {
+                use std::io::Read;
+                let mut s = String::new();
+                let _ = e.read_to_string(&mut s);
+                *buf.lock().unwrap() = s;
+            })
+        });
 
         Ok(Self {
             child,
             stdin: Some(stdin),
-            stderr,
+            stderr: stderr_buf,
+            stderr_thread,
             temp_audio,
         })
     }
@@ -336,14 +352,13 @@ impl Encoder {
         Ok(())
     }
 
-    /// Drain the child's stderr (already buffered once it has exited). ffmpeg
+    /// Tail of ffmpeg's stderr (already drained once it has exited). ffmpeg
     /// prints its config banner first, so keep only the tail (the real error).
     fn read_stderr(&mut self) -> String {
-        use std::io::Read;
-        let mut out = String::new();
-        if let Some(mut e) = self.stderr.take() {
-            let _ = e.read_to_string(&mut out);
+        if let Some(h) = self.stderr_thread.take() {
+            let _ = h.join();
         }
+        let out = self.stderr.lock().unwrap().clone();
         const TAIL: usize = 12;
         let lines: Vec<&str> = out.lines().collect();
         let tail = if lines.len() > TAIL {
@@ -520,6 +535,76 @@ mod tests {
             .status()
             .unwrap();
         assert!(status.success(), "encoded output not decodable");
+        let _ = std::fs::remove_file(&out);
+        let _ = std::fs::remove_file(&input);
+    }
+
+    /// Regression: ffmpeg's stderr is drained in the background, so an encode
+    /// that emits more than a 64-KiB pipe can hold still finishes. Without the
+    /// drain, `finish` deadlocks once the pipe is full (long-render hang).
+    #[test]
+    fn finish_after_stderr_overflows() {
+        let Some(ff) = std::env::var("SENMEI_FFMPEG")
+            .ok()
+            .filter(|p| !p.is_empty())
+        else {
+            eprintln!("SENMEI_FFMPEG not set, skipping");
+            return;
+        };
+        let ff = PathBuf::from(ff);
+        let dir = std::env::temp_dir().join("senmei-enc-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("stderr-input.mp4");
+        let out = dir.join("stderr-out.mp4");
+        let _ = std::fs::remove_file(&out);
+        // Audio longer than the video (10 s > 200 frames @30fps) so `-shortest`
+        // doesn't end the pipe early and trip `write_frame` on a broken pipe.
+        let make = Command::new(&ff)
+            .args([
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=44100:cl=mono",
+                "-t",
+                "10",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",
+                "-ac",
+                "1",
+            ])
+            .arg(&input)
+            .status()
+            .unwrap();
+        assert!(make.success(), "failed to create test input");
+        // `trace` makes ffmpeg emit far more stderr than the pipe can buffer.
+        let extra = ["-loglevel".to_string(), "trace".to_string()];
+        let (tx, rx) = std::sync::mpsc::channel();
+        let input_t = input.clone();
+        let out_t = out.clone();
+        let _ = std::thread::spawn(move || {
+            let run = (|| -> Result<()> {
+                let mut enc = Encoder::open(&ff, &input_t, &out_t, 64, 64, 30.0, 0, None, &extra)?;
+                let frame = Frame {
+                    width: 64,
+                    height: 64,
+                    data: vec![0u8; 64 * 64 * 3],
+                };
+                for _ in 0..200 {
+                    enc.write_frame(&frame)?;
+                }
+                enc.finish()
+            })();
+            let _ = tx.send(run);
+        });
+        match rx.recv_timeout(std::time::Duration::from_secs(60)) {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => panic!("encode failed: {e}"),
+            Err(_) => panic!("encode deadlocked on full stderr pipe"),
+        }
+        assert!(out.exists() && out.metadata().unwrap().len() > 0);
         let _ = std::fs::remove_file(&out);
         let _ = std::fs::remove_file(&input);
     }

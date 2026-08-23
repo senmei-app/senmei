@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: long renders hang once ffmpeg's stderr fills its pipe (2026-08-23)** —
+  `Encoder` captured stderr but only read it after `child.wait()`; on long
+  encodes (with any steady warning stream) the 64-KiB pipe filled up, ffmpeg
+  blocked writing, and `finish()` never returned (queue stuck, output stopped
+  growing). stderr is now drained by a background thread (tail kept for error
+  messages). Regression test `finish_after_stderr_overflows` fails without the
+  drain (deadlocks at ~60 s) and passes with it.
+
 - **refactor: dedup zip extraction (2026-08-23)** — shared
   `senmei_media::extract_zip(archive, dest, filter)` replaces the three
   near-identical extract loops (`extract_zip_prefix`, torch.rs
