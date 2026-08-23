@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **perf: preview audio → lossless FLAC (2026-08-23)** — the native preview
+  player no longer transcodes to lossy MP3: any source audio codec is decoded
+  by our FFmpeg and re-encoded to lossless FLAC (rodio `flac` feature), so the
+  preview track is lossless and codec-agnostic. Regression test covers the
+  FFmpeg→FLAC→rodio path.
+
 - **perf: preview decode budget + accurate video duration (2026-08-23)** —
   probe now reads the video-stream duration (the container over-reports when
   copied audio runs past the video end) and `Decoder` caps on it, which

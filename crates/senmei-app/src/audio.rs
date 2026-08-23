@@ -35,7 +35,8 @@ fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T,
     })
 }
 
-/// Load an extracted audio file (MP3); playback stays paused until `audio_play`.
+/// Load an extracted audio file (FLAC/lossless PCM); playback stays paused
+/// until `audio_play`.
 #[tauri::command]
 #[specta::specta]
 pub fn audio_load(path: String) -> Result<(), String> {
@@ -107,4 +108,44 @@ pub fn audio_set_volume(volume: f64) -> Result<(), String> {
         }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The preview audio path is codec-agnostic: any source is re-encoded to
+    /// lossless FLAC by our FFmpeg, and rodio must be able to decode it
+    /// (regression for the old MP3/M4A-unsupported targets).
+    #[test]
+    fn extract_audio_flac_is_rodio_decodable() {
+        let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+        let dir = std::env::temp_dir();
+        let src = dir.join("senmei_audio_src.wav");
+        let out = dir.join("senmei_audio_out.flac");
+        let ok = std::process::Command::new(&ffmpeg)
+            .args([
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=1",
+                "-c:a",
+                "pcm_s16le",
+            ])
+            .arg(&src)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        assert!(ok, "failed to generate source audio");
+        senmei_media::extract_audio(std::path::Path::new(&ffmpeg), &src, &out)
+            .expect("extract to flac");
+        let file = std::fs::File::open(&out).expect("flac file");
+        rodio::Decoder::new(std::io::BufReader::new(file))
+            .expect("rodio decodes the flac preview track");
+        let _ = std::fs::remove_file(&src);
+        let _ = std::fs::remove_file(&out);
+    }
 }

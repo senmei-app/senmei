@@ -110,14 +110,15 @@ fn cap_preview_dir(dir: &std::path::Path) {
     }
 }
 
-/// Extract the source audio once as MP3 for the native preview player — the
-/// source's audio codec (e.g. AC3 in anime files) isn't always decodable, so
-/// the track is transcoded. One active track at a time; stale tracks (incl.
-/// old .webm/.m4a) are dropped when a new one is extracted.
+/// Extract the source audio once as FLAC for the native preview player — any
+/// source audio codec (e.g. AC3 in anime files) is decoded by our FFmpeg and
+/// re-encoded losslessly, so rodio never sees an exotic codec. One active
+/// track at a time; stale tracks (incl. old .mp3/.webm/.m4a) are dropped when
+/// a new one is extracted.
 pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
     let dir = preview_dir(project_dir);
     let ns = frame_ns(input);
-    let path = dir.join(format!("audio_{ns}.mp3"));
+    let path = dir.join(format!("audio_{ns}.flac"));
     // Cache only complete tracks; a failed run must not leave a 0-byte file
     // that later looks "done".
     if path.exists() && std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
@@ -128,7 +129,10 @@ pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<Str
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
             let stale = name.starts_with("audio_")
-                && (name.ends_with(".mp3") || name.ends_with(".webm") || name.ends_with(".m4a"))
+                && (name.ends_with(".flac")
+                    || name.ends_with(".mp3")
+                    || name.ends_with(".webm")
+                    || name.ends_with(".m4a"))
                 && e.path() != path;
             if stale {
                 let _ = std::fs::remove_file(e.path());
@@ -137,9 +141,9 @@ pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<Str
     }
     let ffmpeg = senmei_media::resolve(&store::data_dir());
     // Extract to a temp name and rename only on success so a failure never
-    // leaves a partial track at the cached path. The .mp3 suffix lets ffmpeg
+    // leaves a partial track at the cached path. The .flac suffix lets ffmpeg
     // infer the muxer (it can't from a bare .tmp).
-    let tmp = dir.join(format!("audio_{ns}.tmp.mp3"));
+    let tmp = dir.join(format!("audio_{ns}.tmp.flac"));
     let _ = std::fs::remove_file(&tmp);
     senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &tmp).map_err(|e| {
         log::warn!("audio extraction failed: {e}");
