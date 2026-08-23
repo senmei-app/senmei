@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 
@@ -11,6 +11,9 @@ pub struct Encoder {
     child: Child,
     stdin: Option<ChildStdin>,
     stderr: Option<ChildStderr>,
+    /// Owned trimmed-audio temp file (removed on drop); `None` when muxing the
+    /// source audio directly or audio is dropped (`-an`).
+    temp_audio: Option<PathBuf>,
 }
 
 /// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
@@ -140,6 +143,45 @@ fn pick_from_caps(
     ("h264".into(), vec![])
 }
 
+/// Trim the source audio to `[start_ms, start_ms + duration_ms)` into a
+/// temp `.m4a` (re-encoded AAC, 0-based PTS) so the encoder can stream-copy it
+/// in sync with the ranged video. `None` when the source has no audio or the
+/// extraction fails — the caller falls back to muxing the source directly.
+fn extract_audio_range(
+    ffmpeg: &Path,
+    input: &Path,
+    start_ms: u64,
+    duration_ms: Option<u64>,
+) -> Option<PathBuf> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let tmp = std::env::temp_dir().join(format!(
+        "senmei_audio_{}_{}.m4a",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_nanos()
+    ));
+    let mut cmd = Command::new(ffmpeg);
+    cmd.arg("-y").arg("-loglevel").arg("error");
+    if start_ms > 0 {
+        cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+    }
+    if let Some(dur) = duration_ms {
+        cmd.args(["-t", &format!("{:.3}", dur as f64 / 1000.0)]);
+    }
+    cmd.arg("-i")
+        .arg(input)
+        .args(["-map", "0:a:0?", "-c:a", "aac"])
+        .arg(&tmp)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let ok = cmd.status().map(|s| s.success()).unwrap_or(false);
+    let empty = std::fs::metadata(&tmp).map(|m| m.len() == 0).unwrap_or(true);
+    if !ok || empty {
+        let _ = std::fs::remove_file(&tmp);
+        return None;
+    }
+    Some(tmp)
+}
+
 /// Default extra args when the caller overrides `-c:v` (the frontend codec
 /// dropdown). libopenh264 is bitrate-only (ABR), so it gets a resolution-based
 /// `-b:v` (same formula as `pick_video_encoder`) unless already provided.
@@ -205,14 +247,29 @@ impl Encoder {
             .args(["-s", &format!("{width}x{height}")])
             .args(["-r", &format!("{fps}")])
             .args(["-i", "-"]);
-        if start_ms > 0 {
-            cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+        // Muxing the source audio directly with `-ss`/`-t` between the two
+        // inputs + `-copyts` is unreliable: the seeked audio keeps its source
+        // PTS (dropped/desynced by `-shortest`), and some containers ignore the
+        // seek entirely (audio from the start of the file). Extract the exact
+        // range to a temp file first (re-encoded, 0-based), then stream-copy it
+        // in — deterministic regardless of the source container.
+        let want_audio = !extra_args.iter().any(|a| a == "-an");
+        let mut temp_audio: Option<PathBuf> = None;
+        if want_audio && (start_ms > 0 || duration_ms.is_some()) {
+            temp_audio = extract_audio_range(ffmpeg, input, start_ms, duration_ms);
         }
-        if let Some(dur) = duration_ms {
-            cmd.args(["-t", &format!("{:.3}", dur as f64 / 1000.0)]);
+        if let Some(tmp) = &temp_audio {
+            cmd.arg("-i").arg(tmp);
+        } else {
+            if start_ms > 0 {
+                cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
+            }
+            if let Some(dur) = duration_ms {
+                cmd.args(["-t", &format!("{:.3}", dur as f64 / 1000.0)]);
+            }
+            cmd.arg("-i").arg(input);
         }
-        cmd.arg("-i")
-            .arg(input)
+        cmd
             // Keep the pipe video's 0-based PTS: without this the muxer re-bases
             // the output to the seeked-and-copied audio and shifts the video by
             // the audio's start offset (e.g. 0.67 s), breaking the monitor's
@@ -223,6 +280,12 @@ impl Encoder {
             // runs past a ranged render and the container reports the audio's
             // (much longer) duration, breaking seeks near the video end.
             .args(["-shortest"])
+            .args(if temp_audio.is_some() {
+                // The temp file is already the exact, 0-based range.
+                vec!["-c:a".to_string(), "copy".to_string()]
+            } else {
+                Vec::new()
+            })
             .args(["-c:v", &video_codec])
             .args(codec_args)
             .args(if vaapi.is_some() {
@@ -250,6 +313,7 @@ impl Encoder {
             child,
             stdin: Some(stdin),
             stderr,
+            temp_audio,
         })
     }
 
@@ -318,6 +382,9 @@ impl Drop for Encoder {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        if let Some(tmp) = self.temp_audio.take() {
+            let _ = std::fs::remove_file(tmp);
+        }
     }
 }
 

@@ -6,6 +6,16 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **fix: sampled renders keep the audio at the sample position (2026-08-23)** —
+  muxing the source audio with `-ss`/`-t` between the two ffmpeg inputs +
+  `-copyts` was unreliable: the seeked audio kept its source PTS (dropped/
+  desynced by `-shortest`) and some containers ignored the seek entirely
+  (audio from the start of the file). `Encoder` now extracts the exact audio
+  range to a temp `.m4a` first (re-encoded, 0-based) and stream-copies it in —
+  verified against the source at the sample position (correlation 0.99).
+
 ## 0.1.7 (2026-08-23)
 
 - **fix: U-Net denoisers run full-frame, no tiling (2026-08-23)** — tiled
