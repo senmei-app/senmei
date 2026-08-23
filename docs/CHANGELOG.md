@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **refactor: shared deps live in `[workspace.dependencies]` (2026-08-23)** —
+  log/serde/serde_json/thiserror/anyhow/tokio/zip/clap/env_logger/schemars/
+  base64 were duplicated across the crate manifests; now one version per dep
+  (`X.workspace = true`). Also unified the `zip` duplicate: senmei bumped to
+  zip 8 (was 2.4.2), matching burn-store's 8.6.0 (extraction code
+  API-compatible). Tree has 3 zip versions (was 4); 0.6.6/7.2.0 transitives
+  remain.
+
 - **test: HTTP/REST adapter unit tests (2026-08-23)** — `senmei-server` router
   smoke tests (9): health, backend-info (camelCase), settings-schema, models,
   SPA-fallback 404 for unknown `/api/*`, error paths (probe/scan-folder → 400),

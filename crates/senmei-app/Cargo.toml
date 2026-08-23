@@ -17,10 +17,10 @@ senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2" }
 rodio = { version = "0.20", default-features = false, features = ["mp3"] }
 sysinfo = { version = "0.39", features = ["system"] }
-env_logger = "0.11"
-log = "0.4"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+env_logger.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 specta = "2.0.0-rc.25"
 specta-typescript = "0.0.12"
 tauri = { version = "2", features = ["custom-protocol"] }

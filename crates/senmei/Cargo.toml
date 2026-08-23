@@ -11,10 +11,10 @@ default-run = "senmei"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-log = "0.4"
-anyhow = "1"
-clap = { version = "4", features = ["derive", "env"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+log.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
 senmei-app = { path = "../senmei-app", version = "0.1.2" }
 senmei-server = { path = "../senmei-server", version = "0.1.4", features = ["http"] }
 specta-typescript = "0.0.12"

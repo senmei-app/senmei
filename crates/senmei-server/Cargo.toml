@@ -14,15 +14,15 @@ senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 rmcp = { version = "3", features = ["server", "transport-io"] }
 axum = { version = "0.8", optional = true }
 tower-http = { version = "0.6", features = ["fs", "cors"], optional = true }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-base64 = "0.22"
-clap = { version = "4", features = ["derive", "env"] }
-schemars = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
-anyhow = "1"
-log = "0.4"
-env_logger = "0.11"
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+clap.workspace = true
+schemars.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
 rust-embed = { version = "8", features = ["mime-guess"], optional = true }
 
 [dev-dependencies]

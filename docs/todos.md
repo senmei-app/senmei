@@ -32,9 +32,6 @@
 > cargo-deny 0.20.2 scan (ORT not viable: Cargo analyzer OOM >20 GiB heap +
 > config-loading bug on JDK 25). 0 CVEs, no GPL/AGPL/LGPL in tree.
 
-- [ ] Unify `zip` duplicate: 2.4.2 (senmei-media) vs 8.6.0 (burn-store) —
-      deferred 2026-08-20: touches `senmei-ml/Cargo.toml` + `Cargo.lock`
-      (libtorch WIP), marginal win (0.6.6/7.2.0 transitives remain either way)
 ## Models
 
 - [ ] RealPLKSR 2× BHI small (anime 2×): port dim-32 RealPLKSR variant
