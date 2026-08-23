@@ -802,5 +802,26 @@
    "num_conv": 32,
    "note": "Real-ESRGAN general-x4v3 (BSD-3-Clause) \u2014 compact SRVGGNetCompact for real scenes (num_feat 64 / num_conv 32 / folded upsampler), flat state dict; tiny + fast, real-film suitable"
   }
+ },
+ {
+  "id": "realesrgan-x2plus",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "realesrgan",
+  "family": "real-esrgan",
+  "weights": [
+   "RealESRGAN_x2plus.pth.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN",
+  "download_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 23,
+   "shuffle": 2,
+   "note": "RRDBNet 23-block real-photo x2; pixel_unshuffle(2) input variant (shuffle 2, conv_first 12ch), internal 4x upsample"
+  }
  }
 ]

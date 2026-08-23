@@ -225,7 +225,7 @@ impl<B: Backend> UpCunet2x<B> {
 }
 
 /// torch `F.pixel_unshuffle` for downscale 2: `[N, C, H, W] -> [N, C*4, H/2, W/2]`.
-fn pixel_unshuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
+pub(super) fn pixel_unshuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
     let [n, c, h, w] = x.dims();
     let (oh, ow) = (h / r, w / r);
     x.reshape([n, c, oh, r, ow, r])

@@ -306,6 +306,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: tmp.clone(),
         };
         engine.load(&mref).unwrap();

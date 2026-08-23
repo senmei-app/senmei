@@ -187,52 +187,58 @@ fused VRAM guard except where noted. Sorted by ms/frame.
 
 | model | scale | ms/frame | FPS |
 |---|---|---|---|
-| fallin-strong | 2 | 57.4 | 17.4 |
-| fallin-soft | 2 | 58.7 | 17.0 |
-| realesrgan-animevideo-x4 | 4 | 80.2 | 12.5 *tiled |
-| **realesrgan-animevideo-x2** | **2** | **89.0** | **11.2** |
-| real-cugan-x2 | 2 | 137.7 | 7.3 |
-| **realesrgan-general-x4v3** | **4** | **194.8** | **5.1** |
-| span-2x-nomosuni-ldl | 2 | 299.7 | 3.3 |
-| span-2x-nomosuni-multijpg | 2 | 296.9 | 3.4 |
-| span-2x-hfa2k | 2 | 301.2 | 3.3 |
-| span-2x-bhi-small | 2 | 305.3 | 3.3 |
-| span-2x-modern-spanimation-v1.5 | 2 | 284.3 | 3.5 |
-| span-2x-modern-spanimation-v1 | 2 | 282.1 | 3.5 |
-| span-2x-modern-spanimation-v2 | 2 | 306.5 | 3.3 |
-| span-2x-hfa2k-ludvae | 2 | 306.5 | 3.3 |
-| safmn-real-x2 | 2 | 914.1 | 1.1 |
-| safmn-real-x4 | 4 | 958.9 | 1.0 |
-| realesrgan-x4plus-anime | 4 | 1088.0 | 0.9 |
-| real-plksr-2x-public | 2 | 1160.0 | 0.9 |
-| 4x-nomoswebphoto-realplksr | 4 | 1161.6 | 0.9 |
-| 4x-bhi-realplksr-real | 4 | 1276.2 | 0.8 |
-| 4x-alchemy | 4 | 1277.9 | 0.8 |
-| 4x-bhi-realplksr-otf | 4 | 1282.9 | 0.8 |
-| 4x-nature-realplksr | 4 | 1283.8 | 0.8 |
-| 4x-mssim-realplksr | 4 | 1287.3 | 0.8 |
-| 4x-hfa2k-realplksr | 4 | 1288.1 | 0.8 |
-| 4x-nomos2-realplksr | 4 | 1290.6 | 0.8 |
-| bsrgan | 4 | 2855.5 | 0.4 |
-| span-2x-nomosuni-multijpg | 2 | PANIC `DTypeMismatch` (burn-ir) | — |
+| fallin-strong | 2 | 57.0 | 17.5 |
+| fallin-soft | 2 | 57.3 | 17.5 |
+| realesrgan-animevideo-x4 | 4 | 78.5 | 12.7 *tiled |
+| **realesrgan-animevideo-x2** | **2** | **86.7** | **11.5** |
+| **realesrgan-general-x4v3** | **4** | **110.7** | **9.0** *tiled |
+| real-cugan-x2 | 2 | 136.3 | 7.3 |
+| span-2x-modern-spanimation-v1 | 2 | 277.9 | 3.6 |
+| span-2x-modern-spanimation-v1.5 | 2 | 278.0 | 3.6 |
+| span-2x-nomosuni-ldl | 2 | 295.9 | 3.4 |
+| span-2x-bhi-small | 2 | 296.3 | 3.4 |
+| span-2x-modern-spanimation-v2 | 2 | 296.5 | 3.4 |
+| span-2x-hfa2k | 2 | 296.8 | 3.4 |
+| span-2x-hfa2k-ludvae | 2 | 296.9 | 3.4 |
+| span-2x-nomosuni-multijpg | 2 | 297.0 | 3.4 |
+| realesrgan-x4plus-anime | 4 | 423.6 | 2.4 *tiled |
+| safmn-real-x4 | 4 | 479.1 | 2.1 *tiled |
+| 4x-nomoswebphoto-realplksr | 4 | 596.1 | 1.7 *tiled |
+| **realesrgan-x2plus** | **2** | **651.4** | **1.5** |
+| 4x-nature-realplksr | 4 | 655.8 | 1.5 *tiled |
+| 4x-nomos2-realplksr | 4 | 656.2 | 1.5 *tiled |
+| 4x-bhi-realplksr-otf | 4 | 656.3 | 1.5 *tiled |
+| 4x-bhi-realplksr-real | 4 | 656.6 | 1.5 *tiled |
+| 4x-hfa2k-realplksr | 4 | 656.5 | 1.5 *tiled |
+| 4x-mssim-realplksr | 4 | 657.3 | 1.5 *tiled |
+| safmn-real-x2 | 2 | 911.5 | 1.1 |
+| real-plksr-2x-public | 2 | 1148.9 | 0.9 |
+| bsrgan | 4 | 1182.1 | 0.8 *tiled |
+| 4x-alchemy | 4 | 1274.5 | 0.8 |
+
+(`*tiled` = the fused RGB8 path's free-VRAM guard tripped, fell back to raw
+tiled infer; the fused-vs-tiled choice varies run-to-run, so those numbers are
+approximate — same model can show lower ms/frame on the tiled path.)
 
 Takeaways:
-- **realesrgan-general-x4v3 is the fast real-film 4× pick**: 195 ms / 5.1 FPS —
-  ~5× faster than every other 4× model and competitive with 2× (real-cugan-x2:
-  138 ms). Real-photo training + compact SRVGGNetCompact (per-layer PReLU).
-- **realesrgan-animevideo-x2/x4 are the fast anime picks** (89 / 80 ms), anime-
+- **realesrgan-general-x4v3 is the fast real-film 4× pick**: ~110-195 ms /
+  5-9 FPS — ~5× faster than every other 4× model and competitive with 2×
+  (real-cugan-x2: 136 ms). Real-photo training + compact SRVGGNetCompact.
+- **realesrgan-animevideo-x2/x4 are the fast anime picks** (87 / 79 ms), anime-
   trained.
-- fallin soft/strong stay the fastest 2× overall (~58 ms, 17 FPS).
-- The RealPLKSR 4× family clusters at ~1280 ms (0.8 FPS) — no fast option.
-- **safmn-real-x2/x4 are surprisingly slow** (914 / 959 ms, ~1 FPS) — ~15×
-  slower than fallin despite the "lightweight" claim; the SAFM block (depthwise
-  convs + per-level pool/interp + GELU) maps poorly to this backend. Worth
-  profiling before recommending.
+- fallin soft/strong stay the fastest 2× overall (~57 ms, 17.5 FPS).
+- **realesrgan-x2plus** (real-photo RRDBNet 23-block x2, pixel_unshuffle
+  variant): correct but slow — 651 ms / 1.5 FPS, verified vs spandrel
+  (mae 0.43). A quality 2× option, not a fast one.
+- The RealPLKSR 4× family clusters at ~656 ms (1.5 FPS, tiled) — no fast option.
+- **safmn-real-x2/x4 are surprisingly slow** (912 / 479 ms) — ~15× slower than
+  fallin despite the "lightweight" claim; the SAFM block (depthwise convs +
+  per-level pool/interp + GELU) maps poorly to this backend.
 - `span-2x-nomosuni-multijpg` used to panic in burn-ir (`DTypeMismatch`): its
   bpk was stored F32 — `HalfPrecisionAdapter` gates on the burn module type,
   which `PytorchStore` snapshots lack, so the span convs were never cast.
   Converter now saves through an unconditional `ToF16` adapter; the re-converted
-  bpk is F16 (3.67 MB, was 7.32 MB) and loads (296.9 ms / 3.4 FPS).
+  bpk is F16 (3.67 MB, was 7.32 MB) and loads (297 ms / 3.4 FPS).
 
 ### SRVGG residual fix (2026-08-23)
 

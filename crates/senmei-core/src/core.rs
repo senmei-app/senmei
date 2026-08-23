@@ -144,6 +144,7 @@ pub fn download_model(
         .unwrap_or(4);
     let layer_norm = registry.resolve(model_id, &dir).map(|m| m.layer_norm).unwrap_or(false);
     let dysample = registry.resolve(model_id, &dir).map(|m| m.dysample).unwrap_or(true);
+    let shuffle = registry.resolve(model_id, &dir).map(|m| m.shuffle).unwrap_or(1);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -226,7 +227,9 @@ pub fn download_model(
         return Ok(target.to_string_lossy().into_owned());
     }
     let conv = if onnx {
-        senmei_ml::convert_onnx_to_bpk(&meta.arch, &source, &target, meta.scale, convert_arg)
+        senmei_ml::convert_onnx_to_bpk(
+            &meta.arch, &source, &target, meta.scale, convert_arg, shuffle,
+        )
     } else {
         senmei_ml::convert_pth_to_bpk(
             &meta.arch,
@@ -236,6 +239,7 @@ pub fn download_model(
             convert_arg,
             layer_norm,
             dysample,
+            shuffle,
         )
     };
     if let Err(e) = conv {

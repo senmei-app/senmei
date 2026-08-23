@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: RealESRGAN_x2plus (RRDBNet shuffle variant, 2026-08-23)** — catalog
+  entry `realesrgan-x2plus` (BSD-3-Clause, real-photo x2, RRDBNet 23 blocks).
+  `RrdbNet` now supports the pixel_unshuffle input variant (`shuffle` factor:
+  conv_first 12ch, internal 4× upsample via `conv_up2`, net 2× — spandrel
+  `shuffle_factor=2`). `ModelRef` gained `shuffle`; the converter and
+  `download_model` pass it through. Verified vs spandrel on a real DVD frame.
+
 - **fix: converter casts every weight to f16 (2026-08-23)** — the save-side
   `HalfPrecisionAdapter` gates on the burn module type, which
   `PytorchStore`/ONNX snapshots lack — so span (and any other) convs were

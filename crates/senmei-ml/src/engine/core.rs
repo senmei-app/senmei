@@ -97,7 +97,12 @@ pub fn load_arch<B: Backend>(
             Ok(Model::UpCunet2xFast(m))
         }
         "realesrgan" => {
-            let mut m = RrdbNet::new(model.scale as usize, model.num_block as usize, device);
+            let mut m = RrdbNet::new(
+                model.scale as usize,
+                model.num_block as usize,
+                model.shuffle as usize,
+                device,
+            );
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::RrdbNet(m))
         }

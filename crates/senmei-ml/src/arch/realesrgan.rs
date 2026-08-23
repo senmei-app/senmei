@@ -5,9 +5,10 @@ use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::PaddingConfig2d;
 use burn::tensor::activation::leaky_relu;
+use burn::tensor::ops::PadMode;
 use burn::tensor::{backend::Backend, Tensor};
 
-use crate::arch::upcunet::nearest2x;
+use crate::arch::upcunet::{nearest2x, pixel_unshuffle};
 
 fn conv3x3<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<B> {
     Conv2dConfig::new([in_c, out_c], [3, 3])
@@ -89,7 +90,10 @@ impl<B: Backend> Rrdb<B> {
 }
 
 /// `RRDBNet`: conv_first -> `num_block` RRDBs -> conv_body (residual add) ->
-/// nearest 2x upsampling (`conv_up2` only for scale 4) -> conv_hr -> conv_last.
+/// nearest 2x upsampling (`conv_up2` when the internal scale >= 4) -> conv_hr
+/// -> conv_last. The shuffle-factor variant (RealESRGAN_x2plus) pixel-
+/// unshuffles the input by `shuffle` (3 -> 3·s² channels at h/s) before the
+/// body, so the internal scale is `scale * shuffle` (x2plus: 2·2 = 4).
 #[derive(Module, Debug)]
 pub struct RrdbNet<B: Backend> {
     conv_first: Conv2d<B>,
@@ -99,28 +103,45 @@ pub struct RrdbNet<B: Backend> {
     conv_up2: Option<Conv2d<B>>,
     conv_hr: Conv2d<B>,
     conv_last: Conv2d<B>,
+    scale: usize,
+    shuffle: usize,
 }
 
 impl<B: Backend> RrdbNet<B> {
-    pub fn new(scale: usize, num_block: usize, device: &B::Device) -> Self {
+    pub fn new(scale: usize, num_block: usize, shuffle: usize, device: &B::Device) -> Self {
         let num_feat = 64;
         let num_grow_ch = 32;
+        let internal = scale * shuffle;
         let body = (0..num_block)
             .map(|_| Rrdb::new(num_feat, num_grow_ch, device))
             .collect();
         Self {
-            conv_first: conv3x3(3, num_feat, device),
+            conv_first: conv3x3(3 * shuffle * shuffle, num_feat, device),
             body,
             conv_body: conv3x3(num_feat, num_feat, device),
             conv_up1: conv3x3(num_feat, num_feat, device),
-            conv_up2: (scale == 4).then(|| conv3x3(num_feat, num_feat, device)),
+            conv_up2: (internal >= 4).then(|| conv3x3(num_feat, num_feat, device)),
             conv_hr: conv3x3(num_feat, num_feat, device),
             conv_last: conv3x3(num_feat, 3, device),
+            scale,
+            shuffle: shuffle.max(1),
         }
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let feat = self.conv_first.forward(x);
+        let [n, _, h, w] = x.dims();
+        let s = self.shuffle;
+        // Shuffle variant: pixel-unshuffle the input (3 -> 3·s² channels at
+        // h/s x w/s) so conv_first matches; pad to a multiple of s first.
+        let mut feat = x;
+        if s > 1 {
+            let (ph, pw) = (h.div_ceil(s) * s, w.div_ceil(s) * s);
+            if ph != h || pw != w {
+                feat = feat.pad([(0, 0), (0, 0), (0, ph - h), (0, pw - w)], PadMode::Edge);
+            }
+            feat = pixel_unshuffle(feat, s);
+        }
+        let feat = self.conv_first.forward(feat);
         let mut body = feat.clone();
         for rrdb in &self.body {
             body = rrdb.forward(body);
@@ -131,8 +152,9 @@ impl<B: Backend> RrdbNet<B> {
             Some(c) => leaky_relu(c.forward(nearest2x(feat)), 0.2),
             None => feat,
         };
-        self.conv_last
-            .forward(leaky_relu(self.conv_hr.forward(feat), 0.2))
+        let out = self.conv_last.forward(leaky_relu(self.conv_hr.forward(feat), 0.2));
+        // Crop to the exact input·scale (shuffle padding / odd dims).
+        out.slice([0..n, 0..3, 0..h * self.scale, 0..w * self.scale])
     }
 }
 
@@ -166,7 +188,7 @@ mod tests {
         let x_v = read("x.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * c * 128 * 128);
 
-        let mut m = RrdbNet::<BurnBackend<f16>>::new(4, 23, &device);
+        let mut m = RrdbNet::<BurnBackend<f16>>::new(4, 23, 1, &device);
         let mut store = BurnpackStore::from_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../models/BSRGAN.f16.bpk"

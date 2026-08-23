@@ -14,6 +14,8 @@
 //!          (`layer_norm=1`, e.g. `real-plksr-2x-public`) and the 7th the
 //!          DySample tail (`dysample=0` for the pixel-shuffle tail, e.g.
 //!          `4x-nomoswebphoto`).
+//!   for `realesrgan`, the 8th arg is the shuffle factor (2 for the
+//!          pixel-unshuffled RealESRGAN_x2plus variant, default 1).
 //!
 //! `real-plksr` pths must have contiguous tensors (burn-store ignores strides,
 //! see docs/upstream-issues.md §4 — preprocess channels-last state dicts with
@@ -40,12 +42,15 @@ fn main() -> senmei_ml::Result<()> {
         .get(7)
         .map(|s| !(s == "0" || s.eq_ignore_ascii_case("false")))
         .unwrap_or(true);
+    let shuffle: u32 = args.get(8).and_then(|s| s.parse().ok()).unwrap_or(1);
     let input = std::path::Path::new(&args[2]);
     let out = std::path::Path::new(&args[3]);
     if input.extension().and_then(|e| e.to_str()) == Some("onnx") {
-        senmei_ml::convert_onnx_to_bpk(&args[1], input, out, scale, num_block)?;
+        senmei_ml::convert_onnx_to_bpk(&args[1], input, out, scale, num_block, shuffle)?;
     } else {
-        senmei_ml::convert_pth_to_bpk(&args[1], input, out, scale, num_block, layer_norm, dysample)?;
+        senmei_ml::convert_pth_to_bpk(
+            &args[1], input, out, scale, num_block, layer_norm, dysample, shuffle,
+        )?;
     }
     println!("converted {} -> {}", args[1], args[3]);
     Ok(())

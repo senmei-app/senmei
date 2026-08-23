@@ -95,6 +95,7 @@ pub fn convert_pth_to_bpk(
     num_block: u32,
     layer_norm: bool,
     dysample: bool,
+    shuffle: u32,
 ) -> Result<()> {
     let device = WgpuDevice::DiscreteGpu(0);
     let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
@@ -158,7 +159,12 @@ pub fn convert_pth_to_bpk(
                 .with_key_remapping(r"^upconv1\.", "conv_up1.")
                 .with_key_remapping(r"^upconv2\.", "conv_up2.")
                 .with_key_remapping(r"^HRconv\.", "conv_hr.");
-            let mut m = RrdbNet::<BurnBackend>::new(scale as usize, num_block as usize, &device);
+            let mut m = RrdbNet::<BurnBackend>::new(
+                scale as usize,
+                num_block as usize,
+                shuffle as usize,
+                &device,
+            );
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -372,13 +378,15 @@ pub fn convert_pth_to_bpk(
 /// Reads only the `initializer` tensors via the built-in protobuf reader (no
 /// ONNX Runtime); the names already match the module state dict apart from the
 /// torch `.conv.0` / `.conv.2` quirk, which is remapped here. Weights are
-/// decoded to f32 and saved through `HalfPrecisionAdapter` like the `.pth` path.
+/// Weights are
+/// decoded to f32 and saved through [`ToF16`] like the `.pth` path.
 pub fn convert_onnx_to_bpk(
     arch: &str,
     onnx_path: &Path,
     bpk_path: &Path,
     scale: u32,
     num_block: u32,
+    shuffle: u32,
 ) -> Result<()> {
     let bytes = std::fs::read(onnx_path)?;
     let tensors = crate::onnx::read_initializers(&bytes).map_err(Error::new)?;
@@ -415,7 +423,12 @@ pub fn convert_onnx_to_bpk(
             apply_and_save(&mut m, snapshots, &mut save)?;
         }
         "realesrgan" => {
-            let mut m = RrdbNet::<BurnBackend>::new(scale as usize, num_block as usize, &device);
+            let mut m = RrdbNet::<BurnBackend>::new(
+                scale as usize,
+                num_block as usize,
+                shuffle as usize,
+                &device,
+            );
             apply_and_save(&mut m, snapshots, &mut save)?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),

@@ -195,6 +195,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -240,6 +241,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -307,6 +309,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -363,6 +366,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -423,6 +427,7 @@ mod tests {
             no_norm: false,
             layer_norm: true,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -495,6 +500,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: false,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -751,6 +757,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -816,6 +823,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -877,6 +885,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -945,6 +954,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
@@ -1013,6 +1023,7 @@ mod tests {
             no_norm: false,
             layer_norm: false,
             dysample: true,
+            shuffle: 1,
             path: bpk.to_path_buf(),
         };
         let mut engine = BurnEngine::new();
