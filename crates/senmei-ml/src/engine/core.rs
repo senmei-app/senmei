@@ -5,8 +5,8 @@
 #![cfg(any(feature = "burn", feature = "tch"))]
 
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, RifeNet, Scunet, Span, SrvggNet,
-    UpCunet2x, UpCunet2xFast,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, RifeNet, SafmnNet, Scunet, Span,
+    SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -34,6 +34,7 @@ pub enum Model<B: Backend> {
     NafNet(NafNet<B>),
     RealPlk(RealPlk<B>),
     Span(Span<B>),
+    SafmnNet(SafmnNet<B>),
 }
 
 impl<B: Backend> Model<B> {
@@ -49,6 +50,7 @@ impl<B: Backend> Model<B> {
             Model::Scunet(m) => Ok(m.forward(x)),
             Model::NafNet(m) => Ok(m.forward(x)),
             Model::Span(m) => Ok(m.forward(x)),
+            Model::SafmnNet(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
                 Err(Error::new("no single-input forward"))
             }
@@ -150,6 +152,13 @@ pub fn load_arch<B: Backend>(
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             m.pad_k96(device);
             Ok(Model::Span(m))
+        }
+        "safmn" => {
+            // SAFMN-L Real (registered models are fixed): dim 128 / 16 blocks
+            // / ffn_scale 2.0; only the scale differs between x2 and x4.
+            let mut m = SafmnNet::new(128, 16, 2.0, model.scale as usize, device);
+            m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+            Ok(Model::SafmnNet(m))
         }
         other => Err(Error::new(format!("unsupported arch: {other}"))),
     }

@@ -737,5 +737,47 @@
    "layer_norm": false,
    "note": "4x RealPLKSR NomosWebPhoto (Phhofm, CC-BY-4.0); dim 64/28 blocks, GroupNorm tail, pixel-shuffle upsampler (no DySample) \u2014 new converter `dysample=0` variant"
   }
+ },
+ {
+  "id": "safmn-real-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "safmn",
+  "family": "safmn",
+  "weights": [
+   "SAFMN_L_Real_LSDIR_x2-v2.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/sunny2109/SAFMN/releases/tag/v0.1.0",
+  "download_url": "https://github.com/sunny2109/SAFMN/releases/download/v0.1.0/SAFMN_L_Real_LSDIR_x2-v2.pth",
+  "sha256": "a0d838b197dcaedb58cb317bcc3bd2704cd4733083e1eb10d7eac56eb2ea6820",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 16,
+   "note": "SAFMN-L Real (LSDIR, v2) \u2014 sunny2109/SAFMN official release (Apache-2.0), dim 128 / 16 blocks / ffn_scale 2.0; clean burn port; HF mirror Meloo/SAFMN (apache-2.0) has the non-v2 weights"
+  }
+ },
+ {
+  "id": "safmn-real-x4",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "safmn",
+  "family": "safmn",
+  "weights": [
+   "SAFMN_L_Real_LSDIR_x4-v2.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/sunny2109/SAFMN/releases/tag/v0.1.0",
+  "download_url": "https://github.com/sunny2109/SAFMN/releases/download/v0.1.0/SAFMN_L_Real_LSDIR_x4-v2.pth",
+  "sha256": "f1ac0ee3ee143fbbc49aff6584cb7b48b71ba8d1961dfb8ad076b98ca4799ae2",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 16,
+   "note": "SAFMN-L Real (LSDIR, v2) \u2014 sunny2109/SAFMN official release (Apache-2.0), dim 128 / 16 blocks / ffn_scale 2.0; clean burn port; HF mirror Meloo/SAFMN (apache-2.0) has the non-v2 weights"
+  }
  }
 ]

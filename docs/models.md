@@ -30,6 +30,7 @@ download URL + sha256).
 | Restoration | ESRGAN | BSRGAN | 4 | RRDBNet (23 blocks) | MIT | loadable (torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 | Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, HFA2k LUDVAE, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
+| Restoration | SAFMN | SAFMN-L Real (LSDIR, x2/x4 v2) | 2/4 | SafmnNet (dim 128 / 16 blocks / ffn_scale 2.0) | Apache-2.0 | loadable (clean burn port; torch mae 0.008 x2 / 0.027 x4 f16 on worst-case random input) | `sunny2109/SAFMN` v0.1.0 · HF mirror `Meloo/SAFMN` |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.
@@ -71,7 +72,6 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Restoration | Real-ESRGAN animevideov3 + general-x4v3 | BSD-3 | adopt (SRVGGNetCompact) |
 | Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
-| Restoration | SAFMN Real x2/x4 | Apache-2.0 | adopt |
 | Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, ModernSpanimation V1 done |
 | Restoration | USRNet / USRGAN | MIT | maybe (non-blind, kernel+noise) |
 | Restoration | PLKSR more | verify (new Re-SISR NC-blocked) | maybe |
@@ -82,6 +82,19 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Deblur | NAFNet-GoPro width64 | MIT (HF mirror) | maybe (width32 adopted; width64 untested in fp16) |
 
 ## Notes
+
+- SAFMN-L Real (Apache-2.0, `sunny2109/SAFMN` v0.1.0): the `SAFMN_L_Real_LSDIR_*`
+  checkpoints are the official "Real" (LSDIR-trained) SAFMN-L weights
+  (dim 128 / 16 blocks / ffn_scale 2.0 / SAFM n_levels 4). The state dict is
+  wrapped under `params`/`params_ema` (EMA preferred). The burn port uses the
+  torch-exact pixel-shuffle permutation `(0,1,4,2,5,3)` — the earlier shared
+  helper used the wrong permute (latent bug, fixed 2026-08-23; also affected
+  the SRVGG `realesrgan-animevideo` outputs). SAFM max-pools the channel groups
+  to `h/2^i` with kernel=stride=2^i, so input H/W are edge-padded to a
+  multiple of 8 inside `forward`. fp16 mae vs torch on random 32×32 input:
+  0.008 (x2) / 0.027 (x4, larger output accumulates more f16 error); real
+  video frames are smoother and land lower. HF mirror `Meloo/SAFMN`
+  (apache-2.0) hosts the non-v2 weights.
 
 - License is per artifact (code ≠ weight); adopt permissive only.
 - Synthetic input = worst case (max high-frequency): re-test numeric issues on

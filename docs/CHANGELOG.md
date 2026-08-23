@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **feat: SAFMN arch + SAFMN-L Real x2/x4 (2026-08-23)** — new `SafmnNet`
+  arch (clean burn port of the Apache-2.0 `sunny2109/SAFMN` reference),
+  converter path, engine dispatch, and two catalog entries
+  (`safmn-real-x2` / `safmn-real-x4`, Apache-2.0 weights from the official
+  `SAFMN_L_Real_LSDIR_*-v2` release, HF mirror `Meloo/SAFMN`). Config
+  dim 128 / 16 blocks / ffn_scale 2.0 / SAFM n_levels 4; input is edge-padded
+  to a multiple of 8 (SAFM's `h/2^i` pools). Verified vs torch: mae 0.008 (x2)
+  / 0.027 (x4, f16, worst-case random input). Converter key-contract test
+  added.
+
 - **fix: pixel-shuffle permutation scrambled upscalers (2026-08-23)** — the
   shared `pixel_shuffle` helper used the wrong `permute`
   (`(0,1,3,5,2,4)` instead of torch's `(0,1,4,2,5,3)`), scrambling the

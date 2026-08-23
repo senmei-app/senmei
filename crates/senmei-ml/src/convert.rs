@@ -4,8 +4,8 @@
 //! it as f16.
 
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, Scunet, Span, SrvggNet, UpCunet2x,
-    UpCunet2xFast,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, SafmnNet, Scunet, Span, SrvggNet,
+    UpCunet2x, UpCunet2xFast,
 };
 use crate::BurnBackend;
 use crate::{Error, Result};
@@ -33,7 +33,18 @@ fn srvgg_remap_patterns() -> Vec<(String, String)> {
     }
     patterns
 }
-
+/// Remap rules for the SAFMN checkpoints — shared by the converter and the
+/// `safmn_conversion_key_contract` test so they can't drift.
+fn safmn_remap_patterns() -> Vec<(String, String)> {
+    vec![
+        (r"^params_ema\.".to_string(), String::new()),
+        (r"^params\.".to_string(), String::new()),
+        (r"^feats\.(\d+)\.".to_string(), "blocks.$1.".into()),
+        (r"\.ccm\.ccm\.0\.".to_string(), ".ccm.conv1.".into()),
+        (r"\.ccm\.ccm\.2\.".to_string(), ".ccm.conv2.".into()),
+        (r"^to_img\.0\.".to_string(), "to_img_conv.".into()),
+    ]
+}
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
 /// Loads the f32 state dict on the Vulkan backend (upcunet key remap), then
 /// saves through `HalfPrecisionAdapter` so `BurnEngine` can load it as f16.
@@ -298,6 +309,28 @@ pub fn convert_pth_to_bpk(
             m.save_into(&mut save)
                 .map_err(|e| Error::new(e.to_string()))?;
         }
+        "safmn" => {
+            // SAFMN-L Real checkpoints wrap the state dict under `params`/
+            // `params_ema`; the `to_img` Sequential index and the inner
+            // `ccm.ccm` Sequential indices are stripped. dim 128 / 16 blocks
+            // / ffn_scale 2.0 fixed (registered models only). The 5th CLI arg
+            // (num_block slot) is the block count.
+            let mut store = PytorchStore::from_file(pth_path);
+            for (from, to) in safmn_remap_patterns() {
+                store = store.with_key_remapping(from, to);
+            }
+            let mut m = SafmnNet::<BurnBackend>::new(
+                128,
+                num_block as usize,
+                2.0,
+                scale as usize,
+                &device,
+            );
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }
     Ok(())
@@ -424,10 +457,87 @@ fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
 
 #[cfg(all(test, feature = "burn"))]
 mod tests {
-    use super::srvgg_remap_patterns;
+    use super::{safmn_remap_patterns, srvgg_remap_patterns};
     use burn::module::ParamId;
     use burn::tensor::TensorData;
     use burn_store::{KeyRemapper, TensorSnapshot};
+
+    /// Key-contract for the SAFMN-L Real conversion — pure key mapping, no
+    /// GPU. Builds the real `params_ema.`-wrapped state dict keys (292: 2
+    /// to_feat + 16 blocks × 18 + 2 to_img) and asserts they remap exactly
+    /// onto the `SafmnNet` record paths (to_feat / blocks.{i}.{norm1,norm2,
+    /// safm.mfr.{j}, safm.aggr, ccm.conv1/2} / to_img_conv).
+    #[test]
+    fn safmn_conversion_key_contract() {
+        let mut source = Vec::with_capacity(292);
+        source.push("params_ema.to_feat.weight".into());
+        source.push("params_ema.to_feat.bias".into());
+        for i in 0..16u32 {
+            source.push(format!("params_ema.feats.{i}.norm1.weight"));
+            source.push(format!("params_ema.feats.{i}.norm1.bias"));
+            source.push(format!("params_ema.feats.{i}.norm2.weight"));
+            source.push(format!("params_ema.feats.{i}.norm2.bias"));
+            for j in 0..4u32 {
+                source.push(format!("params_ema.feats.{i}.safm.mfr.{j}.weight"));
+                source.push(format!("params_ema.feats.{i}.safm.mfr.{j}.bias"));
+            }
+            source.push(format!("params_ema.feats.{i}.safm.aggr.weight"));
+            source.push(format!("params_ema.feats.{i}.safm.aggr.bias"));
+            source.push(format!("params_ema.feats.{i}.ccm.ccm.0.weight"));
+            source.push(format!("params_ema.feats.{i}.ccm.ccm.0.bias"));
+            source.push(format!("params_ema.feats.{i}.ccm.ccm.2.weight"));
+            source.push(format!("params_ema.feats.{i}.ccm.ccm.2.bias"));
+        }
+        source.push("params_ema.to_img.0.weight".into());
+        source.push("params_ema.to_img.0.bias".into());
+        assert_eq!(source.len(), 292);
+
+        let snapshots = source
+            .iter()
+            .map(|name| {
+                let mut s = TensorSnapshot::from_data(
+                    TensorData::new(vec![0f32; 1], vec![1]),
+                    name.split('.').map(str::to_string).collect(),
+                    Vec::new(),
+                    ParamId::new(),
+                );
+                s.container_stack = None;
+                s.tensor_id = None;
+                s
+            })
+            .collect();
+
+        let remapper = KeyRemapper::from_patterns(safmn_remap_patterns()).unwrap();
+        let (remapped, _) = remapper.remap(snapshots);
+        let mut paths: Vec<String> = remapped.iter().map(|s| s.full_path()).collect();
+        paths.sort();
+        paths.dedup();
+
+        let mut expected = Vec::with_capacity(292);
+        expected.push("to_feat.weight".into());
+        expected.push("to_feat.bias".into());
+        for i in 0..16u32 {
+            expected.push(format!("blocks.{i}.norm1.weight"));
+            expected.push(format!("blocks.{i}.norm1.bias"));
+            expected.push(format!("blocks.{i}.norm2.weight"));
+            expected.push(format!("blocks.{i}.norm2.bias"));
+            for j in 0..4u32 {
+                expected.push(format!("blocks.{i}.safm.mfr.{j}.weight"));
+                expected.push(format!("blocks.{i}.safm.mfr.{j}.bias"));
+            }
+            expected.push(format!("blocks.{i}.safm.aggr.weight"));
+            expected.push(format!("blocks.{i}.safm.aggr.bias"));
+            expected.push(format!("blocks.{i}.ccm.conv1.weight"));
+            expected.push(format!("blocks.{i}.ccm.conv1.bias"));
+            expected.push(format!("blocks.{i}.ccm.conv2.weight"));
+            expected.push(format!("blocks.{i}.ccm.conv2.bias"));
+        }
+        expected.push("to_img_conv.weight".into());
+        expected.push("to_img_conv.bias".into());
+        expected.sort();
+
+        assert_eq!(paths, expected);
+    }
 
     /// Key-contract for the animevideo-xs SRVGG conversion — the regression
     /// guard for the "conversion failed: Tensor not found" bug. The real
