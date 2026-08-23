@@ -18,11 +18,11 @@ pub fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Extract the source audio track as FLAC (lossless PCM) for the native
+/// Extract the source audio track as WAV (lossless PCM) for the native
 /// preview player (rodio). Any source codec (AC3/FLAC/Opus/…) is decoded by
-/// our FFmpeg and re-encoded losslessly, so rodio never sees an exotic codec;
-/// FLAC keeps the track lossless and small (vs raw WAV) and is a first-class
-/// symphonia/rodio codec.
+/// our FFmpeg and re-encoded losslessly, so rodio never sees an exotic codec.
+/// WAV (pcm_s16le) is required: rodio's FLAC decoder is not seekable, so
+/// scrubbing/play-start silently stayed at position 0.
 pub fn extract_audio(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,
@@ -31,7 +31,7 @@ pub fn extract_audio(
     let status = std::process::Command::new(ffmpeg)
         .args(["-y", "-i"])
         .arg(input)
-        .args(["-vn", "-c:a", "flac"])
+        .args(["-vn", "-c:a", "pcm_s16le"])
         .arg(out)
         .status()?;
     if status.success() {

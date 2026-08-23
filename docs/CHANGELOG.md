@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **fix: preview audio is seekable again (WAV, not FLAC) (2026-08-23)** — the
+  preview track was extracted as FLAC, but rodio's FLAC decoder is **not
+  seekable** (`try_seek` → `NotSupported`), so every seek (play-start, mode
+  switch, scrub) silently stayed at 0: the Result view played audio from the
+  beginning of the source video against frames from the sample window. The
+  track is now extracted as WAV (`pcm_s16le`) — still lossless, and rodio
+  (hound) seeks it fine. Extraction/suffix/stale-cleanup updated; regression
+  test `extract_audio_wav_is_rodio_seekable` asserts the extracted track
+  decodes and seeks.
+
 - **fix: preview audio follows the playhead (result sync) (2026-08-23)** — the
   extracted source track started at 0 on a fresh load, but play-start and
   mode-switch (into result/compare, which clamp the playhead to the sample
