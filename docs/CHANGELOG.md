@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: 2xHFA2kReal-CUGAN (2026-08-23)** — catalog entry
+  `real-cugan-hfa2k-x2` (Phhofm, CC-BY-4.0, 2× anime, HFA2k dataset, pretrain
+  up2x-latest-conservative). Same `UpCunet2x` arch as `real-cugan-x2`; the
+  checkpoint wraps its keys under `params` (converter now strips that for the
+  upcunet branch). Verified vs spandrel (mae 1.13 on a real DVD frame);
+  135.6 ms / 7.4 FPS at 720×576.
+
 - **feat: RealESRGAN_x2plus (RRDBNet shuffle variant, 2026-08-23)** — catalog
   entry `realesrgan-x2plus` (BSD-3-Clause, real-photo x2, RRDBNet 23 blocks).
   `RrdbNet` now supports the pixel_unshuffle input variant (`shuffle` factor:

@@ -823,5 +823,24 @@
    "shuffle": 2,
    "note": "RRDBNet 23-block real-photo x2; pixel_unshuffle(2) input variant (shuffle 2, conv_first 12ch), internal 4x upsample"
   }
+ },
+ {
+  "id": "real-cugan-hfa2k-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "upcunet2x",
+  "family": "real-cugan",
+  "weights": [
+   "2xHFA2kReal-CUGAN.f16.bpk"
+  ],
+  "license": "CC-BY-4.0",
+  "source_url": "https://huggingface.co/Phips/2xHFA2kReal-CUGAN",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xHFA2kReal-CUGAN/2xHFA2kReal-CUGAN.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "Phhofm Real-CUGAN 2x anime (CC-BY-4.0, HFA2k, up2x-latest-conservative pretrain); same UpCunet2x arch as real-cugan-x2, keys under `params` (stripped)"
+  }
  }
 ]

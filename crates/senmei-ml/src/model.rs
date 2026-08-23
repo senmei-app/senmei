@@ -212,7 +212,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 40);
+        assert_eq!(registry.models().len(), 41);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -426,6 +426,9 @@ mod tests {
             registry.models()[39].metadata.get("shuffle").and_then(|v| v.as_u64()),
             Some(2)
         );
+        assert_eq!(registry.models()[40].id, "real-cugan-hfa2k-x2");
+        assert_eq!(registry.models()[40].arch, "upcunet2x");
+        assert!(registry.models()[40].loadable);
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

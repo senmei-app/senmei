@@ -102,6 +102,7 @@ pub fn convert_pth_to_bpk(
     match arch {
         "upcunet2x" | "upcunet2x-fast" | "fallin-cugan" => {
             let mut store = PytorchStore::from_file(pth_path)
+                .with_key_remapping(r"^params\.", "")
                 .with_key_remapping(r"\.conv\.0\.", ".conv.")
                 .with_key_remapping(r"\.conv\.2\.", ".conv2.");
             match arch {

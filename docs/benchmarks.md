@@ -193,6 +193,7 @@ fused VRAM guard except where noted. Sorted by ms/frame.
 | **realesrgan-animevideo-x2** | **2** | **86.7** | **11.5** |
 | **realesrgan-general-x4v3** | **4** | **110.7** | **9.0** *tiled |
 | real-cugan-x2 | 2 | 136.3 | 7.3 |
+| real-cugan-hfa2k-x2 | 2 | 135.6 | 7.4 |
 | span-2x-modern-spanimation-v1 | 2 | 277.9 | 3.6 |
 | span-2x-modern-spanimation-v1.5 | 2 | 278.0 | 3.6 |
 | span-2x-nomosuni-ldl | 2 | 295.9 | 3.4 |
