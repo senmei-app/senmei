@@ -194,6 +194,7 @@ fused VRAM guard except where noted. Sorted by ms/frame.
 | real-cugan-x2 | 2 | 137.7 | 7.3 |
 | **realesrgan-general-x4v3** | **4** | **194.8** | **5.1** |
 | span-2x-nomosuni-ldl | 2 | 299.7 | 3.3 |
+| span-2x-nomosuni-multijpg | 2 | 296.9 | 3.4 |
 | span-2x-hfa2k | 2 | 301.2 | 3.3 |
 | span-2x-bhi-small | 2 | 305.3 | 3.3 |
 | span-2x-modern-spanimation-v1.5 | 2 | 284.3 | 3.5 |
@@ -227,10 +228,11 @@ Takeaways:
   slower than fallin despite the "lightweight" claim; the SAFM block (depthwise
   convs + per-level pool/interp + GELU) maps poorly to this backend. Worth
   profiling before recommending.
-- `span-2x-nomosuni-multijpg` panics in burn-ir (`DTypeMismatch`) — the bpk is
-  stored F32 (converter `PytorchStore` → `HalfPrecisionAdapter` misses the
-  `Span` module type, so convs are never cast); ldl (F16) loads fine. Needs a
-  converter fix.
+- `span-2x-nomosuni-multijpg` used to panic in burn-ir (`DTypeMismatch`): its
+  bpk was stored F32 — `HalfPrecisionAdapter` gates on the burn module type,
+  which `PytorchStore` snapshots lack, so the span convs were never cast.
+  Converter now saves through an unconditional `ToF16` adapter; the re-converted
+  bpk is F16 (3.67 MB, was 7.32 MB) and loads (296.9 ms / 3.4 FPS).
 
 ### SRVGG residual fix (2026-08-23)
 

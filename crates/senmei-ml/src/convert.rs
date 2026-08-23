@@ -1,7 +1,6 @@
 //! One-time `.pth`/`.onnx` → f16 `.bpk` conversion for the burn engine
 //! (maintainer + `download_model`). Loads the f32 state dict on the Vulkan
-//! backend and saves through `HalfPrecisionAdapter` so `BurnEngine` can load
-//! it as f16.
+//! backend and saves through [`ToF16`] so `BurnEngine` can load it as f16.
 
 use crate::arch::{
     Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, SafmnNet, Scunet, Span, SrvggNet,
@@ -11,12 +10,44 @@ use crate::BurnBackend;
 use crate::{Error, Result};
 use burn::module::ParamId;
 use burn::tensor::backend::Backend;
-use burn::tensor::{f16, TensorData};
+use burn::tensor::{f16, DType, TensorData};
 use burn_store::{
-    BurnpackStore, HalfPrecisionAdapter, KeyRemapper, ModuleSnapshot, PytorchStore, TensorSnapshot,
+    BurnpackStore, KeyRemapper, ModuleAdapter, ModuleSnapshot, PytorchStore, TensorSnapshot,
 };
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
+
+/// Cast every stored F32 tensor to F16 — the conversion's goal is an all-f16
+/// burnpack. `HalfPrecisionAdapter` gates on the module type (the burn
+/// `container_stack`), which `PytorchStore`/ONNX snapshots lack — so the span
+/// convs were saved F32 and the f16 engine DTypeMismatch'd on load (span F32
+/// bpk bug). Casting unconditionally is safe: none of the archs use BatchNorm
+/// (whose `running_var` underflows in f16).
+#[derive(Clone)]
+struct ToF16;
+
+impl ModuleAdapter for ToF16 {
+    fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+        let target = match snapshot.dtype {
+            DType::F32 => DType::F16,
+            _ => return snapshot.clone(),
+        };
+        let original = snapshot.clone_data_fn();
+        let cast = std::rc::Rc::new(move || Ok(original()?.convert_dtype(target)));
+        TensorSnapshot::from_closure(
+            cast,
+            target,
+            snapshot.shape.clone(),
+            snapshot.path_stack.clone().unwrap_or_default(),
+            snapshot.container_stack.clone().unwrap_or_default(),
+            snapshot.tensor_id.unwrap_or_default(),
+        )
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
+}
 
 /// Remap rules for the SRVGG checkpoints — shared by the converter and the
 /// `srvgg_conversion_key_contract` test so they can't drift. `num_conv` is the
@@ -55,7 +86,7 @@ fn safmn_remap_patterns() -> Vec<(String, String)> {
 }
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
 /// Loads the f32 state dict on the Vulkan backend (upcunet key remap), then
-/// saves through `HalfPrecisionAdapter` so `BurnEngine` can load it as f16.
+/// saves through [`ToF16`] so `BurnEngine` can load it as f16.
 pub fn convert_pth_to_bpk(
     arch: &str,
     pth_path: &Path,
@@ -66,8 +97,7 @@ pub fn convert_pth_to_bpk(
     dysample: bool,
 ) -> Result<()> {
     let device = WgpuDevice::DiscreteGpu(0);
-    let mut save = BurnpackStore::from_file(bpk_path)
-        .with_to_adapter(HalfPrecisionAdapter::new().with_module("Prelu"));
+    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
     match arch {
         "upcunet2x" | "upcunet2x-fast" | "fallin-cugan" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -211,14 +241,9 @@ pub fn convert_pth_to_bpk(
             // blocks are torch Sequentials (`.mlp.0`/`.mlp.2`,
             // `.conv_block.0`/`.conv_block.2`) and LayerNorm weight/bias are
             // burn `gamma`/`beta`.
-            //
-            // The `relative_position_params` bare-tensor param lives in the
-            // custom `Wmsa` module, which is not in the default half-precision
-            // set — add it so the f16 bpk stores it as F16 (otherwise the f16
-            // model loads it F32 and the attention add fails DTypeMismatch).
-            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(
-                HalfPrecisionAdapter::new().with_module("Wmsa"),
-            );
+            // ToF16 casts every tensor (incl. the bare `relative_position_params`
+            // param in the custom `Wmsa` module) so the f16 model loads F16.
+            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
             let mut store = PytorchStore::from_file(pth_path)
                 .with_key_remapping(r"^module\.", "")
                 .with_key_remapping(r"^m_head\.0\.", "m_head.")
@@ -242,14 +267,9 @@ pub fn convert_pth_to_bpk(
             // ups.0.0, downs.0) map onto the burn field paths
             // (encoders.0.blocks.0.conv1, sca_conv, middle.0, ups.0.conv,
             // downs.0) with capture-group rules. The checkpoint wraps the
-            // state dict under `params`. The custom `NafBlock`/`LayerNorm2d`
-            // structs hold `beta`/`gamma`/norm params that aren't in the
-            // default half-precision set, so add them for the f16 conversion.
-            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(
-                HalfPrecisionAdapter::new()
-                    .with_module("NafBlock")
-                    .with_module("LayerNorm2d"),
-            );
+            // state dict under `params`. ToF16 casts every tensor (incl. the
+            // custom `NafBlock`/`LayerNorm2d` norm params) for the f16 bpk.
+            let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
             let mut store = PytorchStore::from_file(pth_path)
                 .with_top_level_key("params")
                 .with_key_remapping(r"^encoders\.(\d+)\.(\d+)\.", "encoders.$1.blocks.$2.")
@@ -384,7 +404,7 @@ pub fn convert_onnx_to_bpk(
     let (snapshots, _) = remapper.remap(snapshots);
 
     let device = WgpuDevice::DiscreteGpu(0);
-    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(HalfPrecisionAdapter::new());
+    let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
     match arch {
         "upcunet2x" => {
             let mut m = UpCunet2x::<BurnBackend>::new(&device);

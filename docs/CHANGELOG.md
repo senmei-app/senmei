@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: converter casts every weight to f16 (2026-08-23)** — the save-side
+  `HalfPrecisionAdapter` gates on the burn module type, which
+  `PytorchStore`/ONNX snapshots lack — so span (and any other) convs were
+  written F32 and the f16 engine DTypeMismatch'd on load (`span-2x-nomosuni-
+  multijpg` panicked in the sweep). Replaced it with an unconditional `ToF16`
+  adapter on all conversion save paths (safe: no arch uses BatchNorm).
+  Re-converted multijpg: bpk is now F16 (3.67 MB, was 7.32 MB) and loads.
+
 - **test: real-frame upscaler sweep saves output PNGs (2026-08-23)** —
   `bench_upscalers_real_frames` now writes each model's upscaled frame as
   `<id>.png` next to the input frames (`models.bat/` by default, generated
