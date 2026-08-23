@@ -24,9 +24,17 @@
       issue yet.
 
 ## Webview / media preview (revisit ~2026-11)
-- [ ] Re-evaluate Tauri CEF backend for native media playback (VAAPI, no
-      `asset://` limit) — would obsolete rodio. Stay WebKitGTK until then
-      (PLAN §12).
+- [ ] Re-evaluate webview backend (CEF VAAPI / Servo canvas) — media is now
+      engine-independent via our own FFmpeg pipeline (PLAN §18); switch only
+      if hardware decode or canvas throughput demands it
+
+## Preview / Media (2026-08-23, PLAN §18)
+- [ ] Phase 1: PreviewCache — correct video-stream duration probing (drop binary-search), state machine + LRU
+- [ ] Phase 2: raw-frame transport + `FrameSink` trait (Tauri Channel raw → putImageData; HTTP binary); PNG/base64 out
+- [ ] Phase 2b: preview decode budget (`max_dim` hint, `scale=…:-2`, never upscale; render stays full-res)
+- [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
+- [ ] Phase 4: audio — FFmpeg→PCM→native sink (rodio/cpal) instead of MP3 transcode; web Range-stream
+
 ## Compliance (2026-08-20)
 
 > cargo-deny 0.20.2 scan (ORT not viable: Cargo analyzer OOM >20 GiB heap +
@@ -78,3 +86,11 @@
       events — add progress once streaming lands (or poll download status)
 - [ ] Web UI hardware/GPU status: `httpBackend.hardwareStatus` returns `null`
       (Tauri-only for now)
+
+## Refactor (2026-08-23)
+- [ ] Dedup zip extraction — shared `extract_zip(archive, dest, filter)` in
+      senmei-media (replaces extract_zip_prefix + torch.rs
+      extract_wheel_prefixes/unzip; extract_binary find-one bleibt)
+- [ ] Dedup feather ramp — shared `feather_ramp()` in tiling.rs for the fused
+      (engine/core.rs) + CPU (tiling.rs) stitch — deferred (kein Tiling-
+      Experimentieren gerade)

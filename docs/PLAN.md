@@ -520,3 +520,38 @@ interpolation, deband, line-enhance, tonemap).
 Re-verify licenses at adoption; record per artifact in `metadata.json`.
 Port cost: FACTOR = Swin-V2 transformer (first transformer port in burn);
 NIMA = plain CNN.
+
+---
+
+## 18. Preview / media pipeline (2026-08-23)
+
+**Principle:** *media belongs to the app, not the engine* — the preview
+(video + audio) runs over our own FFmpeg pipeline; the webview only renders
+(canvas + window). This decouples preview from the webview engine
+(WebKitGTK / Servo / CEF), keeps the LGPL boundary (FFmpeg subprocess / LGPL
+lib), and gives full codec coverage (incl. H.265) everywhere.
+
+**Decision (2026-08-23):** refactor the FFmpeg-decoded frame + audio path:
+
+| Piece | Today | Target |
+|---|---|---|
+| Frame transport | RGB24 → PNG → temp-file/base64 → `<img>` | **raw frames → `FrameSink`** (Tauri `Channel<PreviewFrame>` → `putImageData`; HTTP binary body) |
+| Preview resolution | full source (4K = 8 MB/frame) | **decode budget** — `max_dim` hint (canvas×DPR, cap 1280/1920), `scale=…:-2`, never upscale; render/export stays full-res |
+| Audio (desktop) | `extract_audio` → **MP3** for rodio (codec hack) | **FFmpeg → PCM → native sink** (rodio/cpal) — all codecs, no rodio-codec dep |
+| Audio (web UI) | none | Range-stream → `<audio>`/`<video>` (browser decodes) |
+| Concurrency | sync per-request decode | **decoder thread + ring buffer** (last-frame-wins) |
+| `PreviewCache` | binary-search EOF hack, catch-up loop, FIFO evict | correct video-stream duration probing (root cause) + state machine + LRU |
+
+**`FrameSink` seam (senmei-core):** `trait FrameSink { fn push(&self, frame: &Frame) }`
+— `TauriChannelSink` / `HttpStreamSink` / (future Servo). The decode path
+becomes transport-agnostic; a Servo/CEF swap no longer touches media.
+
+**Webview implications:** because media no longer depends on the engine's
+`<video>`/`<audio>`, the WebKitGTK↔Servo question is decoupled from media.
+Servo's **canvas 2D throughput** is the only open evaluation item — measure
+(1080p @ 24 fps `putImageData`) before any switch; CEF stays out (size, codec
+licensing).
+
+**Phases:** 1 = PreviewCache simplification · 2 = raw-frame transport +
+`FrameSink` + decode budget · 3 = decoder thread/ring buffer · 4 = audio
+(FFmpeg→PCM native sink + web Range-stream). Todos in `todos.md`.

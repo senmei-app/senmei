@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: PLAN §18 preview/media pipeline (2026-08-23)** — media belongs to
+  the app, not the engine: raw-frame `FrameSink` transport, preview decode
+  budget, audio FFmpeg→PCM native sink, PreviewCache simplification; phased
+  todos added.
+
 - **refactor: shared deps live in `[workspace.dependencies]` (2026-08-23)** —
   log/serde/serde_json/thiserror/anyhow/tokio/zip/clap/env_logger/schemars/
   base64 were duplicated across the crate manifests; now one version per dep
