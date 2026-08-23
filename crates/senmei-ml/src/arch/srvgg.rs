@@ -45,36 +45,34 @@ fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
         .reshape([n, oc, h * r, w * r])
 }
 
-/// `SRVGGNetCompact`: conv_first + (num_conv−2)× (conv + prelu) + last conv,
-/// then a PixelShuffle upsampler (1 step for 2×, 2 for 4×) and a final conv.
+/// `SRVGGNetCompact` (animevideo-xs): `conv_first + num_conv× (conv + prelu) +
+/// upscale conv (num_feat → 3·scale²)`, then one PixelShuffle(scale). The
+/// animevideo-xs checkpoints fold the upsampler into the body — the last body
+/// conv is `64 → 12` (2×) / `48` (4×) and there are no `upsampler.*`/`conv_last`
+/// keys.
 #[derive(Module, Debug)]
 pub struct SrvggNet<B: Backend> {
-    /// The convs (torch `body.{0,2,4,…}` remapped onto this Vec).
+    /// The convs (torch `body.{0,2,4,…}` remapped onto this Vec); the last one
+    /// is the upscale conv (`num_feat → 3·scale²`).
     body: Vec<Conv2d<B>>,
     /// The shared PReLU (torch `body.{1,3,5,…}.weight`, all identical).
     prelu: Prelu<B>,
-    /// 1 conv for 2×, 2 convs for 4× (torch `upsampler.{0,2}`).
-    upsampler: Vec<Conv2d<B>>,
-    conv_last: Conv2d<B>,
+    /// Upscale factor for the final PixelShuffle.
+    scale: usize,
 }
 
 impl<B: Backend> SrvggNet<B> {
     pub fn new(num_feat: usize, num_conv: usize, scale: usize, device: &B::Device) -> Self {
-        let mut body = Vec::with_capacity(num_conv);
+        let mut body = Vec::with_capacity(num_conv + 2);
         body.push(conv3x3(3, num_feat, device));
-        for _ in 1..num_conv {
+        for _ in 0..num_conv {
             body.push(conv3x3(num_feat, num_feat, device));
         }
-        let mut upsampler = Vec::new();
-        upsampler.push(conv3x3(num_feat, num_feat * 4, device));
-        if scale >= 4 {
-            upsampler.push(conv3x3(num_feat, num_feat * 4, device));
-        }
+        body.push(conv3x3(num_feat, 3 * scale * scale, device));
         Self {
             body,
             prelu: Prelu::new(num_feat, device),
-            upsampler,
-            conv_last: conv3x3(num_feat, 3, device),
+            scale,
         }
     }
 
@@ -86,10 +84,7 @@ impl<B: Backend> SrvggNet<B> {
                 y = self.prelu.forward(y);
             }
         }
-        for conv in &self.upsampler {
-            y = pixel_shuffle(conv.forward(y), 2);
-        }
-        self.conv_last.forward(y)
+        pixel_shuffle(y, self.scale)
     }
 }
 
@@ -158,5 +153,41 @@ mod tests {
             / ref_v.len() as f32;
         println!("mae vs torch = {mae}");
         assert!(mae < 0.02, "mae too high: {mae}");
+    }
+
+    /// Smoke check of the animevideo-xs structure against the converted bpk:
+    /// 18 body convs load with no missing and the forward upscales by `scale`
+    /// (x2 → 64→12 body tail + PixelShuffle(2)). Catches the arch/checkpoint
+    /// mismatch the key-contract test guards at the key level.
+    #[test]
+    #[ignore = "needs GPU + converted animevideo bpk (senmei-ml-convert srvgg)"]
+    fn srvgg_forward_upscales() {
+        let device = WgpuDevice::DiscreteGpu(0);
+        let mut m = SrvggNet::<BurnBackend<f16>>::new(64, 16, 2, &device);
+        let mut store = BurnpackStore::from_file("/tmp/animevideo_x2.f16.bpk");
+        let res = m.load_from(&mut store).unwrap();
+        assert!(
+            res.missing.is_empty(),
+            "missing tensors: {:?}",
+            res.missing
+        );
+
+        let (h, w): (usize, usize) = (16, 24);
+        let x = Tensor::<BurnBackend<f16>, 4>::from_data(
+            TensorData::new(
+                (0..3 * h * w)
+                    .map(|i| ((i % w) as f32 / w as f32) * 0.5 + 0.25)
+                    .collect(),
+                [1, 3, h, w],
+            )
+            .convert::<f16>(),
+            &device,
+        );
+        let out = m.forward(x);
+        assert_eq!(out.dims(), [1, 3, h * 2, w * 2]);
+        assert!(
+            out.into_data().to_vec::<f16>().unwrap().iter().all(|v| v.to_f32().is_finite()),
+            "non-finite output"
+        );
     }
 }

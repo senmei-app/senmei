@@ -18,6 +18,22 @@ use burn_store::{
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
+/// Remap rules for the animevideo-xs SRVGG checkpoints — shared by the
+/// converter and the `srvgg_conversion_key_contract` test so they can't drift.
+fn srvgg_remap_patterns() -> Vec<(String, String)> {
+    let mut patterns = vec![
+        (r"^params\.".to_string(), String::new()),
+        (r"body\.\d*[13579]\.weight".to_string(), "prelu.weight".into()),
+    ];
+    for i in 0..18u32 {
+        patterns.push((
+            format!(r"body\.{}\.(weight|bias)", i * 2),
+            format!("body.{}.$1", i),
+        ));
+    }
+    patterns
+}
+
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
 /// Loads the f32 state dict on the Vulkan backend (upcunet key remap), then
 /// saves through `HalfPrecisionAdapter` so `BurnEngine` can load it as f16.
@@ -57,22 +73,16 @@ pub fn convert_pth_to_bpk(
             }
         }
         "srvgg" => {
-            // Torch SRVGG body is flat (`body.{0,2,4,…}` = convs, `body.{1,3,…}`
-            // = the ONE shared PReLU). Remap the even conv indices onto the Vec;
-            // `body.1.weight` feeds the shared PReLU and the duplicate odd
-            // weights stay unused. 4× upsampler convs sit at `upsampler.0/.2`
-            // (PixelShuffle between), so `.2` becomes the Vec's `.1`.
-            let mut store = PytorchStore::from_file(pth_path)
-                .with_key_remapping(
-                    r"body\.(1|3|5|7|9|11|13|15|17|19|21|23|25|27|29)\.weight",
-                    "prelu.weight",
-                );
-            for i in 0..16u32 {
-                let from = format!(r"body\.{}\.(weight|bias)", i * 2);
-                let to = format!("body.{}.$1", i);
+            // animevideo-xs variant: `body` is a flat ModuleList — even indices
+            // are convs (`conv_first` + `num_conv`× mid + the upscale conv
+            // `num_feat → 3·scale²`), odd indices are the ONE shared PReLU. The
+            // checkpoint wraps the state dict under `params` (stripped) and
+            // folds the upsampler into the body (no `upsampler.*`/`conv_last`
+            // keys).
+            let mut store = PytorchStore::from_file(pth_path);
+            for (from, to) in srvgg_remap_patterns() {
                 store = store.with_key_remapping(from, to);
             }
-            store = store.with_key_remapping(r"upsampler\.2\.", "upsampler.1.");
             let mut m = SrvggNet::<BurnBackend>::new(64, 16, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
@@ -410,5 +420,64 @@ fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
         return Err(Error::new(format!("data length mismatch for {}", t.name)));
     }
     Ok(out)
+}
+
+#[cfg(all(test, feature = "burn"))]
+mod tests {
+    use super::srvgg_remap_patterns;
+    use burn::module::ParamId;
+    use burn::tensor::TensorData;
+    use burn_store::{KeyRemapper, TensorSnapshot};
+
+    /// Key-contract for the animevideo-xs SRVGG conversion — the regression
+    /// guard for the "conversion failed: Tensor not found" bug. The real
+    /// `RealESRGANv2-animevideo-xsx2.pth` state dict (18 body convs ending in
+    /// the folded 64→3·scale² upscale conv, 17 shared PReLUs, wrapped under
+    /// `params`) must remap exactly onto the `SrvggNet` record paths (`body.{i}`
+    /// convs + shared `prelu`) — no missing, no unexpected leftovers. Pure key
+    /// mapping, no GPU.
+    #[test]
+    fn srvgg_conversion_key_contract() {
+        let mut source = Vec::with_capacity(53);
+        for i in 0..18u32 {
+            source.push(format!("params.body.{}.weight", i * 2));
+            source.push(format!("params.body.{}.bias", i * 2));
+        }
+        for i in 0..17u32 {
+            source.push(format!("params.body.{}.weight", i * 2 + 1));
+        }
+        assert_eq!(source.len(), 53);
+
+        let snapshots = source
+            .iter()
+            .map(|name| {
+                let mut s = TensorSnapshot::from_data(
+                    TensorData::new(vec![0f32; 1], vec![1]),
+                    name.split('.').map(str::to_string).collect(),
+                    Vec::new(),
+                    ParamId::new(),
+                );
+                s.container_stack = None;
+                s.tensor_id = None;
+                s
+            })
+            .collect();
+
+        let remapper = KeyRemapper::from_patterns(srvgg_remap_patterns()).unwrap();
+        let (remapped, _) = remapper.remap(snapshots);
+        let mut paths: Vec<String> = remapped.iter().map(|s| s.full_path()).collect();
+        paths.sort();
+        paths.dedup();
+
+        let mut expected = Vec::with_capacity(37);
+        for i in 0..18u32 {
+            expected.push(format!("body.{}.weight", i));
+            expected.push(format!("body.{}.bias", i));
+        }
+        expected.push("prelu.weight".into());
+        expected.sort();
+
+        assert_eq!(paths, expected);
+    }
 }
 
