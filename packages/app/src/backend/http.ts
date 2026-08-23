@@ -97,6 +97,8 @@ export const httpBackend: Backend = {
     return null; // server doesn't stream raw files yet -> FFmpeg frame fallback
   },
 
+  async setWindowFullscreen() {},
+
   async getSettings(): Promise<Settings> {
     const raw = localStorage.getItem(SETTINGS_KEY);
     return raw ? (JSON.parse(raw) as Settings) : { language: "en", theme: "dark" };

@@ -68,6 +68,11 @@ export const tauriBackend: Backend = {
     return convertFileSrc(input);
   },
 
+  async setWindowFullscreen(fullscreen: boolean): Promise<void> {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setFullscreen(fullscreen);
+  },
+
   getSettings() {
     return bridge.getSettings();
   },

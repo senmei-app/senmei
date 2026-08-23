@@ -218,6 +218,8 @@ export const mockBackend: Backend = {
     return null;
   },
 
+  async setWindowFullscreen() {},
+
   async getSettings() {
     return demoSettings;
   },

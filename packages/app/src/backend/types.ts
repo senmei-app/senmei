@@ -68,6 +68,9 @@ export interface Backend {
   /// Native-playable URL for a video file; `null` when the transport can't
   /// stream it (web falls back to FFmpeg-decoded frames).
   nativeVideoUrl(input: string): FrameSource | null;
+  /// Fullscreen the OS window (Full Video Mode); no-op on transports without a
+  /// window (headless HTTP / mock).
+  setWindowFullscreen(fullscreen: boolean): Promise<void>;
 
   // Settings
   getSettings(): Promise<Settings>;

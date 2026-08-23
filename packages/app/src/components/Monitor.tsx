@@ -22,7 +22,8 @@ export default function Monitor({
   projectDir,
   onSampleChange,
   onRenderSample,
-  toggleFullscreenSignal = 0,
+  fullVideo = false,
+  onToggleFullVideo,
   togglePlayHotkey = "Space",
 }: {
   file?: string;
@@ -38,34 +39,13 @@ export default function Monitor({
   projectDir?: string | null;
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
-  toggleFullscreenSignal?: number;
+  /** Full Video Mode: the app fullscreens the OS window and shows only this
+   *  monitor (video stays in the DOM — smooth, controlled dblclick). */
+  fullVideo?: boolean;
+  onToggleFullVideo?: () => void;
   togglePlayHotkey?: string;
 }) {
   const { t } = useI18n();
-  // Native fullscreen on the monitor element itself (WebKit fullscreen API):
-  // the same video/frame instance stays mounted, so playback continues and no
-  // second decoder runs underneath. Esc exits fullscreen natively.
-  const rootRef = useRef<HTMLElement | null>(null);
-  const [isFull, setIsFull] = useState(false);
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      setIsFull(false);
-      void document.exitFullscreen();
-    } else {
-      void rootRef.current?.requestFullscreen().then(() => setIsFull(true)).catch(() => {});
-    }
-  };
-  // View menu "Full Video Mode" toggles fullscreen on each signal.
-  useEffect(() => {
-    if (toggleFullscreenSignal > 0) toggleFullscreen();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toggleFullscreenSignal]);
-  // Keep the ✕/hint state in sync with native exits (Esc).
-  useEffect(() => {
-    const onFs = () => setIsFull(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
-  }, []);
 
   const [mode, setMode] = useState<"source" | "result" | "compare" | "ab">("source");
   // Source shows the whole source timeline; result/compare show only the
@@ -93,6 +73,36 @@ export default function Monitor({
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   const name = src ? basename(src) : null;
+
+  // Manual double-click detection on the monitor surface. A document-level
+  // capture-phase click listener (not element handlers): webkit2gtk's
+  // hit-testing goes stale under a stationary cursor once the fullscreen
+  // transition moves/resizes the window, so a dblclick at the same spot would
+  // target a stale element (and toggle nothing) until the mouse moves.
+  // Capture phase + coordinate scoping make this independent of which element
+  // is hit-tested. 500 ms matches GTK's dblclick timeout.
+  const monitorRef = useRef<HTMLDivElement | null>(null);
+  const dblRef = useRef(0);
+  const toggleRef = useRef(onToggleFullVideo);
+  toggleRef.current = onToggleFullVideo;
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const el = monitorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      if (e.target instanceof Element && e.target.closest("button,input,select,textarea")) return;
+      const now = Date.now();
+      if (now - dblRef.current < 500) {
+        dblRef.current = 0;
+        toggleRef.current?.();
+      } else {
+        dblRef.current = now;
+      }
+    };
+    document.addEventListener("click", onDocClick, true);
+    return () => document.removeEventListener("click", onDocClick, true);
+  }, []);
 
   // Native <video> for the source preview; fall back to FFmpeg-decoded frames
   // only when the webview cannot load/play the file. The URL is only set after
@@ -484,12 +494,14 @@ export default function Monitor({
   })();
 
   return (
-    <main ref={rootRef} className={"relative flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (isFull ? "" : " p-4")}>
+    <main className={"relative flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (fullVideo ? "" : " p-4")}>
+      {/* The video surface; its bounding box scopes the document-level dblclick
+          detection above (coordinates, not hit-test targets). */}
       <div
-        onDoubleClick={toggleFullscreen}
+        ref={monitorRef}
         className={
           "relative flex flex-1 items-center justify-center overflow-hidden bg-black" +
-          (isFull ? "" : " rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-800")
+          (fullVideo ? "" : " rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-800")
         }
       >
         <CompareView
@@ -501,21 +513,26 @@ export default function Monitor({
         />
         {!showingCompare &&
           (nativeSrc ? (
-            <video
-              key={nativeSrc}
-              ref={(el) => {
-                videoRef.current = el;
-                if (el) el.volume = volume;
-              }}
-              src={nativeSrc}
-              muted
-              onError={() => setNativeFailed(true)}
-              onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
-              onTimeUpdate={onVideoTime}
-              onPlay={() => setPlaying(true)}
-              onPause={() => setPlaying(false)}
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="relative h-full w-full">
+              <video
+                key={nativeSrc}
+                ref={(el) => {
+                  videoRef.current = el;
+                  if (el) el.volume = volume;
+                }}
+                src={nativeSrc}
+                muted
+                onError={() => setNativeFailed(true)}
+                onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
+                onTimeUpdate={onVideoTime}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                // pointer-events:none: webkit2gtk must never see a <video>
+                // dblclick (it toggles its own native fullscreen layer); the
+                // document-level click detection toggles Full Video Mode.
+                className="pointer-events-none h-full w-full object-contain opacity-80"
+              />
+            </div>
           ) : src && frames[src] ? (
             <img
               src={frames[src]}
@@ -544,9 +561,9 @@ export default function Monitor({
           </div>
         )}
 
-        {isFull && (
+        {fullVideo && (
           <button
-            onClick={toggleFullscreen}
+            onClick={onToggleFullVideo}
             title={t("monitor.exitFull")}
             className="absolute top-10 right-3 z-10 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur hover:bg-black/80"
           >
@@ -554,7 +571,7 @@ export default function Monitor({
           </button>
         )}
 
-        {isFull && (
+        {fullVideo && (
           <div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-3">
             <button
               onClick={togglePlay}
@@ -619,7 +636,7 @@ export default function Monitor({
         )}
       </div>
 
-      <div className={"relative z-10 mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40" + (isFull ? " hidden" : "")}>
+      <div className={"relative z-10 mt-4 rounded-xl border border-slate-200 bg-white/60 p-3 backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/40" + (fullVideo ? " hidden" : "")}>
         <div className="mb-2 flex items-center">
           <div className="flex items-center space-x-2">
             <button

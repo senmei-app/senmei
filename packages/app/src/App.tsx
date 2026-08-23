@@ -49,7 +49,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
   const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
-  const [fullscreenSignal, setFullscreenSignal] = useState(0);
+  const [fullVideo, setFullVideo] = useState(false);
   const [hotkeyOverrides, setHotkeyOverrides] = useState<Record<string, string>>({});
 
   const [currentFile, setCurrentFile] = useState<string | null>(null);
@@ -356,6 +356,37 @@ export default function App() {
     setSelected([]);
   };
 
+  // Full Video Mode: fullscreen the OS window + show only the monitor. Window
+  // fullscreen keeps the <video> in the DOM (smooth) instead of webkit2gtk's
+  // native media fullscreen (separate layer, uncontrolled dblclick). The toggle
+  // is pure; the sync effect below applies it to the OS window.
+  const toggleFullVideo = () => {
+    setFullVideo((v) => !v);
+  };
+
+  // Keep the OS window fullscreen in sync with Full Video Mode.
+  useEffect(() => {
+    void getBackend()
+      .then((b) => b.setWindowFullscreen(fullVideo))
+      .catch((e) => console.error("setWindowFullscreen failed:", e));
+  }, [fullVideo]);
+
+  // Escape exits Full Video Mode (OS window fullscreen has no native Escape;
+  // requestFullscreen previously exited natively).
+  useEffect(() => {
+    if (!fullVideo) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setFullVideo(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [fullVideo]);
+
   // Hotkeys (configurable in Settings). Ctrl/Cmd are interchangeable.
   useEffect(() => {
     if (!projectDir) return;
@@ -390,7 +421,7 @@ export default function App() {
           break;
         case hotkeys.toggleFullscreen:
           e.preventDefault();
-          setFullscreenSignal((n) => n + 1);
+          toggleFullVideo();
           break;
       }
     };
@@ -398,6 +429,25 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selected, projectDir, hotkeyOverrides]);
+
+  const monitorEl = (
+    <Monitor
+      file={currentFile ?? undefined}
+      renderedFile={batch.renderedFile}
+      prevRenderedFile={batch.prevRenderedFile}
+      rendering={batch.rendering}
+      progress={batch.progress}
+      timings={batch.timings}
+      projectDir={projectDir}
+      sampleInMs={sampleRange?.inMs ?? 0}
+      sampleOutMs={sampleRange?.outMs ?? 0}
+      onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
+      onRenderSample={() => currentFile && void batch.startBatch(false, sampleRange, [currentFile])}
+      fullVideo={fullVideo}
+      onToggleFullVideo={toggleFullVideo}
+      togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
+    />
+  );
 
   return (
     <I18nProvider lang={lang} setLang={changeLang}>
@@ -434,6 +484,8 @@ export default function App() {
           />
         ) : (
           <div className="flex h-screen w-full flex-col bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-200 select-none antialiased">
+            {/* The monitor panel stays in place (no remount → the <video> keeps
+                its position); Full Video Mode covers the viewport with it. */}
             <TopBar
               file={currentFile ?? undefined}
               projectName={projectDir ? basename(projectDir) : undefined}
@@ -456,9 +508,9 @@ export default function App() {
               onAddSelectedToQueue={() => setMediaView("queue")}
               onProcessSelected={() => batch.startBatch(true)}
               onProcessAll={() => batch.startBatch(false)}
-              onToggleFullscreen={() => setFullscreenSignal((n) => n + 1)}
+              onToggleFullscreen={toggleFullVideo}
             />
-            <PanelGroup direction="horizontal" className="flex flex-1 overflow-hidden">
+            <PanelGroup direction="horizontal" className="relative flex flex-1 overflow-hidden">
               <Panel defaultSize={20} minSize={14}>
                 <MediaLibrary
                   files={files}
@@ -483,22 +535,12 @@ export default function App() {
                 />
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
-              <Panel defaultSize={55} minSize={35}>
-                <Monitor
-                  file={currentFile ?? undefined}
-                  renderedFile={batch.renderedFile}
-                  prevRenderedFile={batch.prevRenderedFile}
-                  rendering={batch.rendering}
-                  progress={batch.progress}
-                  timings={batch.timings}
-                  projectDir={projectDir}
-                  sampleInMs={sampleRange?.inMs ?? 0}
-                  sampleOutMs={sampleRange?.outMs ?? 0}
-                  onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
-                  onRenderSample={() => currentFile && void batch.startBatch(false, sampleRange, [currentFile])}
-                  toggleFullscreenSignal={fullscreenSignal}
-                  togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
-                />
+              <Panel
+                defaultSize={55}
+                minSize={35}
+                className={fullVideo ? "fixed inset-0 z-[60]" : undefined}
+              >
+                {monitorEl}
               </Panel>
               <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
               <Panel defaultSize={25} minSize={18}>

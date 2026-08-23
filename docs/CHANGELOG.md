@@ -8,6 +8,26 @@
 
 ## Unreleased
 
+- **fix: Full Video Mode (2026-08-23)** — reworked onto OS window fullscreen:
+  `requestFullscreen()` on webkit2gtk only works for `<video>` media fullscreen,
+  whose separate layer swallowed dblclick/controls (uncontrolled toggle + a
+  playback hiccup when the sink re-inits). Full Video Mode now fullscreens the
+  window (`Backend::setWindowFullscreen`, Tauri) and covers the viewport with
+  the monitor (fixed overlay) — the `<video>` stays in the DOM and the Monitor
+  is never remounted (position kept, no jump to 0, no dblclick stutter). Toggle
+  is a document-level capture-phase `click` listener scoped to the monitor's
+  bounding box (500 ms window matching GTK's dblclick timeout) — it counts
+  clicks, not dblclicks (webkit2gtk hijacks a real dblclick over the `<video>`
+  for its own native fullscreen), and capture phase + coordinate scoping make it
+  independent of which element webkit2gtk hit-tests: its hit-testing goes stale
+  under a stationary cursor once the transition moves/resizes the window, so a
+  dblclick at the same spot used to target a stale element (and toggle nothing)
+  until the mouse moved. Requires `core:window:allow-set-fullscreen` (was
+  missing → the window never went fullscreen, only the monitor filled the
+  window). `Esc` exits Full Video Mode (the OS-window fullscreen has no native
+  Esc, which `requestFullscreen()` previously provided). Removes the earlier
+  webkit2gtk signal wiring (dead code).
+
 - **fix: long renders hang once ffmpeg's stderr fills its pipe (2026-08-23)** —
   `Encoder` captured stderr but only read it after `child.wait()`; on long
   encodes (with any steady warning stream) the 64-KiB pipe filled up, ffmpeg
