@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **test: real-frame upscaler sweep saves output PNGs (2026-08-23)** —
+  `bench_upscalers_real_frames` now writes each model's upscaled frame as
+  `<id>.png` next to the input frames (`models.bat/` by default, generated
+  artifacts gitignored), so the sweep doubles as a visual comparison.
+
 - **fix: SRVGGNetCompact residual (2026-08-23)** — `SrvggNet::forward` now adds
   the nearest-upsampled input to the PixelShuffle output (SRVGG learns the
   residual; `tools/srvgg_verify.py` had the same omission). Without it

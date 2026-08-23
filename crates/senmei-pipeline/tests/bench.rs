@@ -361,7 +361,13 @@ fn bench_upscalers_real_frames() {
         }
     }
     let (w, h) = (frames[0].width, frames[0].height);
+    // Save each model's upscaled output as `<id>.png` next to the inputs.
+    let out_dir = std::path::Path::new(frames_env.split(',').next().unwrap().trim())
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap());
     println!("\n==== real-frame upscaler sweep @ {w}x{h} ====");
+    println!("outputs -> {}", out_dir.display());
     println!("{:<30} {:>5} {:>10} {:>8}", "model", "scale", "ms/frame", "FPS");
 
     for id in &upscale_ids {
@@ -393,6 +399,11 @@ fn bench_upscalers_real_frames() {
                     iters += 1;
                 }
                 let el = t0.elapsed().as_secs_f64() / iters as f64;
+                let out = timed.last().unwrap();
+                let bytes =
+                    senmei_media::encode_png(out.width as u32, out.height as u32, &out.data)
+                        .unwrap();
+                std::fs::write(out_dir.join(format!("{id}.png")), bytes).unwrap();
                 format!("{:>10.1} {:>8.1}", el * 1000.0, 1.0 / el)
             } else {
                 let mut engine =
@@ -404,11 +415,20 @@ fn bench_upscalers_real_frames() {
                 };
                 let _ = senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
                 let t0 = Instant::now();
+                let mut last = None;
                 let mut iters = 0u32;
                 for _ in 0..3 {
-                    senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
+                    last = Some(senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap());
                     iters += 1;
                 }
+                let out = senmei_pipeline::tensor_to_frame(
+                    last.as_ref().unwrap(),
+                    (frames[0].width as usize * mref.scale as usize) as u32,
+                    (frames[0].height as usize * mref.scale as usize) as u32,
+                );
+                let bytes = senmei_media::encode_png(out.width as u32, out.height as u32, &out.data)
+                    .unwrap();
+                std::fs::write(out_dir.join(format!("{id}.png")), bytes).unwrap();
                 let el = t0.elapsed().as_secs_f64() / iters as f64;
                 format!("{:>10.1} {:>8.1}  *tiled", el * 1000.0, 1.0 / el)
             }

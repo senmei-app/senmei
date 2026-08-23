@@ -12,5 +12,5 @@ models/*.bin
 models/*.pth
 models/*.bpk
 models/*.onnx
-models.bak
+models.bat/*
 __pycache__/
