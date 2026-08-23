@@ -212,7 +212,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 42);
+        assert_eq!(registry.models().len(), 45);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -435,6 +435,12 @@ mod tests {
         assert_eq!(registry.models()[41].scale, 2);
         assert_eq!(registry.models()[41].license.as_deref(), Some("MIT"));
         assert_eq!(registry.models()[41].sha256.as_deref().unwrap().len(), 64);
+        for (i, preset) in [42, 43, 44].into_iter().zip(["no-denoise", "conservative", "denoise3x"]) {
+            assert_eq!(registry.models()[i].id, format!("real-cugan-pro-{preset}-x2"));
+            assert_eq!(registry.models()[i].arch, "upcunet2x");
+            assert!(registry.models()[i].loadable);
+            assert_eq!(registry.models()[i].license.as_deref(), Some("Apache-2.0"));
+        }
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

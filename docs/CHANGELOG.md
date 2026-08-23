@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
+  `real-cugan-pro-{no-denoise,conservative,denoise3x}-x2` (official bilibili
+  Real-CUGAN-Pro 2022-05, Apache-2.0). Same `UpCunet2x` arch as
+  `real-cugan-x2` (flat keys; the `pro=int` scalar is skipped by the loader)
+  → existing converter branch, no code change. Verified vs spandrel (mae
+  0.79/255, 50 dB PSNR on a real DVD frame); ~142 ms / 7 FPS, same as
+  real-cugan-x2.
+
 - **feat: ParagonSR-Nano (2026-08-23)** — catalog entry `paragonsr-nano-x2`
   (Phhofm ParagonSR-Nano GAN 2×, MIT, fused release safetensors; old
   ParagonSR arch: 24 feat / 3×2 blocks / ffn 1.5). New `ParagonSrNet` burn

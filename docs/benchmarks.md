@@ -187,46 +187,55 @@ fused VRAM guard except where noted. Sorted by ms/frame.
 
 | model | scale | ms/frame | FPS |
 |---|---|---|---|
-| fallin-strong | 2 | 61.3 | 16.3 |
-| **paragonsr-nano-x2** | **2** | **62.0** | **16.1** |
-| fallin-soft | 2 | 62.7 | 15.9 |
-| realesrgan-animevideo-x2 | 2 | 93.9 | 10.6 |
-| realesrgan-animevideo-x4 | 4 | 141.4 | 7.1 |
-| real-cugan-x2 | 2 | 142.5 | 7.0 |
-| real-cugan-hfa2k-x2 | 2 | 146.7 | 6.8 |
-| realesrgan-general-x4v3 | 4 | 196.5 | 5.1 |
-| span-2x-modern-spanimation-v1.5 | 2 | 285.1 | 3.5 |
-| span-2x-modern-spanimation-v1 | 2 | 285.9 | 3.5 |
-| span-2x-hfa2k | 2 | 304.4 | 3.3 |
-| span-2x-nomosuni-ldl | 2 | 305.1 | 3.3 |
-| span-2x-nomosuni-multijpg | 2 | 306.5 | 3.3 |
-| span-2x-modern-spanimation-v2 | 2 | 307.3 | 3.3 |
-| span-2x-bhi-small | 2 | 307.5 | 3.3 |
-| span-2x-hfa2k-ludvae | 2 | 307.5 | 3.3 |
-| **realesrgan-x2plus** | **2** | **670.7** | **1.5** |
-| safmn-real-x2 | 2 | 926.3 | 1.1 |
-| safmn-real-x4 | 4 | 977.6 | 1.0 |
-| realesrgan-x4plus-anime | 4 | 1094.5 | 0.9 |
-| real-plksr-2x-public | 2 | 1156.4 | 0.9 |
-| 4x-nomoswebphoto-realplksr | 4 | 1165.4 | 0.9 |
-| 4x-nomos2-realplksr | 4 | 1281.1 | 0.8 |
-| 4x-nature-realplksr | 4 | 1283.5 | 0.8 |
-| 4x-mssim-realplksr | 4 | 1284.3 | 0.8 |
-| 4x-hfa2k-realplksr | 4 | 1284.6 | 0.8 |
-| 4x-bhi-realplksr-real | 4 | 1287.3 | 0.8 |
-| 4x-bhi-realplksr-otf | 4 | 1289.2 | 0.8 |
-| 4x-alchemy | 4 | 1290.7 | 0.8 |
-| bsrgan | 4 | 2861.1 | 0.3 |
+| **paragonsr-nano-x2** | **2** | **60.9** | **16.4** |
+| fallin-soft | 2 | 60.9 | 16.4 |
+| fallin-strong | 2 | 61.6 | 16.2 |
+| realesrgan-animevideo-x2 | 2 | 90.0 | 11.1 |
+| realesrgan-animevideo-x4 | 4 | 136.3 | 7.3 |
+| real-cugan-x2 | 2 | 140.8 | 7.1 |
+| real-cugan-pro-no-denoise-x2 | 2 | 141.4 | 7.1 |
+| real-cugan-pro-denoise3x-x2 | 2 | 142.1 | 7.0 |
+| real-cugan-pro-conservative-x2 | 2 | 142.4 | 7.0 |
+| real-cugan-hfa2k-x2 | 2 | 143.2 | 7.0 |
+| realesrgan-general-x4v3 | 4 | 197.3 | 5.1 |
+| span-2x-modern-spanimation-v1 | 2 | 286.0 | 3.5 |
+| span-2x-modern-spanimation-v1.5 | 2 | 286.3 | 3.5 |
+| span-2x-nomosuni-ldl | 2 | 304.8 | 3.3 |
+| span-2x-nomosuni-multijpg | 2 | 305.5 | 3.3 |
+| span-2x-hfa2k-ludvae | 2 | 305.7 | 3.3 |
+| span-2x-hfa2k | 2 | 306.3 | 3.3 |
+| span-2x-modern-spanimation-v2 | 2 | 306.9 | 3.3 |
+| span-2x-bhi-small | 2 | 307.1 | 3.3 |
+| **realesrgan-x2plus** | **2** | **671.9** | **1.5** |
+| safmn-real-x2 | 2 | 927.7 | 1.1 |
+| safmn-real-x4 | 4 | 973.1 | 1.0 |
+| realesrgan-x4plus-anime | 4 | 1096.4 | 0.9 |
+| real-plksr-2x-public | 2 | 1155.3 | 0.9 |
+| 4x-nomoswebphoto-realplksr | 4 | 1167.1 | 0.9 |
+| 4x-alchemy | 4 | 1266.6 | 0.8 |
+| 4x-bhi-realplksr-otf | 4 | 1282.5 | 0.8 |
+| 4x-mssim-realplksr | 4 | 1283.5 | 0.8 |
+| 4x-nature-realplksr | 4 | 1284.1 | 0.8 |
+| 4x-bhi-realplksr-real | 4 | 1284.2 | 0.8 |
+| 4x-hfa2k-realplksr | 4 | 1285.1 | 0.8 |
+| 4x-nomos2-realplksr | 4 | 1286.5 | 0.8 |
+| bsrgan | 4 | 2864.3 | 0.3 |
 
 (`*tiled` = the fused RGB8 path's free-VRAM guard tripped, fell back to raw
 tiled infer; the fused-vs-tiled choice varies run-to-run, so those numbers are
 approximate — same model can show lower ms/frame on the tiled path.)
 
 Takeaways:
-- **paragonsr-nano-x2 is now a top-3 fastest 2×** (~62 ms / 16 FPS, tied with
-  fallin) — 2.3× faster than real-cugan-x2 (142 ms). Verified vs ONNX Runtime
-  fp16 (mae 0.0009 on random input, 0.0014 / 57 dB PSNR on the real DVD
-  frame). Phhofm ParagonSR-Nano GAN, MIT, 24-feat / 3×2-block ParagonSrNet.
+- **paragonsr-nano-x2 is the fastest 2× overall** (~61 ms / 16.4 FPS, tied
+  with fallin) — 2.3× faster than real-cugan-x2 (141 ms). Verified vs ONNX
+  Runtime fp16 (mae 0.0009 on random input, 0.0014 / 57 dB PSNR on the real
+  DVD frame). Phhofm ParagonSR-Nano GAN, MIT, 24-feat / 3×2-block
+  ParagonSrNet.
+- **Real-CUGAN-Pro 2× family** (`real-cugan-pro-{no-denoise,conservative,
+  denoise3x}-x2`, official bilibili 2022-05, Apache-2.0): same `UpCunet2x`
+  arch and speed as real-cugan-x2 (~142 ms / 7 FPS). Verified vs spandrel
+  (mae 0.79/255, 50 dB PSNR on the real DVD frame). conservative = balanced
+  preset for real film.
 - **realesrgan-general-x4v3 is the fast real-film 4× pick**: ~110-196 ms /
   5-9 FPS — ~5-14× faster than every other 4× model and competitive with 2×
   (real-cugan-x2: 142 ms). Real-photo training + compact SRVGGNetCompact.

@@ -13,6 +13,9 @@
 ## Models (2026-08-21)
 - [ ] anime1080fixer arch + license verify — removed from catalog 2026-08-21; revisit with the RRDBNet port
 
+## Models (2026-08-23)
+- [ ] Adopt Real-CUGAN up2x conservative (`cugan_up2x-latest-conservative.pth`) — same UpCunet2x arch as real-cugan-x2; balanced preset for real film (Pro-conservative already adopted as real-cugan-pro-conservative-x2)
+
 
 # Not yet
 - [ ] Project website

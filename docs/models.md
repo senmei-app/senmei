@@ -22,6 +22,7 @@ download URL + sha256).
 | Restoration | Real-CUGAN | Real-CUGAN up2x no-denoise | 2 | UpCunet2x | Apache-2.0 | loadable | `bilibili/ailab` · VSGAN |
 | Restoration | Real-CUGAN | Fallin Soft | 2 | UpCunet2x_fast (pad 38) | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.onnx` |
 | Restoration | Real-CUGAN | Fallin Strong | 2 | UpCunet2x_fast (pad 38) | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.onnx` |
+| Restoration | Real-CUGAN | Real-CUGAN-Pro 2× (no-denoise / conservative / denoise3x) | 2 | UpCunet2x | Apache-2.0 | loadable (same arch as real-cugan-x2, flat keys; spandrel-verified mae 0.79/255 f16) | `bilibili/ailab` Real-CUGAN-Pro 2022-05 · VSGAN mirror `.pth` |
 | Restoration | RealPLKSR | 4x_Alchemy | 4 | RealPLKSR_Dysample | CC-BY-4.0 | loadable | `renarchi/Re-SISR` · `.pth` |
 | Restoration | RealPLKSR | 2× Public (LayerNorm) | 2 | RealPLKSR_Dysample LayerNorm | CC-BY-4.0 | loadable (ONNX-verified mae ~0.018 f16 — DySample grid-sample f16-limited; spandrel f32 0.00015; flat contiguous `.pth` converts directly) | `Phhofm/models` · `2xPublic_realplksr_dysample_layernorm_real_nn` |
 | Restoration | RealPLKSR | 4× NomosWebPhoto | 4 | RealPLKSR pixel-shuffle | CC-BY-4.0 | loadable (ONNX-verified mae 0.0007 f16; GroupNorm + pixel-shuffle tail, `dysample=false` variant) | `Phhofm/models` · `4xNomosWebPhoto_RealPLKSR` |

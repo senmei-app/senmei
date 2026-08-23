@@ -862,5 +862,62 @@
    "half": true,
    "note": "Phhofm ParagonSR-Nano GAN 2x (MIT, CC0 photo data, nano variant); old ParagonSR arch 24 feat / 3x2 blocks / ffn 1.5; fused release weights; burn port verified vs ONNX fp16"
   }
+ },
+ {
+  "id": "real-cugan-pro-no-denoise-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "upcunet2x",
+  "family": "real-cugan",
+  "weights": [
+   "2xRealCUGAN-Pro-no-denoise.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/bilibili/ailab/tree/main/Real-CUGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_pro-no-denoise-up2x.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "Real-CUGAN-Pro 2x no-denoise (official bilibili 2022-05, Apache-2.0); same UpCunet2x arch as real-cugan-x2, flat keys + pro=int"
+  }
+ },
+ {
+  "id": "real-cugan-pro-conservative-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "upcunet2x",
+  "family": "real-cugan",
+  "weights": [
+   "2xRealCUGAN-Pro-conservative.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/bilibili/ailab/tree/main/Real-CUGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_pro-conservative-up2x.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "Real-CUGAN-Pro 2x conservative (official bilibili 2022-05, Apache-2.0); same UpCunet2x arch as real-cugan-x2, flat keys + pro=int"
+  }
+ },
+ {
+  "id": "real-cugan-pro-denoise3x-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "upcunet2x",
+  "family": "real-cugan",
+  "weights": [
+   "2xRealCUGAN-Pro-denoise3x.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/bilibili/ailab/tree/main/Real-CUGAN",
+  "download_url": "https://github.com/styler00dollar/VSGAN-tensorrt-docker/releases/download/models/cugan_pro-denoise3x-up2x.pth",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "Real-CUGAN-Pro 2x denoise3x (official bilibili 2022-05, Apache-2.0); same UpCunet2x arch as real-cugan-x2, flat keys + pro=int"
+  }
  }
 ]
