@@ -36,9 +36,13 @@ class SrvggFolded(nn.Module):
         self.upscale = upscale
 
     def forward(self, x):
+        x0 = x
         for m in self.body:
             x = m(x)
-        return F.pixel_shuffle(x, self.upscale)
+        out = F.pixel_shuffle(x, self.upscale)
+        # SRVGG learns the residual: add the nearest-upsampled input.
+        base = F.interpolate(x0, scale_factor=self.upscale, mode="nearest")
+        return out + base
 
 
 def main() -> None:

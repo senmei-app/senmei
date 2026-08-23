@@ -181,27 +181,27 @@ configurable via `pipeline_depth`.
 bench -- --ignored --nocapture bench_upscalers_real_frames`): every loadable
 `upscale` model at its native scale on two real DVD frames (720×576 rgb24,
 `models.bat/frame_*.png`, override via `BENCH_FRAMES`). Burn-Vulkan fp16 on
-RX 9070, fused RGB8 `Upscale` step (the app path) — at 720×576 every model fits
-the fused VRAM guard, so all rows are the app path (no tiled fallback).
-Sorted by ms/frame.
+RX 9070, fused RGB8 `Upscale` step (the app path). Each model's upscaled frame
+is saved next to the inputs as `<id>.png`. At 720×576 every model fits the
+fused VRAM guard except where noted. Sorted by ms/frame.
 
 | model | scale | ms/frame | FPS |
 |---|---|---|---|
-| fallin-strong | 2 | 60.6 | 16.5 |
-| fallin-soft | 2 | 61.1 | 16.4 |
-| realesrgan-animevideo-x2 | 2 | 92.3 | 10.8 |
-| realesrgan-animevideo-x4 | 4 | 131.1 | 7.6 |
-| real-cugan-x2 | 2 | 138.8 | 7.2 |
-| **realesrgan-general-x4v3** | **4** | **197.1** | **5.1** |
-| span-2x-modern-spanimation-v1 | 2 | 282.1 | 3.5 |
-| span-2x-modern-spanimation-v1.5 | 2 | 284.3 | 3.5 |
+| fallin-strong | 2 | 57.4 | 17.4 |
+| fallin-soft | 2 | 58.7 | 17.0 |
+| realesrgan-animevideo-x4 | 4 | 80.2 | 12.5 *tiled |
+| **realesrgan-animevideo-x2** | **2** | **89.0** | **11.2** |
+| real-cugan-x2 | 2 | 137.7 | 7.3 |
+| **realesrgan-general-x4v3** | **4** | **194.8** | **5.1** |
 | span-2x-nomosuni-ldl | 2 | 299.7 | 3.3 |
 | span-2x-hfa2k | 2 | 301.2 | 3.3 |
 | span-2x-bhi-small | 2 | 305.3 | 3.3 |
+| span-2x-modern-spanimation-v1.5 | 2 | 284.3 | 3.5 |
+| span-2x-modern-spanimation-v1 | 2 | 282.1 | 3.5 |
 | span-2x-modern-spanimation-v2 | 2 | 306.5 | 3.3 |
 | span-2x-hfa2k-ludvae | 2 | 306.5 | 3.3 |
-| safmn-real-x2 | 2 | 921.9 | 1.1 |
-| safmn-real-x4 | 4 | 975.2 | 1.0 |
+| safmn-real-x2 | 2 | 914.1 | 1.1 |
+| safmn-real-x4 | 4 | 958.9 | 1.0 |
 | realesrgan-x4plus-anime | 4 | 1088.0 | 0.9 |
 | real-plksr-2x-public | 2 | 1160.0 | 0.9 |
 | 4x-nomoswebphoto-realplksr | 4 | 1161.6 | 0.9 |
@@ -216,18 +216,32 @@ Sorted by ms/frame.
 | span-2x-nomosuni-multijpg | 2 | PANIC `DTypeMismatch` (burn-ir) | — |
 
 Takeaways:
-- **realesrgan-general-x4v3 is the fast real-film 4× pick**: 197 ms / 5.1 FPS —
+- **realesrgan-general-x4v3 is the fast real-film 4× pick**: 195 ms / 5.1 FPS —
   ~5× faster than every other 4× model and competitive with 2× (real-cugan-x2:
-  139 ms). Real-photo training + compact SRVGGNetCompact (per-layer PReLU).
-- fallin soft/strong stay the fastest 2× (~61 ms, 16.5 FPS); real-cugan-x2 is
-  ~2.3× slower.
+  138 ms). Real-photo training + compact SRVGGNetCompact (per-layer PReLU).
+- **realesrgan-animevideo-x2/x4 are the fast anime picks** (89 / 80 ms), anime-
+  trained.
+- fallin soft/strong stay the fastest 2× overall (~58 ms, 17 FPS).
 - The RealPLKSR 4× family clusters at ~1280 ms (0.8 FPS) — no fast option.
-- **safmn-real-x2/x4 are surprisingly slow** (922 / 975 ms, ~1 FPS) — ~15×
+- **safmn-real-x2/x4 are surprisingly slow** (914 / 959 ms, ~1 FPS) — ~15×
   slower than fallin despite the "lightweight" claim; the SAFM block (depthwise
   convs + per-level pool/interp + GELU) maps poorly to this backend. Worth
   profiling before recommending.
-- `span-2x-nomosuni-multijpg` panics in burn-ir (`DTypeMismatch`) — stale bpk
-  (its `ldl` sibling was re-converted 2026-08-21); re-convert to fix.
+- `span-2x-nomosuni-multijpg` panics in burn-ir (`DTypeMismatch`) — the bpk is
+  stored F32 (converter `PytorchStore` → `HalfPrecisionAdapter` misses the
+  `Span` module type, so convs are never cast); ldl (F16) loads fine. Needs a
+  converter fix.
+
+### SRVGG residual fix (2026-08-23)
+
+`SRVGGNetCompact` learns the **residual**: the conv net's PixelShuffle output is
+added to the nearest-upsampled input (`out += F.interpolate(x, scale_factor,
+nearest)` — spandrel's `forward`). The burn port (and `tools/srvgg_verify.py`,
+which was the same bug — the "mae 0.0004" reference omitted the base too)
+dropped that, so animevideo-x2/x4 and general-x4v3 rendered the near-black
+residual alone (means ~2/255). Added the base in `SrvggNet::forward`; burn now
+matches torch incl. residual (mae 0.0004) and output brightness matches the
+input (animevideo-x2 R=82.5/G=57.2/B=45.7 vs input 81/56/44).
 
 ## Alternatives
 

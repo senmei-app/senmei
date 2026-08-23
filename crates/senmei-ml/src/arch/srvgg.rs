@@ -4,6 +4,8 @@
 use burn::module::{Module, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::PaddingConfig2d;
+use burn::tensor::module::interpolate;
+use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn::tensor::{backend::Backend, Tensor};
 
 fn conv3x3<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<B> {
@@ -83,14 +85,23 @@ impl<B: Backend> SrvggNet<B> {
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let mut y = x;
+        let [_, _, h, w] = x.dims();
+        let mut y = x.clone();
         for (i, conv) in self.body.iter().enumerate() {
             y = conv.forward(y);
             if i + 1 < self.body.len() {
                 y = self.prelu[i].forward(y);
             }
         }
-        pixel_shuffle(y, self.scale)
+        // SRVGG learns the RESIDUAL: the nearest-upsampled input is added to
+        // the PixelShuffle output (spandrel `SRVGGNetCompact.forward`). Without
+        // it the output is the near-black residual alone.
+        let base = interpolate(
+            x,
+            [h * self.scale, w * self.scale],
+            InterpolateOptions::new(InterpolateMode::Nearest),
+        );
+        pixel_shuffle(y, self.scale) + base
     }
 }
 

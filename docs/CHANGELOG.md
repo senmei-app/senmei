@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: SRVGGNetCompact residual (2026-08-23)** — `SrvggNet::forward` now adds
+  the nearest-upsampled input to the PixelShuffle output (SRVGG learns the
+  residual; `tools/srvgg_verify.py` had the same omission). Without it
+  animevideo-x2/x4 and general-x4v3 rendered the near-black residual alone
+  (means ~2/255 → "green/black" output). Burn now matches torch incl. residual
+  (mae 0.0004) and output brightness tracks the input. Verified against spandrel
+  (`CompactArch`) on a real DVD frame.
+
 - **test: real-frame upscaler sweep (2026-08-23)** — `bench_upscalers_real_frames`
   benchmarks every loadable `upscale` model at its native scale on two real DVD
   frames (720×576, `models.bat/`); results in `docs/benchmarks.md`. Sweep is
