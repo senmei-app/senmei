@@ -6,7 +6,7 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
-## Unreleased
+## 0.1.8 (2026-08-23)
 
 - **fix: Full Video Mode (2026-08-23)** — reworked onto OS window fullscreen:
   `requestFullscreen()` on webkit2gtk only works for `<video>` media fullscreen,
