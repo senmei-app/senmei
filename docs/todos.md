@@ -88,9 +88,6 @@
       (Tauri-only for now)
 
 ## Refactor (2026-08-23)
-- [ ] Dedup zip extraction — shared `extract_zip(archive, dest, filter)` in
-      senmei-media (replaces extract_zip_prefix + torch.rs
-      extract_wheel_prefixes/unzip; extract_binary find-one bleibt)
 - [ ] Dedup feather ramp — shared `feather_ramp()` in tiling.rs for the fused
       (engine/core.rs) + CPU (tiling.rs) stitch — deferred (kein Tiling-
       Experimentieren gerade)

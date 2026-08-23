@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **refactor: dedup zip extraction (2026-08-23)** — shared
+  `senmei_media::extract_zip(archive, dest, filter)` replaces the three
+  near-identical extract loops (`extract_zip_prefix`, torch.rs
+  `extract_wheel_prefixes`/`unzip`); `extract_binary` (find-one) unchanged.
+
 - **docs: PLAN §18 preview/media pipeline (2026-08-23)** — media belongs to
   the app, not the engine: raw-frame `FrameSink` transport, preview decode
   budget, audio FFmpeg→PCM native sink, PreviewCache simplification; phased

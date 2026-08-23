@@ -298,44 +298,14 @@ fn extract_wheel_prefixes(
     dest: &Path,
     prefixes: &[&str],
 ) -> Result<(), String> {
-    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
-        if !prefixes.iter().any(|p| entry.name().starts_with(p)) {
-            continue;
-        }
-        let out = dest.join(entry.name());
-        if entry.is_dir() {
-            std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-            continue;
-        }
-        if let Some(parent) = out.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
-        std::io::copy(&mut entry, &mut f).map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    senmei_media::extract_zip(archive, dest, |name| {
+        prefixes.iter().any(|p| name.starts_with(p))
+    })
+    .map_err(|e| e.to_string())
 }
 
 fn unzip(archive: &Path, dest: &Path) -> Result<(), String> {
-    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
-        let out = dest.join(entry.name());
-        if entry.is_dir() {
-            std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-            continue;
-        }
-        if let Some(parent) = out.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
-        std::io::copy(&mut entry, &mut f).map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    senmei_media::extract_zip(archive, dest, |_| true).map_err(|e| e.to_string())
 }
 
 /// Best device for the resolved install: CUDA/ROCm first, prefer most VRAM.

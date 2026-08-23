@@ -31,27 +31,41 @@ pub fn fetch(url: &str, dest: &Path, on_progress: &mut dyn FnMut(u64, u64)) -> R
     Ok(())
 }
 
+/// Extract zip entries whose name passes `filter` into `dest`, preserving
+/// paths. Directories are created; files write to `dest/<name>`. Shared by the
+/// FFmpeg-portable and libtorch/wheel extraction (one zip-iteration, no dups).
+pub fn extract_zip<F>(archive: &Path, dest: &Path, filter: F) -> Result<()>
+where
+    F: Fn(&str) -> bool,
+{
+    let file = fs::File::open(archive).map_err(Error::from)?;
+    let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(Error::from)?;
+        let name = entry.name().to_owned();
+        if !filter(&name) {
+            continue;
+        }
+        let out = dest.join(&name);
+        if entry.is_dir() {
+            fs::create_dir_all(&out).map_err(Error::from)?;
+            continue;
+        }
+        if let Some(parent) = out.parent() {
+            fs::create_dir_all(parent).map_err(Error::from)?;
+        }
+        let mut f = fs::File::create(&out).map_err(Error::from)?;
+        std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
+    }
+    Ok(())
+}
+
 /// Extract every entry under `prefix` (e.g. `_rocm_sdk_core`) from a zip into
 /// `dest`, keeping the `prefix/` directory so consumers can look up the same
 /// relative paths as the wheel (e.g. `dest/_rocm_sdk_core/lib/...`).
 pub fn extract_zip_prefix(archive: &Path, dest: &Path, prefix: &str) -> Result<()> {
-    let file = fs::File::open(archive).map_err(Error::from)?;
-    let mut zip = zip::ZipArchive::new(file).map_err(Error::from)?;
     let dir_prefix = format!("{prefix}/");
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(Error::from)?;
-        let name = entry.name().to_owned();
-        if !name.starts_with(&dir_prefix) || entry.is_dir() {
-            continue;
-        }
-        let out_path = dest.join(&name);
-        if let Some(parent) = out_path.parent() {
-            fs::create_dir_all(parent).map_err(Error::from)?;
-        }
-        let mut f = fs::File::create(&out_path).map_err(Error::from)?;
-        std::io::copy(&mut entry, &mut f).map_err(Error::from)?;
-    }
-    Ok(())
+    extract_zip(archive, dest, |name| name.starts_with(&dir_prefix))
 }
 
 /// Pull a single file out of a zip or tar.xz archive by path suffix.

@@ -13,7 +13,9 @@ mod videos;
 pub use decoder::{Decoder, Tonemap};
 pub use content::is_anime;
 pub use downloader::download_to_temp;
-pub use downloader::{extract_binary, extract_zip_prefix, fetch, sha256_hex, verify_checksum};
+pub use downloader::{
+    extract_binary, extract_zip, extract_zip_prefix, fetch, sha256_hex, verify_checksum,
+};
 pub use encoder::Encoder;
 pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
