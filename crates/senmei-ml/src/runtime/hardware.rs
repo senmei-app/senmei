@@ -56,10 +56,10 @@ pub fn detect() -> Hardware {
     }
 }
 
-/// Free VRAM on the discrete GPU with the most memory (Linux DRM sysfs:
-/// `total − used`), for the fused-path VRAM guard. `None` when unreadable.
+/// `(total, used)` VRAM of the discrete GPU with the most memory (Linux DRM
+/// sysfs), for the fused-path VRAM guard. `None` when unreadable.
 #[cfg(target_os = "linux")]
-pub fn vram_available_bytes() -> Option<u64> {
+fn vram_mem_info() -> Option<(u64, u64)> {
     let mut best: Option<(u64, u64)> = None;
     let entries = std::fs::read_dir("/sys/class/drm").ok()?;
     for entry in entries.flatten() {
@@ -79,11 +79,30 @@ pub fn vram_available_bytes() -> Option<u64> {
             best = Some((total, used));
         }
     }
-    best.map(|(t, u)| t.saturating_sub(u))
+    best
+}
+
+/// Free VRAM on the discrete GPU with the most memory (`total − used`), for
+/// the fused-path VRAM guard. `None` when unreadable.
+#[cfg(target_os = "linux")]
+pub fn vram_available_bytes() -> Option<u64> {
+    vram_mem_info().map(|(t, u)| t.saturating_sub(u))
+}
+
+/// Total VRAM of the discrete GPU with the most memory, for the fused-path
+/// VRAM guard's system-adaptive ceiling. `None` when unreadable.
+#[cfg(target_os = "linux")]
+pub fn vram_total_bytes() -> Option<u64> {
+    vram_mem_info().map(|(t, _)| t)
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn vram_available_bytes() -> Option<u64> {
+    None
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn vram_total_bytes() -> Option<u64> {
     None
 }
 

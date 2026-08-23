@@ -290,17 +290,19 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     // canvas/readback allocation instead of silently dropping to the slow CPU
     // path or hitting the OOM crash (which loses the wgpu device handle). The
     // fused path's peak allocation scales with the output canvas; a ~3.2 GB
-    // single allocation was observed at 1080p×4, independent of tile size and
-    // autotune level (wgpu/burn internal), so keep large canvases under a hard
-    // 2 GiB window and under the free-VRAM budget.
+    // single allocation was observed at 1080p×4 (estimate ~2.8 GiB), independent
+    // of tile size and autotune level (wgpu/burn internal buffer), so the
+    // ceiling stays just under that crash zone. It adapts to the system: half
+    // the GPU's total VRAM on smaller cards (tighter cap), plus the current
+    // free-VRAM budget read from DRM sysfs.
     let expected = fused_peak_allocation(n, out_h, out_w, c);
-    const HARD_LIMIT: u64 = 2 * 1024 * 1024 * 1024; // 2 GiB
-    if expected > HARD_LIMIT {
+    let limit = fused_peak_limit(crate::vram_total_bytes());
+    if expected > limit {
         return Some(Err(Error::new(format!(
-            "fused RGB8 path needs ~{} MB peak ({} MiB hard limit) — use a lower \
+            "fused RGB8 path needs ~{} MB peak (limit ~{} MB) — use a lower \
              scale (e.g. x2) or smaller resolution",
             expected / (1024 * 1024),
-            HARD_LIMIT / (1024 * 1024),
+            limit / (1024 * 1024),
         ))));
     }
     if let Some(free) = crate::vram_available_bytes() {
@@ -429,6 +431,19 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         out_w_t,
         out_h_t,
     }))
+}
+
+/// Effective fused-path peak ceiling: the crash-safe cap (just under the
+/// observed ~3.2 GB single-allocation OOM at 1080p×4, a wgpu/burn-internal
+/// buffer) or half the GPU's total VRAM when that is tighter — adapts down on
+/// smaller cards.
+#[cfg(feature = "burn")]
+fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
+    const FUSED_PEAK_CEILING: u64 = (2 * 1024 + 512) * 1024 * 1024; // 2.5 GiB
+    match total_vram {
+        Some(t) => (t.saturating_mul(50) / 100).min(FUSED_PEAK_CEILING),
+        None => FUSED_PEAK_CEILING,
+    }
 }
 
 /// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
@@ -590,16 +605,21 @@ pub fn infer_denoise<B: Backend>(
 
 #[cfg(all(test, feature = "burn"))]
 mod tests {
-    use super::fused_peak_allocation;
+    use super::{fused_peak_allocation, fused_peak_limit};
 
-    /// The VRAM guard's hard window: 1080p×4 is over 2 GiB (rejected — matches
-    /// the observed ~3.2 GB single-allocation OOM on RADV); 720p×4 and 1080p×2
-    /// stay under it.
+    /// The VRAM guard's ceiling: 1080p×4 is over it (rejected — matches the
+    /// observed ~3.2 GB single-allocation OOM on RADV); the common x4/x2 fused
+    /// renders stay under it, and the cap scales down with total VRAM.
     #[test]
     fn fused_vram_guard_window() {
-        const LIMIT: u64 = 2 * 1024 * 1024 * 1024;
-        assert!(fused_peak_allocation(1, 4480, 8320, 3) > LIMIT);
-        assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT);
-        assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT);
+        const LIMIT: u64 = (2 * 1024 + 512) * 1024 * 1024;
+        assert!(fused_peak_allocation(1, 4480, 8320, 3) > LIMIT); // 1080p×4 crash zone
+        assert!(fused_peak_allocation(1, 4480, 6400, 3) <= LIMIT); // SD/720p×4 (~2.2 GiB)
+        assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT); // 720p×4
+        assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT); // 1080p×2
+        // Adaptive: crash cap on big cards, half of total VRAM on small ones.
+        assert_eq!(fused_peak_limit(None), LIMIT);
+        assert_eq!(fused_peak_limit(Some(16 * 1024 * 1024 * 1024)), LIMIT);
+        assert_eq!(fused_peak_limit(Some(4 * 1024 * 1024 * 1024)), 2 * 1024 * 1024 * 1024);
     }
 }

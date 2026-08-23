@@ -66,8 +66,8 @@ pub use interpolate::{blend, is_scene_cut, mean_abs_diff};
 pub use model::{ModelKind, ModelMetadata, ModelRef, Registry};
 pub use resize::bilinear;
 pub use runtime::{
-    detect, pick_device, pick_variant, resolve, vram_available_bytes, Hardware, TorchInstall,
-    TorchVariant,
+    detect, pick_device, pick_variant, resolve, vram_available_bytes, vram_total_bytes, Hardware,
+    TorchInstall, TorchVariant,
 };
 pub use tensor::Tensor;
 pub use tiling::{crop, pad_to, stitch, uniform_tile};

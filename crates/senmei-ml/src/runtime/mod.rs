@@ -6,5 +6,5 @@ pub mod hardware;
 pub mod rocm;
 pub mod torch;
 
-pub use hardware::{Hardware, detect, vram_available_bytes};
+pub use hardware::{Hardware, detect, vram_available_bytes, vram_total_bytes};
 pub use torch::{TorchInstall, TorchVariant, pick_device, pick_variant, resolve};
