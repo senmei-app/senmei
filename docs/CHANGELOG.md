@@ -6,7 +6,22 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
-## Unreleased
+## 0.1.7 (2026-08-23)
+
+- **fix: U-Net denoisers run full-frame, no tiling (2026-08-23)** — tiled
+  SCUNet/DRUNet ghost on moving content: window attention (Swin) + the ÷8
+  down/upsample pyramid are not translation-equivariant, so each tile's output
+  differs globally from a full-frame run (verified: scunet tiled vs full
+  mae ≈ 0.13, ghost copies at tile seams). DnCNN/FFDNet (local convs) tile
+  fine. `infer_denoise_tiled` now runs full-frame up to 4K (models pad
+  internally); regression test `scunet_tiled_ghosts_at_tile_seams`.
+- **fix: srvgg conversion matches the animevideo-xs checkpoints (2026-08-23)** —
+  the burn `SrvggNet` arch was the generic SRVGGNetCompact, but
+  `realesrgan-animevideo-x2/x4` are the xs variant: 18 body convs, the last
+  folded `64 → 3·scale²` upscale conv, **no** `upsampler.*`/`conv_last`, state
+  dict under `params` (stripped). Both models convert + load + upscale again
+  (download_model). New no-GPU key-contract test
+  `srvgg_conversion_key_contract` guards the mapping against drift.
 
 - **docs: testing todos (2026-08-23)** — coverage-review gaps logged for the
   next release: frontend (0 tests), HTTP adapter (0), `#[ignore]` model/GPU

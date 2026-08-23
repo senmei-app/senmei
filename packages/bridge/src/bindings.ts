@@ -244,6 +244,12 @@ export type Settings = {
 	hotkeys?: { [key in string]: string } | null,
 	/**  Fused RGB8 tile size in px; `None` = engine default (640). */
 	tileSize?: number | null,
+	/**
+	 *  Readback pipeline depth (batches kept in flight); `None` = 1. More
+	 *  depth overlaps the readback with more GPU forwards (higher utilisation,
+	 *  more VRAM + cancel latency).
+	 */
+	pipelineDepth?: number | null,
 	/**  Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan). */
 	backend?: EngineBackend | null,
 };
