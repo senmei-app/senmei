@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **test: real-frame upscaler sweep (2026-08-23)** — `bench_upscalers_real_frames`
+  benchmarks every loadable `upscale` model at its native scale on two real DVD
+  frames (720×576, `models.bat/`); results in `docs/benchmarks.md`. Sweep is
+  panic-isolated per model and falls back to tiled infer when the fused path
+  trips the VRAM guard. Findings: `realesrgan-general-x4v3` is the fast real-film
+  4× (197 ms), fallin fastest 2× (61 ms), SAFMN surprisingly slow (~1 FPS),
+  `span-2x-nomosuni-multijpg` panics with `DTypeMismatch` (stale bpk, needs
+  re-convert).
+
 - **feat: Real-ESRGAN general-x4v3 (SRVGGNetCompact, 2026-08-23)** — real-scene
   compact upscaler added to the catalog (`realesrgan-general-x4v3`, BSD-3-Clause,
   flat `realesr-general-x4v3.pth`). The `SrvggNet` arch now carries one `Prelu`

@@ -222,7 +222,8 @@ fn bench_upscale_batch() {
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
 fn bench_upscale_pipelined() {
-    let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
+    let _model_id =
+        std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
     let frames = bench_frames();
     let total = frames.len();
@@ -313,5 +314,117 @@ fn bench_pipeline_full_render() {
         n as f64 / elapsed
     );
 
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Real-frame upscaler sweep: every loadable `upscale` model at its native
+/// scale on the given DVD frames. `BENCH_FRAMES` = comma-separated PNG paths
+/// (default: the two frames in `models.bat/`). Measures the whole `Upscale`
+/// step (frame → tiled infer → RGB8 frame), the app's render path.
+/// Run: cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture bench_upscalers_real_frames
+#[test]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
+fn bench_upscalers_real_frames() {
+    let frames_env = std::env::var("BENCH_FRAMES").unwrap_or_else(|_| {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+        format!(
+            "{root}/models.bat/frame_cb6053b840e2b5c5.png,{root}/models.bat/frame_cb6053b840e2b5c5 (2).png"
+        )
+    });
+    let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+    let mut registry = senmei_ml::Registry::new();
+    registry.load_dir(&models_dir).unwrap();
+    let upscale_ids: Vec<String> = registry
+        .models()
+        .iter()
+        .filter(|m| matches!(m.kind, senmei_ml::ModelKind::Upscale) && m.loadable)
+        .map(|m| m.id.clone())
+        .collect();
+
+    // Decode the PNGs to frames (ffmpeg handles single images).
+    let dir = std::env::temp_dir().join("senmei-bench-frames");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ffmpeg = senmei_media::resolve(&dir);
+    let mut frames: Vec<senmei_media::Frame> = Vec::new();
+    for png in frames_env.split(',') {
+        let mut dec = senmei_media::Decoder::open_with_range(
+            &ffmpeg,
+            std::path::Path::new(png.trim()),
+            0,
+            None,
+            senmei_media::Tonemap::Auto,
+        )
+        .unwrap();
+        while let Some(f) = dec.next_frame().unwrap() {
+            frames.push(f);
+        }
+    }
+    let (w, h) = (frames[0].width, frames[0].height);
+    println!("\n==== real-frame upscaler sweep @ {w}x{h} ====");
+    println!("{:<30} {:>5} {:>10} {:>8}", "model", "scale", "ms/frame", "FPS");
+
+    for id in &upscale_ids {
+        let Some(mref) = registry.resolve(id, &models_dir) else {
+            continue;
+        };
+        let bpk = models_dir.join(&mref.path);
+        if !bpk.exists() {
+            println!("{id:<30} -- no local bpk, skipped");
+            continue;
+        }
+        // Panic-isolate each model: one broken model must not abort the sweep.
+        let row = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut engine =
+                senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+            engine.load(&mref).unwrap();
+            let mut step = senmei_pipeline::Upscale::new(mref.scale, Some(engine));
+            let mut warm = frames.clone();
+            // Warm-up (loads weights, allocates). The fused RGB8 path trips
+            // the VRAM guard on large outputs; fall back to raw tiled GPU
+            // infer for those, the only viable path at this resolution.
+            let fused = step.process(&mut warm[0]).is_ok();
+            if fused {
+                let mut timed = frames.clone();
+                let t0 = Instant::now();
+                let mut iters = 0usize;
+                for f in &mut timed {
+                    step.process(f).unwrap();
+                    iters += 1;
+                }
+                let el = t0.elapsed().as_secs_f64() / iters as f64;
+                format!("{:>10.1} {:>8.1}", el * 1000.0, 1.0 / el)
+            } else {
+                let mut engine =
+                    senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+                engine.load(&mref).unwrap();
+                let input = senmei_pipeline::frame_to_tensor(&frames[0]);
+                let opts = InferOptions {
+                    tile_size: Some(512),
+                };
+                let _ = senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
+                let t0 = Instant::now();
+                let mut iters = 0u32;
+                for _ in 0..3 {
+                    senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
+                    iters += 1;
+                }
+                let el = t0.elapsed().as_secs_f64() / iters as f64;
+                format!("{:>10.1} {:>8.1}  *tiled", el * 1000.0, 1.0 / el)
+            }
+        }));
+        match row {
+            Ok(val) => println!("{:<30} {:>5} {val}", id, mref.scale),
+            Err(p) => {
+                let msg = p
+                    .downcast_ref::<&str>()
+                    .map(|s| s.to_string())
+                    .or_else(|| p.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "unknown panic".into());
+                println!("{:<30} {:>5}  PANIC: {msg}", id, mref.scale);
+            }
+        }
+    }
+    println!("  * fused RGB8 path exceeds the VRAM guard at this resolution; raw tiled GPU infer");
     let _ = std::fs::remove_dir_all(&dir);
 }

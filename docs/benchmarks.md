@@ -175,6 +175,60 @@ nearly all of it — depth 2/3 add nothing here because the bench has no encoder
 write to hide behind the GPU (the full app may benefit). Default depth = 1,
 configurable via `pipeline_depth`.
 
+## Real-frame upscaler sweep (2026-08-23)
+
+`bench_upscalers_real_frames` (`cargo test -p senmei-pipeline --release --test
+bench -- --ignored --nocapture bench_upscalers_real_frames`): every loadable
+`upscale` model at its native scale on two real DVD frames (720×576 rgb24,
+`models.bat/frame_*.png`, override via `BENCH_FRAMES`). Burn-Vulkan fp16 on
+RX 9070, fused RGB8 `Upscale` step (the app path) — at 720×576 every model fits
+the fused VRAM guard, so all rows are the app path (no tiled fallback).
+Sorted by ms/frame.
+
+| model | scale | ms/frame | FPS |
+|---|---|---|---|
+| fallin-strong | 2 | 60.6 | 16.5 |
+| fallin-soft | 2 | 61.1 | 16.4 |
+| realesrgan-animevideo-x2 | 2 | 92.3 | 10.8 |
+| realesrgan-animevideo-x4 | 4 | 131.1 | 7.6 |
+| real-cugan-x2 | 2 | 138.8 | 7.2 |
+| **realesrgan-general-x4v3** | **4** | **197.1** | **5.1** |
+| span-2x-modern-spanimation-v1 | 2 | 282.1 | 3.5 |
+| span-2x-modern-spanimation-v1.5 | 2 | 284.3 | 3.5 |
+| span-2x-nomosuni-ldl | 2 | 299.7 | 3.3 |
+| span-2x-hfa2k | 2 | 301.2 | 3.3 |
+| span-2x-bhi-small | 2 | 305.3 | 3.3 |
+| span-2x-modern-spanimation-v2 | 2 | 306.5 | 3.3 |
+| span-2x-hfa2k-ludvae | 2 | 306.5 | 3.3 |
+| safmn-real-x2 | 2 | 921.9 | 1.1 |
+| safmn-real-x4 | 4 | 975.2 | 1.0 |
+| realesrgan-x4plus-anime | 4 | 1088.0 | 0.9 |
+| real-plksr-2x-public | 2 | 1160.0 | 0.9 |
+| 4x-nomoswebphoto-realplksr | 4 | 1161.6 | 0.9 |
+| 4x-bhi-realplksr-real | 4 | 1276.2 | 0.8 |
+| 4x-alchemy | 4 | 1277.9 | 0.8 |
+| 4x-bhi-realplksr-otf | 4 | 1282.9 | 0.8 |
+| 4x-nature-realplksr | 4 | 1283.8 | 0.8 |
+| 4x-mssim-realplksr | 4 | 1287.3 | 0.8 |
+| 4x-hfa2k-realplksr | 4 | 1288.1 | 0.8 |
+| 4x-nomos2-realplksr | 4 | 1290.6 | 0.8 |
+| bsrgan | 4 | 2855.5 | 0.4 |
+| span-2x-nomosuni-multijpg | 2 | PANIC `DTypeMismatch` (burn-ir) | — |
+
+Takeaways:
+- **realesrgan-general-x4v3 is the fast real-film 4× pick**: 197 ms / 5.1 FPS —
+  ~5× faster than every other 4× model and competitive with 2× (real-cugan-x2:
+  139 ms). Real-photo training + compact SRVGGNetCompact (per-layer PReLU).
+- fallin soft/strong stay the fastest 2× (~61 ms, 16.5 FPS); real-cugan-x2 is
+  ~2.3× slower.
+- The RealPLKSR 4× family clusters at ~1280 ms (0.8 FPS) — no fast option.
+- **safmn-real-x2/x4 are surprisingly slow** (922 / 975 ms, ~1 FPS) — ~15×
+  slower than fallin despite the "lightweight" claim; the SAFM block (depthwise
+  convs + per-level pool/interp + GELU) maps poorly to this backend. Worth
+  profiling before recommending.
+- `span-2x-nomosuni-multijpg` panics in burn-ir (`DTypeMismatch`) — stale bpk
+  (its `ldl` sibling was re-converted 2026-08-21); re-convert to fix.
+
 ## Alternatives
 
 ### torch-ROCm (2026-08-17, ROCm 7.14)
