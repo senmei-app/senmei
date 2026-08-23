@@ -76,10 +76,16 @@ impl PreviewCache {
         self.order.push_back(key.clone());
 
         let s = self.streams.get_mut(&key).unwrap();
-        // Cheap catch-up: request ahead of the decoded position within the
-        // contiguous window — skip frames instead of re-seeding ffmpeg.
+        // Read forward only while the request is past the midpoint between the
+        // last decoded frame and the next one (return the nearest frame).
+        // Never run ahead of the request — that made playback oscillate
+        // between a re-seek and an ahead-read when decode lagged (notably
+        // upscaled results), visibly "jumping" between positions.
         let mut guard = 0;
-        while !s.finished && position_ms > s.next_frame_ms + s.frame_ms && guard < MAX_CATCHUP {
+        while !s.finished
+            && position_ms + s.frame_ms / 2.0 >= s.next_frame_ms
+            && guard < MAX_CATCHUP
+        {
             match s.decoder.next_frame() {
                 Ok(Some(f)) => {
                     s.next_frame_ms += s.frame_ms;
@@ -92,39 +98,32 @@ impl PreviewCache {
                 Err(e) => return Err(e),
             }
         }
-        if s.finished {
-            // EOF: hand back the last decoded frame (stable at the tail).
-            return s
-                .last_frame
-                .clone()
-                .ok_or_else(|| Error::Command("no frame available at position".into()));
+        if let Some(f) = s.last_frame.clone() {
+            return Ok(f);
         }
-        match s.decoder.next_frame() {
-            Ok(Some(f)) => {
-                s.next_frame_ms += s.frame_ms;
-                s.last_frame = Some(f.clone());
-                Ok(f)
-            }
-            Ok(None) => {
-                // EOF: return the last decoded frame; if the request landed
-                // past the real video end (nothing decoded), re-seek once to
-                // the last valid position — the video-stream duration makes
-                // `end_ms - frame_ms` a decodable frame.
-                if let Some(f) = s.last_frame.clone() {
-                    return Ok(f);
+        // Nothing decoded yet. On EOF (request past the real video end) re-seek
+        // once to the last valid position — the video-stream duration makes
+        // `end_ms - frame_ms` decodable.
+        if s.finished {
+            let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
+            *s = Self::open(&self.ffmpeg, input, clamped, self.max_dim)?;
+            match s.decoder.next_frame() {
+                Ok(Some(f)) => {
+                    s.next_frame_ms += s.frame_ms;
+                    s.last_frame = Some(f.clone());
+                    Ok(f)
                 }
-                let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
-                *s = Self::open(&self.ffmpeg, input, clamped, self.max_dim)?;
-                match s.decoder.next_frame() {
-                    Ok(Some(f)) => {
-                        s.next_frame_ms += s.frame_ms;
-                        s.last_frame = Some(f.clone());
-                        Ok(f)
-                    }
-                    _ => Err(Error::Command("no frame available at position".into())),
-                }
+                _ => Err(Error::Command("no frame available at position".into())),
             }
-            Err(e) => Err(e),
+        } else {
+            match s.decoder.next_frame() {
+                Ok(Some(f)) => {
+                    s.next_frame_ms += s.frame_ms;
+                    s.last_frame = Some(f.clone());
+                    Ok(f)
+                }
+                _ => Err(Error::Command("no frame available at position".into())),
+            }
         }
     }
 
@@ -178,5 +177,58 @@ mod tests {
             .frame(&f, 100_000.0)
             .expect("frame at out-of-range pos");
         assert!(frame.width > 0 && frame.height > 0);
+    }
+
+    /// Regression: playback frames must never jump backward in time. The old
+    /// catch-up read ahead of the request (notably with slow upscaled decodes),
+    /// then re-seeked once the request lagged >300ms — alternating between
+    /// ahead/behind positions that looked like the image "jumping". Requests
+    /// that advance slower than the frame rate must still yield monotonic
+    /// frames.
+    #[test]
+    fn forward_playback_stays_monotonic() {
+        let dir = std::env::temp_dir().join("senmei_preview_mono_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let video = dir.join("mono.mp4");
+        if !video.exists() {
+            let ok = std::process::Command::new("ffmpeg")
+                .args([
+                    "-y",
+                    "-f", "lavfi",
+                    "-i", "color=black:s=320x180:r=24:d=4",
+                    "-vf", "geq=lum='min(255,N*4)':cb=128:cr=128",
+                    "-c:v", "mpeg4",
+                    "-pix_fmt", "yuv420p",
+                ])
+                .arg(&video)
+                .status()
+                .is_ok_and(|s| s.success());
+            if !ok {
+                return; // no ffmpeg — skip
+            }
+        }
+        let mut cache = PreviewCache::new("ffmpeg".into(), None);
+        // Requests advance ~1/5 of a frame per call (a 60Hz timer on 24fps
+        // video); the decode used to run far ahead and oscillate.
+        let mut last_avg = -1.0;
+        let mut t = 0.0;
+        while t < 2000.0 {
+            let frame = cache
+                .frame(&video.to_string_lossy(), t)
+                .expect("frame during playback");
+            // geq sets a uniform luma per frame → avg RGB == the frame's luma.
+            let avg = frame
+                .data
+                .iter()
+                .map(|&b| b as f64)
+                .sum::<f64>()
+                / frame.data.len() as f64;
+            assert!(
+                avg + 0.5 >= last_avg,
+                "frame at {t}ms jumped backward in time (avg {avg:.1} < last {last_avg:.1})"
+            );
+            last_avg = avg;
+            t += 8.0;
+        }
     }
 }

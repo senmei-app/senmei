@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **fix: preview frames stay monotonic during playback (2026-08-23)** — the
+  `PreviewCache` read one frame ahead of the requested position on every call,
+  so the decode ran ahead of the playhead and then re-seeked once the request
+  lagged >300 ms — the displayed frame oscillated between an ahead-read and a
+  seek-back, looking like the image "jumping" / tearing (most visible on slow
+  upscaled decodes, i.e. upscale/resize). Now the nearest frame is returned and
+  the decode never runs past the request. Regression test
+  `forward_playback_stays_monotonic` generates a luminance-ramp video and
+  asserts frames never jump backward in time (fails on the old logic).
+
 - **fix: preview playback + canvas fixes (2026-08-23)** —
   - `FrameCanvas` scales like the old `<img>` (`object-fit: contain`), so the
     preview fills the Full Video Mode overlay instead of keeping its intrinsic
