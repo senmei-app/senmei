@@ -55,7 +55,7 @@ pub(crate) use burn_wgpu::Vulkan as BurnBackend;
 #[cfg(feature = "burn")]
 pub use burn::BurnEngine;
 #[cfg(feature = "burn")]
-pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk};
+pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk, convert_safetensors_to_bpk};
 #[cfg(feature = "tch")]
 pub use tch::{TchDevice, TchEngine};
 pub use engine::{

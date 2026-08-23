@@ -1,11 +1,14 @@
-//! Maintainer tool: convert a torch `.pth` or ONNX model to the app's f16
-//! `.bpk` burnpack.
+//! Maintainer tool: convert a torch `.pth`, ONNX, or safetensors model to the
+//! app's f16 `.bpk` burnpack.
 //!
 //! usage: senmei-ml-convert <arch> <model> <out.bpk> [scale] [num_block] [layer_norm] [dysample]
 //!   arch: upcunet2x | upcunet2x-fast | fallin-cugan | realesrgan | real-plksr
-//!         | ifrnet | drunet | dncnn | ffdnet | nafnet | span | safmn
-//!   model: a `.pth` state dict or an `.onnx` file (initializers are read via
-//!          the built-in parser — no ONNX Runtime)
+//!         | ifrnet | drunet | dncnn | ffdnet | nafnet | span | safmn | paragonsr
+//!   model: a `.pth` state dict, an `.onnx` file (initializers are read via
+//!          the built-in parser — no ONNX Runtime), or a fused `.safetensors`
+//!          (e.g. Phhofm release weights)
+//!   for `paragonsr`, only the fused safetensors source is supported; the
+//!          config is fixed (Nano: 24 feat / 3×2 blocks / ffn 1.5 / scale 2).
 //!   scale / num_block only matter for `realesrgan` (RRDBNet) and `real-plksr`
 //!          (scale: 1 for the decompress models, 4 for 4x-alchemy).
 //!   for `span`, the 5th arg is the feature-channel count: 48 for the Phhofm
@@ -47,6 +50,8 @@ fn main() -> senmei_ml::Result<()> {
     let out = std::path::Path::new(&args[3]);
     if input.extension().and_then(|e| e.to_str()) == Some("onnx") {
         senmei_ml::convert_onnx_to_bpk(&args[1], input, out, scale, num_block, shuffle)?;
+    } else if input.extension().and_then(|e| e.to_str()) == Some("safetensors") {
+        senmei_ml::convert_safetensors_to_bpk(&args[1], input, out, scale)?;
     } else {
         senmei_ml::convert_pth_to_bpk(
             &args[1], input, out, scale, num_block, layer_norm, dysample, shuffle,

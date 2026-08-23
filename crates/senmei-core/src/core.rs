@@ -183,8 +183,11 @@ pub fn download_model(
         return Ok(target.to_string_lossy().into_owned());
     }
     let onnx = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("onnx");
+    let st = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("safetensors");
     let ext = if onnx {
         "onnx"
+    } else if st {
+        "safetensors"
     } else if is_archive {
         "zip"
     } else {
@@ -230,6 +233,8 @@ pub fn download_model(
         senmei_ml::convert_onnx_to_bpk(
             &meta.arch, &source, &target, meta.scale, convert_arg, shuffle,
         )
+    } else if st {
+        senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale)
     } else {
         senmei_ml::convert_pth_to_bpk(
             &meta.arch,

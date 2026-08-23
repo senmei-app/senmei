@@ -5,8 +5,8 @@
 #![cfg(any(feature = "burn", feature = "tch"))]
 
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, RealPlk, RrdbNet, RifeNet, SafmnNet, Scunet, Span,
-    SrvggNet, UpCunet2x, UpCunet2xFast,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, RifeNet, SafmnNet,
+    Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -35,6 +35,7 @@ pub enum Model<B: Backend> {
     RealPlk(RealPlk<B>),
     Span(Span<B>),
     SafmnNet(SafmnNet<B>),
+    ParagonSrNet(ParagonSrNet<B>),
 }
 
 impl<B: Backend> Model<B> {
@@ -51,6 +52,7 @@ impl<B: Backend> Model<B> {
             Model::NafNet(m) => Ok(m.forward(x)),
             Model::Span(m) => Ok(m.forward(x)),
             Model::SafmnNet(m) => Ok(m.forward(x)),
+            Model::ParagonSrNet(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
                 Err(Error::new("no single-input forward"))
             }
@@ -165,6 +167,13 @@ pub fn load_arch<B: Backend>(
             let mut m = SafmnNet::new(128, 16, 2.0, model.scale as usize, device);
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::SafmnNet(m))
+        }
+        "paragonsr" => {
+            // ParagonSR Nano (registered model is fixed): num_feat 24 / 3
+            // residual groups × 2 blocks / ffn_expansion 1.5.
+            let mut m = ParagonSrNet::new(model.scale as usize, 24, 3, 2, 1.5, device);
+            m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+            Ok(Model::ParagonSrNet(m))
         }
         other => Err(Error::new(format!("unsupported arch: {other}"))),
     }

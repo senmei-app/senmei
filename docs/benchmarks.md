@@ -187,47 +187,52 @@ fused VRAM guard except where noted. Sorted by ms/frame.
 
 | model | scale | ms/frame | FPS |
 |---|---|---|---|
-| fallin-strong | 2 | 57.0 | 17.5 |
-| fallin-soft | 2 | 57.3 | 17.5 |
-| realesrgan-animevideo-x4 | 4 | 78.5 | 12.7 *tiled |
-| **realesrgan-animevideo-x2** | **2** | **86.7** | **11.5** |
-| **realesrgan-general-x4v3** | **4** | **110.7** | **9.0** *tiled |
-| real-cugan-x2 | 2 | 136.3 | 7.3 |
-| real-cugan-hfa2k-x2 | 2 | 135.6 | 7.4 |
-| span-2x-modern-spanimation-v1 | 2 | 277.9 | 3.6 |
-| span-2x-modern-spanimation-v1.5 | 2 | 278.0 | 3.6 |
-| span-2x-nomosuni-ldl | 2 | 295.9 | 3.4 |
-| span-2x-bhi-small | 2 | 296.3 | 3.4 |
-| span-2x-modern-spanimation-v2 | 2 | 296.5 | 3.4 |
-| span-2x-hfa2k | 2 | 296.8 | 3.4 |
-| span-2x-hfa2k-ludvae | 2 | 296.9 | 3.4 |
-| span-2x-nomosuni-multijpg | 2 | 297.0 | 3.4 |
-| realesrgan-x4plus-anime | 4 | 423.6 | 2.4 *tiled |
-| safmn-real-x4 | 4 | 479.1 | 2.1 *tiled |
-| 4x-nomoswebphoto-realplksr | 4 | 596.1 | 1.7 *tiled |
-| **realesrgan-x2plus** | **2** | **651.4** | **1.5** |
-| 4x-nature-realplksr | 4 | 655.8 | 1.5 *tiled |
-| 4x-nomos2-realplksr | 4 | 656.2 | 1.5 *tiled |
-| 4x-bhi-realplksr-otf | 4 | 656.3 | 1.5 *tiled |
-| 4x-bhi-realplksr-real | 4 | 656.6 | 1.5 *tiled |
-| 4x-hfa2k-realplksr | 4 | 656.5 | 1.5 *tiled |
-| 4x-mssim-realplksr | 4 | 657.3 | 1.5 *tiled |
-| safmn-real-x2 | 2 | 911.5 | 1.1 |
-| real-plksr-2x-public | 2 | 1148.9 | 0.9 |
-| bsrgan | 4 | 1182.1 | 0.8 *tiled |
-| 4x-alchemy | 4 | 1274.5 | 0.8 |
+| fallin-strong | 2 | 61.3 | 16.3 |
+| **paragonsr-nano-x2** | **2** | **62.0** | **16.1** |
+| fallin-soft | 2 | 62.7 | 15.9 |
+| realesrgan-animevideo-x2 | 2 | 93.9 | 10.6 |
+| realesrgan-animevideo-x4 | 4 | 141.4 | 7.1 |
+| real-cugan-x2 | 2 | 142.5 | 7.0 |
+| real-cugan-hfa2k-x2 | 2 | 146.7 | 6.8 |
+| realesrgan-general-x4v3 | 4 | 196.5 | 5.1 |
+| span-2x-modern-spanimation-v1.5 | 2 | 285.1 | 3.5 |
+| span-2x-modern-spanimation-v1 | 2 | 285.9 | 3.5 |
+| span-2x-hfa2k | 2 | 304.4 | 3.3 |
+| span-2x-nomosuni-ldl | 2 | 305.1 | 3.3 |
+| span-2x-nomosuni-multijpg | 2 | 306.5 | 3.3 |
+| span-2x-modern-spanimation-v2 | 2 | 307.3 | 3.3 |
+| span-2x-bhi-small | 2 | 307.5 | 3.3 |
+| span-2x-hfa2k-ludvae | 2 | 307.5 | 3.3 |
+| **realesrgan-x2plus** | **2** | **670.7** | **1.5** |
+| safmn-real-x2 | 2 | 926.3 | 1.1 |
+| safmn-real-x4 | 4 | 977.6 | 1.0 |
+| realesrgan-x4plus-anime | 4 | 1094.5 | 0.9 |
+| real-plksr-2x-public | 2 | 1156.4 | 0.9 |
+| 4x-nomoswebphoto-realplksr | 4 | 1165.4 | 0.9 |
+| 4x-nomos2-realplksr | 4 | 1281.1 | 0.8 |
+| 4x-nature-realplksr | 4 | 1283.5 | 0.8 |
+| 4x-mssim-realplksr | 4 | 1284.3 | 0.8 |
+| 4x-hfa2k-realplksr | 4 | 1284.6 | 0.8 |
+| 4x-bhi-realplksr-real | 4 | 1287.3 | 0.8 |
+| 4x-bhi-realplksr-otf | 4 | 1289.2 | 0.8 |
+| 4x-alchemy | 4 | 1290.7 | 0.8 |
+| bsrgan | 4 | 2861.1 | 0.3 |
 
 (`*tiled` = the fused RGB8 path's free-VRAM guard tripped, fell back to raw
 tiled infer; the fused-vs-tiled choice varies run-to-run, so those numbers are
 approximate — same model can show lower ms/frame on the tiled path.)
 
 Takeaways:
-- **realesrgan-general-x4v3 is the fast real-film 4× pick**: ~110-195 ms /
-  5-9 FPS — ~5× faster than every other 4× model and competitive with 2×
-  (real-cugan-x2: 136 ms). Real-photo training + compact SRVGGNetCompact.
-- **realesrgan-animevideo-x2/x4 are the fast anime picks** (87 / 79 ms), anime-
+- **paragonsr-nano-x2 is now a top-3 fastest 2×** (~62 ms / 16 FPS, tied with
+  fallin) — 2.3× faster than real-cugan-x2 (142 ms). Verified vs ONNX Runtime
+  fp16 (mae 0.0009 on random input, 0.0014 / 57 dB PSNR on the real DVD
+  frame). Phhofm ParagonSR-Nano GAN, MIT, 24-feat / 3×2-block ParagonSrNet.
+- **realesrgan-general-x4v3 is the fast real-film 4× pick**: ~110-196 ms /
+  5-9 FPS — ~5-14× faster than every other 4× model and competitive with 2×
+  (real-cugan-x2: 142 ms). Real-photo training + compact SRVGGNetCompact.
+- **realesrgan-animevideo-x2/x4 are the fast anime picks** (94 / 141 ms), anime-
   trained.
-- fallin soft/strong stay the fastest 2× overall (~57 ms, 17.5 FPS).
+- fallin soft/strong stay the fastest 2× overall (61-63 ms, ~16 FPS).
 - **realesrgan-x2plus** (real-photo RRDBNet 23-block x2, pixel_unshuffle
   variant): correct but slow — 651 ms / 1.5 FPS, verified vs spandrel
   (mae 0.43). A quality 2× option, not a fast one.

@@ -842,5 +842,25 @@
    "half": true,
    "note": "Phhofm Real-CUGAN 2x anime (CC-BY-4.0, HFA2k, up2x-latest-conservative pretrain); same UpCunet2x arch as real-cugan-x2, keys under `params` (stripped)"
   }
+ },
+ {
+  "id": "paragonsr-nano-x2",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "paragonsr",
+  "family": "paragonsr",
+  "weights": [
+   "2xParagonSR_Nano.f16.bpk"
+  ],
+  "license": "MIT",
+  "source_url": "https://github.com/Phhofm/ParagonSR2",
+  "download_url": "https://github.com/Phhofm/models/releases/download/2xParagonSR_Nano_gan/2xParagonSR_Nano_gan_fused.safetensors",
+  "sha256": "dac3844b3766231c3c26648934753a6e9624e039d320a2834d9547f1988933f5",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "note": "Phhofm ParagonSR-Nano GAN 2x (MIT, CC0 photo data, nano variant); old ParagonSR arch 24 feat / 3x2 blocks / ffn 1.5; fused release weights; burn port verified vs ONNX fp16"
+  }
  }
 ]

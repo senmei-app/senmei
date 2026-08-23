@@ -32,6 +32,7 @@ download URL + sha256).
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 | Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, HFA2k LUDVAE, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
 | Restoration | SAFMN | SAFMN-L Real (LSDIR, x2/x4 v2) | 2/4 | SafmnNet (dim 128 / 16 blocks / ffn_scale 2.0) | Apache-2.0 | loadable (clean burn port; torch mae 0.008 x2 / 0.027 x4 f16 on worst-case random input) | `sunny2109/SAFMN` v0.1.0 · HF mirror `Meloo/SAFMN` |
+| Restoration | ParagonSR | ParagonSR-Nano GAN 2× | 2 | ParagonSrNet (24 feat / 3×2 blocks / ffn 1.5) | MIT | loadable (ONNX-verified mae 0.0009 f16; 62 ms / 16.1 FPS — top-3 fastest 2×) | `Phhofm/ParagonSR2` · `Phhofm/models` release `2xParagonSR_Nano_gan` (fused `.safetensors`) |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.

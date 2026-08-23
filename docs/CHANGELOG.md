@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **feat: ParagonSR-Nano (2026-08-23)** — catalog entry `paragonsr-nano-x2`
+  (Phhofm ParagonSR-Nano GAN 2×, MIT, fused release safetensors; old
+  ParagonSR arch: 24 feat / 3×2 blocks / ffn 1.5). New `ParagonSrNet` burn
+  arch: conv_in → 3×2 ParagonBlocks (GroupNorm(1,C) per-sample norm +
+  InceptionDWConv + GatedFFN w/ Mish + LayerScale, group residuals) →
+  conv_fuse+shallow skip → upsampler(24→96)+PixelShuffle(2) → conv_out.
+  Converter gains a safetensors path (`SafetensorsStore`, strips the torch
+  `upsampler.0` index). Verified vs ONNX Runtime fp16: mae 0.0009 arch-level,
+  0.0014 / 57 dB PSNR on a real DVD frame. 62 ms / 16.1 FPS at 720×576 —
+  top-3 fastest 2×, tied with Fallin.
+
 - **feat: 2xHFA2kReal-CUGAN (2026-08-23)** — catalog entry
   `real-cugan-hfa2k-x2` (Phhofm, CC-BY-4.0, 2× anime, HFA2k dataset, pretrain
   up2x-latest-conservative). Same `UpCunet2x` arch as `real-cugan-x2`; the
