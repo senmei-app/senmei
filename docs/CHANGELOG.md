@@ -6,6 +6,15 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **fix: pixel-shuffle permutation scrambled upscalers (2026-08-23)** — the
+  shared `pixel_shuffle` helper used the wrong `permute`
+  (`(0,1,3,5,2,4)` instead of torch's `(0,1,4,2,5,3)`), scrambling the
+  channel/spatial layout of every PixelShuffle upsampler. Fixed in `SrvggNet`
+  (the `realesrgan-animevideo` x2/x4 outputs were affected) and in the new
+  `SafmnNet`.
+
 ## 0.1.8 (2026-08-23)
 
 - **fix: Full Video Mode (2026-08-23)** — reworked onto OS window fullscreen:
