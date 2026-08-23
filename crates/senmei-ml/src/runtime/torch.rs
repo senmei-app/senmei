@@ -141,26 +141,32 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
 /// Resolve the libtorch install under `data_dir`, downloading on first use.
 /// Returns `None` when no CUDA/ROCm device was detected (CPU-only → burn).
 pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInstall>, String> {
-    // Prefer a local torch install (build-time `LIBTORCH`) — its ABI matches
-    // the compiled shim exactly, while a downloaded release can mismatch (e.g.
-    // a 2.13-built wrapper against the pinned 2.12 download). CPU-only installs
-    // are ignored (tch needs a GPU build); we fall back to the download.
-    if let Some(dir) = std::env::var_os("LIBTORCH") {
-        let lib = PathBuf::from(&dir).join("lib");
-        if lib.join("libtorch.so").is_file() {
-            let variant = if lib.join("libtorch_hip.so").is_file() {
-                Some(TorchVariant::Rocm("rocm7.14"))
-            } else if lib.join("libtorch_cuda.so").is_file() {
-                Some(TorchVariant::Cuda("cu128"))
-            } else {
-                None
-            };
-            if let Some(variant) = variant {
-                log::info!("libtorch: using LIBTORCH env ({variant:?}) at {lib:?}");
-                return Ok(Some(TorchInstall {
-                    variant,
-                    lib_dir: lib,
-                }));
+    // A local torch install (build-time `LIBTORCH`) is only honored when
+    // explicitly opted in via `SENMEI_LIBTORCH_ENV` — its ABI matches the
+    // compiled shim exactly, while a downloaded release can mismatch (e.g. a
+    // 2.13-built wrapper against the pinned 2.12 download). Off by default so
+    // a stale `LIBTORCH` in the launch shell (e.g. a Python venv) can't hijack
+    // the shipped/pinned runtime (it would fail the tensor-probe ABI guard in
+    // `tch::ensure_loaded` anyway). CPU-only installs are ignored (tch needs a
+    // GPU build); we fall back to the download.
+    if std::env::var_os("SENMEI_LIBTORCH_ENV").is_some() {
+        if let Some(dir) = std::env::var_os("LIBTORCH") {
+            let lib = PathBuf::from(&dir).join("lib");
+            if lib.join("libtorch.so").is_file() {
+                let variant = if lib.join("libtorch_hip.so").is_file() {
+                    Some(TorchVariant::Rocm("rocm7.14"))
+                } else if lib.join("libtorch_cuda.so").is_file() {
+                    Some(TorchVariant::Cuda("cu128"))
+                } else {
+                    None
+                };
+                if let Some(variant) = variant {
+                    log::info!("libtorch: using LIBTORCH env ({variant:?}) at {lib:?}");
+                    return Ok(Some(TorchInstall {
+                        variant,
+                        lib_dir: lib,
+                    }));
+                }
             }
         }
     }

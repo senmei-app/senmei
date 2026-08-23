@@ -131,12 +131,12 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                     return Err(e);
                 }
                 if !probe_tensor_ok() {
-                    // Wrapper/runtime ABI mismatch — most often a stale
-                    // `LIBTORCH` env in the launch shell pointing at a
+                    // Wrapper/runtime ABI mismatch — most often a local
+                    // `LIBTORCH` opt-in (SENMEI_LIBTORCH_ENV) pointing at a
                     // different torch version than the wrapper was built for.
                     return Err(
-                        "libtorch tensor probe failed (wrapper/runtime ABI mismatch; is a stale \
-                         LIBTORCH env overriding the pinned runtime?)"
+                        "libtorch tensor probe failed (wrapper/runtime ABI mismatch; set \
+                         SENMEI_LIBTORCH_ENV to use a local LIBTORCH install)"
                         .into(),
                     );
                 }
@@ -147,13 +147,12 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 return Err(e);
             }
             // Same ABI guard as the ROCm branch: a mismatched wrapper/runtime
-            // (e.g. a stale LIBTORCH env, or a CUDA download that predates the
-            // wrapper headers) must fail here instead of corrupting memory
-            // mid-render.
+            // (e.g. a local LIBTORCH opt-in that predates the wrapper headers)
+            // must fail here instead of corrupting memory mid-render.
             if !probe_tensor_ok() {
                 return Err(
-                    "libtorch tensor probe failed (wrapper/runtime ABI mismatch; is a stale \
-                     LIBTORCH env overriding the pinned runtime?)"
+                    "libtorch tensor probe failed (wrapper/runtime ABI mismatch; set \
+                     SENMEI_LIBTORCH_ENV to use a local LIBTORCH install)"
                     .into(),
                 );
             }
