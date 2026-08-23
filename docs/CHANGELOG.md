@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **perf: single preview-decode worker thread (2026-08-23)** — the
+  `PreviewCache` (warm decode streams = ring buffer) now lives on one
+  dedicated worker thread; `read_frame` sends a request and awaits the frame.
+  Decodes are serialized without a global `Mutex` and no thread is spawned per
+  request; coalescing stays client-side (Monitor already debounces).
+
 - **perf: preview frames → raw RGB24 + canvas (2026-08-23)** — the preview
   transport drops the PNG/`<img>` round-trip on both paths: `read_frame`
   (Tauri) and `/api/frame` (HTTP) now return raw RGB24 (base64) + dimensions,

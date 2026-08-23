@@ -2,13 +2,45 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{mpsc, OnceLock};
 
 use crate::store;
 
-static PREVIEW_CACHE: OnceLock<Mutex<Option<senmei_media::PreviewCache>>> = OnceLock::new();
 /// Preview decode budget (longest edge) — display-sized, keeps scrubbing cheap.
 const PREVIEW_MAX_DIM: u32 = 1280;
+
+/// One decode request; the worker answers on `respond`.
+struct PreviewRequest {
+    input: String,
+    position_ms: f64,
+    respond: mpsc::Sender<Result<senmei_media::Frame, String>>,
+}
+
+static PREVIEW_WORKER: OnceLock<mpsc::Sender<PreviewRequest>> = OnceLock::new();
+
+/// Lazily spawn the single preview-decode worker. It owns the `PreviewCache`
+/// (warm decode streams = ring buffer) on one thread, so decodes are
+/// serialized without a shared lock and no thread is spawned per request.
+fn worker() -> &'static mpsc::Sender<PreviewRequest> {
+    PREVIEW_WORKER.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<PreviewRequest>();
+        std::thread::Builder::new()
+            .name("preview-decode".into())
+            .spawn(move || {
+                let ffmpeg = senmei_media::resolve(&store::data_dir());
+                let mut cache = senmei_media::PreviewCache::new(ffmpeg, Some(PREVIEW_MAX_DIM));
+                while let Ok(req) = rx.recv() {
+                    let res = cache.frame(&req.input, req.position_ms).map_err(|e| {
+                        log::warn!("preview decode failed: {e}");
+                        e.to_string()
+                    });
+                    let _ = req.respond.send(res);
+                }
+            })
+            .expect("failed to spawn preview decode thread");
+        tx
+    })
+}
 
 /// A decoded preview frame: raw RGB24 bytes, base64-encoded for the IPC/JSON
 /// transport. `width`/`height` let the frontend build an `ImageData` directly
@@ -66,33 +98,23 @@ fn preview_dir(project_dir: Option<&str>) -> std::path::PathBuf {
 }
 
 /// Decode one frame at `position_ms` as raw RGB24 (base64) for the preview
-/// monitor. Uses a persistent decode stream (one ffmpeg per file) so playback
-/// reads frames from the pipe instead of spawning a process per frame; frames
-/// are downscaled to the preview budget.
+/// monitor. Sends the request to the single decode worker, which serves it
+/// from its warm decode streams (one ffmpeg per file) and applies the preview
+/// decode budget.
 pub fn read_frame_inner(
     input: &str,
     position_ms: f64,
     _project_dir: Option<&str>,
 ) -> Result<FrameData, String> {
-    let ffmpeg = senmei_media::resolve(&store::data_dir());
-    // Decode under the lock (fast pipe read); the frame is returned raw.
-    let frame = {
-        let mut cache = PREVIEW_CACHE
-            .get_or_init(|| Mutex::new(None))
-            .lock()
-            .map_err(|e| e.to_string())?;
-        if cache.is_none() {
-            *cache = Some(senmei_media::PreviewCache::new(ffmpeg, Some(PREVIEW_MAX_DIM)));
-        }
-        cache
-            .as_mut()
-            .unwrap()
-            .frame(input, position_ms)
-            .map_err(|e| {
-                log::warn!("preview decode failed: {e}");
-                e.to_string()
-            })?
-    };
+    let (respond, recv) = mpsc::channel();
+    worker()
+        .send(PreviewRequest {
+            input: input.to_string(),
+            position_ms,
+            respond,
+        })
+        .map_err(|e| e.to_string())?;
+    let frame = recv.recv().map_err(|e| e.to_string())??;
     Ok(FrameData::from_frame(frame))
 }
 
