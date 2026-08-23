@@ -18,14 +18,22 @@ use burn_store::{
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
-/// Remap rules for the animevideo-xs SRVGG checkpoints — shared by the
-/// converter and the `srvgg_conversion_key_contract` test so they can't drift.
-fn srvgg_remap_patterns() -> Vec<(String, String)> {
-    let mut patterns = vec![
-        (r"^params\.".to_string(), String::new()),
-        (r"body\.\d*[13579]\.weight".to_string(), "prelu.weight".into()),
-    ];
-    for i in 0..18u32 {
+/// Remap rules for the SRVGG checkpoints — shared by the converter and the
+/// `srvgg_conversion_key_contract` test so they can't drift. `num_conv` is the
+/// mid-conv count (16 animevideo-xs, 32 general-x4v3): the per-index PReLU
+/// patterns run FIRST (before the conv remap creates `body.{i}` keys that would
+/// collide with them), mapping each original `body.{2k+1}.weight` to its own
+/// `prelu.{k}.weight` (all equal for the shared animevideo-xs checkpoints);
+/// then the body convs at even indices map 1:1.
+fn srvgg_remap_patterns(num_conv: usize) -> Vec<(String, String)> {
+    let mut patterns = vec![(r"^params\.".to_string(), String::new())];
+    for k in 0..=num_conv {
+        patterns.push((
+            format!(r"^body\.{}\.weight$", k * 2 + 1),
+            format!("prelu.{k}.weight"),
+        ));
+    }
+    for i in 0..num_conv + 2 {
         patterns.push((
             format!(r"body\.{}\.(weight|bias)", i * 2),
             format!("body.{}.$1", i),
@@ -84,17 +92,20 @@ pub fn convert_pth_to_bpk(
             }
         }
         "srvgg" => {
-            // animevideo-xs variant: `body` is a flat ModuleList — even indices
-            // are convs (`conv_first` + `num_conv`× mid + the upscale conv
-            // `num_feat → 3·scale²`), odd indices are the ONE shared PReLU. The
-            // checkpoint wraps the state dict under `params` (stripped) and
-            // folds the upsampler into the body (no `upsampler.*`/`conv_last`
-            // keys).
+            // animevideo-xs / general-x4v3 variants: `body` is a flat
+            // ModuleList — even indices are convs (`conv_first` + `num_conv`×
+            // mid + the upscale conv `num_feat → 3·scale²`), odd indices are
+            // the ONE shared PReLU. The animevideo checkpoints wrap the state
+            // dict under `params` (stripped) and both fold the upsampler into
+            // the body (no `upsampler.*`/`conv_last` keys). The 5th CLI arg
+            // (num_block slot) is the body conv count (16 animevideo-xs, 32
+            // general-x4v3).
             let mut store = PytorchStore::from_file(pth_path);
-            for (from, to) in srvgg_remap_patterns() {
+            for (from, to) in srvgg_remap_patterns(num_block as usize) {
                 store = store.with_key_remapping(from, to);
             }
-            let mut m = SrvggNet::<BurnBackend>::new(64, 16, scale as usize, &device);
+            let mut m =
+                SrvggNet::<BurnBackend>::new(64, num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -539,24 +550,23 @@ mod tests {
         assert_eq!(paths, expected);
     }
 
-    /// Key-contract for the animevideo-xs SRVGG conversion — the regression
-    /// guard for the "conversion failed: Tensor not found" bug. The real
-    /// `RealESRGANv2-animevideo-xsx2.pth` state dict (18 body convs ending in
-    /// the folded 64→3·scale² upscale conv, 17 shared PReLUs, wrapped under
-    /// `params`) must remap exactly onto the `SrvggNet` record paths (`body.{i}`
-    /// convs + shared `prelu`) — no missing, no unexpected leftovers. Pure key
-    /// mapping, no GPU.
+    /// Key-contract for the SRVGG (animevideo-xs / general-x4v3) conversion —
+    /// pure key mapping, no GPU. Builds a `params.`-wrapped state dict (18 body
+    /// convs ending in the folded upscale conv, 17 shared PReLUs for
+    /// animevideo-xs) and asserts they remap exactly onto the `SrvggNet` record
+    /// paths (body.{i} convs + prelu.{k} per mid conv) — no missing, no
+    /// unexpected leftovers.
     #[test]
     fn srvgg_conversion_key_contract() {
-        let mut source = Vec::with_capacity(53);
-        for i in 0..18u32 {
+        let num_conv = 16usize;
+        let mut source = Vec::with_capacity(2 * (num_conv + 2) + num_conv + 1);
+        for i in 0..num_conv + 2 {
             source.push(format!("params.body.{}.weight", i * 2));
             source.push(format!("params.body.{}.bias", i * 2));
         }
-        for i in 0..17u32 {
-            source.push(format!("params.body.{}.weight", i * 2 + 1));
+        for k in 0..=num_conv {
+            source.push(format!("params.body.{}.weight", k * 2 + 1));
         }
-        assert_eq!(source.len(), 53);
 
         let snapshots = source
             .iter()
@@ -573,18 +583,20 @@ mod tests {
             })
             .collect();
 
-        let remapper = KeyRemapper::from_patterns(srvgg_remap_patterns()).unwrap();
+        let remapper = KeyRemapper::from_patterns(srvgg_remap_patterns(num_conv)).unwrap();
         let (remapped, _) = remapper.remap(snapshots);
         let mut paths: Vec<String> = remapped.iter().map(|s| s.full_path()).collect();
         paths.sort();
         paths.dedup();
 
-        let mut expected = Vec::with_capacity(37);
-        for i in 0..18u32 {
+        let mut expected = Vec::with_capacity(paths.len());
+        for i in 0..num_conv + 2 {
             expected.push(format!("body.{}.weight", i));
             expected.push(format!("body.{}.bias", i));
         }
-        expected.push("prelu.weight".into());
+        for k in 0..=num_conv {
+            expected.push(format!("prelu.{k}.weight"));
+        }
         expected.sort();
 
         assert_eq!(paths, expected);

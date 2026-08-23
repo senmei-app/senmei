@@ -13,9 +13,12 @@ fn conv3x3<B: Backend>(in_c: usize, out_c: usize, device: &B::Device) -> Conv2d<
         .init(device)
 }
 
-/// Per-channel PReLU. SRVGG reuses ONE activation for every body layer, so all
-/// PReLU entries in the state dict (`body.1.weight`, `body.3.weight`, …) share
-/// the same weight — a single param is enough (the duplicates stay unused).
+/// Per-channel PReLU. SRVGG animevideo-xs reuses ONE activation for every body
+/// layer (all `body.{odd}.weight` entries share the same value), but the
+/// general-x4v3 checkpoint has a distinct PReLU per layer — so `SrvggNet` holds
+/// one `Prelu` per mid conv (`num_conv + 1` total) and the converter remaps
+/// each `body.{2k+1}.weight` to `prelu.{k}.weight`; shared checkpoints then
+/// just fill every entry with the same value.
 #[derive(Module, Debug)]
 pub struct Prelu<B: Backend> {
     weight: Param<Tensor<B, 1>>,
@@ -46,18 +49,20 @@ fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
         .reshape([n, oc, h * r, w * r])
 }
 
-/// `SRVGGNetCompact` (animevideo-xs): `conv_first + num_conv× (conv + prelu) +
-/// upscale conv (num_feat → 3·scale²)`, then one PixelShuffle(scale). The
-/// animevideo-xs checkpoints fold the upsampler into the body — the last body
-/// conv is `64 → 12` (2×) / `48` (4×) and there are no `upsampler.*`/`conv_last`
-/// keys.
+/// `SRVGGNetCompact` (animevideo-xs / general-x4v3): `conv_first +
+/// num_conv× (conv + prelu) + upscale conv (num_feat → 3·scale²)`, then one
+/// PixelShuffle(scale). The checkpoints fold the upsampler into the body — the
+/// last body conv is `64 → 12` (2×) / `48` (4×) and there are no
+/// `upsampler.*`/`conv_last` keys. animevideo-xs shares one PReLU across all
+/// layers; general-x4v3 has one per layer (handled by `Vec<Prelu>`).
 #[derive(Module, Debug)]
 pub struct SrvggNet<B: Backend> {
     /// The convs (torch `body.{0,2,4,…}` remapped onto this Vec); the last one
     /// is the upscale conv (`num_feat → 3·scale²`).
     body: Vec<Conv2d<B>>,
-    /// The shared PReLU (torch `body.{1,3,5,…}.weight`, all identical).
-    prelu: Prelu<B>,
+    /// One PReLU per mid conv (torch `body.{1,3,5,…}.weight`), all equal for
+    /// the shared animevideo-xs checkpoints.
+    prelu: Vec<Prelu<B>>,
     /// Upscale factor for the final PixelShuffle.
     scale: usize,
 }
@@ -72,7 +77,7 @@ impl<B: Backend> SrvggNet<B> {
         body.push(conv3x3(num_feat, 3 * scale * scale, device));
         Self {
             body,
-            prelu: Prelu::new(num_feat, device),
+            prelu: (0..=num_conv).map(|_| Prelu::new(num_feat, device)).collect(),
             scale,
         }
     }
@@ -82,7 +87,7 @@ impl<B: Backend> SrvggNet<B> {
         for (i, conv) in self.body.iter().enumerate() {
             y = conv.forward(y);
             if i + 1 < self.body.len() {
-                y = self.prelu.forward(y);
+                y = self.prelu[i].forward(y);
             }
         }
         pixel_shuffle(y, self.scale)
@@ -110,6 +115,10 @@ mod tests {
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(4);
+        let num_conv = std::env::var("SENMEI_SRVGG_NUM_CONV")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(16);
         let read = |name: &str, n: usize| -> Vec<f32> {
             let data = std::fs::read(format!("{dir}/{name}")).expect("missing ref bin");
             assert_eq!(data.len(), n * 4, "bad {name} size");
@@ -122,7 +131,7 @@ mod tests {
         let x_v = read("x.bin", n * c * h * w);
         let ref_v = read("ref.bin", n * c * h * scale * w * scale);
 
-        let mut m = SrvggNet::<BurnBackend<f16>>::new(64, 16, scale, &device);
+        let mut m = SrvggNet::<BurnBackend<f16>>::new(64, num_conv, scale, &device);
         let mut store = BurnpackStore::from_file(format!("{dir}/srvgg_x{scale}.f16.bpk"));
         let res = m.load_from(&mut store).unwrap();
         println!(

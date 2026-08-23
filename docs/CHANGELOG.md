@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **feat: Real-ESRGAN general-x4v3 (SRVGGNetCompact, 2026-08-23)** — real-scene
+  compact upscaler added to the catalog (`realesrgan-general-x4v3`, BSD-3-Clause,
+  flat `realesr-general-x4v3.pth`). The `SrvggNet` arch now carries one `Prelu`
+  per mid conv (`num_conv` + 1) instead of one shared PReLU — animevideo-xs
+  (num_conv 16, shared) and general-x4v3 (num_conv 32, per-layer) both load; the
+  converter remaps `body.{2k+1}.weight` → `prelu.{k}.weight` before the conv
+  remap (ordering matters — the conv remap would otherwise collide). `ModelRef`
+  gained `num_conv`; `download_model` passes it for `srvgg` archs. Verified vs
+  torch: mae 0.0004 (f16).
+
 - **ui: sort the model dropdown (2026-08-23)** — model options are now ordered
   loadable-first, then family → scale → id, so usable models are on top and the
   list is predictable (was insertion order).

@@ -136,7 +136,11 @@ pub fn download_model(
         .ok_or_else(|| format!("model not found: {model_id}"))?;
     let convert_arg = registry
         .resolve(model_id, &dir)
-        .map(|m| if m.arch == "span" { m.feature_channels } else { m.num_block })
+        .map(|m| match m.arch.as_str() {
+            "span" => m.feature_channels,
+            "srvgg" => m.num_conv,
+            _ => m.num_block,
+        })
         .unwrap_or(4);
     let layer_norm = registry.resolve(model_id, &dir).map(|m| m.layer_norm).unwrap_or(false);
     let dysample = registry.resolve(model_id, &dir).map(|m| m.dysample).unwrap_or(true);

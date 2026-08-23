@@ -301,6 +301,7 @@ mod tests {
             arch: "fallin-cugan".into(),
             scale: 2,
             num_block: 4,
+            num_conv: 16,
             feature_channels: 48,
             no_norm: false,
             layer_norm: false,

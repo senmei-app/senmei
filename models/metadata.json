@@ -93,7 +93,8 @@
   "loadable": true,
   "metadata": {
    "input_range": "0..1",
-   "half": true
+   "half": true,
+   "num_conv": 16
   }
  },
  {
@@ -111,7 +112,8 @@
   "loadable": true,
   "metadata": {
    "input_range": "0..1",
-   "half": true
+   "half": true,
+   "num_conv": 16
   }
  },
  {
@@ -778,6 +780,27 @@
    "half": true,
    "num_block": 16,
    "note": "SAFMN-L Real (LSDIR, v2) \u2014 sunny2109/SAFMN official release (Apache-2.0), dim 128 / 16 blocks / ffn_scale 2.0; clean burn port; HF mirror Meloo/SAFMN (apache-2.0) has the non-v2 weights"
+  }
+ },
+ {
+  "id": "realesrgan-general-x4v3",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "srvgg",
+  "family": "real-esrgan",
+  "weights": [
+   "realesr-general-x4v3.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.3.0",
+  "download_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
+  "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_conv": 32,
+   "note": "Real-ESRGAN general-x4v3 (BSD-3-Clause) \u2014 compact SRVGGNetCompact for real scenes (num_feat 64 / num_conv 32 / folded upsampler), flat state dict; tiny + fast, real-film suitable"
   }
  }
 ]

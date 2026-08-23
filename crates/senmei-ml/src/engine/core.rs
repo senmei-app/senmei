@@ -102,8 +102,9 @@ pub fn load_arch<B: Backend>(
             Ok(Model::RrdbNet(m))
         }
         "srvgg" => {
-            // animevideo-xs: 64 features, 16 convs (registered models are fixed).
-            let mut m = SrvggNet::new(64, 16, model.scale as usize, device);
+            // Registered SRVGGNetCompact models: 64 features, body conv count
+            // from the registry (16 animevideo-xs, 32 general-x4v3).
+            let mut m = SrvggNet::new(64, model.num_conv as usize, model.scale as usize, device);
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::SrvggNet(m))
         }

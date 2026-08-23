@@ -77,6 +77,8 @@ pub struct ModelRef {
     pub scale: u32,
     /// RRDB blocks for the `realesrgan` arch family.
     pub num_block: u32,
+    /// SRVGG body convs (16 animevideo-xs, 32 general-x4v3).
+    pub num_conv: u32,
     /// SPAN feature channels (48 Phhofm 2×, 64 TNTwise ModernSpanimation).
     pub feature_channels: u32,
     /// SPAN `no_norm` checkpoints feed [0,1] input directly (norm=False).
@@ -135,6 +137,11 @@ impl Registry {
                         .get("num_block")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(4) as u32,
+                    num_conv: m
+                        .metadata
+                        .get("num_conv")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(16) as u32,
                     feature_channels: m
                         .metadata
                         .get("feature_channels")
@@ -198,7 +205,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 38);
+        assert_eq!(registry.models().len(), 39);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -391,6 +398,20 @@ mod tests {
         assert!(registry.models()[37].loadable);
         assert_eq!(registry.models()[37].license.as_deref(), Some("Apache-2.0"));
         assert_eq!(registry.models()[37].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(registry.models()[38].id, "realesrgan-general-x4v3");
+        assert!(matches!(registry.models()[38].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[38].scale, 4);
+        assert_eq!(registry.models()[38].arch, "srvgg");
+        assert!(registry.models()[38].loadable);
+        assert_eq!(registry.models()[38].license.as_deref(), Some("BSD-3-Clause"));
+        assert_eq!(registry.models()[38].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(
+            registry.models()[38]
+                .metadata
+                .get("num_conv")
+                .and_then(|v| v.as_u64()),
+            Some(32)
+        );
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);
