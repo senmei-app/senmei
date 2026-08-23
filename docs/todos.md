@@ -32,11 +32,10 @@
       if hardware decode or canvas throughput demands it
 
 ## Preview / Media (2026-08-23, PLAN §18)
-- [ ] Phase 1: PreviewCache — correct video-stream duration probing (drop binary-search), state machine + LRU
 - [ ] Phase 2: raw-frame transport + `FrameSink` trait (Tauri Channel raw → putImageData; HTTP binary); PNG/base64 out
-- [ ] Phase 2b: preview decode budget (`max_dim` hint, `scale=…:-2`, never upscale; render stays full-res)
 - [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
 - [ ] Phase 4: audio — FFmpeg→PCM→native sink (rodio/cpal) instead of MP3 transcode; web Range-stream
+- [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open
 
 ## Compliance (2026-08-20)
 

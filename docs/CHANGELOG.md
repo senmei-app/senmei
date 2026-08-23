@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: preview decode budget + accurate video duration (2026-08-23)** —
+  probe now reads the video-stream duration (the container over-reports when
+  copied audio runs past the video end) and `Decoder` caps on it, which
+  removed the binary-search EOF hack from `PreviewCache` (now a clean state
+  machine + LRU). Preview frames are downscaled to a 1280-long-edge budget
+  (never upscale; render/export stays full-res) on both the Tauri and HTTP
+  paths.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

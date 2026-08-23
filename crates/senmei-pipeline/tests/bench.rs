@@ -75,6 +75,7 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
         0,
         None,
         senmei_media::Tonemap::Auto,
+        None,
     )
     .unwrap();
     let mut frames = Vec::new();

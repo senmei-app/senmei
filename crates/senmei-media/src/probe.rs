@@ -15,6 +15,11 @@ pub struct VideoInfo {
     pub height: u32,
     pub fps: f64,
     pub duration: f64,
+    /// Video-stream duration (accurate even when the container duration
+    /// over-reports because copied audio runs past the video range).
+    /// Internal decode cap — not serialized.
+    #[serde(skip)]
+    pub video_duration: f64,
     /// Clockwise rotation needed for display, normalized to 0/90/180/270.
     pub rotation: u32,
     /// Source color transfer characteristic (e.g. "smpte2084" = PQ).
@@ -51,6 +56,8 @@ struct Stream {
     height: u32,
     #[serde(default)]
     avg_frame_rate: String,
+    #[serde(default)]
+    duration: Option<String>,
     #[serde(default)]
     color_transfer: Option<String>,
     #[serde(default)]
@@ -129,6 +136,14 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
         .as_deref()
         .and_then(|d| d.parse::<f64>().ok())
         .unwrap_or(0.0);
+    // Video-stream duration beats the container duration when they disagree
+    // (copied audio can over-report the container).
+    let video_duration = stream
+        .duration
+        .as_deref()
+        .and_then(|d| d.parse::<f64>().ok())
+        .filter(|d| *d > 0.0)
+        .unwrap_or(duration);
 
     // Display dimensions after rotation: 90°/270° swap stored w/h.
     let rotation = stream_rotation(&stream);
@@ -143,6 +158,7 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
         height,
         fps,
         duration,
+        video_duration,
         rotation,
         color_transfer: stream.color_transfer.clone(),
         color_primaries: stream.color_primaries.clone(),
@@ -170,6 +186,7 @@ mod tests {
             height: 1080,
             fps: 24.0,
             duration: 1.0,
+            video_duration: 1.0,
             rotation: 0,
             color_transfer: transfer.map(String::from),
             color_primaries: Some("bt2020".into()),

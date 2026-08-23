@@ -40,6 +40,7 @@ impl Decoder {
         start_ms: u64,
         end_ms: Option<u64>,
         tonemap: Tonemap,
+        max_dim: Option<u32>,
     ) -> Result<Self> {
         let info = crate::probe::probe(&crate::ffprobe_next_to(ffmpeg), path)?;
         let fps = info.fps;
@@ -54,9 +55,9 @@ impl Decoder {
 
         // Tonemap HDR→SDR before the output conversion; rotation last so the
         // decoded frames always match `probe`'s display dimensions.
-        let mut filters: Vec<&str> = Vec::new();
+        let mut filters: Vec<String> = Vec::new();
         if tonemap == Tonemap::Always || (tonemap == Tonemap::Auto && info.is_hdr()) {
-            filters.push(TONEMAP_VF);
+            filters.push(TONEMAP_VF.to_string());
         }
         // ffmpeg autorotates by default (DisplayMatrix), which would silently
         // change the output size away from the probed one. Disable that and
@@ -74,7 +75,20 @@ impl Decoder {
                     )));
                 }
             };
-            filters.push(vf);
+            filters.push(vf.to_string());
+        }
+        // Preview decode budget: downscale only (never upscale) so preview
+        // frames match the display instead of the full source resolution.
+        let mut out_w = info.width;
+        let mut out_h = info.height;
+        if let Some(m) = max_dim.filter(|m| *m > 0) {
+            let longest = info.width.max(info.height);
+            if longest > m {
+                let s = m as f64 / longest as f64;
+                out_w = ((info.width as f64 * s).round() as u32).max(2) & !1;
+                out_h = ((info.height as f64 * s).round() as u32).max(2) & !1;
+                filters.push(format!("scale={out_w}:{out_h}"));
+            }
         }
         if !filters.is_empty() {
             cmd.arg("-vf").arg(filters.join(","));
@@ -94,7 +108,14 @@ impl Decoder {
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdout".into()))?;
 
-        let dur_ms = (info.duration * 1000.0).round().max(1.0) as u64;
+        // Cap on the accurate video-stream duration, not the container one
+        // (copied audio can over-report the container past the video end).
+        let source_dur = if info.video_duration > 0.0 {
+            info.video_duration
+        } else {
+            info.duration
+        };
+        let dur_ms = (source_dur * 1000.0).round().max(1.0) as u64;
         let remaining = end_ms.map(|end| {
             let end = end.min(dur_ms);
             if end > start_ms {
@@ -103,16 +124,16 @@ impl Decoder {
                 0
             }
         });
-        let total_frames = remaining.unwrap_or((info.duration * fps).round().max(1.0) as u64);
+        let total_frames = remaining.unwrap_or((source_dur * fps).round().max(1.0) as u64);
 
         Ok(Self {
             child,
             stdout: BufReader::new(stdout),
-            width: info.width,
-            height: info.height,
+            width: out_w,
+            height: out_h,
             fps,
             total_frames,
-            frame_size: (info.width * info.height * 3) as usize,
+            frame_size: (out_w * out_h * 3) as usize,
             remaining,
         })
     }

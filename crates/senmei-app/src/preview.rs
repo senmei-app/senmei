@@ -9,6 +9,8 @@ use crate::store;
 
 static PREVIEW_CACHE: OnceLock<Mutex<Option<senmei_media::PreviewCache>>> = OnceLock::new();
 static PREVIEW_SEQ: AtomicU64 = AtomicU64::new(0);
+/// Preview decode budget (longest edge) — display-sized, keeps scrubbing cheap.
+const PREVIEW_MAX_DIM: u32 = 1280;
 
 pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
     let ffmpeg = senmei_media::resolve(&store::data_dir());
@@ -64,7 +66,7 @@ pub fn read_frame_inner(
             .lock()
             .map_err(|e| e.to_string())?;
         if cache.is_none() {
-            *cache = Some(senmei_media::PreviewCache::new(ffmpeg));
+            *cache = Some(senmei_media::PreviewCache::new(ffmpeg, Some(PREVIEW_MAX_DIM)));
         }
         cache
             .as_mut()

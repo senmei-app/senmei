@@ -53,9 +53,18 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
     senmei_media::probe(&ffprobe, Path::new(input)).map_err(|e| e.to_string())
 }
 
-/// Extract one frame as a base64 PNG (fast seek via an ffmpeg pipe).
+/// Preview decode budget (longest edge) — display-sized, keeps the frame
+/// transfer cheap. Only ever downscales.
+const PREVIEW_MAX_DIM: u32 = 1280;
+
+/// Extract one frame as a base64 PNG (fast seek via an ffmpeg pipe), capped to
+/// `PREVIEW_MAX_DIM` so preview frames match the display, not the source.
 pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
     let ff = ffmpeg();
+    let vf = format!(
+        "scale='min(max(iw,ih),{c})':'min(max(iw,ih),{c})':force_original_aspect_ratio=decrease",
+        c = PREVIEW_MAX_DIM
+    );
     let out = std::process::Command::new(&ff)
         .args([
             "-hide_banner",
@@ -65,6 +74,8 @@ pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
             &format!("{:.3}", position_ms / 1000.0),
             "-i",
             input,
+            "-vf",
+            &vf,
             "-frames:v",
             "1",
             "-c:v",

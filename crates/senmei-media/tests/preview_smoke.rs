@@ -91,6 +91,7 @@ fn hdr_source_is_detected_and_tonemapped() {
         0,
         Some(1000),
         senmei_media::Tonemap::Auto,
+        None,
     )
     .expect("auto decoder");
     let f = auto.next_frame().expect("next_frame").expect("a frame");
@@ -102,6 +103,7 @@ fn hdr_source_is_detected_and_tonemapped() {
         0,
         Some(1000),
         senmei_media::Tonemap::Off,
+        None,
     )
     .expect("off decoder");
     off.next_frame().expect("next_frame").expect("a frame");
@@ -162,6 +164,7 @@ fn probe_and_decode_apply_rotation() {
         0,
         Some(2000),
         senmei_media::Tonemap::Auto,
+        None,
     )
     .expect("decoder open");
     let frame = dec.next_frame().expect("next_frame").expect("a frame");

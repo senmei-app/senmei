@@ -2,7 +2,7 @@
 //! ffmpeg process per file feeds rawvideo frames through a pipe, so playing
 //! back reads the next frame instead of spawning a process per frame.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
 use crate::decoder::Decoder;
@@ -31,14 +31,20 @@ struct PreviewStream {
 /// Warm decode streams keyed by input file.
 pub struct PreviewCache {
     ffmpeg: PathBuf,
+    /// Preview decode budget: longest edge after downscale (None = full res).
+    max_dim: Option<u32>,
     streams: HashMap<PathBuf, PreviewStream>,
+    /// LRU access order (back = most recent) for stream eviction.
+    order: VecDeque<PathBuf>,
 }
 
 impl PreviewCache {
-    pub fn new(ffmpeg: PathBuf) -> Self {
+    pub fn new(ffmpeg: PathBuf, max_dim: Option<u32>) -> Self {
         Self {
             ffmpeg,
+            max_dim,
             streams: HashMap::new(),
+            order: VecDeque::new(),
         }
     }
 
@@ -46,9 +52,11 @@ impl PreviewCache {
     /// frame from a warm stream when contiguous; fast-seeks on a jump or EOF.
     pub fn frame(&mut self, input: &str, position_ms: f64) -> Result<Frame> {
         let key = PathBuf::from(input);
+        // LRU: evict the least-recently-used stream when at capacity.
         if !self.streams.contains_key(&key) && self.streams.len() >= MAX_STREAMS {
-            let victim = self.streams.keys().next().cloned().unwrap();
-            self.streams.remove(&victim);
+            if let Some(victim) = self.order.pop_front() {
+                self.streams.remove(&victim);
+            }
         }
         let need_seek = match self.streams.get(&key) {
             None => true,
@@ -59,73 +67,80 @@ impl PreviewCache {
             }
         };
         if need_seek {
-            self.streams
-                .insert(key.clone(), Self::open(&self.ffmpeg, input, position_ms)?);
+            self.streams.insert(
+                key.clone(),
+                Self::open(&self.ffmpeg, input, position_ms, self.max_dim)?,
+            );
         }
+        self.order.retain(|k| k != &key);
+        self.order.push_back(key.clone());
+
         let s = self.streams.get_mut(&key).unwrap();
-        let mut reopened = 0;
-        loop {
-            if s.finished {
-                if reopened >= 2 {
-                    // Best effort at EOF: hand back the last decoded frame, or
-                    // binary-search a valid position when the container
-                    // duration is wrong (audio can over-run the video range).
-                    if let Some(f) = s.last_frame.clone() {
-                        return Ok(f);
-                    }
-                    if let Some(frame) = self.find_valid_frame(input, position_ms)? {
-                        return Ok(frame);
-                    }
-                    return Err(Error::Command("no frame available at position".into()));
-                }
-                reopened += 1;
-                // Re-seek clamped to the end so near-end requests still get a
-                // frame instead of landing past EOF.
-                let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
-                *s = Self::open(&self.ffmpeg, input, clamped)?;
-            }
-            // Cheap catch-up: if the request is ahead of the decoded position,
-            // skip frames (~1ms pipe read each) instead of re-seeding ffmpeg.
-            let mut guard = 0;
-            while position_ms > s.next_frame_ms + s.frame_ms && guard < MAX_CATCHUP {
-                match s.decoder.next_frame() {
-                    Ok(Some(f)) => {
-                        s.next_frame_ms += s.frame_ms;
-                        s.last_frame = Some(f);
-                        guard += 1;
-                    }
-                    Ok(None) => {
-                        s.finished = true;
-                        break;
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-            if s.finished {
-                continue;
-            }
-            return match s.decoder.next_frame() {
+        // Cheap catch-up: request ahead of the decoded position within the
+        // contiguous window — skip frames instead of re-seeding ffmpeg.
+        let mut guard = 0;
+        while !s.finished && position_ms > s.next_frame_ms + s.frame_ms && guard < MAX_CATCHUP {
+            match s.decoder.next_frame() {
                 Ok(Some(f)) => {
                     s.next_frame_ms += s.frame_ms;
-                    s.last_frame = Some(f.clone());
-                    Ok(f)
+                    s.last_frame = Some(f);
+                    guard += 1;
                 }
                 Ok(None) => {
                     s.finished = true;
-                    continue;
                 }
-                Err(e) => Err(e),
-            };
+                Err(e) => return Err(e),
+            }
+        }
+        if s.finished {
+            // EOF: hand back the last decoded frame (stable at the tail).
+            return s
+                .last_frame
+                .clone()
+                .ok_or_else(|| Error::Command("no frame available at position".into()));
+        }
+        match s.decoder.next_frame() {
+            Ok(Some(f)) => {
+                s.next_frame_ms += s.frame_ms;
+                s.last_frame = Some(f.clone());
+                Ok(f)
+            }
+            Ok(None) => {
+                // EOF: return the last decoded frame; if the request landed
+                // past the real video end (nothing decoded), re-seek once to
+                // the last valid position — the video-stream duration makes
+                // `end_ms - frame_ms` a decodable frame.
+                if let Some(f) = s.last_frame.clone() {
+                    return Ok(f);
+                }
+                let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
+                *s = Self::open(&self.ffmpeg, input, clamped, self.max_dim)?;
+                match s.decoder.next_frame() {
+                    Ok(Some(f)) => {
+                        s.next_frame_ms += s.frame_ms;
+                        s.last_frame = Some(f.clone());
+                        Ok(f)
+                    }
+                    _ => Err(Error::Command("no frame available at position".into())),
+                }
+            }
+            Err(e) => Err(e),
         }
     }
 
-    fn open(ffmpeg: &Path, input: &str, position_ms: f64) -> Result<PreviewStream> {
+    fn open(
+        ffmpeg: &Path,
+        input: &str,
+        position_ms: f64,
+        max_dim: Option<u32>,
+    ) -> Result<PreviewStream> {
         let decoder = Decoder::open_with_range(
             ffmpeg,
             Path::new(input),
             position_ms.max(0.0) as u64,
             None,
             crate::Tonemap::Auto,
+            max_dim,
         )?;
         let frame_ms = 1000.0 / decoder.fps;
         let end_ms = (decoder.total_frames.max(1) as f64) / decoder.fps * 1000.0;
@@ -139,27 +154,6 @@ impl PreviewCache {
         })
     }
 
-    /// Binary-search a position that yields frames. The container duration can
-    /// over-report when copied audio runs past a ranged render, so a request
-    /// may land beyond the real video end; this finds the last valid position.
-    /// Returns the first frame there, or `None` if nothing is decodable.
-    fn find_valid_frame(&self, input: &str, position_ms: f64) -> Result<Option<Frame>> {
-        let mut lo = 0.0;
-        let mut hi = position_ms;
-        for _ in 0..8 {
-            if hi - lo < 500.0 {
-                break;
-            }
-            let mid = (lo + hi) / 2.0;
-            let mut probe = Self::open(&self.ffmpeg, input, mid)?;
-            match probe.decoder.next_frame() {
-                Ok(Some(_)) => lo = mid,
-                _ => hi = mid,
-            }
-        }
-        let mut s = Self::open(&self.ffmpeg, input, lo)?;
-        s.decoder.next_frame().map_err(Into::into)
-    }
 }
 
 #[cfg(test)]
@@ -168,8 +162,8 @@ mod tests {
 
     /// A ranged render copies source audio past the video range unless
     /// `-shortest` is set, so the container duration over-reports and a scrub
-    /// beyond the real video end used to hard-error. The binary-search fallback
-    /// must return a frame instead.
+    /// beyond the real video end used to hard-error. The re-seek to the last
+    /// valid video position must return a frame instead.
     #[test]
     #[ignore = "needs a locally rendered mkv with wrong container duration"]
     fn out_of_range_position_still_returns_a_frame() {
@@ -179,7 +173,7 @@ mod tests {
         if !Path::new(&f).exists() {
             return;
         }
-        let mut cache = PreviewCache::new("ffmpeg".into());
+        let mut cache = PreviewCache::new("ffmpeg".into(), None);
         let frame = cache
             .frame(&f, 100_000.0)
             .expect("frame at out-of-range pos");
