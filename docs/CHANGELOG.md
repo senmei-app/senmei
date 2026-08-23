@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **ui: sort the model dropdown (2026-08-23)** — model options are now ordered
+  loadable-first, then family → scale → id, so usable models are on top and the
+  list is predictable (was insertion order).
+
 - **feat: SAFMN arch + SAFMN-L Real x2/x4 (2026-08-23)** — new `SafmnNet`
   arch (clean burn port of the Apache-2.0 `sunny2109/SAFMN` reference),
   converter path, engine dispatch, and two catalog entries

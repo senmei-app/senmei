@@ -70,10 +70,17 @@ export default function StepEditor(props: StepEditorProps) {
     </div>
   );
 
+  // Usable (loadable) models first, then family → scale → id.
+  const sortModels = (a: ModelMetadata, b: ModelMetadata) =>
+    Number(b.loadable) - Number(a.loadable) ||
+    (a.family ?? "").localeCompare(b.family ?? "") ||
+    (a.scale ?? 1) - (b.scale ?? 1) ||
+    a.id.localeCompare(b.id);
+
   const modelSelect = (models: ModelMetadata[], value: string | null | undefined, onValue: (id: string) => void) => (
     <select value={value ?? ""} onChange={(e) => onValue(e.target.value)} className={inputCls}>
       <option value="">—</option>
-      {models.map((m) => (
+      {[...models].sort(sortModels).map((m) => (
         <option key={m.id} value={m.id} disabled={!m.loadable}>
           {m.family ? `${m.family} · ` : ""}
           {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
