@@ -105,6 +105,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     pixFmt: "yuv420p",
     tune: "",
     encoderBackend: "auto",
+    encodeDevice: "auto",
     quality: "Medium",
     colorPrimaries: "",
     colorTransfer: "",
@@ -188,6 +189,9 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
     if (params?.preset) structured.push("-preset", params.preset);
   } else if (codec === "libkvazaar") {
     if (params?.preset) structured.push("-preset", params.preset);
+    // CRF flows through so the backend can map it to `-qp` for a VA-API
+    // encode (the hardware quality knob); kvazaar/x265 accept it directly.
+    if (params?.crf != null) structured.push("-crf", String(params.crf));
   }
   if (params?.pixFmt) structured.push("-pix_fmt", params.pixFmt);
   if (params?.tune) structured.push("-tune", params.tune);
@@ -195,6 +199,10 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   // backend strips this sentinel before ffmpeg sees it.
   const encBackend = params?.encoderBackend ?? "auto";
   if (encBackend !== "auto") structured.push("-senmei_encoder", encBackend);
+  // Encode device: iGPU offload (encode on the iGPU while the discrete GPU
+  // runs inference). The backend strips this sentinel.
+  const encDevice = params?.encodeDevice ?? "auto";
+  if (encDevice !== "auto") structured.push("-senmei_vaapi", encDevice);
   if (params?.colorPrimaries) structured.push("-color_primaries", params.colorPrimaries);
   if (params?.colorTransfer) structured.push("-color_trc", params.colorTransfer);
   if (params?.colorMatrix) structured.push("-colorspace", params.colorMatrix);

@@ -479,6 +479,17 @@ export default function StepEditor(props: StepEditorProps) {
             </select>,
           )}
           {field(
+            t("output.encodeGpu"),
+            <select
+              value={s.params?.encodeDevice ?? "auto"}
+              onChange={(e) => updateParams(s.id, { encodeDevice: e.target.value })}
+              className={inputCls}
+            >
+              <option value="auto">{t("output.encodeGpuAuto")}</option>
+              <option value="igpu">{t("output.encodeGpuIgpu")}</option>
+            </select>,
+          )}
+          {field(
             t("output.preset"),
             <select
               value={s.params?.preset ?? "medium"}

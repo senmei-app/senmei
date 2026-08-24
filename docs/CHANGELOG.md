@@ -87,6 +87,15 @@
   91.5 → **72.8 ms (13.7 FPS)**. New `bench_fused_requested_scale` measures
   the fused path at a requested scale.
 
+- **feat: VA-API 10-bit + quality + iGPU encode (2026-08-24)** — (a) a
+  requested 10-bit `-pix_fmt` (`yuv420p10le`) now makes the VA-API encode
+  10-bit HEVC — the 8-bit rgb24 frame is upconverted to P010 before the
+  hardware encode (verified `Main 10 / yuv420p10le` output), cutting banding;
+  (b) the Output step's CRF now maps to VA-API `-qp` (the hardware quality
+  knob) instead of a fixed `-qp 20`; (c) a new Output-step "Encode GPU" select
+  (Auto / iGPU) offloads the encode to the iGPU while the discrete GPU runs
+  inference (via a `-senmei_vaapi` sentinel).
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

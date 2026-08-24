@@ -60,6 +60,9 @@ pub struct StepParams {
     /// Encoder backend preference for the output encode: "auto" | "hw" | "sw".
     #[serde(default)]
     pub encoder_backend: Option<String>,
+    /// VA-API encode device: "auto" (discrete GPU) | "igpu" (offload encode).
+    #[serde(default)]
+    pub encode_device: Option<String>,
     /// Encoder quality profile (sets crf + preset as a bundle).
     #[serde(default)]
     pub quality: Option<String>,

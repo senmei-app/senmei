@@ -289,6 +289,8 @@ export type StepParams = {
 	tune?: string | null,
 	/**  Encoder backend preference for the output encode: "auto" | "hw" | "sw". */
 	encoderBackend?: string | null,
+	/**  VA-API encode device: "auto" (discrete GPU) | "igpu" (offload encode). */
+	encodeDevice?: string | null,
 	/**  Encoder quality profile (sets crf + preset as a bundle). */
 	quality?: string | null,
 	/**  Output color metadata tags (primaries / transfer / matrix, e.g. bt2020). */

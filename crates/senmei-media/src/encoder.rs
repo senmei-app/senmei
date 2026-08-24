@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::JoinHandle;
 
@@ -61,13 +62,21 @@ const HW_ENCODERS: [&str; 6] = [
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 const HW_ENCODERS: [&str; 0] = [];
 
+/// Encode on the integrated GPU (iGPU) instead of the discrete GPU — offloads
+/// the encode while the discrete GPU runs inference. Set per render from the
+/// frontend's `-senmei_vaapi igpu` sentinel; `SENMEI_VAAPI_DEVICE` wins over it.
+static PREFER_IGPU: AtomicBool = AtomicBool::new(false);
+fn set_vaapi_prefer_igpu(v: bool) {
+    PREFER_IGPU.store(v, Ordering::Relaxed);
+}
+
 /// VA-API device of the discrete GPU (highest VRAM — matches the Vulkan
-/// inference device) with a render node, else any render node, else card0.
-/// Picking "the first renderD*" hits the integrated GPU on iGPU+dGPU systems
-/// (often without HEVC encode), which would silently disable HW encode.
+/// inference device) by default, or the iGPU (lowest VRAM) when the user asks
+/// to offload the encode; else any render node, else card0. Picking "the
+/// first renderD*" hits the integrated GPU on iGPU+dGPU systems (often
+/// without HEVC encode), which would silently disable HW encode.
 fn vaapi_device() -> Option<std::path::PathBuf> {
-    // Explicit override for multi-GPU setups (e.g. force the iGPU to encode
-    // while the discrete GPU runs inference).
+    // Explicit override wins (e.g. a custom render node).
     if let Ok(dev) = std::env::var("SENMEI_VAAPI_DEVICE") {
         if !dev.is_empty() {
             let p = Path::new(&dev);
@@ -86,7 +95,14 @@ fn vaapi_device() -> Option<std::path::PathBuf> {
         .map(|n| (n, vram(&Path::new("/sys/class/drm").join(format!("card{n}")))))
         .filter(|(_, v)| *v > 0)
         .collect();
-    cards.sort_by(|a, b| b.1.cmp(&a.1)); // discrete first
+    // Discrete GPU first by default; lowest VRAM (the iGPU) when offloading.
+    cards.sort_by(|a, b| {
+        if PREFER_IGPU.load(Ordering::Relaxed) {
+            a.1.cmp(&b.1)
+        } else {
+            b.1.cmp(&a.1)
+        }
+    });
     let dir = Path::new("/dev/dri");
     for (n, _) in cards {
         let render = dir.join(format!("renderD{}", 128 + n));
@@ -162,18 +178,28 @@ fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
 }
 
 /// VA-API encoders take `-qp`/`-rc_mode`, not the software-encoder flags
-/// (`-preset`/`-tune`/`-crf`/`-pix_fmt`) — strip them so a hardware encode
-/// doesn't reject the frontend's software-encoder options.
+/// (`-preset`/`-tune`/`-pix_fmt`) — strip them so a hardware encode doesn't
+/// reject the frontend's options; the frontend's `-crf` is translated to `-qp`
+/// (the VA-API quality knob), so the quality preset stays meaningful.
 fn vaapi_compat_args(args: &[String]) -> Vec<String> {
-    const DROP: [&str; 4] = ["-preset", "-tune", "-crf", "-pix_fmt"];
     let mut out = Vec::with_capacity(args.len());
     let mut i = 0;
     while i < args.len() {
-        if DROP.contains(&args[i].as_str()) {
-            i += 2; // drop flag + value
-        } else {
-            out.push(args[i].clone());
-            i += 1;
+        match args[i].as_str() {
+            "-crf" => {
+                if let Some(v) = args.get(i + 1) {
+                    out.push("-qp".into());
+                    out.push(v.clone());
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            "-preset" | "-tune" | "-pix_fmt" => i += 2,
+            _ => {
+                out.push(args[i].clone());
+                i += 1;
+            }
         }
     }
     out
@@ -343,6 +369,19 @@ impl Encoder {
             }
             extra_args.drain(pos..pos + 2);
         }
+        // `-senmei_vaapi auto|igpu` — encode on the iGPU (offload) vs the
+        // default discrete GPU; set before the probes so they use the same node.
+        if let Some(pos) = extra_args.iter().position(|a| a == "-senmei_vaapi") {
+            let igpu = extra_args.get(pos + 1).map(|v| v == "igpu").unwrap_or(false);
+            set_vaapi_prefer_igpu(igpu);
+            extra_args.drain(pos..pos + 2);
+        }
+        // A requested 10-bit `-pix_fmt` makes the VA-API encode 10-bit HEVC:
+        // the 8-bit rgb24 frame is upconverted to P010 before the hardware
+        // encode (less banding). The flag is read before vaapi_compat strips it.
+        let vaapi_10bit = extra_args
+            .windows(2)
+            .any(|w| w[0] == "-pix_fmt" && w[1].starts_with("yuv4") && w[1].contains("10le"));
         // A hardware encoder only counts once it also probes at the real
         // output resolution (the small cached probe misses res/format limits).
         let verify_full = |codec: &str| test_encode(ffmpeg, codec, width, height);
@@ -429,7 +468,10 @@ impl Encoder {
             .args(["-c:v", &video_codec])
             .args(codec_args)
             .args(if vaapi.is_some() {
-                ["-vf".to_string(), "format=nv12,hwupload".to_string()]
+                // P010 (10-bit) when the user asked for a 10-bit pix_fmt —
+                // upconverted from the 8-bit rgb24 pipe to reduce banding.
+                let fmt = if vaapi_10bit { "p010" } else { "nv12" };
+                ["-vf".to_string(), format!("format={fmt},hwupload")]
             } else {
                 ["-pix_fmt".to_string(), "yuv420p".to_string()]
             })
