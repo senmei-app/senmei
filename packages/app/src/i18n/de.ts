@@ -63,6 +63,8 @@ export const de: Record<string, string> = {
     "settings.theme": "Design",
     "settings.tileSize": "Upscale-Kachelgröße",
     "settings.tileSizeHint": "px (128–2048); kleiner = weniger VRAM, langsamer",
+    "settings.gpu": "GPU (Inferenz)",
+    "settings.gpuHint": "0 = erste diskrete GPU",
     "settings.backend": "Inferenz-Backend",
     "settings.diagnostics.export": "Diagnose exportieren",
     "settings.diagnostics.hint": "Logs und Systeminfo für einen Bug-Report bündeln.",

@@ -252,6 +252,8 @@ export type Settings = {
 	pipelineDepth?: number | null,
 	/**  Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan). */
 	backend?: EngineBackend | null,
+	/**  Discrete-GPU index for inference (0 = first discrete); `None` = 0. */
+	gpuIndex?: number | null,
 };
 
 /**  Typed params per step type. Only the fields relevant to a step's type are set. */

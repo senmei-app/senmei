@@ -22,6 +22,20 @@ pub fn set_tile_size(n: u32) {
     TILE_SIZE.store(n, Ordering::Relaxed);
 }
 
+/// Discrete-GPU index for inference (app settings); 0 = first discrete GPU.
+static GPU_INDEX: AtomicU32 = AtomicU32::new(0);
+
+/// Select the discrete-GPU index used by the burn engine (0-based).
+pub fn set_gpu_index(n: u32) {
+    GPU_INDEX.store(n, Ordering::Relaxed);
+}
+
+/// Discrete-GPU index for inference (0 = first discrete GPU).
+#[cfg(feature = "burn")]
+pub(crate) fn gpu_index() -> u32 {
+    GPU_INDEX.load(Ordering::Relaxed)
+}
+
 /// Read the fused RGB8 tile size (burn-only; the tch engine tiles internally).
 #[cfg(feature = "burn")]
 pub(crate) fn current_tile_size() -> usize {

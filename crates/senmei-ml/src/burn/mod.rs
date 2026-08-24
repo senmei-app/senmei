@@ -9,7 +9,7 @@ use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::BurnBackend;
-use crate::{Error, Result};
+use crate::{gpu_index, Error, Result};
 use burn::tensor::f16;
 use burn_store::BurnpackStore;
 use burn_wgpu::WgpuDevice;
@@ -25,7 +25,8 @@ impl BurnEngine {
     pub fn new() -> Self {
         Self {
             model: None,
-            device: WgpuDevice::DiscreteGpu(0),
+            // Multi-GPU: the configured discrete-GPU index (0 = first).
+            device: WgpuDevice::DiscreteGpu(gpu_index() as usize),
             scale: 1,
         }
     }

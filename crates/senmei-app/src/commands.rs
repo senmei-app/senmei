@@ -486,6 +486,7 @@ pub async fn render(
             tile_size: settings.tile_size.unwrap_or(0),
             pipeline_depth: settings.pipeline_depth.unwrap_or(0) as usize,
             backend: settings.backend.unwrap_or_default(),
+            gpu_index: settings.gpu_index.unwrap_or(0),
             cancel: Some(
                 CANCEL_RENDER
                     .get_or_init(|| Arc::new(AtomicBool::new(false)))

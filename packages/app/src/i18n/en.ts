@@ -63,6 +63,8 @@ export const en: Record<string, string> = {
     "settings.theme": "Theme",
     "settings.tileSize": "Upscale tile size",
     "settings.tileSizeHint": "px (128–2048); smaller = less VRAM, slower",
+    "settings.gpu": "GPU (inference)",
+    "settings.gpuHint": "0 = first discrete GPU",
     "settings.backend": "Inference backend",
     "settings.diagnostics.export": "Export diagnostics",
     "settings.diagnostics.hint": "Package logs and system info for a bug report.",

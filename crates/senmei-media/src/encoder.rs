@@ -66,6 +66,16 @@ const HW_ENCODERS: [&str; 0] = [];
 /// Picking "the first renderD*" hits the integrated GPU on iGPU+dGPU systems
 /// (often without HEVC encode), which would silently disable HW encode.
 fn vaapi_device() -> Option<std::path::PathBuf> {
+    // Explicit override for multi-GPU setups (e.g. force the iGPU to encode
+    // while the discrete GPU runs inference).
+    if let Ok(dev) = std::env::var("SENMEI_VAAPI_DEVICE") {
+        if !dev.is_empty() {
+            let p = Path::new(&dev);
+            if p.is_file() {
+                return Some(p.to_path_buf());
+            }
+        }
+    }
     let vram = |card: &Path| -> u64 {
         std::fs::read_to_string(card.join("device/mem_info_vram_total"))
             .ok()

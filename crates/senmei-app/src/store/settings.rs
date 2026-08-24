@@ -25,6 +25,9 @@ pub struct Settings {
     /// Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan).
     #[serde(default)]
     pub backend: Option<senmei_ml::EngineBackend>,
+    /// Discrete-GPU index for inference (0 = first discrete); `None` = 0.
+    #[serde(default)]
+    pub gpu_index: Option<u32>,
 }
 
 impl Default for Settings {
@@ -36,6 +39,7 @@ impl Default for Settings {
             tile_size: None,
             pipeline_depth: None,
             backend: None,
+            gpu_index: None,
         }
     }
 }

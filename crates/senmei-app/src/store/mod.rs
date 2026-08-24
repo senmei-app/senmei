@@ -53,6 +53,7 @@ mod tests {
                 tile_size: Some(512),
                 pipeline_depth: Some(2),
                 backend: Some(senmei_ml::EngineBackend::Vulkan),
+                gpu_index: Some(1),
             };
             save_settings(&settings).unwrap();
             let loaded = load_settings();

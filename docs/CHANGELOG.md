@@ -71,6 +71,12 @@
   hardware encoder verifies at the output size, the render falls through to
   the software chain instead of failing.
 
+- **feat: multi-GPU support (2026-08-24)** — Settings → GPU (inference) index
+  (`gpuIndex`, default 0 = first discrete GPU) threads into the burn engine
+  (`WgpuDevice::DiscreteGpu(index)`). Encode follows the inference GPU via
+  `vaapi_device()` (highest VRAM) with a `SENMEI_VAAPI_DEVICE` override for
+  e.g. offloading encode to the iGPU while the discrete GPU runs inference.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
