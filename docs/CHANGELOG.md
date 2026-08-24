@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.1.9 (2026-08-24)
+
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
   `real-cugan-pro-{no-denoise,conservative,denoise3x}-x2` (official bilibili
   Real-CUGAN-Pro 2022-05, Apache-2.0). Same `UpCunet2x` arch as
