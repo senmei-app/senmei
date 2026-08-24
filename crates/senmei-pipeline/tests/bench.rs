@@ -317,6 +317,85 @@ fn bench_pipeline_full_render() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Render one model at a REQUESTED scale (native or re-sampled) on a real
+/// frame and save the PNG next to it. `BENCH_MODEL` / `BENCH_SCALE` /
+/// `BENCH_FRAME` select the run — e.g. a 2× model rendered at 4× shows how the
+/// bilinear re-sample preserves grain vs a native 4× model.
+#[test]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
+fn bench_upscaler_requested_scale_png() {
+    let scale: u32 = std::env::var("BENCH_SCALE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let frame_path = std::env::var("BENCH_FRAME").unwrap_or_else(|_| {
+        format!(
+            "{}/models.bat/vlcsnap-2026-08-24-20h04m58s914.png",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../..")
+        )
+    });
+    let mref = model();
+    let dir = std::env::temp_dir().join("senmei-bench-scale");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ffmpeg = senmei_media::resolve(&dir);
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ffmpeg,
+        std::path::Path::new(&frame_path),
+        0,
+        None,
+        senmei_media::Tonemap::Auto,
+    )
+    .unwrap();
+    let mut f = dec.next_frame().unwrap().expect("frame");
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+    engine.load(&mref).unwrap();
+    // The fused RGB8 path rejects 4× (VRAM guard), so run tiled at the model's
+    // native scale, then re-sample to the requested scale via the Resize step
+    // (the app path for e.g. a 2× model rendered at 4×).
+    let input = senmei_pipeline::frame_to_tensor(&f);
+    let opts = InferOptions {
+        tile_size: Some(512),
+    };
+    let native = mref.scale as usize;
+    let render = |engine: &mut dyn senmei_ml::InferenceEngine| {
+        let out = senmei_ml::infer_tiled(engine, &input, &opts).expect("tiled infer");
+        let mut frame = senmei_pipeline::tensor_to_frame(
+            &out,
+            (f.width as usize * native) as u32,
+            (f.height as usize * native) as u32,
+        );
+        let factor = scale as f32 / native as f32;
+        if (factor - 1.0).abs() > 1e-6 {
+            senmei_pipeline::Resize::new(factor)
+                .process(&mut frame)
+                .expect("resize to requested scale");
+        }
+        frame
+    };
+    let mut frame = render(engine.as_mut());
+    let t0 = Instant::now();
+    for _ in 0..3 {
+        frame = render(engine.as_mut());
+    }
+    let el = t0.elapsed().as_secs_f64() / 3.0;
+    let bytes = senmei_media::encode_png(frame.width as u32, frame.height as u32, &frame.data)
+        .unwrap();
+    let out_path = std::path::Path::new(&frame_path)
+        .parent()
+        .unwrap()
+        .join(format!("{}__s{scale}.png", mref.id));
+    std::fs::write(&out_path, bytes).unwrap();
+    println!(
+        "{:<30} @ s{scale}: {}x{} {:.1} ms ({:.1} FPS)",
+        mref.id,
+        frame.width,
+        frame.height,
+        el * 1000.0,
+        1.0 / el
+    );
+}
+
 /// Real-frame upscaler sweep: every loadable `upscale` model at its native
 /// scale on the given DVD frames. `BENCH_FRAMES` = comma-separated PNG paths
 /// (default: the two frames in `models.bat/`). Measures the whole `Upscale`
@@ -361,7 +440,17 @@ fn bench_upscalers_real_frames() {
         }
     }
     let (w, h) = (frames[0].width, frames[0].height);
-    // Save each model's upscaled output as `<id>.png` next to the inputs.
+    // One output PNG per input frame: `<id>__<source-stem>.png` next to the
+    // inputs, so every image in `BENCH_FRAMES` gets its own upscaled result.
+    let tags: Vec<String> = frames_env
+        .split(',')
+        .map(|p| {
+            std::path::Path::new(p.trim())
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "frame".into())
+        })
+        .collect();
     let out_dir = std::path::Path::new(frames_env.split(',').next().unwrap().trim())
         .parent()
         .map(|p| p.to_path_buf())
@@ -399,36 +488,44 @@ fn bench_upscalers_real_frames() {
                     iters += 1;
                 }
                 let el = t0.elapsed().as_secs_f64() / iters as f64;
-                let out = timed.last().unwrap();
-                let bytes =
-                    senmei_media::encode_png(out.width as u32, out.height as u32, &out.data)
-                        .unwrap();
-                std::fs::write(out_dir.join(format!("{id}.png")), bytes).unwrap();
+                for (i, out) in timed.iter().enumerate() {
+                    let bytes = senmei_media::encode_png(
+                        out.width as u32,
+                        out.height as u32,
+                        &out.data,
+                    )
+                    .unwrap();
+                    std::fs::write(out_dir.join(format!("{id}__{}.png", tags[i])), bytes).unwrap();
+                }
                 format!("{:>10.1} {:>8.1}", el * 1000.0, 1.0 / el)
             } else {
                 let mut engine =
                     senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
                 engine.load(&mref).unwrap();
-                let input = senmei_pipeline::frame_to_tensor(&frames[0]);
                 let opts = InferOptions {
                     tile_size: Some(512),
                 };
-                let _ = senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
+                let warm = senmei_pipeline::frame_to_tensor(&frames[0]);
+                let _ = senmei_ml::infer_tiled(engine.as_mut(), &warm, &opts).unwrap();
                 let t0 = Instant::now();
-                let mut last = None;
                 let mut iters = 0u32;
-                for _ in 0..3 {
-                    last = Some(senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap());
+                for (i, f) in frames.iter().enumerate() {
+                    let input = senmei_pipeline::frame_to_tensor(f);
+                    let out = senmei_ml::infer_tiled(engine.as_mut(), &input, &opts).unwrap();
+                    let frame = senmei_pipeline::tensor_to_frame(
+                        &out,
+                        (f.width as usize * mref.scale as usize) as u32,
+                        (f.height as usize * mref.scale as usize) as u32,
+                    );
+                    let bytes = senmei_media::encode_png(
+                        frame.width as u32,
+                        frame.height as u32,
+                        &frame.data,
+                    )
+                    .unwrap();
+                    std::fs::write(out_dir.join(format!("{id}__{}.png", tags[i])), bytes).unwrap();
                     iters += 1;
                 }
-                let out = senmei_pipeline::tensor_to_frame(
-                    last.as_ref().unwrap(),
-                    (frames[0].width as usize * mref.scale as usize) as u32,
-                    (frames[0].height as usize * mref.scale as usize) as u32,
-                );
-                let bytes = senmei_media::encode_png(out.width as u32, out.height as u32, &out.data)
-                    .unwrap();
-                std::fs::write(out_dir.join(format!("{id}.png")), bytes).unwrap();
                 let el = t0.elapsed().as_secs_f64() / iters as f64;
                 format!("{:>10.1} {:>8.1}  *tiled", el * 1000.0, 1.0 / el)
             }

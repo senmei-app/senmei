@@ -23,6 +23,12 @@
   path (verified), FPS-neutral at 576×432 (2 tiles) but scales on larger
   frames with many tiles.
 
+- **test: per-frame bench PNGs + requested-scale render (2026-08-24)** —
+  `bench_upscalers_real_frames` writes one PNG per input frame; new
+  `bench_upscaler_requested_scale_png` renders one model at a requested
+  scale (native tiled infer + `Resize`) to compare grain preservation vs a
+  native model (e.g. 2× model at 4×).
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
