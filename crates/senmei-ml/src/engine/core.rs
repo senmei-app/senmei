@@ -339,13 +339,33 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             ))));
         }
     }
-    // Pad + tile each frame once; all frames share the tile grid.
+    // Pad each frame once (CPU, edge-replicate) and upload it once as f16;
+    // tile regions are then sliced on the device per forward. This removes
+    // the per-tile CPU gather + f32→f16 convert + PCIe upload that kept the
+    // GPU idle between tile forwards (measured ~50% GPU busy with two CPU
+    // cores pegged on the render worker).
     let resample = scale != native_scale;
-    let frames: Vec<Vec<(usize, usize, Tensor)>> = inputs
-        .iter()
-        .map(|inp| crate::uniform_tile(&crate::pad_to(inp, ph, pw), tile, step))
-        .collect();
-    let ntiles = frames[0].len();
+    let mut gpu_frames = Vec::with_capacity(inputs.len());
+    for inp in inputs {
+        let padded = crate::pad_to(inp, ph, pw);
+        match to_burn::<B>(&padded, device) {
+            Ok(t) => gpu_frames.push(t),
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    // Tile grid shared by all frames (y-outer/x-inner — same order as the CPU
+    // `uniform_tile`, so the accumulation order is unchanged).
+    let mut grid = Vec::new();
+    let mut ty = 0;
+    while ty + tile <= ph {
+        let mut tx = 0;
+        while tx + tile <= pw {
+            grid.push((tx, ty));
+            tx += step;
+        }
+        ty += step;
+    }
+    let ntiles = grid.len();
     let ov = (overlap as f32 * scale_f).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
@@ -378,16 +398,19 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     let mut covs: Vec<BurnTensor<B, 4>> = (0..n)
         .map(|_| BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device))
         .collect();
-    for k in 0..ntiles {
-        let (x, y, _) = frames[0][k];
-        let mut data = Vec::with_capacity(n * c * tile * tile);
-        for f in &frames {
-            data.extend_from_slice(&f[k].2.data);
-        }
-        let batch = BurnTensor::<B, 4>::from_data(
-            TensorData::new(data, [n, c, tile, tile]).convert::<B::FloatElem>(),
-            device,
-        );
+    for (x, y) in grid {
+        // Slice the tile region on-device (rows are contiguous, row stride pw;
+        // `clone` is a cheap handle copy in burn, `slice` shares the device
+        // buffer). n=1 slices directly; n>1 stacks the frames' slices.
+        let batch = if n == 1 {
+            gpu_frames[0].clone().slice([0..1, 0..c, y..y + tile, x..x + tile])
+        } else {
+            let parts: Vec<_> = gpu_frames
+                .iter()
+                .map(|f| f.clone().slice([0..1, 0..c, y..y + tile, x..x + tile]))
+                .collect();
+            BurnTensor::cat(parts, 0)
+        };
         let out = match model.forward(batch) {
             Ok(o) => o,
             Err(e) => return Some(Err(e)),

@@ -15,6 +15,14 @@
   `-tune grain`/`-pix_fmt yuv420p10le`). GPL, kvazaar still preferred;
   `SENMEI_X265_PRESET` override.
 
+- **feat: device-side tile slicing in the fused RGB8 path (2026-08-24)** —
+  upload each padded frame once (f32→f16) and slice tile regions on the GPU
+  instead of per-tile CPU gather + convert + PCIe upload. Cuts the
+  main-thread tile-prep cost between forwards (GPU was ~50% busy with two
+  CPU cores pegged on the render worker); output bit-identical to the tiled
+  path (verified), FPS-neutral at 576×432 (2 tiles) but scales on larger
+  frames with many tiles.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
