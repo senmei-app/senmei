@@ -216,6 +216,100 @@ fn bench_upscale_batch() {
     println!("===================================================");
 }
 
+/// Multi-frame batching on the REAL DVD frame (the app's 576×432 path), to
+/// see whether MIOpen (tch) amortizes batched convs where Vulkan (burn)
+/// regresses. `BENCH_MODEL` / `BENCH_SCALE` / `BENCH_FRAME` select the run.
+/// The single decoded frame is replicated `REP` times so batches fill.
+#[test]
+#[ignore = "benchmark: requires GPU + model bpk + ffmpeg"]
+fn bench_upscale_batch_dvd() {
+    let mref = model();
+    let scale: u32 = std::env::var("BENCH_SCALE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let rep: usize = std::env::var("BENCH_REP")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(16);
+    let frame_path = std::env::var("BENCH_FRAME").unwrap_or_else(|_| {
+        format!(
+            "{}/models.bat/vlcsnap-2026-08-24-20h04m58s914.png",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../..")
+        )
+    });
+    let dir = std::env::temp_dir().join("senmei-bench-dvd");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ffmpeg = senmei_media::resolve(&dir);
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ffmpeg,
+        std::path::Path::new(&frame_path),
+        0,
+        None,
+        senmei_media::Tonemap::Auto,
+    )
+    .unwrap();
+    let first = dec.next_frame().unwrap().expect("frame");
+    let frames: Vec<_> = (0..rep).map(|_| first.clone()).collect();
+    let total = frames.len();
+
+    // Reference: 1-frame batches with the app's pipelined depth (the real
+    // app path) — the fair baseline for whether larger batches help MIOpen.
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+    engine.load(&mref).unwrap();
+    senmei_pipeline::set_pipeline_depth(2);
+    let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
+    let mut first = vec![frames[0].clone()];
+    step.process_batch(&mut first).unwrap();
+    let t0 = Instant::now();
+    let mut out_n = 0usize;
+    for f in &frames[1..] {
+        let mut v = vec![f.clone()];
+        step.process_batch(&mut v).unwrap();
+        out_n += v.len();
+    }
+    let mut tail = Vec::new();
+    step.flush(&mut tail).unwrap();
+    out_n += tail.len();
+    let single_ms = t0.elapsed().as_secs_f64() * 1000.0 / (total - 1) as f64;
+    drop(step);
+    senmei_pipeline::set_pipeline_depth(0);
+    assert_eq!(out_n, total - 1, "reference must produce all frames");
+
+    println!("\n==== {} DVD-frames: per-frame vs process_batch (scale {scale}) ====", mref.id);
+    println!(
+        "frames: {total} (rep {rep}) | per-frame(pipelined) {single_ms:.1} ms/frame ({:.1} FPS)",
+        1000.0 / single_ms
+    );
+    for batch in [1usize, 2, 4, 8] {
+        let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+        engine.load(&mref).unwrap();
+        let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
+        let mut fb = frames.clone();
+        let mut warm = fb[..batch.min(fb.len())].to_vec();
+        step.process_batch(&mut warm).unwrap(); // warm-up
+        let t0 = Instant::now();
+        let mut out_n = 0usize;
+        for chunk in fb.chunks(batch) {
+            let mut v = chunk.to_vec();
+            step.process_batch(&mut v).unwrap();
+            out_n += v.len(); // deferred path may hold frames in flight
+        }
+        let mut tail = Vec::new();
+        step.flush(&mut tail).unwrap();
+        out_n += tail.len();
+        assert_eq!(out_n, total, "batch {batch} must produce all frames");
+        let ms = t0.elapsed().as_secs_f64() * 1000.0 / total as f64;
+        println!(
+            "batch {batch}: {ms:.1} ms/frame ({:.1} FPS) | vs per-frame {:.0}%",
+            1000.0 / ms,
+            ms * 100.0 / single_ms
+        );
+    }
+    println!("===================================================");
+}
+
 /// App path with readback pipelining: 1-frame batches (BATCH_SIZE=1) through
 /// `process_batch`, with `pipeline_depth` 1..3. Measures whether deferred
 /// readbacks keep the GPU busier than the synchronous per-frame path.
