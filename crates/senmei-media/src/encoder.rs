@@ -98,9 +98,9 @@ fn vaapi_device() -> Option<std::path::PathBuf> {
     card.is_file().then_some(card)
 }
 
-/// One-frame test encode; an encoder only counts as available when it actually
-/// produces output (VA-API gets an explicit device + hwupload).
-fn test_encode(ffmpeg: &Path, codec: &str) -> bool {
+/// One-frame test encode at `w × h`; an encoder only counts as available when
+/// it actually produces output (VA-API gets an explicit device + hwupload).
+fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     let mut cmd = Command::new(ffmpeg);
     cmd.arg("-hide_banner").arg("-loglevel").arg("error");
     if codec.ends_with("_vaapi") {
@@ -108,9 +108,9 @@ fn test_encode(ffmpeg: &Path, codec: &str) -> bool {
         cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
         cmd.args(["-filter_hw_device", "va"]);
     }
-    // 640×480: VA-API HEVC encoders reject tiny frames — 64×48 fails on both
-    // the iGPU and RX 9070 (~320×240 is the dGPU floor; 640×480 works on all).
-    cmd.args(["-f", "lavfi", "-i", "testsrc=duration=0.1:size=640x480:rate=10"]);
+    // A small probe already clears every VA-API HEVC encoder's minimum size;
+    // the caller re-probes at the real output resolution for HW codecs.
+    cmd.args(["-f", "lavfi", "-i", &format!("testsrc=duration=0.1:size={w}x{h}:rate=10")]);
     if codec.ends_with("_vaapi") {
         cmd.args(["-vf", "format=nv12,hwupload"]);
     }
@@ -128,7 +128,7 @@ fn hw_verifier(ffmpeg: &Path) -> impl Fn(&str) -> bool + '_ {
         if let Some(ok) = cache.lock().unwrap().get(codec) {
             return *ok;
         }
-        let ok = test_encode(ffmpeg, codec);
+        let ok = test_encode(ffmpeg, codec, 640, 480);
         cache.lock().unwrap().insert(codec.to_string(), ok);
         ok
     }
@@ -169,32 +169,56 @@ fn vaapi_compat_args(args: &[String]) -> Vec<String> {
     out
 }
 
+/// Encoder backend preference, from the frontend's `-senmei_encoder` sentinel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum EncoderPref {
+    /// Verified hardware encoders first, then the software chain.
+    #[default]
+    Auto,
+    /// Hardware encoders only — with a software fallback if none verifies.
+    Hardware,
+    /// Software encoders only (never hardware).
+    Software,
+}
+
 /// Pick the best video encoder available in `ffmpeg`. Verified hardware
-/// encoders come first (fast; HEVC before H.264); otherwise the software
-/// chain: libkvazaar (HEVC, LGPL — ships in the bundled LGPL builds), then
-/// libx265 (HEVC, GPL — present in most system FFmpeg builds, so an H.265
-/// selection stays HEVC when kvazaar is missing), then libopenh264 (H.264),
-/// then libx264 (GPL-only, works on GPU-less runners), then the native
-/// fallback. kvazaar/x264/x265 default to quality-based rate control;
-/// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
-/// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
-/// later and can override it.
+/// encoders come first (fast; HEVC before H.264) when the preference allows;
+/// otherwise the software chain: libkvazaar (HEVC, LGPL — ships in the
+/// bundled LGPL builds), then libx265 (HEVC, GPL — present in most system
+/// FFmpeg builds, so an H.265 selection stays HEVC when kvazaar is missing),
+/// then libopenh264 (H.264), then libx264 (GPL-only, works on GPU-less
+/// runners), then the native fallback. kvazaar/x264/x265 default to
+/// quality-based rate control; libopenh264 is fixed-bitrate ABR, so it gets a
+/// resolution-based `-b:v` (~14 Mbps @1080p, 144 bits/px) — the caller's
+/// `extra_args` are appended later and can override it. A hardware encoder is
+/// only accepted when it passes both the small cached probe (`verify`) and a
+/// probe at the actual output resolution (`verify_full`); if none does, we
+/// fall through to the software chain (the planned fallback).
 fn pick_from_caps(
     caps: &[String],
     width: u32,
     height: u32,
+    pref: EncoderPref,
     verify: &dyn Fn(&str) -> bool,
+    verify_full: &dyn Fn(&str) -> bool,
 ) -> (String, Vec<String>) {
-    for codec in HW_ENCODERS {
-        if caps.iter().any(|e| e == codec) && verify(codec) {
-            return (codec.into(), Vec::new());
+    if pref != EncoderPref::Software {
+        for codec in HW_ENCODERS {
+            if caps.iter().any(|e| e == codec) && verify(codec) && verify_full(codec) {
+                return (codec.into(), Vec::new());
+            }
         }
     }
     // libopenh264 hard-caps at 4096x4096 — for larger frames skip it so the
     // chain falls through to libx264/libx265 (or the native h264 fallback)
     // instead of failing the encode at >4K output (e.g. x4 from 1080p).
     let openh264_ok = width <= 4096 && height <= 4096;
-    for codec in ["libkvazaar", "libx265", "libopenh264", "libx264", "h264_nvenc", "h264"] {
+    let chain: &[&str] = if pref == EncoderPref::Software {
+        &["libkvazaar", "libx265", "libopenh264", "libx264", "h264"]
+    } else {
+        &["libkvazaar", "libx265", "libopenh264", "libx264", "h264_nvenc", "h264"]
+    };
+    for &codec in chain {
         if codec == "libopenh264" && !openh264_ok {
             continue;
         }
@@ -295,12 +319,29 @@ impl Encoder {
     ) -> Result<Self> {
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let verify = hw_verifier(ffmpeg);
-        let (mut video_codec, mut codec_args) = pick_from_caps(&caps, width, height, &verify);
+        let mut extra_args = extra_args.to_vec();
+        // `-senmei_encoder auto|hw|sw` — a senmei sentinel (never passed to
+        // ffmpeg) selecting the encoder backend preference.
+        let mut pref = EncoderPref::Auto;
+        if let Some(pos) = extra_args.iter().position(|a| a == "-senmei_encoder") {
+            if let Some(v) = extra_args.get(pos + 1) {
+                pref = match v.as_str() {
+                    "hw" => EncoderPref::Hardware,
+                    "sw" => EncoderPref::Software,
+                    _ => EncoderPref::Auto,
+                };
+            }
+            extra_args.drain(pos..pos + 2);
+        }
+        // A hardware encoder only counts once it also probes at the real
+        // output resolution (the small cached probe misses res/format limits).
+        let verify_full = |codec: &str| test_encode(ffmpeg, codec, width, height);
+        let (mut video_codec, mut codec_args) =
+            pick_from_caps(&caps, width, height, pref, &verify, &verify_full);
         // Strip any caller-supplied `-c:v` from extra_args: we always pass the
         // codec ourselves (below) so it can be validated against the available
         // encoders (the frontend maps H.265→libkvazaar even on builds without
         // it) and so ffmpeg doesn't see two `-c:v` options.
-        let mut extra_args = extra_args.to_vec();
         if let Some(pos) = extra_args.windows(2).position(|w| w[0] == "-c:v") {
             let codec = extra_args[pos + 1].clone();
             extra_args.drain(pos..pos + 2);
@@ -567,7 +608,14 @@ mod tests {
         }
         let mut caps = vec!["libkvazaar".to_string()];
         caps.extend(HW_ENCODERS.iter().map(|c| c.to_string()));
-        let (codec, _) = pick_from_caps(&caps, 1920, 1080, &|c| c == HW_ENCODERS[0]);
+        let (codec, _) = pick_from_caps(
+            &caps,
+            1920,
+            1080,
+            EncoderPref::Auto,
+            &|c| c == HW_ENCODERS[0],
+            &|c| c == HW_ENCODERS[0],
+        );
         assert_eq!(codec, HW_ENCODERS[0]);
     }
 
@@ -575,7 +623,7 @@ mod tests {
     fn listed_but_unverified_hw_falls_back() {
         let mut caps = vec!["libkvazaar".to_string()];
         caps.extend(HW_ENCODERS.iter().map(|c| c.to_string()));
-        let (codec, args) = pick_from_caps(&caps, 1920, 1080, &|_| false);
+        let (codec, args) = pick_from_caps(&caps, 1920, 1080, EncoderPref::Auto, &|_| false, &|_| false);
         assert_eq!(codec, "libkvazaar");
         assert!(args.contains(&"-preset".to_string()));
     }
@@ -590,7 +638,7 @@ mod tests {
             "HEVC first in {HW_ENCODERS:?}"
         );
         let caps: Vec<String> = HW_ENCODERS.iter().map(|c| c.to_string()).collect();
-        let (codec, _) = pick_from_caps(&caps, 1920, 1080, &|_| true);
+        let (codec, _) = pick_from_caps(&caps, 1920, 1080, EncoderPref::Auto, &|_| true, &|_| true);
         assert_eq!(codec, HW_ENCODERS[0]);
     }
 
@@ -606,7 +654,14 @@ mod tests {
             return;
         };
         let ff = Path::new(&ff);
-        let (codec, _args) = pick_from_caps(&crate::ffmpeg::probe(ff).encoders, 64, 64, &|_| false);
+        let (codec, _args) = pick_from_caps(
+            &crate::ffmpeg::probe(ff).encoders,
+            64,
+            64,
+            EncoderPref::Auto,
+            &|_| false,
+            &|_| false,
+        );
         assert!(
             ["libkvazaar", "libopenh264", "libx264", "h264"].contains(&codec.as_str()),
             "unexpected codec {codec}"

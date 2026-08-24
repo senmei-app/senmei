@@ -467,6 +467,18 @@ export default function StepEditor(props: StepEditorProps) {
             </select>,
           )}
           {field(
+            t("output.encoder"),
+            <select
+              value={s.params?.encoderBackend ?? "auto"}
+              onChange={(e) => updateParams(s.id, { encoderBackend: e.target.value })}
+              className={inputCls}
+            >
+              <option value="auto">{t("output.encoderAuto")}</option>
+              <option value="hw">{t("output.encoderHw")}</option>
+              <option value="sw">{t("output.encoderSw")}</option>
+            </select>,
+          )}
+          {field(
             t("output.preset"),
             <select
               value={s.params?.preset ?? "medium"}

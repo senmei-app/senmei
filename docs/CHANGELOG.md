@@ -63,6 +63,14 @@
   encodes at ~90 FPS @ 2304×1728, so the encoder never throttles the
   pipeline (encode is hidden behind the upscale).
 
+- **feat: encoder backend preference + fallback (2026-08-24)** — the Output
+  step gains an Encoder select (Auto / Hardware / Software) carried via a
+  `-senmei_encoder` sentinel. Auto = verified hardware encoders (each must
+  also pass a probe at the real output resolution) with a software fallback;
+  Software skips hardware entirely. This is the planned fallback: if no
+  hardware encoder verifies at the output size, the render falls through to
+  the software chain instead of failing.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

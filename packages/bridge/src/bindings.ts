@@ -285,6 +285,8 @@ export type StepParams = {
 	preset?: string | null,
 	pixFmt?: string | null,
 	tune?: string | null,
+	/**  Encoder backend preference for the output encode: "auto" | "hw" | "sw". */
+	encoderBackend?: string | null,
 	/**  Encoder quality profile (sets crf + preset as a bundle). */
 	quality?: string | null,
 	/**  Output color metadata tags (primaries / transfer / matrix, e.g. bt2020). */

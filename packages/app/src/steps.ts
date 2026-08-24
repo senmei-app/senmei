@@ -104,6 +104,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     preset: "veryfast",
     pixFmt: "yuv420p",
     tune: "",
+    encoderBackend: "auto",
     quality: "Medium",
     colorPrimaries: "",
     colorTransfer: "",
@@ -190,6 +191,10 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   }
   if (params?.pixFmt) structured.push("-pix_fmt", params.pixFmt);
   if (params?.tune) structured.push("-tune", params.tune);
+  // Encoder backend preference (auto = HW first with software fallback). The
+  // backend strips this sentinel before ffmpeg sees it.
+  const encBackend = params?.encoderBackend ?? "auto";
+  if (encBackend !== "auto") structured.push("-senmei_encoder", encBackend);
   if (params?.colorPrimaries) structured.push("-color_primaries", params.colorPrimaries);
   if (params?.colorTransfer) structured.push("-color_trc", params.colorTransfer);
   if (params?.colorMatrix) structured.push("-colorspace", params.colorMatrix);
