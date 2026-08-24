@@ -131,7 +131,9 @@ fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     cmd.arg("-hide_banner").arg("-loglevel").arg("error");
     if codec.ends_with("_vaapi") {
         let Some(dev) = vaapi_device() else { return false };
-        cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
+        // Two tokens — one "-init_hw_device vaapi=va:..." token makes ffmpeg
+        // exit 8 (the space breaks its arg parser) and disables HW encode.
+        cmd.args(["-init_hw_device", &format!("vaapi=va:{}", dev.display())]);
         cmd.args(["-filter_hw_device", "va"]);
     }
     // A small probe already clears every VA-API HEVC encoder's minimum size;
@@ -140,10 +142,24 @@ fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     if codec.ends_with("_vaapi") {
         cmd.args(["-vf", "format=nv12,hwupload"]);
     }
-    cmd.args(["-c:v", codec, "-f", "null", "-"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    cmd.status().map(|s| s.success()).unwrap_or(false)
+    cmd.args(["-c:v", codec, "-f", "null", "-"]);
+    // Capture the probe's stderr into the log (not /dev/null): a failing
+    // probe otherwise disables hardware encode without leaving a trace.
+    match cmd.output() {
+        Ok(o) => {
+            if !o.status.success() {
+                log::warn!(
+                    "probe {codec}@{w}x{h} failed: {}",
+                    String::from_utf8_lossy(&o.stderr).trim()
+                );
+            }
+            o.status.success()
+        }
+        Err(e) => {
+            log::warn!("probe {codec}@{w}x{h} could not run: {e}");
+            false
+        }
+    }
 }
 
 /// Cached per-process verifier (each codec is test-encoded once).
@@ -416,10 +432,17 @@ impl Encoder {
         if vaapi.is_some() && !extra_args.iter().any(|a| a == "-qp" || a == "-rc_mode") {
             codec_args = vec!["-qp".into(), "20".into()];
         }
+        log::info!(
+            "encode {}@{}x{} device={}",
+            video_codec,
+            width,
+            height,
+            vaapi.as_ref().map(|d| d.display().to_string()).unwrap_or_else(|| "cpu".into())
+        );
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y");
         if let Some(dev) = &vaapi {
-            cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
+            cmd.args(["-init_hw_device", &format!("vaapi=va:{}", dev.display())]);
             cmd.args(["-filter_hw_device", "va"]);
         }
         cmd.args(["-f", "rawvideo", "-pix_fmt", "rgb24"])
@@ -550,10 +573,11 @@ impl Encoder {
     pub fn finish(mut self) -> Result<()> {
         drop(self.stdin.take());
         let status = self.child.wait()?;
+        let stderr = self.read_stderr();
+        log::debug!("ffmpeg encode finished: {status}; stderr tail: {stderr}");
         if status.success() {
             Ok(())
         } else {
-            let stderr = self.read_stderr();
             Err(Error::Command(if stderr.is_empty() {
                 format!("ffmpeg encode exited with {status}")
             } else {
@@ -651,6 +675,40 @@ mod tests {
             override_codec_args("libsvtav1", &base, w, h),
             Vec::<String>::new()
         );
+    }
+
+    /// Reproduce the app's real HW selection: real ffmpeg probes at the actual
+    /// output resolution, Hardware pref. Prints which codec gets chosen.
+    #[test]
+    fn probe_hw_selection() {
+        let Some(ff) = std::env::var("SENMEI_FFMPEG")
+            .ok()
+            .filter(|p| !p.is_empty())
+        else {
+            eprintln!("SENMEI_FFMPEG not set, skipping");
+            return;
+        };
+        let ff = Path::new(&ff);
+        let caps = crate::ffmpeg::probe(ff).encoders;
+        let verify = hw_verifier(ff);
+        let verify_full = |codec: &str| test_encode(ff, codec, 2304, 1728);
+        println!(
+            "caps has hevc_vaapi={} h264_vaapi={} | vaapi_device={:?}",
+            caps.iter().any(|e| e == "hevc_vaapi"),
+            caps.iter().any(|e| e == "h264_vaapi"),
+            vaapi_device()
+        );
+        for codec in ["hevc_vaapi", "h264_vaapi"] {
+            println!(
+                "{codec}: verify(640)={} verify_full(2304x1728)={}",
+                verify(codec),
+                verify_full(codec)
+            );
+        }
+        for pref in [EncoderPref::Auto, EncoderPref::Hardware, EncoderPref::Software] {
+            let (codec, _) = pick_from_caps(&caps, 2304, 1728, pref, &verify, &verify_full);
+            println!("SENMEI_FFMPEG probe @2304x1728 pref={pref:?} -> {codec}");
+        }
     }
 
     #[test]

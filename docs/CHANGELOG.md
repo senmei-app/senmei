@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: VA-API probe failed on a single-token `-init_hw_device` (2026-08-24)** —
+  `test_encode`/`Encoder::open` passed `-init_hw_device vaapi=va:...` as one
+  argv token with a space; ffmpeg's arg parser breaks on it (exit 8), so every
+  VA-API probe failed and HW encode was silently disabled — Auto/Hardware fell
+  back to the software `libx265` (7–10 FPS). Split into two tokens; the probe's
+  stderr now lands in the log (`warn!` on failure) instead of `/dev/null`, the
+  chosen encoder/device is logged on open, and the encode's stderr tail on
+  finish.
+
 - **feat: system `libx265` HEVC fallback (2026-08-24)** — `pick_from_caps`
   now tries `libx265` right after `libkvazaar`, so an H.265 selection stays
   real HEVC on system FFmpeg builds without kvazaar (previously it silently
