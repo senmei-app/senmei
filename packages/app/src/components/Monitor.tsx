@@ -25,6 +25,11 @@ export default function Monitor({
   fullVideo = false,
   onToggleFullVideo,
   togglePlayHotkey = "Space",
+  muteHotkey = "M",
+  volumeUpHotkey = "ArrowUp",
+  volumeDownHotkey = "ArrowDown",
+  seekBackHotkey = "ArrowLeft",
+  seekForwardHotkey = "ArrowRight",
 }: {
   file?: string;
   renderedFile: string | null;
@@ -44,6 +49,11 @@ export default function Monitor({
   fullVideo?: boolean;
   onToggleFullVideo?: () => void;
   togglePlayHotkey?: string;
+  muteHotkey?: string;
+  volumeUpHotkey?: string;
+  volumeDownHotkey?: string;
+  seekBackHotkey?: string;
+  seekForwardHotkey?: string;
 }) {
   const { t } = useI18n();
 
@@ -164,18 +174,25 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioReady]);
 
-  // Preview volume.
+  // Preview volume + mute. Mute is frontend-only (the rodio backend has no
+  // mute): while muted we send 0, otherwise the slider value. The volume stays
+  // put while muted, so unmute restores it.
   const [volume, setVolume] = useState(() => {
     const saved = Number(localStorage.getItem("senmei.volume"));
     return Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
   });
+  const [muted, setMuted] = useState(false);
   const changeVolume = (v: number) => {
-    setVolume(v);
+    setVolume(Math.min(1, Math.max(0, v)));
     localStorage.setItem("senmei.volume", String(v));
   };
+  const nudgeVolume = (delta: number) => {
+    setMuted(false); // adjusting the volume un-mutes
+    changeVolume(volume + delta);
+  };
   useEffect(() => {
-    void be()?.audioSetVolume(volume).catch(() => {});
-  }, [volume]);
+    void be()?.audioSetVolume(muted ? 0 : volume).catch(() => {});
+  }, [volume, muted]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -242,6 +259,43 @@ export default function Monitor({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, nativeSrc, inMs, outMs, togglePlayHotkey]);
+
+  // Mute / volume / seek hotkeys (M, arrows) — same input/button guard as
+  // play/pause. Seek step: 5 s per press (clamped to the clip).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.tagName === "BUTTON" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const combo = comboFromEvent(e);
+      if (combo === muteHotkey) {
+        e.preventDefault();
+        setMuted((m) => !m);
+      } else if (combo === volumeUpHotkey) {
+        e.preventDefault();
+        nudgeVolume(0.1);
+      } else if (combo === volumeDownHotkey) {
+        e.preventDefault();
+        nudgeVolume(-0.1);
+      } else if (combo === seekBackHotkey || combo === seekForwardHotkey) {
+        e.preventDefault();
+        const delta = combo === seekForwardHotkey ? 5000 : -5000;
+        const max = (info?.duration ?? 0) * 1000;
+        onScrub(Math.min(max, Math.max(0, posRef.current + delta)));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volume, info, nativeSrc, inMs, outMs, muteHotkey, volumeUpHotkey, volumeDownHotkey, seekBackHotkey, seekForwardHotkey]);
 
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is

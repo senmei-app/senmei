@@ -446,6 +446,11 @@ export default function App() {
       fullVideo={fullVideo}
       onToggleFullVideo={toggleFullVideo}
       togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
+      muteHotkey={resolveHotkeys(hotkeyOverrides).mute}
+      volumeUpHotkey={resolveHotkeys(hotkeyOverrides).volumeUp}
+      volumeDownHotkey={resolveHotkeys(hotkeyOverrides).volumeDown}
+      seekBackHotkey={resolveHotkeys(hotkeyOverrides).seekBack}
+      seekForwardHotkey={resolveHotkeys(hotkeyOverrides).seekForward}
     />
   );
 

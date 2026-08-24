@@ -35,6 +35,11 @@
   1080p@2 (docs/benchmarks.md); depth 3 adds ~1 %. `0` in settings = owning
   default.
 
+- **feat: preview hotkeys (2026-08-24)** — `M` mute, `↑`/`↓` volume (±0.1),
+  `←`/`→` seek (±5 s) in the monitor, configurable in Settings → Hotkeys.
+  Mute is frontend-only (the rodio backend has no mute): it sends 0 while
+  muted and the slider value otherwise.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
