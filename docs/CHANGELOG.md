@@ -96,6 +96,12 @@
   (Auto / iGPU) offloads the encode to the iGPU while the discrete GPU runs
   inference (via a `-senmei_vaapi` sentinel).
 
+- **fix: live FPS shows the current render rate (2026-08-24)** — the render
+  progress FPS was `framesProcessed / time-since-render-start` (the
+  queue-lifetime average), which earlier fast renders inflated (e.g. a stale
+  38-40 FPS during a ~10 FPS upscale). It now uses a rolling window over the
+  last ~5 s of progress deltas.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

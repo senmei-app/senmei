@@ -82,6 +82,9 @@ export default function Monitor({
   const frameBustRef = useRef(0);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
+  // Recent progress samples for a rolling FPS (the queue-lifetime average was
+  // inflated by earlier fast renders).
+  const fpsSamples = useRef<{ t: number; f: number }[]>([]);
   const name = src ? basename(src) : null;
 
   // Manual double-click detection on the monitor surface. A document-level
@@ -552,12 +555,29 @@ export default function Monitor({
     return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
+  // Rolling FPS from recent progress deltas (kept ~5 s), so the display shows
+  // the current render rate instead of the queue-lifetime average.
+  useEffect(() => {
+    if (!rendering || !progress) {
+      fpsSamples.current = [];
+      return;
+    }
+    const t = Date.now();
+    fpsSamples.current.push({ t, f: progress.framesProcessed });
+    fpsSamples.current = fpsSamples.current.filter((s) => t - s.t < 5000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress, rendering]);
+
   const stats = (() => {
     if (!rendering || !progress || progress.totalFrames <= 0 || renderStart.current === null) {
       return null;
     }
-    const elapsed = Math.max(0.001, (Date.now() - renderStart.current) / 1000);
-    const fps = progress.framesProcessed / elapsed;
+    const s = fpsSamples.current;
+    const fps =
+      s.length >= 2 && s[s.length - 1].f > s[0].f
+        ? (s[s.length - 1].f - s[0].f) / Math.max(0.001, (s[s.length - 1].t - s[0].t) / 1000)
+        : progress.framesProcessed /
+          Math.max(0.001, (Date.now() - renderStart.current) / 1000);
     // Clamp overshoot: the frame-count estimate can lag actual emission, so
     // remaining must never go negative (that rendered "-1:-1:-1").
     const remaining =
