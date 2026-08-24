@@ -36,8 +36,8 @@ pub(crate) fn gpu_index() -> u32 {
     GPU_INDEX.load(Ordering::Relaxed)
 }
 
-/// Read the fused RGB8 tile size (burn-only; the tch engine tiles internally).
-#[cfg(feature = "burn")]
+/// Read the fused RGB8 tile size (both engines tile internally).
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub(crate) fn current_tile_size() -> usize {
     let n = TILE_SIZE.load(Ordering::Relaxed);
     if n > 0 {
@@ -85,7 +85,7 @@ pub use runtime::{
 };
 pub use tensor::Tensor;
 pub use tiling::{crop, pad_to, stitch, uniform_tile};
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub use tiling::crop_rgb24;
 
 pub type Result<T> = std::result::Result<T, Error>;

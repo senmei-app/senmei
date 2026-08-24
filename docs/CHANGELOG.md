@@ -8,6 +8,21 @@
 
 ## Unreleased
 
+- **perf: tch engine runs f16 on the fused RGB8 GPU path (2026-08-25)** —
+  the libtorch backend now uses `LibTorch<f16>` (was f32: half the memory
+  bandwidth, matches burn) and implements `infer_rgb8`/`_batch`/`_submit`
+  over the shared fused path (device-side tiling, native-scale accumulation,
+  GPU re-sample, parallel elem→u8 readback) instead of the generic CPU
+  roundtrip (`frame_to_tensor` → tiled `infer` → CPU `bilinear` →
+  `tensor_to_frame`). `engine::core`'s fused functions, the VRAM guard, and
+  `crop_rgb24`/`current_tile_size` are now feature-gated on `burn` **or**
+  `tch`; the readback converts the backend's own float elem (f16/f32) via a
+  small `ElemToU8` helper. `real-cugan-pro-conservative-x2` 576×432 → 4×:
+  106.7 → **59.6 ms (16.8 FPS)**; the real app render ~100 → **~66 ms
+  (~15 FPS)**. tch keeps a GPU tiled fallback when the fused path is rejected
+  (e.g. the VRAM guard at very large outputs) — `Some(Err)` from core maps to
+  `None` so the pipeline falls back instead of erroring.
+
 - **fix: VA-API probe failed on a single-token `-init_hw_device` (2026-08-24)** —
   `test_encode`/`Encoder::open` passed `-init_hw_device vaapi=va:...` as one
   argv token with a space; ffmpeg's arg parser breaks on it (exit 8), so every

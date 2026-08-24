@@ -14,4 +14,4 @@ thiserror.workspace = true
 
 [dev-dependencies]
 # Burn feature only for the integration tests (real-model upscale).
-senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn"] }
+senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn", "tch"] }

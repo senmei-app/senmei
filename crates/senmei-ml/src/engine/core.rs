@@ -14,7 +14,7 @@ use crate::{Error, Result};
 use super::Rgb8Batch;
 use burn::tensor::backend::Backend;
 use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 use burn::tensor::{module::interpolate, ops::{InterpolateMode, InterpolateOptions}};
 use burn_store::{BurnpackStore, ModuleSnapshot};
 
@@ -226,16 +226,19 @@ pub fn infer<B: Backend>(model: &Model<B>, input: &Tensor, device: &B::Device) -
 /// readback per tile plus a CPU stitch. `native_scale` is the model's own
 /// upscale factor; a requested `scale` above/below it is applied on the GPU
 /// (bilinear re-sample of each tile output) so the fused path works for e.g.
-/// x2 models rendered at x4. Burn-only: the tch engine relies on the trait
-/// default (`None`).
-#[cfg(feature = "burn")]
+/// x2 models rendered at x4. Shared by both engines: burn (Vulkan f16) and
+/// tch (libtorch f32) call it with their own backend.
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8<B: Backend>(
     model: &Model<B>,
     input: &Tensor,
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<(Vec<u8>, u32, u32)>> {
+) -> Option<Result<(Vec<u8>, u32, u32)>>
+where
+    B::FloatElem: ElemToU8,
+{
     let batch =
         infer_rgb8_batch(model, std::slice::from_ref(input), native_scale, scale, device)?;
     Some(batch.map(|mut v| v.pop().unwrap()))
@@ -248,14 +251,17 @@ pub fn infer_rgb8<B: Backend>(
 /// position in the batch dim — fewer launches/readbacks, the per-tile feather
 /// mask is computed once and shared. Output is bit-identical to `n` separate
 /// `infer_rgb8` calls (batch dim is independent in every conv).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8_batch<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>>
+where
+    B::FloatElem: ElemToU8,
+{
     let batch = match infer_rgb8_batch_prepare(model, inputs, native_scale, scale, device) {
         Some(Ok(b)) => b,
         Some(Err(e)) => return Some(Err(e)),
@@ -267,7 +273,7 @@ pub fn infer_rgb8_batch<B: Backend>(
 /// Forward + GPU canvas accumulation for one batch; the readback is deferred
 /// to [`BurnRgb8Batch::resolve`] so the caller can queue the next forward
 /// before blocking on this one (readback pipelining).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8_batch_prepare<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
@@ -490,7 +496,7 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
 /// observed ~3.2 GB single-allocation OOM at 1080p×4, a wgpu/burn-internal
 /// buffer) or half the GPU's total VRAM when that is tighter — adapts down on
 /// smaller cards.
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
     const FUSED_PEAK_CEILING: u64 = (2 * 1024 + 512) * 1024 * 1024; // 2.5 GiB
     match total_vram {
@@ -500,19 +506,35 @@ fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
 }
 
 /// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
-/// Canvas (f16 accs+covs) + f32 readback, ×4 for ops/COW/autotune overhead —
-/// a ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
+/// Canvas (accs+covs) + readback, ×4 for ops/COW/autotune overhead — a
+/// ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
 /// tile size and autotune level.
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 fn fused_peak_allocation(n: usize, out_h: usize, out_w: usize, c: usize) -> u64 {
     let canvas = (n * out_h * out_w * (c + 1) * 2) as u64; // accs + covs (f16)
     let readback = (n * out_h * out_w * 3 * 4) as u64; // packed rgb24 f32
     (canvas + readback) * 4
 }
 
+/// Convert a backend float element to a rounded `u8` (`(x+0.5) as u8`).
+/// `burn` uses `f16`, `tch` `f32` — both route through their own `to_f32`.
+trait ElemToU8 {
+    fn to_u8(self) -> u8;
+}
+impl ElemToU8 for f32 {
+    fn to_u8(self) -> u8 {
+        (self + 0.5) as u8
+    }
+}
+impl ElemToU8 for f16 {
+    fn to_u8(self) -> u8 {
+        (self.to_f32() + 0.5) as u8
+    }
+}
+
 /// Deferred readback of one fused batch: blocks on the GPU→CPU transfer, then
 /// converts to packed rgb24 on the CPU (same steps `infer_rgb8_batch` used).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub struct BurnRgb8Batch<B: Backend> {
     accs: Vec<BurnTensor<B, 4>>,
     covs: Vec<BurnTensor<B, 4>>,
@@ -521,23 +543,26 @@ pub struct BurnRgb8Batch<B: Backend> {
     out_h_t: usize,
 }
 
-#[cfg(feature = "burn")]
-impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
+#[cfg(any(feature = "burn", feature = "tch"))]
+impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B>
+where
+    B::FloatElem: ElemToU8,
+{
     fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>> {
         let mut result = Vec::with_capacity(self.accs.len());
         for (acc, cov) in self.accs.into_iter().zip(self.covs) {
             let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-            // Read back in f16 and cast to u8 in plain Rust: cubecl-wgpu already
-            // pools the staging buffers, so the remaining per-frame cost is the
-            // CPU-side convert — reading f16 directly skips the full f32 copy
-            // (a `convert::<u8>()` readback would trip the burn-fusion ordering
-            // panic, docs/burn-bugs.md Bug 1). The fused path only runs on
-            // `BurnBackend<f16>`, so the element type is always f16 here.
-            let data: Vec<f16> = match avg.into_data().to_vec::<f16>() {
+            // Read back in the backend's own float elem and cast to u8 in
+            // plain Rust: cubecl-wgpu already pools the staging buffers, so
+            // the remaining per-frame cost is the CPU-side convert — reading
+            // the native elem directly skips the full f32 copy (a
+            // `convert::<u8>()` readback would trip the burn-fusion ordering
+            // panic, docs/burn-bugs.md Bug 1). burn uses f16, tch f32.
+            let data: Vec<B::FloatElem> = match avg.into_data().to_vec::<B::FloatElem>() {
                 Ok(v) => v,
                 Err(e) => return Err(Error::new(e.to_string())),
             };
-            // Parallel f16→u8: the convert is the main-thread stall after the
+            // Parallel elem→u8: the convert is the main-thread stall after the
             // GPU readback (with pipeline_depth it overlaps the next forward,
             // but a 12 M-element convert still delays the next submit). Split
             // across cores so the main thread re-queues the GPU sooner.
@@ -553,7 +578,7 @@ impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
                 for (d, o) in data.chunks(chunk).zip(bytes.chunks_mut(chunk)) {
                     s.spawn(move || {
                         for (dd, oo) in d.iter().zip(o.iter_mut()) {
-                            *oo = (dd.to_f32() + 0.5) as u8;
+                            *oo = ElemToU8::to_u8(*dd);
                         }
                     });
                 }

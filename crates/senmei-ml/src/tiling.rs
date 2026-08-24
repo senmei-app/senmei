@@ -129,8 +129,8 @@ pub fn crop(t: &Tensor, oh: usize, ow: usize) -> Tensor {
 }
 
 /// Crop a packed rgb24 canvas to its top-left `oh × ow` region.
-/// Only used by the burn engine's fused `infer_rgb8` (feature-gated).
-#[cfg(feature = "burn")]
+/// Used by both engines' fused `infer_rgb8` (feature-gated).
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn crop_rgb24(src: &[u8], src_w: usize, oh: usize, ow: usize) -> Vec<u8> {
     let mut out = Vec::with_capacity(3 * oh * ow);
     for yy in 0..oh {

@@ -1,21 +1,22 @@
 //! Optional libtorch backend (`burn-tch`) for high-performance local runs.
 //!
-//! Runs the shared `crate::arch` re-implementations on `LibTorch<f32>`. The
+//! Runs the shared `crate::arch` re-implementations on `LibTorch<f16>`. The
 //! libtorch runtime is resolved on demand (CUDA/ROCm only — see
 //! `crate::runtime`) and dlopen'd via `torch_sys::loader`; no CPU libtorch,
 //! CPU stays on the burn-Vulkan engine.
 
 use crate::arch::RifeNet;
-use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model};
+use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
-use burn_store::{BurnpackStore, HalfPrecisionAdapter};
+use burn_store::BurnpackStore;
 use burn_tch::{LibTorch, LibTorchDevice};
+use burn::tensor::f16;
 use std::path::Path;
 use std::sync::OnceLock;
 
-type B = LibTorch<f32>;
+type B = LibTorch<f16>;
 
 /// libtorch release with ROCm-7 builds that the runtime downloads. Must stay
 /// in sync with `crate::runtime::torch` (and the torch-sys headers used to
@@ -216,8 +217,9 @@ impl InferenceEngine for TchEngine {
         self.model = Some(match model.arch.as_str() {
             "rife425" | "rife46" => self.load_rife(&model.path)?,
             _ => {
-                let mut store = BurnpackStore::from_file(&model.path)
-                    .with_from_adapter(HalfPrecisionAdapter::new());
+                // f16 backend: the f16 .bpk weights load as-is, no f16→f32
+                // adapter (burn's Vulkan path does the same).
+                let mut store = BurnpackStore::from_file(&model.path);
                 core::load_arch(model, &mut store, &self.device)?
             }
         });
@@ -231,6 +233,48 @@ impl InferenceEngine for TchEngine {
             .as_ref()
             .ok_or_else(|| Error::new("model not loaded"))?;
         core::infer(model, input, &self.device)
+    }
+
+    fn native_scale(&self) -> u32 {
+        self.scale
+    }
+
+    /// Fused RGB8 (GPU re-sample when the requested scale ≠ model scale — the
+    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`).
+    fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
+        let model = self.model.as_ref()?;
+        match core::infer_rgb8(model, input, self.scale, scale, &self.device) {
+            // tch has a GPU tiled fallback, so a fused rejection (e.g. the
+            // VRAM guard at very large outputs) falls back instead of erroring.
+            Some(Err(_)) => None,
+            other => other,
+        }
+    }
+
+    /// Fused multi-frame RGB8 with a deferred readback, so the caller can
+    /// queue the next forward before blocking on this batch's transfer.
+    fn infer_rgb8_submit(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Box<dyn Rgb8Batch>>> {
+        let model = self.model.as_ref()?;
+        match core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device) {
+            Some(Ok(b)) => Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>)),
+            // Fused path can't handle this input (VRAM guard): fall back to
+            // the tiled path rather than surfacing a hard error.
+            Some(Err(_)) | None => None,
+        }
+    }
+
+    /// Fused multi-frame RGB8 (synchronous — resolves the submit immediately).
+    fn infer_rgb8_batch(
+        &mut self,
+        inputs: &[Tensor],
+        scale: u32,
+    ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+        self.infer_rgb8_submit(inputs, scale)
+            .map(|r| r.and_then(|b| b.resolve()))
     }
 
     fn infer_interp(
@@ -270,9 +314,10 @@ mod tests {
 
     /// Roundtrip on the runtime-resolved GPU (CUDA/ROCm): a random-init
     /// UpCunet2xFast is saved as an f16 burnpack on the device, loaded through
-    /// `TchEngine` (f16→f32 adapter) and inferred — proves the burn-store →
-    /// LibTorch plumbing over the dlopen path. `#[ignore]` because resolving
-    /// libtorch downloads it (~2 GB) on first use; skips without a GPU.
+    /// `TchEngine` (f16 weights, no adapter) and inferred — proves the
+    /// burn-store → LibTorch plumbing over the dlopen path. `#[ignore]`
+    /// because resolving libtorch downloads it (~2 GB) on first use; skips
+    /// without a GPU.
     #[test]
     #[ignore]
     fn tch_engine_roundtrips_bpk_on_gpu() {
@@ -290,8 +335,7 @@ mod tests {
 
         let device = LibTorchDevice::Cuda(0);
         let m = UpCunet2xFast::<B>::new(&device);
-        let mut save =
-            BurnpackStore::from_file(&tmp).with_to_adapter(HalfPrecisionAdapter::new());
+        let mut save = BurnpackStore::from_file(&tmp);
         eprintln!("[tch_test] save_into...");
         m.save_into(&mut save).unwrap();
         eprintln!("[tch_test] saved, load...");
