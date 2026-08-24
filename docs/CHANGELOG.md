@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: preview worker last-frame-wins (2026-08-24)** — the preview-decode
+  worker drains its queue before each decode and keeps only the newest
+  position per input; superseded requests are answered with their input's
+  newest frame. A fast scrub can no longer queue stale decodes behind a slow
+  one (upscaled results), and superseded callers unblock instead of waiting on
+  positions nobody wants. Regression test `coalesce_keeps_newest_position_per_
+  input`.
+
 - **fix: preview audio → stereo AAC (seekable + small) (2026-08-23)** — raw WAV
   was the only seekable rodio format, but a long 5.1 source extracted to 3+ GB
   (98-min movie). The track is now encoded as stereo AAC (~192 kbps): small

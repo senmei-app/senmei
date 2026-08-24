@@ -18,6 +18,27 @@ struct PreviewRequest {
 
 static PREVIEW_WORKER: OnceLock<mpsc::Sender<PreviewRequest>> = OnceLock::new();
 
+/// Last-frame-wins: drain the worker queue and keep only the newest request
+/// per input. Superseded requests are returned so the worker can answer them
+/// with the newest frame — a fast scrub must not queue stale decodes behind a
+/// slow one (upscaled results), and the superseded callers unblock instead of
+/// waiting on positions nobody wants.
+fn coalesce(
+    first: PreviewRequest,
+    rx: &mpsc::Receiver<PreviewRequest>,
+) -> (Vec<PreviewRequest>, Vec<PreviewRequest>) {
+    let mut latest = vec![first];
+    let mut stale = Vec::new();
+    let mut absorb = |req: PreviewRequest| match latest.iter_mut().find(|l| l.input == req.input) {
+        Some(slot) => stale.push(std::mem::replace(slot, req)),
+        None => latest.push(req),
+    };
+    while let Ok(next) = rx.try_recv() {
+        absorb(next);
+    }
+    (latest, stale)
+}
+
 /// Lazily spawn the single preview-decode worker. It owns the `PreviewCache`
 /// (warm decode streams = ring buffer) on one thread, so decodes are
 /// serialized without a shared lock and no thread is spawned per request.
@@ -30,11 +51,17 @@ fn worker() -> &'static mpsc::Sender<PreviewRequest> {
                 let ffmpeg = senmei_media::resolve(&store::data_dir());
                 let mut cache = senmei_media::PreviewCache::new(ffmpeg, Some(PREVIEW_MAX_DIM));
                 while let Ok(req) = rx.recv() {
-                    let res = cache.frame(&req.input, req.position_ms).map_err(|e| {
-                        log::warn!("preview decode failed: {e}");
-                        e.to_string()
-                    });
-                    let _ = req.respond.send(res);
+                    let (latest, stale) = coalesce(req, &rx);
+                    for r in &latest {
+                        let res = cache.frame(&r.input, r.position_ms).map_err(|e| {
+                            log::warn!("preview decode failed: {e}");
+                            e.to_string()
+                        });
+                        for old in stale.iter().filter(|o| o.input == r.input) {
+                            let _ = old.respond.send(res.clone());
+                        }
+                        let _ = r.respond.send(res);
+                    }
                 }
             })
             .expect("failed to spawn preview decode thread");
@@ -116,6 +143,38 @@ pub fn read_frame_inner(
         .map_err(|e| e.to_string())?;
     let frame = recv.recv().map_err(|e| e.to_string())??;
     Ok(FrameData::from_frame(frame))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Coalescing keeps only the newest position per input and returns the
+    /// superseded requests for answering with the newest frame (last-frame-
+    /// wins): a@1000, a@2000, a@1500 → keep a@1500; b@500, b@900 → keep b@900.
+    #[test]
+    fn coalesce_keeps_newest_position_per_input() {
+        let (tx, rx) = mpsc::channel::<PreviewRequest>();
+        let (rt, _rr) = mpsc::channel();
+        let mk = |input: &str, pos: f64| PreviewRequest {
+            input: input.to_string(),
+            position_ms: pos,
+            respond: rt.clone(),
+        };
+        tx.send(mk("a.mp4", 1000.0)).unwrap();
+        tx.send(mk("b.mp4", 500.0)).unwrap();
+        tx.send(mk("a.mp4", 2000.0)).unwrap();
+        tx.send(mk("b.mp4", 900.0)).unwrap();
+        tx.send(mk("a.mp4", 1500.0)).unwrap();
+
+        let first = rx.recv().unwrap();
+        let (latest, stale) = coalesce(first, &rx);
+        let pos = |v: &[PreviewRequest]| -> Vec<f64> {
+            v.iter().map(|r| r.position_ms).collect()
+        };
+        assert_eq!(pos(&latest).iter().sum::<f64>(), 2400.0); // a@1500 + b@900
+        assert_eq!(pos(&stale).iter().sum::<f64>(), 3500.0); // a@1000 + b@500 + a@2000
+    }
 }
 
 /// Extract the source audio once as stereo AAC for the native preview player —
