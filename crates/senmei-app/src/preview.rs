@@ -4,6 +4,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{mpsc, OnceLock};
 
+use tauri::ipc::{InvokeResponseBody, IpcResponse};
+
 use crate::store;
 
 /// Preview decode budget (longest edge) — display-sized, keeps scrubbing cheap.
@@ -69,26 +71,26 @@ fn worker() -> &'static mpsc::Sender<PreviewRequest> {
     })
 }
 
-/// A decoded preview frame: raw RGB24 bytes, base64-encoded for the IPC/JSON
-/// transport. `width`/`height` let the frontend build an `ImageData` directly
-/// (no `<img>`/PNG round-trip).
+/// Width/height of a decoded preview frame, delivered as JSON on the meta
+/// channel ahead of the raw pixels.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct FrameData {
+pub struct FrameMeta {
     pub width: u32,
     pub height: u32,
-    /// base64-encoded RGB24 pixels.
-    pub data: String,
 }
 
-impl FrameData {
-    fn from_frame(f: senmei_media::Frame) -> Self {
-        use base64::Engine as _;
-        Self {
-            width: f.width,
-            height: f.height,
-            data: base64::engine::general_purpose::STANDARD.encode(f.data),
-        }
+/// Raw RGB24 preview pixels for the frame channel. `IpcResponse` delivers
+/// them as an `ArrayBuffer` (no base64/JSON round-trip); deliberately not
+/// `Serialize`, so the blanket JSON `IpcResponse` impl doesn't apply. Specta
+/// can't express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the
+/// frontend wrapper casts the channel to the runtime type.
+#[derive(Debug, Clone, specta::Type)]
+pub struct FramePixels(pub Vec<u8>);
+
+impl IpcResponse for FramePixels {
+    fn body(self) -> tauri::Result<InvokeResponseBody> {
+        Ok(InvokeResponseBody::Raw(self.0))
     }
 }
 
@@ -124,15 +126,16 @@ fn preview_dir(project_dir: Option<&str>) -> std::path::PathBuf {
         })
 }
 
-/// Decode one frame at `position_ms` as raw RGB24 (base64) for the preview
-/// monitor. Sends the request to the single decode worker, which serves it
-/// from its warm decode streams (one ffmpeg per file) and applies the preview
-/// decode budget.
+/// Decode one frame at `position_ms` as raw RGB24 for the preview monitor.
+/// Sends the request to the single decode worker, which serves it from its
+/// warm decode streams (one ffmpeg per file) and applies the preview decode
+/// budget. Transport-agnostic: the caller frames the bytes (Tauri raw Channel
+/// vs HTTP base64).
 pub fn read_frame_inner(
     input: &str,
     position_ms: f64,
     _project_dir: Option<&str>,
-) -> Result<FrameData, String> {
+) -> Result<senmei_media::Frame, String> {
     let (respond, recv) = mpsc::channel();
     worker()
         .send(PreviewRequest {
@@ -141,8 +144,7 @@ pub fn read_frame_inner(
             respond,
         })
         .map_err(|e| e.to_string())?;
-    let frame = recv.recv().map_err(|e| e.to_string())??;
-    Ok(FrameData::from_frame(frame))
+    recv.recv().map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

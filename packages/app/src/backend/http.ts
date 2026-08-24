@@ -90,7 +90,11 @@ export const httpBackend: Backend = {
       method: "POST",
       body: JSON.stringify({ input, positionMs }),
     });
-    return { width: res.width, height: res.height, data: res.data };
+    // HTTP stays base64 on the wire; decode here so `RawFrame.data` is uniform.
+    const bin = atob(res.data);
+    const data = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+    return { width: res.width, height: res.height, data };
   },
 
   nativeVideoUrl() {

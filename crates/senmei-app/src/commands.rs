@@ -8,7 +8,9 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::models::load_registry;
-use crate::preview::{extract_audio_inner, probe_video_inner, read_frame_inner, FrameData};
+use crate::preview::{
+    extract_audio_inner, probe_video_inner, read_frame_inner, FrameMeta, FramePixels,
+};
 use crate::store;
 use senmei_core::core;
 
@@ -229,14 +231,26 @@ pub async fn read_frame(
     input: String,
     position_ms: f64,
     project_dir: Option<String>,
-) -> Result<FrameData, String> {
+    on_meta: Channel<FrameMeta>,
+    on_frame: Channel<FramePixels>,
+) -> Result<(), String> {
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
     // Decode off the main thread so the UI never freezes per frame.
-    tauri::async_runtime::spawn_blocking(move || {
+    let frame = tauri::async_runtime::spawn_blocking(move || {
         read_frame_inner(&input, position_ms, project_dir.as_deref())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    // Meta (JSON) first, then the raw RGB24 bytes (ArrayBuffer on the JS side)
+    // — no base64 over the IPC.
+    on_meta
+        .send(FrameMeta {
+            width: frame.width,
+            height: frame.height,
+        })
+        .map_err(|e| e.to_string())?;
+    on_frame.send(FramePixels(frame.data)).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -655,11 +669,7 @@ mod tests {
         let frame =
             read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
         assert_eq!((frame.width, frame.height), (160, 120), "below the 1280 budget");
-        use base64::Engine as _;
-        let raw = base64::engine::general_purpose::STANDARD
-            .decode(&frame.data)
-            .expect("valid base64");
-        assert_eq!(raw.len(), 160 * 120 * 3, "raw RGB24 frame bytes");
+        assert_eq!(frame.data.len(), 160 * 120 * 3, "raw RGB24 frame bytes");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

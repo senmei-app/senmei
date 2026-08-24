@@ -355,6 +355,7 @@ fn bench_upscalers_real_frames() {
             0,
             None,
             senmei_media::Tonemap::Auto,
+            None,
         )
         .unwrap();
         while let Some(f) = dec.next_frame().unwrap() {

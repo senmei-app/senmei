@@ -32,7 +32,9 @@
       if hardware decode or canvas throughput demands it
 
 ## Preview / Media (2026-08-23, PLAN §18)
-- [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
+- [ ] Phase 3: true ring buffer around the playhead — decoder thread +
+      worker last-frame-wins coalescing landed 2026-08-24; a decoded-frame
+      ring buffer for near-position scrubbing is still open
 - [ ] Audio: native Streaming statt Voll-Extraktion — cpal/FFmpeg-PCM (Tauri)
       + Web Range-stream (`/api/stream`, http.ts `nativeVideoUrl`); große
       Videos brauchen beim Laden sonst ~10 s bis zum Ton (Entscheidung

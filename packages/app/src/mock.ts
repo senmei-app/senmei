@@ -119,9 +119,7 @@ function demoFrame(): RawFrame {
     rgb[i + 1] = 70;
     rgb[i + 2] = 229;
   }
-  let bin = "";
-  for (let i = 0; i < rgb.length; i++) bin += String.fromCharCode(rgb[i]);
-  return { width: w, height: h, data: btoa(bin) };
+  return { width: w, height: h, data: rgb };
 }
 
 let demoRenderTimer: ReturnType<typeof setInterval> | null = null;

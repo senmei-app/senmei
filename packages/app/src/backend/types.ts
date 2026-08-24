@@ -42,13 +42,14 @@ export type {
 /// A URL usable as an `<img>`/`<video>` `src` (Tauri: `asset://`, HTTP: data).
 export type FrameSource = string;
 
-/// A decoded preview frame: raw RGB24 pixels (base64) + dimensions, for direct
-/// canvas rendering via `ImageData` (no `<img>`/PNG round-trip).
+/// A decoded preview frame: raw RGB24 pixels + dimensions, for direct canvas
+/// rendering via `ImageData` (no `<img>`/PNG round-trip). Tauri delivers the
+/// bytes as an `ArrayBuffer` (raw channel), HTTP as base64 (decoded here).
 export interface RawFrame {
   width: number;
   height: number;
-  /// base64-encoded RGB24 pixels.
-  data: string;
+  /// Raw RGB24 pixels.
+  data: Uint8Array;
 }
 
 /// Register a drag-and-drop handler; returns an unregister function.

@@ -1,6 +1,14 @@
 import type { Channel } from "@tauri-apps/api/core";
 import { commands } from "./bindings";
-import type { Settings, RenderProgress, DownloadProgress, ProjectSettings, RenderConfig } from "./bindings";
+import type {
+  Settings,
+  RenderProgress,
+  DownloadProgress,
+  ProjectSettings,
+  RenderConfig,
+  FrameMeta,
+  FramePixels,
+} from "./bindings";
 
 export type {
   Settings,
@@ -22,6 +30,8 @@ export type {
   EngineBackend,
   BackendInfo,
   HardwareSnapshot,
+  FrameMeta,
+  FramePixels,
 } from "./bindings";
 
 export const healthCheck = () => commands.healthCheck();
@@ -68,8 +78,13 @@ export const downloadModel = (modelId: string, onProgress: Channel<DownloadProgr
   commands.downloadModel(modelId, onProgress);
 
 export const probeVideo = (input: string) => commands.probeVideo(input);
-export const readFrame = (input: string, positionMs: number | null, projectDir: string | null = null) =>
-  commands.readFrame(input, positionMs, projectDir);
+export const readFrame = (
+  input: string,
+  positionMs: number | null,
+  projectDir: string | null = null,
+  onMeta: Channel<FrameMeta>,
+  onFrame: Channel<FramePixels>,
+) => commands.readFrame(input, positionMs, projectDir, onMeta, onFrame);
 
 export const extractAudio = (input: string, projectDir: string | null = null) =>
   commands.extractAudio(input, projectDir);

@@ -42,7 +42,7 @@ export const commands = {
 	 *  makes specta's TS export recurse forever.
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
-	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<FrameData>("read_frame", { input, positionMs, projectDir }),
+	readFrame: (input: string, positionMs: number | null, projectDir: string | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, projectDir, onMeta, onFrame }),
 	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
 	/**
 	 *  Load an extracted audio file (AAC); playback stays paused until
@@ -137,16 +137,22 @@ export type FilterParams = {
 };
 
 /**
- *  A decoded preview frame: raw RGB24 bytes, base64-encoded for the IPC/JSON
- *  transport. `width`/`height` let the frontend build an `ImageData` directly
- *  (no `<img>`/PNG round-trip).
+ *  Width/height of a decoded preview frame, delivered as JSON on the meta
+ *  channel ahead of the raw pixels.
  */
-export type FrameData = {
+export type FrameMeta = {
 	width: number,
 	height: number,
-	/**  base64-encoded RGB24 pixels. */
-	data: string,
 };
+
+/**
+ *  Raw RGB24 preview pixels for the frame channel. `IpcResponse` delivers
+ *  them as an `ArrayBuffer` (no base64/JSON round-trip); deliberately not
+ *  `Serialize`, so the blanket JSON `IpcResponse` impl doesn't apply. Specta
+ *  can't express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the
+ *  frontend wrapper casts the channel to the runtime type.
+ */
+export type FramePixels = number[];
 
 export type HardwareSnapshot = {
 	/**  Overall system CPU load in 0..1. */

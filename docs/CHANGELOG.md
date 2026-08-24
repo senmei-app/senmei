@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **perf: preview frames over a raw Tauri Channel (2026-08-24)** — the Tauri
+  `read_frame` now delivers width/height on a `Channel<FrameMeta>` (JSON) and
+  the raw RGB24 pixels on a `Channel<FramePixels>` whose `IpcResponse` sends
+  an `ArrayBuffer` — no base64 over IPC. `FramePixels` is deliberately not
+  `Serialize` (the blanket JSON `IpcResponse` impl would apply); specta can't
+  express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the frontend
+  wrapper casts the channel. HTTP keeps base64 on the wire (decoded in
+  `http.ts`); `RawFrame.data` is now a uniform `Uint8Array`.
+
 - **perf: preview worker last-frame-wins (2026-08-24)** — the preview-decode
   worker drains its queue before each decode and keeps only the newest
   position per input; superseded requests are answered with their input's

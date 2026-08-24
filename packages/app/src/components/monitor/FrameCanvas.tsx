@@ -21,15 +21,15 @@ export default function FrameCanvas({
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const bin = atob(frame.data);
+    const src = frame.data;
     const w = frame.width;
     const h = frame.height;
     // RGB24 -> RGBA for ImageData.
     const rgba = new Uint8ClampedArray(w * h * 4);
-    for (let i = 0, j = 0; i < bin.length; i += 3, j += 4) {
-      rgba[j] = bin.charCodeAt(i);
-      rgba[j + 1] = bin.charCodeAt(i + 1);
-      rgba[j + 2] = bin.charCodeAt(i + 2);
+    for (let i = 0, j = 0; i < src.length; i += 3, j += 4) {
+      rgba[j] = src[i];
+      rgba[j + 1] = src[i + 1];
+      rgba[j + 2] = src[i + 2];
       rgba[j + 3] = 255;
     }
     // Decode into an offscreen buffer, then composite atomically.

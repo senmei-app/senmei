@@ -58,8 +58,22 @@ export const tauriBackend: Backend = {
   },
 
   async readFrame(input, positionMs, projectDir = null): Promise<RawFrame> {
-    // bridge.readFrame resolves to raw RGB24 (base64) + dimensions.
-    return bridge.readFrame(input, positionMs, projectDir);
+    // bridge.readFrame delivers width/height on the meta channel (JSON) and
+    // the raw RGB24 on the frame channel (ArrayBuffer) — no base64 over IPC.
+    return new Promise<RawFrame>((resolve, reject) => {
+      let meta: { width: number; height: number } | null = null;
+      const onMeta = new Channel<{ width: number; height: number }>((m) => {
+        meta = m;
+      });
+      // Specta types the frame payload `number[]`, but Tauri delivers a raw
+      // ArrayBuffer — `any` keeps the wrapper the single cast site.
+      const onFrame = new Channel<any>((buf: ArrayBuffer) => {
+        if (meta) {
+          resolve({ width: meta.width, height: meta.height, data: new Uint8Array(buf) });
+        }
+      });
+      bridge.readFrame(input, positionMs, projectDir, onMeta, onFrame).catch(reject);
+    });
   },
 
   nativeVideoUrl(input): FrameSource | null {
