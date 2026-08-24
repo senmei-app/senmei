@@ -12,11 +12,19 @@ pub use steps::{Deblur, Dedup, Denoise, Filter, Passthrough, Resize, Step, Upsca
 
 /// How many batches the upscale step keeps in flight (readback pipelining).
 /// Set per render via [`set_pipeline_depth`]; more depth overlaps the readback
-/// with more GPU forwards, at the cost of VRAM and cancel latency.
-static PIPELINE_DEPTH: AtomicUsize = AtomicUsize::new(1);
+/// with more GPU forwards, at the cost of VRAM and cancel latency. 2 is the
+/// sweet spot (docs/benchmarks.md): depth 3 adds ~1% over depth 2.
+const DEFAULT_PIPELINE_DEPTH: usize = 2;
+static PIPELINE_DEPTH: AtomicUsize = AtomicUsize::new(DEFAULT_PIPELINE_DEPTH);
 
+/// `0` (unset) uses the owning default; explicit depths are clamped to ≥1.
 pub fn set_pipeline_depth(depth: usize) {
-    PIPELINE_DEPTH.store(depth.max(1), Ordering::Relaxed);
+    let d = if depth == 0 {
+        DEFAULT_PIPELINE_DEPTH
+    } else {
+        depth.max(1)
+    };
+    PIPELINE_DEPTH.store(d, Ordering::Relaxed);
 }
 
 pub fn pipeline_depth() -> usize {

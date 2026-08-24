@@ -29,6 +29,12 @@
   scale (native tiled infer + `Resize`) to compare grain preservation vs a
   native model (e.g. 2× model at 4×).
 
+- **perf: `pipeline_depth` default 2 (2026-08-24)** — the upscale step keeps
+  2 readbacks in flight by default (was 1), overlapping each frame's readback
+  with the next forward. Measured −22 % on `real-cugan-pro-conservative-x2`
+  1080p@2 (docs/benchmarks.md); depth 3 adds ~1 %. `0` in settings = owning
+  default.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

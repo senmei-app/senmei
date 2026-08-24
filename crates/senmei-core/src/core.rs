@@ -310,7 +310,7 @@ impl Drop for RenderGate {
 #[cfg(feature = "render")]
 pub struct RenderOpts {
     pub tile_size: u32,
-    /// Readback pipeline depth (batches kept in flight); 0 = default (1).
+    /// Readback pipeline depth (batches kept in flight); 0 = default (2).
     pub pipeline_depth: usize,
     pub backend: senmei_ml::EngineBackend,
     pub cancel: Option<Arc<AtomicBool>>,

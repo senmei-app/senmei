@@ -258,7 +258,7 @@ fn bench_upscale_pipelined() {
             1000.0 / ms
         );
     }
-    senmei_pipeline::set_pipeline_depth(1);
+    senmei_pipeline::set_pipeline_depth(0); // back to the owning default
     println!("===================================================");
 }
 

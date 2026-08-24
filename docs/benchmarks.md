@@ -172,8 +172,22 @@ GPU stays busy during the transfer.
 
 ~22 % faster than the sync path. Depth 1 (double-buffered readback) captures
 nearly all of it — depth 2/3 add nothing here because the bench has no encoder
-write to hide behind the GPU (the full app may benefit). Default depth = 1,
-configurable via `pipeline_depth`.
+write to hide behind the GPU (the full app may benefit).
+
+### Depth 2 default (2026-08-24)
+
+Same bench, heavier model (`real-cugan-pro-conservative-x2`, 1080p@2 — the
+shipped grain model): depth now matters.
+
+| Depth | ms/frame | FPS | vs depth 1 |
+|---|---|---|---|
+| 1 | 777.5 | 1.3 | — |
+| **2** | **607.1** | **1.6** | **−22 %** |
+| 3 | 596.3 | 1.7 | −23 % |
+
+Depth 2 is the sweet spot (depth 3 adds ~1 %). The heavier model's bigger
+canvas/readback makes the overlap worthwhile where the light model's didn't.
+Default depth = **2** (was 1), `0` in settings = owning default.
 
 ## Real-frame upscaler sweep (2026-08-23)
 

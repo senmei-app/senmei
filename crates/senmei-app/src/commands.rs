@@ -484,7 +484,7 @@ pub async fn render(
         };
         let opts = core::RenderOpts {
             tile_size: settings.tile_size.unwrap_or(0),
-            pipeline_depth: settings.pipeline_depth.unwrap_or(1) as usize,
+            pipeline_depth: settings.pipeline_depth.unwrap_or(0) as usize,
             backend: settings.backend.unwrap_or_default(),
             cancel: Some(
                 CANCEL_RENDER

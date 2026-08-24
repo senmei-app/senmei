@@ -365,7 +365,6 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         }
         ty += step;
     }
-    let ntiles = grid.len();
     let ov = (overlap as f32 * scale_f).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
