@@ -53,6 +53,16 @@
   the bundled LGPL build. The backend now strips `-tune` when libkvazaar is
   the active codec (x264/x265 keep it).
 
+- **fix: enable VA-API hardware encode (2026-08-24)** — two false negatives
+  fixed: `vaapi_device()` now picks the discrete GPU (highest VRAM, matching
+  the Vulkan inference device) instead of the first render node (the iGPU,
+  which lacks HEVC encode at typical sizes), and `test_encode` uses 640×480
+  (the 64×48 probe is below every VA-API HEVC encoder's floor). VA-API
+  encoders also get software flags stripped (`-preset`/`-tune`/`-crf`/
+  `-pix_fmt`) and a `-qp 20` default. On the RX 9070, `hevc_vaapi` 10-bit
+  encodes at ~90 FPS @ 2304×1728, so the encoder never throttles the
+  pipeline (encode is hidden behind the upscale).
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

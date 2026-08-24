@@ -61,9 +61,33 @@ const HW_ENCODERS: [&str; 6] = [
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 const HW_ENCODERS: [&str; 0] = [];
 
-/// First VA-API render node (preferred) or card, if any.
+/// VA-API device of the discrete GPU (highest VRAM — matches the Vulkan
+/// inference device) with a render node, else any render node, else card0.
+/// Picking "the first renderD*" hits the integrated GPU on iGPU+dGPU systems
+/// (often without HEVC encode), which would silently disable HW encode.
 fn vaapi_device() -> Option<std::path::PathBuf> {
+    let vram = |card: &Path| -> u64 {
+        std::fs::read_to_string(card.join("device/mem_info_vram_total"))
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+    };
+    let mut cards: Vec<(u32, u64)> = (0..8u32)
+        .map(|n| (n, vram(&Path::new("/sys/class/drm").join(format!("card{n}")))))
+        .filter(|(_, v)| *v > 0)
+        .collect();
+    cards.sort_by(|a, b| b.1.cmp(&a.1)); // discrete first
     let dir = Path::new("/dev/dri");
+    for (n, _) in cards {
+        let render = dir.join(format!("renderD{}", 128 + n));
+        if render.is_file() {
+            return Some(render);
+        }
+        let card = dir.join(format!("card{n}"));
+        if card.is_file() {
+            return Some(card);
+        }
+    }
     for entry in std::fs::read_dir(dir).ok()?.flatten() {
         let name = entry.file_name();
         if name.to_string_lossy().starts_with("renderD") {
@@ -84,7 +108,9 @@ fn test_encode(ffmpeg: &Path, codec: &str) -> bool {
         cmd.arg(format!("-init_hw_device vaapi=va:{}", dev.display()));
         cmd.args(["-filter_hw_device", "va"]);
     }
-    cmd.args(["-f", "lavfi", "-i", "testsrc=duration=0.1:size=64x48:rate=10"]);
+    // 640×480: VA-API HEVC encoders reject tiny frames — 64×48 fails on both
+    // the iGPU and RX 9070 (~320×240 is the dGPU floor; 640×480 works on all).
+    cmd.args(["-f", "lavfi", "-i", "testsrc=duration=0.1:size=640x480:rate=10"]);
     if codec.ends_with("_vaapi") {
         cmd.args(["-vf", "format=nv12,hwupload"]);
     }
@@ -117,6 +143,24 @@ fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
     while i < args.len() {
         if args[i] == "-tune" {
             i += 2; // drop `-tune <value>`
+        } else {
+            out.push(args[i].clone());
+            i += 1;
+        }
+    }
+    out
+}
+
+/// VA-API encoders take `-qp`/`-rc_mode`, not the software-encoder flags
+/// (`-preset`/`-tune`/`-crf`/`-pix_fmt`) — strip them so a hardware encode
+/// doesn't reject the frontend's software-encoder options.
+fn vaapi_compat_args(args: &[String]) -> Vec<String> {
+    const DROP: [&str; 4] = ["-preset", "-tune", "-crf", "-pix_fmt"];
+    let mut out = Vec::with_capacity(args.len());
+    let mut i = 0;
+    while i < args.len() {
+        if DROP.contains(&args[i].as_str()) {
+            i += 2; // drop flag + value
         } else {
             out.push(args[i].clone());
             i += 1;
@@ -270,9 +314,18 @@ impl Encoder {
         if video_codec == "libkvazaar" {
             extra_args = kvazaar_compat_args(&extra_args);
         }
+        // VA-API encoders take `-qp`/`-rc_mode`, not the software flags
+        // (`-preset`/`-tune`/`-crf`/`-pix_fmt`) — strip them so a hardware
+        // encode doesn't reject the frontend's options.
+        if video_codec.ends_with("_vaapi") {
+            extra_args = vaapi_compat_args(&extra_args);
+        }
         // VA-API needs an explicit device + hardware upload; NVENC/QSV/AMF/VT
         // take ordinary frames and handle the upload themselves.
         let vaapi = video_codec.ends_with("_vaapi").then(vaapi_device).flatten();
+        if vaapi.is_some() && !extra_args.iter().any(|a| a == "-qp" || a == "-rc_mode") {
+            codec_args = vec!["-qp".into(), "20".into()];
+        }
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y");
         if let Some(dev) = &vaapi {
@@ -453,6 +506,27 @@ mod tests {
         );
         let plain = ["-pix_fmt".to_string(), "yuv420p10le".to_string()];
         assert_eq!(kvazaar_compat_args(&plain), plain);
+    }
+
+    #[test]
+    fn vaapi_strips_software_encoder_flags() {
+        let args = [
+            "-preset".to_string(),
+            "veryfast".to_string(),
+            "-pix_fmt".to_string(),
+            "yuv420p10le".to_string(),
+            "-tune".to_string(),
+            "grain".to_string(),
+            "-qp".to_string(),
+            "18".to_string(),
+        ];
+        // Software flags are dropped, a caller-provided -qp passes through.
+        assert_eq!(
+            vaapi_compat_args(&args),
+            vec!["-qp".to_string(), "18".to_string()]
+        );
+        let plain = ["-c:a".to_string(), "copy".to_string()];
+        assert_eq!(vaapi_compat_args(&plain), plain);
     }
 
     #[test]
