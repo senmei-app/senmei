@@ -45,18 +45,23 @@ export const STEP_META: Record<StepType, { icon: string; labelKey: string; imple
   output: { icon: "📦", labelKey: "tab.output", implemented: true },
 };
 
-/** Encoder quality profiles (RVE-style): each sets crf + preset as a bundle. */
+/** Encoder quality profiles (RVE-style): each sets crf + preset as a bundle.
+ * At a fixed CRF the preset only trades bitrate for speed — same visible
+ * quality. Tempo-safe by default (High/Medium = veryfast) so the encoder
+ * stays hidden behind the upscale step; slow presets at 4× make the encode
+ * the bottleneck (measured ~730 ms/frame on libx265 2304×1728 10-bit).
+ * Lossless/Very High stay slow for offline masters. */
 export const QUALITY_PRESETS: Record<string, { crf: number; preset: string }> = {
   Lossless: { crf: 0, preset: "slow" },
-  "Very High": { crf: 12, preset: "slow" },
-  High: { crf: 16, preset: "medium" },
-  Medium: { crf: 20, preset: "medium" },
+  "Very High": { crf: 12, preset: "medium" },
+  High: { crf: 16, preset: "veryfast" },
+  Medium: { crf: 20, preset: "veryfast" },
   Low: { crf: 24, preset: "fast" },
 };
 
 export function qualityKey(params: StepParams | undefined): string {
   const crf = params?.crf ?? 20;
-  const preset = params?.preset ?? "medium";
+  const preset = params?.preset ?? "veryfast";
   return (
     Object.keys(QUALITY_PRESETS).find((k) => {
       const p = QUALITY_PRESETS[k];
@@ -96,7 +101,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     subtitleMode: "None",
     ffmpegArgs: "",
     crf: 20,
-    preset: "medium",
+    preset: "veryfast",
     pixFmt: "yuv420p",
     tune: "",
     quality: "Medium",

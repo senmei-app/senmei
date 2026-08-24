@@ -40,6 +40,13 @@
   Mute is frontend-only (the rodio backend has no mute): it sends 0 while
   muted and the slider value otherwise.
 
+- **perf: tempo-safe encoder quality presets (2026-08-24)** — High/Medium now
+  use `veryfast` (was `medium`), Low `fast`, Very High `medium`, Lossless
+  `slow`. At a fixed CRF the preset only trades bitrate for speed (same
+  visible quality), and slow presets at 4× made the encoder the bottleneck
+  (measured ~730 ms/frame libx265 2304×1728 10-bit vs ~105 ms upscale).
+  Default output preset is `veryfast`.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
