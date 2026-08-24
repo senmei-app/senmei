@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: system `libx265` HEVC fallback (2026-08-24)** — `pick_from_caps`
+  now tries `libx265` right after `libkvazaar`, so an H.265 selection stays
+  real HEVC on system FFmpeg builds without kvazaar (previously it silently
+  fell through to the H.264 `libopenh264` ABR path, dropping
+  `-tune grain`/`-pix_fmt yuv420p10le`). GPL, kvazaar still preferred;
+  `SENMEI_X265_PRESET` override.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

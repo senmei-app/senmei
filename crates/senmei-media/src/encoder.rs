@@ -35,6 +35,15 @@ fn kvazaar_preset() -> &'static str {
         .leak()
 }
 
+/// x265 (HEVC) speed/quality trade-off — GPL system fallback when the LGPL
+/// kvazaar is absent, so an H.265 selection still gets a real HEVC encoder
+/// (not the H.264 openh264 fallback); override via `SENMEI_X265_PRESET`.
+fn x265_preset() -> &'static str {
+    std::env::var("SENMEI_X265_PRESET")
+        .unwrap_or_else(|_| "veryfast".into())
+        .leak()
+}
+
 /// Hardware encoders to try, HEVC before H.264, per platform. Only used when a
 /// runtime test encode confirms the encoder actually works (they are listed in
 /// `-encoders` even without a GPU and then fail at runtime).
@@ -100,13 +109,15 @@ fn hw_verifier(ffmpeg: &Path) -> impl Fn(&str) -> bool + '_ {
 }
 
 /// Pick the best video encoder available in `ffmpeg`. Verified hardware
-/// encoders come first (fast; HEVC before H.264); otherwise the LGPL-safe
-/// software chain: libkvazaar (HEVC, BSD — ships in the bundled LGPL builds),
-/// then libopenh264 (H.264), then libx264 (GPL-only, works on GPU-less
-/// runners), then the native fallback. kvazaar/x264 default to quality-based
-/// rate control; libopenh264 is fixed-bitrate ABR, so it gets a
-/// resolution-based `-b:v` (~14 Mbps @1080p, 144 bits/px) — the caller's
-/// `extra_args` are appended later and can override it.
+/// encoders come first (fast; HEVC before H.264); otherwise the software
+/// chain: libkvazaar (HEVC, LGPL — ships in the bundled LGPL builds), then
+/// libx265 (HEVC, GPL — present in most system FFmpeg builds, so an H.265
+/// selection stays HEVC when kvazaar is missing), then libopenh264 (H.264),
+/// then libx264 (GPL-only, works on GPU-less runners), then the native
+/// fallback. kvazaar/x264/x265 default to quality-based rate control;
+/// libopenh264 is fixed-bitrate ABR, so it gets a resolution-based `-b:v`
+/// (~14 Mbps @1080p, 144 bits/px) — the caller's `extra_args` are appended
+/// later and can override it.
 fn pick_from_caps(
     caps: &[String],
     width: u32,
@@ -119,10 +130,10 @@ fn pick_from_caps(
         }
     }
     // libopenh264 hard-caps at 4096x4096 — for larger frames skip it so the
-    // chain falls through to libx264 (or the native h264 fallback) instead of
-    // failing the encode at >4K output (e.g. x4 from 1080p).
+    // chain falls through to libx264/libx265 (or the native h264 fallback)
+    // instead of failing the encode at >4K output (e.g. x4 from 1080p).
     let openh264_ok = width <= 4096 && height <= 4096;
-    for codec in ["libkvazaar", "libopenh264", "libx264", "h264_nvenc", "h264"] {
+    for codec in ["libkvazaar", "libx265", "libopenh264", "libx264", "h264_nvenc", "h264"] {
         if codec == "libopenh264" && !openh264_ok {
             continue;
         }
@@ -132,6 +143,7 @@ fn pick_from_caps(
                     codec.into(),
                     vec!["-preset".into(), kvazaar_preset().into()],
                 ),
+                "libx265" => (codec.into(), vec!["-preset".into(), x265_preset().into()]),
                 "libopenh264" => (
                     codec.into(),
                     vec![
