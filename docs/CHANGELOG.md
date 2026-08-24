@@ -47,6 +47,12 @@
   (measured ~730 ms/frame libx265 2304×1728 10-bit vs ~105 ms upscale).
   Default output preset is `veryfast`.
 
+- **fix: drop `-tune` for libkvazaar (2026-08-24)** — kvazaar has no
+  `-tune grain` (its tune set is ssim/psnr/fast_decode/zero_latency/znx_*);
+  the frontend always sends `-tune` for H.265, which would fail the encode on
+  the bundled LGPL build. The backend now strips `-tune` when libkvazaar is
+  the active codec (x264/x265 keep it).
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries

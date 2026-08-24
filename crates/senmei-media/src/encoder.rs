@@ -108,6 +108,23 @@ fn hw_verifier(ffmpeg: &Path) -> impl Fn(&str) -> bool + '_ {
     }
 }
 
+/// kvazaar has no `-tune` (its tune set is ssim/psnr/fast_decode/
+/// zero_latency/znx_*) — strip the caller's `-tune …` so the bundled LGPL
+/// build doesn't fail the encode (x264/x265 accept it; openh264 ignores it).
+fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "-tune" {
+            i += 2; // drop `-tune <value>`
+        } else {
+            out.push(args[i].clone());
+            i += 1;
+        }
+    }
+    out
+}
+
 /// Pick the best video encoder available in `ffmpeg`. Verified hardware
 /// encoders come first (fast; HEVC before H.264); otherwise the software
 /// chain: libkvazaar (HEVC, LGPL — ships in the bundled LGPL builds), then
@@ -249,6 +266,9 @@ impl Encoder {
             } else {
                 log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
             }
+        }
+        if video_codec == "libkvazaar" {
+            extra_args = kvazaar_compat_args(&extra_args);
         }
         // VA-API needs an explicit device + hardware upload; NVENC/QSV/AMF/VT
         // take ordinary frames and handle the upload themselves.
@@ -418,6 +438,22 @@ impl Drop for Encoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kvazaar_strips_tune() {
+        let args = [
+            "-tune".to_string(),
+            "grain".to_string(),
+            "-preset".to_string(),
+            "medium".to_string(),
+        ];
+        assert_eq!(
+            kvazaar_compat_args(&args),
+            vec!["-preset".to_string(), "medium".to_string()]
+        );
+        let plain = ["-pix_fmt".to_string(), "yuv420p10le".to_string()];
+        assert_eq!(kvazaar_compat_args(&plain), plain);
+    }
 
     #[test]
     fn override_codec_sets_bitrate_for_openh264_only() {
