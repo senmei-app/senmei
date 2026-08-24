@@ -262,6 +262,64 @@ fn bench_upscale_pipelined() {
     println!("===================================================");
 }
 
+/// Fused RGB8 path at a REQUESTED scale on the real DVD frame (the app path
+/// for e.g. a 2× model rendered at 4×) — measures native-canvas accumulation
+/// + the single final re-sample. `BENCH_MODEL` / `BENCH_SCALE` /
+/// `BENCH_FRAME` select the run.
+#[test]
+#[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
+fn bench_fused_requested_scale() {
+    let mref = model();
+    let scale: u32 = std::env::var("BENCH_SCALE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let frame_path = std::env::var("BENCH_FRAME").unwrap_or_else(|_| {
+        format!(
+            "{}/models.bat/vlcsnap-2026-08-24-20h04m58s914.png",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../..")
+        )
+    });
+    let dir = std::env::temp_dir().join("senmei-bench-fused");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ffmpeg = senmei_media::resolve(&dir);
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ffmpeg,
+        std::path::Path::new(&frame_path),
+        0,
+        None,
+        senmei_media::Tonemap::Auto,
+    )
+    .unwrap();
+    let f = dec.next_frame().unwrap().expect("frame");
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+    engine.load(&mref).unwrap();
+    let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
+    let mut warm = vec![f.clone()];
+    step.process_batch(&mut warm).unwrap(); // first batch resolves synchronously
+    let (w, h) = (warm[0].width, warm[0].height);
+    let n = 4;
+    let t0 = Instant::now();
+    let mut out_n = 0usize;
+    for _ in 0..n {
+        let mut batch = vec![f.clone()];
+        step.process_batch(&mut batch).unwrap();
+        out_n += batch.len();
+    }
+    let mut tail = Vec::new();
+    step.flush(&mut tail).unwrap();
+    out_n += tail.len();
+    let ms = t0.elapsed().as_secs_f64() * 1000.0 / n as f64;
+    println!(
+        "{:<30} fused @ s{scale}: {w}x{h} {ms:.1} ms ({fps:.1} FPS) | out {out_n}",
+        mref.id,
+        ms = ms,
+        fps = 1000.0 / ms
+    );
+    println!("===================================================");
+}
+
 /// End-to-end render speed through the (threaded) pipeline, incl. x264 encode.
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]

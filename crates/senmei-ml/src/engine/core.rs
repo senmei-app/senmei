@@ -310,6 +310,15 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     let scale_f = scale as f32;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
+    // A requested scale ≠ the model's native scale (e.g. a 2× model at 4×):
+    // accumulate at the native scale and re-sample once at the end. Per-tile
+    // re-sampling plus a requested-scale canvas dominated GPU memory traffic
+    // (measured ~72% memory activity) — the native canvas is 4× smaller here.
+    let resample = scale != native_scale;
+    let native_f = native_scale as f32;
+    let acc_scale = if resample { native_f } else { scale_f };
+    let acc_h = (ph as f32 * acc_scale).round() as usize;
+    let acc_w = (pw as f32 * acc_scale).round() as usize;
     // VRAM guard — no CPU fallback: reject with a clear error before the big
     // canvas/readback allocation instead of silently dropping to the slow CPU
     // path or hitting the OOM crash (which loses the wgpu device handle). The
@@ -344,7 +353,6 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     // the per-tile CPU gather + f32→f16 convert + PCIe upload that kept the
     // GPU idle between tile forwards (measured ~50% GPU busy with two CPU
     // cores pegged on the render worker).
-    let resample = scale != native_scale;
     let mut gpu_frames = Vec::with_capacity(inputs.len());
     for inp in inputs {
         let padded = crate::pad_to(inp, ph, pw);
@@ -365,7 +373,7 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         }
         ty += step;
     }
-    let ov = (overlap as f32 * scale_f).round() as usize;
+    let ov = (overlap as f32 * acc_scale).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
     // lines vanish at the seams; the canvas border keeps full weight
@@ -392,10 +400,10 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     // of copy-on-write. A single readback per frame at the end avoids the
     // burn-fusion ordering panic (docs/burn-bugs.md Bug 1).
     let mut accs: Vec<BurnTensor<B, 4>> = (0..n)
-        .map(|_| BurnTensor::<B, 4>::zeros([1, c, out_h, out_w], device))
+        .map(|_| BurnTensor::<B, 4>::zeros([1, c, acc_h, acc_w], device))
         .collect();
     let mut covs: Vec<BurnTensor<B, 4>> = (0..n)
-        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device))
+        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, acc_h, acc_w], device))
         .collect();
     for (x, y) in grid {
         // Slice the tile region on-device (rows are contiguous, row stride pw;
@@ -414,23 +422,12 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             Ok(o) => o,
             Err(e) => return Some(Err(e)),
         };
-        // Re-sample the model's native-scale tile output to the requested
-        // scale on the GPU (e.g. x2 model at x4), so the canvas placement
-        // and feather mask below match `scale` exactly.
-        let out = if resample {
-            let oh = (tile as f32 * scale_f).round() as usize;
-            let ow = (tile as f32 * scale_f).round() as usize;
-            interpolate(
-                out,
-                [oh, ow],
-                InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false),
-            )
-        } else {
-            out
-        };
         let [_, _, oh, ow] = out.dims();
-        let sx = (x as f32 * scale_f).round() as usize;
-        let sy = (y as f32 * scale_f).round() as usize;
+        // Place the native-scale tile in the accumulation canvas (which is at
+        // the model's native scale when a requested scale differs); the single
+        // final re-sample to the requested scale happens after the tile loop.
+        let sx = (x as f32 * acc_scale).round() as usize;
+        let sy = (y as f32 * acc_scale).round() as usize;
         // Clamp before accumulating: out-of-range values (>1.0 at hard
         // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
         let out = out.clamp(0.0, 1.0);
@@ -466,6 +463,16 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             };
             let prev = std::mem::replace(&mut covs[f], placeholder.clone());
             covs[f] = prev.slice_assign(cregion, csum);
+        }
+    }
+    // One-shot re-sample of the native-scale canvas to the requested scale
+    // (both the weighted sum and its coverage, so the readback division still
+    // yields the averaged frame).
+    if resample {
+        let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
+        for (acc, cov) in accs.iter_mut().zip(covs.iter_mut()) {
+            *acc = interpolate(acc.clone(), [out_h, out_w], opts.clone());
+            *cov = interpolate(cov.clone(), [out_h, out_w], opts.clone());
         }
     }
     let out_h_t = (h as f32 * scale_f).round() as usize;
@@ -530,10 +537,27 @@ impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
                 Ok(v) => v,
                 Err(e) => return Err(Error::new(e.to_string())),
             };
-            let mut bytes = Vec::with_capacity(data.len());
-            for v in data {
-                bytes.push((v.to_f32() + 0.5) as u8);
-            }
+            // Parallel f16→u8: the convert is the main-thread stall after the
+            // GPU readback (with pipeline_depth it overlaps the next forward,
+            // but a 12 M-element convert still delays the next submit). Split
+            // across cores so the main thread re-queues the GPU sooner.
+            let mut bytes = vec![0u8; data.len()];
+            std::thread::scope(|s| {
+                let nt = std::thread::available_parallelism()
+                    .map(|p| p.get())
+                    .unwrap_or(4)
+                    .min(16);
+                let chunk = data.len().div_ceil(nt);
+                // chunks/chunks_mut yield disjoint slices, so each spawned
+                // closure owns a non-overlapping (data, out) pair.
+                for (d, o) in data.chunks(chunk).zip(bytes.chunks_mut(chunk)) {
+                    s.spawn(move || {
+                        for (dd, oo) in d.iter().zip(o.iter_mut()) {
+                            *oo = (dd.to_f32() + 0.5) as u8;
+                        }
+                    });
+                }
+            });
             let cropped = crate::crop_rgb24(&bytes, self.out_w, self.out_h_t, self.out_w_t);
             result.push((cropped, self.out_w_t as u32, self.out_h_t as u32));
         }

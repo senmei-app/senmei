@@ -77,6 +77,16 @@
   `vaapi_device()` (highest VRAM) with a `SENMEI_VAAPI_DEVICE` override for
   e.g. offloading encode to the iGPU while the discrete GPU runs inference.
 
+- **perf: fused-path render optimizations (2026-08-24)** — (a) a requested
+  scale ≠ the model's native scale (e.g. a 2× model at 4×) now accumulates at
+  the native scale and re-samples once at the end instead of per tile (less
+  GPU memory traffic; identical for single-tile frames, faster on larger
+  multi-tile inputs); (b) the readback f16→u8 convert is parallelized across
+  cores (it was the main-thread stall after the GPU readback). Measured on
+  the RX 9070: `real-cugan-pro-conservative-x2` @4× (576×432) fused path
+  91.5 → **72.8 ms (13.7 FPS)**. New `bench_fused_requested_scale` measures
+  the fused path at a requested scale.
+
 ## 0.1.9 (2026-08-24)
 
 - **feat: Real-CUGAN-Pro 2× family (2026-08-23)** — catalog entries
