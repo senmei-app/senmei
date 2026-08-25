@@ -535,16 +535,19 @@ lib), and gives full codec coverage (incl. H.265) everywhere.
 
 | Piece | Today | Target |
 |---|---|---|
-| Frame transport | RGB24 → PNG → temp-file/base64 → `<img>` | **raw frames → `FrameSink`** (Tauri `Channel<PreviewFrame>` → `putImageData`; HTTP binary body) |
+| Frame transport | RGB24 → PNG → temp-file/base64 → `<img>` | ✅ raw frames → `putImageData` (Tauri `Channel` ArrayBuffer; HTTP raw body) — no `<img>`, no base64 |
 | Preview resolution | full source (4K = 8 MB/frame) | **decode budget** — `max_dim` hint (canvas×DPR, cap 1280/1920), `scale=…:-2`, never upscale; render/export stays full-res |
 | Audio (desktop) | `extract_audio` → **MP3** for rodio (codec hack) | **FFmpeg → PCM → native sink** (rodio/cpal) — all codecs, no rodio-codec dep |
 | Audio (web UI) | none | Range-stream → `<audio>`/`<video>` (browser decodes) |
 | Concurrency | sync per-request decode | **decoder thread + ring buffer** (last-frame-wins) |
 | `PreviewCache` | binary-search EOF hack, catch-up loop, FIFO evict | correct video-stream duration probing (root cause) + state machine + LRU |
 
-**`FrameSink` seam (senmei-core):** `trait FrameSink { fn push(&self, frame: &Frame) }`
-— `TauriChannelSink` / `HttpStreamSink` / (future Servo). The decode path
-becomes transport-agnostic; a Servo/CEF swap no longer touches media.
+**Transport seam (2026-08-25):** the decode path is transport-agnostic via
+`PreviewWorker`/`PreviewCache` in `senmei-media` (warm streams, decode budget,
+last-frame-wins); each adapter frames the payload (Tauri `Channel` ArrayBuffer,
+HTTP raw body). A `FrameSink` trait was considered for a future Servo swap but
+dropped — the worker already decouples media from the engine, so a swap
+wouldn't touch media.
 
 **Webview implications:** because media no longer depends on the engine's
 `<video>`/`<audio>`, the WebKitGTK↔Servo question is decoupled from media.
@@ -552,6 +555,8 @@ Servo's **canvas 2D throughput** is the only open evaluation item — measure
 (1080p @ 24 fps `putImageData`) before any switch; CEF stays out (size, codec
 licensing).
 
-**Phases:** 1 = PreviewCache simplification · 2 = raw-frame transport +
-`FrameSink` + decode budget · 3 = decoder thread/ring buffer · 4 = audio
-(FFmpeg→PCM native sink + web Range-stream). Todos in `todos.md`.
+**Phases:** 1 ✅ = PreviewCache simplification · 2 ✅ = raw-frame transport +
+decode budget (worker seam, no `FrameSink` trait) · 3 = decoder thread/ring
+buffer (warm streams + last-frame-wins done; true ring buffer open) · 4 =
+audio (desktop FFmpeg→PCM rodio done; web Range-stream open). Todos in
+`todos.md`.
