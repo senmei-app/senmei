@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **fix: preview frame requests can't hang (2026-08-25)** — the decode worker
+  now answers within 10 s (`recv_timeout`) instead of blocking a Tauri command
+  or HTTP request forever, and the Tauri `readFrame` wrapper resolves once both
+  the meta and pixel channels arrive (order-independent) instead of dropping
+  the frame if it lands first.
+
+- **docs: PLAN §18 — transport seam is the shared worker, no FrameSink trait
+  (2026-08-25)** — the planned `FrameSink` trait was dropped; the
+  transport-agnostic `PreviewWorker`/`PreviewCache` in `senmei-media` is the
+  seam, both transports now frame raw payloads (Tauri Channel / HTTP body).
+
 - **perf: HTTP preview frames → shared worker + raw RGB24 body (2026-08-25)** —
   `/api/frame` decodes through the same `PreviewWorker`/`PreviewCache` (warm
   streams, last-frame-wins, decode budget) as Tauri, so web scrubbing no longer

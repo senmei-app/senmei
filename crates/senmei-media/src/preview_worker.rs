@@ -4,9 +4,14 @@
 
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::time::Duration;
 
 use crate::frame::Frame;
 use crate::PreviewCache;
+
+/// A frame request must never hang the caller (Tauri command / HTTP request);
+/// a stuck decode (e.g. an ffmpeg spawn that never emits a frame) times out.
+const FRAME_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// One decode request; the worker answers on `respond`.
 struct PreviewRequest {
@@ -74,7 +79,8 @@ impl PreviewWorker {
                 respond,
             })
             .map_err(|e| e.to_string())?;
-        recv.recv().map_err(|e| e.to_string())?
+        recv.recv_timeout(FRAME_TIMEOUT)
+            .map_err(|_| "preview decode timed out".to_string())?
     }
 }
 
