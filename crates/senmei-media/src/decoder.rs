@@ -49,10 +49,8 @@ impl Decoder {
         if start_ms > 0 {
             cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
         }
-        // ffmpeg autorotates by default (DisplayMatrix), which would silently
-        // change the output size away from the probed one. Disable that and
-        // apply the rotation explicitly. The filter per rotation is verified
-        // byte-identical against ffmpeg's own autorotation.
+        // ffmpeg autorotates by default, silently changing the output size;
+        // disable it and apply the rotation explicitly.
         if info.rotation != 0 {
             cmd.arg("-noautorotate");
         }
@@ -90,19 +88,14 @@ impl Decoder {
                 filters.push(format!("scale={out_w}:{out_h}"));
             }
         }
-        // `-vf` must precede the output URL: placed after `-`, this build's
-        // ffmpeg silently drops the graph and emits unscaled frames, so the
-        // decoder reads a misaligned chunk of a larger frame → row-shifted
-        // "stripes" in the preview (only visible when a scale filter exists,
-        // i.e. sources larger than the preview budget).
+        // `-vf` before the output URL: placed after `-`, this ffmpeg build
+        // silently drops the graph → misaligned reads → "stripes" in preview.
         if !filters.is_empty() {
             cmd.arg("-vf").arg(filters.join(","));
         }
         cmd.args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
 
-        // stdin null: the decoder never reads stdin, and inheriting the
-        // terminal's stdin would leave the pty held by an orphaned ffmpeg
-        // after the app is killed (terminal appears frozen until `reset`).
+        // stdin null, or an orphaned ffmpeg would hold the pty open after kill.
         let mut child = cmd
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -114,8 +107,7 @@ impl Decoder {
             .take()
             .ok_or_else(|| Error::Command("failed to capture ffmpeg stdout".into()))?;
 
-        // Cap on the accurate video-stream duration, not the container one
-        // (copied audio can over-report the container past the video end).
+        // Cap on the video-stream duration (copied audio over-reports container).
         let source_dur = if info.video_duration > 0.0 {
             info.video_duration
         } else {

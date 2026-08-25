@@ -20,11 +20,8 @@ pub fn encode_png(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Streaming PCM audio for the native preview player. `stream_pcm` spawns
-/// ffmpeg decoding `input`'s audio (any codec) to s16le stereo PCM on stdout;
-/// a reader thread forwards chunks into the returned channel. The caller owns
-/// `PcmPipe` (the ffmpeg child) for kill-on-seek; the stream ends when the
-/// channel closes (EOF/kill). No re-encode, no disk file, no rodio-codec dep.
+/// Streaming PCM — no re-encode, no file, no rodio-codec; caller owns the
+/// ffmpeg child for kill-on-seek.
 pub struct PcmPipe {
     child: std::process::Child,
 }
@@ -37,9 +34,7 @@ impl PcmPipe {
     }
 }
 
-/// Spawn ffmpeg decoding `input` audio → s16le stereo PCM at `sample_rate`,
-/// seeked to `position_ms` (fast input seek). Returns the pipe (child) and
-/// the chunk channel to feed into the native sink.
+/// Spawn the PCM pipe: returns the child (for kill) + a chunk channel.
 pub fn stream_pcm(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,

@@ -147,16 +147,14 @@ export default function Monitor({
   }, []);
   const be = () => beRef.current;
 
-  // rodio/cpal buffer the output, so the audible track can lag the source
-  // position; the lead nudges the source ahead so the sound lands on the
-  // playhead. 0 = no compensation (measure the residual direction first).
+  // rodio/cpal buffer output; the lead nudges the source onto the playhead.
+  // 0 = no compensation yet (measure the residual first).
   const AUDIO_LEAD_MS = 0;
   const syncAudio = (ms: number) => {
     void be()?.audioSeek(ms + AUDIO_LEAD_MS).catch(() => {});
   };
 
-  // Stream the file's audio (no extraction wait); a stale load after a file
-  // switch can't stick — each `audioLoad` replaces the current ffmpeg pipe.
+  // Stream the file's audio; a fresh `audioLoad` replaces the current pipe.
   useEffect(() => {
     // Drop the previous stream so a stale source can't play while the next loads.
     void be()?.audioClear().catch(() => {});
@@ -169,15 +167,12 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, beReady]);
 
-  // Audio arrives async (extraction takes seconds). Apply the saved volume
-  // (incl. mute) once the track is loaded — the startup volume effect can't
-  // reach the backend before it resolves — and join playback if it already
-  // started.
+  // Audio resolves async; apply volume once ready, land on the playhead, and
+  // join playback if it already started.
   useEffect(() => {
     if (!audioReady) return;
     void be()?.audioSetVolume(volume).catch(() => {});
-    // Always land on the playhead — a fresh load starts at 0, which is the
-    // source's start and wrong for the result/compare views.
+    // A fresh load starts at 0 — wrong for the result/compare views.
     syncAudio(posRef.current);
     if (playing) {
       void be()?.audioPlay().catch(() => {});

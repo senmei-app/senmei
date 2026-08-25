@@ -1,6 +1,5 @@
-//! Persistent decode streams for smooth monitor playback: one long-lived
-//! ffmpeg process per file feeds rawvideo frames through a pipe, so playing
-//! back reads the next frame instead of spawning a process per frame.
+//! Warm decode streams: one long-lived ffmpeg per file, so playback reads the
+//! next frame from the pipe instead of spawning a process per frame.
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -11,8 +10,7 @@ use crate::{Error, Result};
 
 /// Max streams kept warm (source + result side by side in compare).
 const MAX_STREAMS: usize = 2;
-/// A request is a jump (re-seek) when it's outside this window around the
-/// next decoded frame; within it we read cheaply from the pipe.
+/// Re-seek when a request falls outside this window around the next frame.
 const CONTIG_TOL_MS: f64 = 300.0;
 /// Cap on cheap catch-up frame skips per read (avoids runaway decode).
 const MAX_CATCHUP: usize = 1500;
@@ -52,7 +50,6 @@ impl PreviewCache {
     /// frame from a warm stream when contiguous; fast-seeks on a jump or EOF.
     pub fn frame(&mut self, input: &str, position_ms: f64) -> Result<Frame> {
         let key = PathBuf::from(input);
-        // LRU: evict the least-recently-used stream when at capacity.
         if !self.streams.contains_key(&key) && self.streams.len() >= MAX_STREAMS {
             if let Some(victim) = self.order.pop_front() {
                 self.streams.remove(&victim);
@@ -76,11 +73,8 @@ impl PreviewCache {
         self.order.push_back(key.clone());
 
         let s = self.streams.get_mut(&key).unwrap();
-        // Read forward only while the request is past the midpoint between the
-        // last decoded frame and the next one (return the nearest frame).
-        // Never run ahead of the request — that made playback oscillate
-        // between a re-seek and an ahead-read when decode lagged (notably
-        // upscaled results), visibly "jumping" between positions.
+        // Return the nearest frame; never run ahead — that made playback
+        // oscillate between re-seek and ahead-read when decode lagged.
         let mut guard = 0;
         while !s.finished
             && position_ms + s.frame_ms / 2.0 >= s.next_frame_ms
@@ -101,9 +95,8 @@ impl PreviewCache {
         if let Some(f) = s.last_frame.clone() {
             return Ok(f);
         }
-        // Nothing decoded yet. On EOF (request past the real video end) re-seek
-        // once to the last valid position — the video-stream duration makes
-        // `end_ms - frame_ms` decodable.
+        // On EOF (request past the real video end) re-seek once to a valid
+        // position instead of hard-erroring.
         if s.finished {
             let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
             *s = Self::open(&self.ffmpeg, input, clamped, self.max_dim)?;

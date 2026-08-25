@@ -18,11 +18,8 @@ struct PreviewRequest {
 
 static PREVIEW_WORKER: OnceLock<mpsc::Sender<PreviewRequest>> = OnceLock::new();
 
-/// Last-frame-wins: drain the worker queue and keep only the newest request
-/// per input. Superseded requests are returned so the worker can answer them
-/// with the newest frame — a fast scrub must not queue stale decodes behind a
-/// slow one (upscaled results), and the superseded callers unblock instead of
-/// waiting on positions nobody wants.
+/// Last-frame-wins: drain the queue, keep the newest request per input;
+/// superseded callers get the newest frame (no stale decodes behind a slow one).
 fn coalesce(
     first: PreviewRequest,
     rx: &mpsc::Receiver<PreviewRequest>,
@@ -39,9 +36,7 @@ fn coalesce(
     (latest, stale)
 }
 
-/// Lazily spawn the single preview-decode worker. It owns the `PreviewCache`
-/// (warm decode streams = ring buffer) on one thread, so decodes are
-/// serialized without a shared lock and no thread is spawned per request.
+/// Single decode worker owns the `PreviewCache`: serialized decodes, no lock.
 fn worker() -> &'static mpsc::Sender<PreviewRequest> {
     PREVIEW_WORKER.get_or_init(|| {
         let (tx, rx) = mpsc::channel::<PreviewRequest>();
@@ -78,11 +73,9 @@ pub struct FrameMeta {
     pub height: u32,
 }
 
-/// Raw RGB24 preview pixels for the frame channel. `IpcResponse` delivers
-/// them as an `ArrayBuffer` (no base64/JSON round-trip); deliberately not
-/// `Serialize`, so the blanket JSON `IpcResponse` impl doesn't apply. Specta
-/// can't express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the
-/// frontend wrapper casts the channel to the runtime type.
+/// Raw RGB24 for the frame channel — `IpcResponse::Raw` = ArrayBuffer (no
+/// base64); not `Serialize` so the blanket JSON impl doesn't apply. Specta
+/// can't type `ArrayBuffer`, so the frontend casts the channel.
 #[derive(Debug, Clone, specta::Type)]
 pub struct FramePixels(pub Vec<u8>);
 
@@ -101,11 +94,7 @@ pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String>
     })
 }
 
-/// Decode one frame at `position_ms` as raw RGB24 for the preview monitor.
-/// Sends the request to the single decode worker, which serves it from its
-/// warm decode streams (one ffmpeg per file) and applies the preview decode
-/// budget. Transport-agnostic: the caller frames the bytes (Tauri raw Channel
-/// vs HTTP base64).
+/// Decode one frame as raw RGB24 via the worker (warm streams + decode budget).
 pub fn read_frame_inner(
     input: &str,
     position_ms: f64,

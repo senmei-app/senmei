@@ -1,8 +1,5 @@
-//! Native audio playback for the preview monitor. WebKitGTK can't play media
-//! over Tauri's `asset://` scheme (its GStreamer backend doesn't know the
-//! scheme), so audio is decoded and played here via rodio, driven by IPC.
-//! The source is streamed: ffmpeg decodes any codec to PCM (no re-encode, no
-//! disk file, no rodio-codec dep); a seek restarts the pipe at the position.
+//! Preview audio via rodio: WebKitGTK can't play Tauri's `asset://` scheme,
+//! so ffmpeg streams PCM here (no re-encode, no rodio-codec dep).
 
 use std::cell::RefCell;
 use std::path::Path;
@@ -11,7 +8,6 @@ use std::time::Duration;
 
 use rodio::Source;
 
-/// s16le stereo PCM from the ffmpeg pipe; rodio pulls it sample by sample.
 struct PcmSource {
     rx: mpsc::Receiver<Vec<u8>>,
     buf: std::vec::IntoIter<i16>,
@@ -60,14 +56,11 @@ struct Player {
     handle: rodio::OutputStreamHandle,
     sink: Option<rodio::Sink>,
     volume: f32,
-    /// Current source input, so a seek can restart the pipe at the position.
     input: Option<String>,
-    /// The live ffmpeg child, killed on seek/clear.
     pipe: Option<senmei_media::PcmPipe>,
 }
 
-// rodio's OutputStream is !Send and must live on one thread; Tauri runs sync
-// commands on the main thread, so a thread-local keeps it sound.
+// OutputStream is !Send; a thread-local keeps it sound (commands on main thread).
 thread_local! {
     static PLAYER: RefCell<Option<Player>> = RefCell::new(None);
 }
@@ -90,7 +83,6 @@ fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T,
     })
 }
 
-/// Restart the stream from `input` at `position_ms`; paused unless `playing`.
 fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result<(), String> {
     if let Some(mut pipe) = p.pipe.take() {
         pipe.stop();
@@ -119,7 +111,6 @@ fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result
     Ok(())
 }
 
-/// Start streaming `input`'s audio at `position_ms` (paused until `audio_play`).
 #[tauri::command]
 #[specta::specta]
 pub fn audio_load(input: String, position_ms: f64) -> Result<(), String> {
@@ -148,7 +139,6 @@ pub fn audio_pause() -> Result<(), String> {
     })
 }
 
-/// Drop the current stream so a stale source can't play while the next loads.
 #[tauri::command]
 #[specta::specta]
 pub fn audio_clear() -> Result<(), String> {
@@ -162,7 +152,7 @@ pub fn audio_clear() -> Result<(), String> {
     })
 }
 
-/// Seek = restart the ffmpeg pipe at `position_ms` (keeps play state).
+/// Seek = restart the pipe at position (keeps play state).
 #[tauri::command]
 #[specta::specta]
 pub fn audio_seek(position_ms: f64) -> Result<(), String> {

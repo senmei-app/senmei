@@ -15,9 +15,8 @@ pub struct VideoInfo {
     pub height: u32,
     pub fps: f64,
     pub duration: f64,
-    /// Video-stream duration (accurate even when the container duration
-    /// over-reports because copied audio runs past the video range).
-    /// Internal decode cap — not serialized.
+    /// Accurate video-stream duration (container over-reports with copied
+    /// audio); internal decode cap, not serialized.
     #[serde(skip)]
     pub video_duration: f64,
     /// Clockwise rotation needed for display, normalized to 0/90/180/270.
