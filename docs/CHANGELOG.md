@@ -6,7 +6,7 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
-## Unreleased
+## 0.1.10 (2026-08-25)
 
 - **perf: tch engine runs f16 on the fused RGB8 GPU path (2026-08-25)** —
   the libtorch backend now uses `LibTorch<f16>` (was f32: half the memory
