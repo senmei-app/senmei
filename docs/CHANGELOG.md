@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **cleanup: drop unreachable source-loop branch in onVideoTime (2026-08-25)**
+  — the native `<video>` only mounts in source mode (`nativeSrc` is null
+  elsewhere), so the "loop within sample" else branch was dead code.
+
 - **fix: A/B compare clamps to the sample in-point like result/compare
   (2026-08-25)** — switching to A/B landed on the playhead instead of `inMs`,
   so both rendered panes could read outside the sample window; it now maps to

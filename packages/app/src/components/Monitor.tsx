@@ -221,10 +221,7 @@ export default function Monitor({
         const p = snapFrame(t, fps);
         onSampleChange?.(p, snapFrame(p + dur, fps));
       }
-      return;
     }
-    const endSec = outMs / 1000;
-    if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
   };
 
   const togglePlay = () => {
