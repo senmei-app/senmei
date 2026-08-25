@@ -393,11 +393,15 @@ export default function Monitor({
     let on = true;
     const fileChanged = file !== prevFile.current;
     prevFile.current = file ?? null;
-    // Result/compare only span the sample window; land on the sample start so
-    // source/result/audio all align (the video may have run past while the
+    // Result/compare/A-B only span the sample window; land on the sample start
+    // so source/result/audio all align (the video may have run past while the
     // render was busy, leaving the playhead outside the window).
     const next =
-      fileChanged ? 0 : mode === "result" || mode === "compare" ? inMs : posMs;
+      fileChanged
+        ? 0
+        : mode === "result" || mode === "compare" || mode === "ab"
+          ? inMs
+          : posMs;
     setInfo(null);
     posRef.current = next; // update the playhead ref immediately (audio targets it)
     setPosMs(next);

@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **fix: A/B compare clamps to the sample in-point like result/compare
+  (2026-08-25)** — switching to A/B landed on the playhead instead of `inMs`,
+  so both rendered panes could read outside the sample window; it now maps to
+  the same moment as result/compare.
+
 - **fix: freeze the sample window while rendering (2026-08-25)** — while a
   render runs, the source video keeps playing and `onVideoTime` re-anchored
   the sample window to the playhead (`t >= outMs`), so `inMs` drifted forward.
