@@ -14,6 +14,11 @@ without fusion) is a secondary manifestation of the same autotune machinery and
 is folded into §2; Bug 7 (NAFNet fp16 overflow) is inherent to the weights +
 input, not an upstream bug — its finding is in `docs/models.md` (Notes).
 
+**Status 2026-08-25**: §3 (GroupNorm) and §5 (ONNX reader) are **closed**
+upstream; §1, §2, §4, §6 remain **open**. None of the fixes are in our pinned
+burn fork (`v0.21.0-senmei-burn-store-strides`), so all local workarounds stay
+in place until a fork bump pulls them in.
+
 ---
 
 ## 1. burn-fusion "Ordering is bigger than operations" — Bug 1 (burn#4950)
@@ -39,6 +44,12 @@ autotune keys (re-benchmark every iter) run clean on both 0.21.0 and `main`.
 Consistent with laggui's "often secondary to an earlier missing-handle or
 kernel failure": in our flow it fired after the cubecl#1531 OOM corrupted the
 server; on cubecl `main` that precursor no longer corrupts the server (§2).
+**Status 2026-08-25**: issue still **open** (burn#4950). nathanielsimard: no
+fallback execution mode planned (protecting input handles would kill in-place
+ops); kernel-selection work (tile API) should make it moot. laggui: #4962/#5282/#5400
+landed; `main` now prints ordering/op/optimization lengths to distinguish stale
+plan vs poisoned queue. Our last comment: will re-validate after the 0.22
+migration (burn removes backend generics from the user API).
 
 **Paste-ready text** — post as a comment on burn#4950:
 
@@ -78,6 +89,15 @@ deterministically (~4.6 s in, 4/4 runs, 2026-08-18):
 `cubecl-wgpu .../compute/server.rs:270: can't allocate buffer of size: 4395368448`
 — autotune benchmarks `MatmulAutotuneKey { m: 1024, n: 4194304, k: 64, f16 }`, a
 shape only a full-frame forward produces. The failed 4.4 GB allocation leaves
+**Status 2026-08-25**: issue still **open** (cubecl#1531). nathanielsimard asked
+if it still reproduces on latest burn/cubecl/cubek; we confirmed: on pinned
+cubecl 0.10.0 the repro stands (24 GiB reserve on 16 GiB card corrupts the
+server), on `main` (post-#1494) the failed reserve still panics the wgpu
+worker but the server **no longer stays corrupted** — persistent-corruption
+symptom fixed, allocation not yet graceful. #1494's lazy handle→memory
+binding should stop autotune dry-run materializing the 4.4 GB candidate;
+committed to re-test once v0.11.0 is out.
+
 the server invalid ("Memory page 0 doesn't exist"), surfacing as the tuner panic
 (Bug 2) and/or the ordering panic (Bug 1). Workaround: the tiled path (640 px)
 avoids the 4M-column matmul. Related: `#1384` closed, `#1401` CUDA.
@@ -146,6 +166,11 @@ commit 8832b00)** fixed the **denominator division** the same way we do —
 workaround is byte-for-byte the upstream approach, so it stays until a burn
 bump pulls in the fix, then the custom `group_norm` helper in
 `real_plksr.rs` can be deleted in favour of burn's native GroupNorm.
+**Status 2026-08-25**: **closed as completed** via `tracel-ai/burn#5410`
+("fix(nn): use mean reduction in group norm", laggui, merged). Fix is on burn
+`main`, **not yet in our pinned fork** (`v0.21.0-senmei-burn-store-strides`),
+so the `mean_dim` workaround in `real_plksr.rs` stays until a fork bump pulls
+it in.
 
 **Paste-ready text** (Title + Body):
 
@@ -205,6 +230,9 @@ tensor strides" — parses/validates strides in both rebuild paths and materiali
 non-contiguous views in logical row-major order. Still open (needs review;
 patch coverage 69% < 80% target). Once merged + released, the contiguous
 preprocess step can be dropped from the SPAN/RealPLKSR/SCUNet convert flow.
+**Status 2026-08-25**: issue still **open** (burn#5383); PR #5392 (by
+original4422) still **open/unmerged**. Workaround (`{k: v.contiguous()}` in the
+convert flow) stays until it lands.
 
 **Paste-ready text** (Title + Body):
 
@@ -249,6 +277,18 @@ Workaround: pre-process the state dict with
 container (hand-ported architecture) need a runtime initializer reader without
 the codegen step. No duplicate found — existing issues cover operator coverage /
 codegen, not a weight-only initializer reader.
+**Status 2026-08-25**: issue **closed as completed** (burn-onnx#456). antimora:
+the public `onnx-ir` API already covers this on 0.21.0 — `ModelProto`/
+`TensorProto` are re-exported and `impl TryFrom<TensorProto> for TensorData`
+works; no codegen, no graph building. Three gotchas: (1) also read `Constant`
+nodes (tensor in `value` attribute), not just `graph.initializer` — 92/570
+vendored models have tensor data only in constants; (2) key constants by the
+node's **output** name (inner `TensorProto.name` is "value"/empty); (3) external
+data (`data_location == EXTERNAL`) is unreachable from a `&[u8]` API. He closed
+the feature request (the API can't say which tensors are weights — that's an
+arch-specific heuristic). Our dependency-free reader already implements all
+three gotchas (`c2d1703`), so we keep it; `ParseError` re-export fix upstream
+noted.
 
 **Paste-ready text** (Title + Body):
 
@@ -330,6 +370,9 @@ Perf: K=128 padded is *not* slower than the broken K=96 (measured −9% on the
 conv; K=128 tiles better). 4 disabled 48ch SPAN models re-enabled. The
 forward-conv kernel (`kernels/forward/`) is unchanged since 2026-06-10, so the
 upstream bug persists until a real fix.
+**Status 2026-08-25**: issue still **open** (cubek#519); auto-added to the
+CubeK project board as **Backlog**, no assignee, no linked PR. Workaround
+(`Span::pad_k96`) stays.
 
 **Paste-ready text** (Title + Body):
 
