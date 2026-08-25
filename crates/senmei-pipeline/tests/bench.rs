@@ -253,6 +253,7 @@ fn bench_upscale_batch_dvd() {
         0,
         None,
         senmei_media::Tonemap::Auto,
+        None,
     )
     .unwrap();
     let first = dec.next_frame().unwrap().expect("frame");
@@ -391,6 +392,7 @@ fn bench_fused_requested_scale() {
         0,
         None,
         senmei_media::Tonemap::Auto,
+        None,
     )
     .unwrap();
     let f = dec.next_frame().unwrap().expect("frame");
@@ -509,6 +511,7 @@ fn bench_upscaler_requested_scale_png() {
         0,
         None,
         senmei_media::Tonemap::Auto,
+        None,
     )
     .unwrap();
     let mut f = dec.next_frame().unwrap().expect("frame");

@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: pipeline bench compiles again (2026-08-25)** — the preview decode
+  budget added a `max_dim` argument to `Decoder::open_with_range`, but the
+  benchmark's three call sites were not updated, so the bench test target did
+  not compile (`cargo test -p senmei-pipeline`). They now pass `None`
+  (full-res, matching the render path), restoring a green test build.
+
 - **fix: no torch-sys build in the macOS workspace tests (2026-08-25)** —
   `senmei-pipeline`'s dev-dependency forced `senmei-ml/tch`, so
   `cargo test --workspace` built `torch-sys` everywhere and its build script
@@ -16,6 +22,14 @@
   (`cargo test -p senmei-pipeline --features tch --test bench` for
   `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
   bundle job which already skips tch on macOS.
+
+- **perf: streamed native preview audio, FFmpeg→PCM→rodio (2026-08-25)** —
+  the preview player no longer extracts/re-encodes the source to an AAC file;
+  ffmpeg decodes any codec straight to s16le stereo PCM piped into rodio (no
+  rodio-codec dep, no disk file, no full-extraction latency). A seek restarts
+  the pipe at the position (`audio_seek` keeps play state). The IPC surface
+  drops `extractAudio`/`audioLoad(path)` for `audioLoad(input, positionMs)`;
+  the HTTP (web) path still plays sound via the browser `<video>` element.
 
 - **perf: preview frames over a raw Tauri Channel (2026-08-24)** — the Tauri
   `read_frame` now delivers width/height on a `Channel<FrameMeta>` (JSON) and
