@@ -43,13 +43,11 @@ export const commands = {
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, projectDir, onMeta, onFrame }),
-	/**  Start streaming `input`'s audio at `position_ms` (paused until `audio_play`). */
 	audioLoad: (input: string, positionMs: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
-	/**  Drop the current stream so a stale source can't play while the next loads. */
 	audioClear: () => __TAURI_INVOKE<null>("audio_clear"),
-	/**  Seek = restart the ffmpeg pipe at `position_ms` (keeps play state). */
+	/**  Seek = restart the pipe at position (keeps play state). */
 	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
@@ -140,11 +138,9 @@ export type FrameMeta = {
 };
 
 /**
- *  Raw RGB24 preview pixels for the frame channel. `IpcResponse` delivers
- *  them as an `ArrayBuffer` (no base64/JSON round-trip); deliberately not
- *  `Serialize`, so the blanket JSON `IpcResponse` impl doesn't apply. Specta
- *  can't express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the
- *  frontend wrapper casts the channel to the runtime type.
+ *  Raw RGB24 for the frame channel — `IpcResponse::Raw` = ArrayBuffer (no
+ *  base64); not `Serialize` so the blanket JSON impl doesn't apply. Specta
+ *  can't type `ArrayBuffer`, so the frontend casts the channel.
  */
 export type FramePixels = number[];
 

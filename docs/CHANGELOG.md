@@ -23,6 +23,12 @@
   `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
   bundle job which already skips tch on macOS.
 
+- **fix: gap-free preview audio on seek + stable arrow keys (2026-08-25)** —
+  every pipe restart (seek/scrub/arrow) starved rodio during ffmpeg's seek
+  decode → audible dropouts. The stream now pre-rolls ~200 ms of PCM before
+  the sink starts and reads larger pipe chunks (64 KB); rapid arrow-key seeks
+  coalesce to the last position instead of one ffmpeg respawn per key repeat.
+
 - **perf: streamed native preview audio, FFmpeg→PCM→rodio (2026-08-25)** —
   the preview player no longer extracts/re-encodes the source to an AAC file;
   ffmpeg decodes any codec straight to s16le stereo PCM piped into rodio (no

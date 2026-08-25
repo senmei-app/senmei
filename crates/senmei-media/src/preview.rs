@@ -68,7 +68,7 @@ pub fn stream_pcm(
     let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
     std::thread::spawn(move || {
         let mut r = std::io::BufReader::new(stdout);
-        let mut buf = [0u8; 8192];
+        let mut buf = [0u8; 65536];
         loop {
             match r.read(&mut buf) {
                 Ok(0) => break,

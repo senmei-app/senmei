@@ -81,6 +81,7 @@ export default function Monitor({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
+  const audioDebounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   // Recent progress samples for a rolling FPS (the queue-lifetime average was
@@ -439,7 +440,10 @@ export default function Monitor({
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
-    syncAudio(ms);
+    // Coalesce rapid seeks (arrow-repeat): only the last position restarts the
+    // pipe instead of one ffmpeg respawn per key repeat.
+    if (audioDebounce.current) window.clearTimeout(audioDebounce.current);
+    audioDebounce.current = window.setTimeout(() => syncAudio(ms), 120);
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;

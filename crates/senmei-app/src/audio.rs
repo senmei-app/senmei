@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::path::Path;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rodio::Source;
 
@@ -83,6 +83,25 @@ fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T,
     })
 }
 
+/// Pre-roll ~200 ms of PCM so rodio doesn't starve during ffmpeg's seek decode.
+fn preroll_pcm(rx: &mpsc::Receiver<Vec<u8>>) -> Vec<i16> {
+    const PREROLL_SAMPLES: usize = 48_000 * 2 / 5; // 200 ms of stereo
+    let deadline = Instant::now() + Duration::from_millis(150);
+    let mut out = Vec::new();
+    while out.len() < PREROLL_SAMPLES {
+        let remain = deadline.saturating_duration_since(Instant::now());
+        match rx.recv_timeout(remain) {
+            Ok(chunk) => out.extend(
+                chunk
+                    .chunks_exact(2)
+                    .map(|c| i16::from_le_bytes([c[0], c[1]])),
+            ),
+            Err(_) => break,
+        }
+    }
+    out
+}
+
 fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result<(), String> {
     if let Some(mut pipe) = p.pipe.take() {
         pipe.stop();
@@ -91,9 +110,10 @@ fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result
     let ffmpeg = senmei_media::resolve(&crate::store::data_dir());
     let (pipe, rx) = senmei_media::stream_pcm(&ffmpeg, Path::new(input), position_ms, 48_000)
         .map_err(|e| e.to_string())?;
+    let preroll = preroll_pcm(&rx);
     let source = PcmSource {
         rx,
-        buf: Vec::new().into_iter(),
+        buf: preroll.into_iter(),
         sample_rate: 48_000,
         channels: 2,
     };
@@ -176,3 +196,5 @@ pub fn audio_set_volume(volume: f64) -> Result<(), String> {
         Ok(())
     })
 }
+
+
