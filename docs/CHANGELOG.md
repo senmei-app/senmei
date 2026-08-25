@@ -30,6 +30,7 @@
   the pipe at the position (`audio_seek` keeps play state). The IPC surface
   drops `extractAudio`/`audioLoad(path)` for `audioLoad(input, positionMs)`;
   the HTTP (web) path still plays sound via the browser `<video>` element.
+  Supersedes the extract→AAC/FLAC/WAV preview-audio iterations.
 
 - **perf: preview frames over a raw Tauri Channel (2026-08-24)** — the Tauri
   `read_frame` now delivers width/height on a `Channel<FrameMeta>` (JSON) and
@@ -47,41 +48,6 @@
   one (upscaled results), and superseded callers unblock instead of waiting on
   positions nobody wants. Regression test `coalesce_keeps_newest_position_per_
   input`.
-
-- **fix: preview audio → stereo AAC (seekable + small) (2026-08-23)** — raw WAV
-  was the only seekable rodio format, but a long 5.1 source extracted to 3+ GB
-  (98-min movie). The track is now encoded as stereo AAC (~192 kbps): small
-  (~140 MB for a movie) and still seekable via rodio's symphonia decoder
-  (native FLAC/Vorbis/MP3 decoders are not seekable). Extraction now
-  downmixes to stereo; suffix/stale-cleanup/rodio feature
-  (`symphonia-aac`)/docs updated; regression test
-  `extract_audio_aac_is_rodio_seekable` asserts decode + seek.
-
-- **fix: preview audio stays in sync during playback (2026-08-23)** — rodio/cpal
-  buffer the output, so the audible track lagged the playhead and free-ran
-  during playback. All audio repositions (play, scrub, mode switch, loop) now
-  seek the source with a lead to compensate the output buffer
-  (`AUDIO_LEAD_MS`, currently 0 pending measurement). A periodic re-pin during
-  playback was tried but made the audio choppy and was dropped.
-
-- **fix: preview audio is seekable again (WAV, not FLAC) (2026-08-23)** — the
-  preview track was extracted as FLAC, but rodio's FLAC decoder is **not
-  seekable** (`try_seek` → `NotSupported`), so every seek (play-start, mode
-  switch, scrub) silently stayed at 0: the Result view played audio from the
-  beginning of the source video against frames from the sample window. The
-  track is now extracted as WAV (`pcm_s16le`) — still lossless, and rodio
-  (hound) seeks it fine. Extraction/suffix/stale-cleanup updated; regression
-  test `extract_audio_wav_is_rodio_seekable` asserts the extracted track
-  decodes and seeks.
-
-- **fix: preview audio follows the playhead (result sync) (2026-08-23)** — the
-  extracted source track started at 0 on a fresh load, but play-start and
-  mode-switch (into result/compare, which clamp the playhead to the sample
-  in-point) never repositioned the audio, so the result view played audio from
-  the beginning of the source video against frames from the sample window.
-  `togglePlay` now seeks the sound to the playhead before starting, the
-  `audioReady` effect always lands on the playhead after load, and the
-  mode-switch effect seeks to the clamped position.
 
 - **fix: preview decode applies the scale filter (2026-08-23)** — the
   `Decoder` built its ffmpeg command with `-vf` after the output URL
@@ -132,12 +98,6 @@
   `<img>`, no cache-bust hack. Decode stays in `senmei-media` (transport-
   agnostic); each transport just frames the payload. HTTP verified end-to-end
   (1080p source → 1280×720 raw frame).
-
-- **perf: preview audio → lossless FLAC (2026-08-23)** — the native preview
-  player no longer transcodes to lossy MP3: any source audio codec is decoded
-  by our FFmpeg and re-encoded to lossless FLAC (rodio `flac` feature), so the
-  preview track is lossless and codec-agnostic. Regression test covers the
-  FFmpeg→FLAC→rodio path.
 
 - **perf: preview decode budget + accurate video duration (2026-08-23)** —
   probe now reads the video-stream duration (the container over-reports when
