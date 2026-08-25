@@ -1,6 +1,8 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
+use std::sync::OnceLock;
+
 use axum::{
     body::Body,
     http::{header, Request, Response, StatusCode},
@@ -119,10 +121,25 @@ async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
     }
 }
 
-async fn frame(Json(p): Json<FrameParams>) -> ApiResult {
-    match core::frame_raw(&p.input, p.position_ms) {
-        Ok((w, h, data)) => json_ok(&serde_json::json!({ "width": w, "height": h, "data": data })),
-        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+/// Shared preview decode worker (warm streams + last-frame-wins) — same path
+/// as Tauri, so the web UI scrubs without respawning ffmpeg per frame.
+fn preview_worker() -> &'static senmei_media::PreviewWorker {
+    static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
+    W.get_or_init(|| senmei_media::PreviewWorker::new(core::ffmpeg()))
+}
+
+/// One raw RGB24 frame as the response body; width/height ride in headers so
+/// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
+async fn frame(Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
+    match preview_worker().frame(&p.input, p.position_ms) {
+        Ok(f) => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header("x-frame-width", f.width.to_string())
+            .header("x-frame-height", f.height.to_string())
+            .body(Body::from(f.data))
+            .expect("frame response")),
+        Err(e) => Err(json_err(StatusCode::BAD_REQUEST, e)),
     }
 }
 

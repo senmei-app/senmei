@@ -10,7 +10,6 @@ description = "Transport-agnostic Senmei core: probe/render/models/queue + licen
 senmei-media = { path = "../senmei-media", version = "0.1.2" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 senmei-pipeline = { path = "../senmei-pipeline", version = "0.1.2", optional = true }
-base64.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

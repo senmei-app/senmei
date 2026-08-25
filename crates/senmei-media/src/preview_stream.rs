@@ -8,6 +8,10 @@ use crate::decoder::Decoder;
 use crate::frame::Frame;
 use crate::{Error, Result};
 
+/// Preview decode budget (longest edge) — display-sized, keeps the frame
+/// transfer cheap. Only ever downscales.
+pub const PREVIEW_MAX_DIM: u32 = 1280;
+
 /// Max streams kept warm (source + result side by side in compare).
 const MAX_STREAMS: usize = 2;
 /// Re-seek when a request falls outside this window around the next frame.

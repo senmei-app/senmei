@@ -86,15 +86,27 @@ export const httpBackend: Backend = {
   },
 
   async readFrame(input, positionMs): Promise<RawFrame> {
-    const res = await api<{ width: number; height: number; data: string }>("/api/frame", {
+    const res = await fetch(`${base()}/api/frame`, {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ input, positionMs }),
     });
-    // HTTP stays base64 on the wire; decode here so `RawFrame.data` is uniform.
-    const bin = atob(res.data);
-    const data = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
-    return { width: res.width, height: res.height, data };
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const j = await res.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(msg);
+    }
+    // Raw RGB24 body; width/height ride in headers so the payload stays binary
+    // (ArrayBuffer — same shape the Tauri channel delivers).
+    const width = Number(res.headers.get("x-frame-width"));
+    const height = Number(res.headers.get("x-frame-height"));
+    const data = new Uint8Array(await res.arrayBuffer());
+    return { width, height, data };
   },
 
   nativeVideoUrl() {
@@ -216,7 +228,8 @@ export const httpBackend: Backend = {
     return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
-  // Audio is played by the browser's <video> element in web mode (no rodio).
+  // No audio in web mode yet — nativeVideoUrl is null (no raw-file stream), so
+  // there's no browser <video> to carry sound; rodio is Tauri-only. See todos.md.
   async audioLoad() {},
   async audioPlay() {},
   async audioPause() {},

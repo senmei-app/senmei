@@ -6,6 +6,7 @@ mod ffmpeg;
 mod frame;
 mod preview;
 mod preview_stream;
+mod preview_worker;
 mod probe;
 mod process;
 mod videos;
@@ -20,7 +21,8 @@ pub use encoder::Encoder;
 pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
 pub use preview::{encode_png, stream_pcm, PcmPipe};
-pub use preview_stream::PreviewCache;
+pub use preview_stream::{PreviewCache, PREVIEW_MAX_DIM};
+pub use preview_worker::PreviewWorker;
 pub use probe::{probe, VideoInfo};
 pub use videos::find_videos;
 

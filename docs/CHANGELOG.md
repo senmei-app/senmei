@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: HTTP preview frames → shared worker + raw RGB24 body (2026-08-25)** —
+  `/api/frame` decodes through the same `PreviewWorker`/`PreviewCache` (warm
+  streams, last-frame-wins, decode budget) as Tauri, so web scrubbing no longer
+  spawns ffmpeg per frame, and returns the raw RGB24 body (width/height in
+  `x-frame-width`/`x-frame-height` headers) instead of base64 JSON. The worker
+  moved from `senmei-app` into `senmei-media` (single `PREVIEW_MAX_DIM`
+  constant); the cold per-request `core::frame_raw` decode is gone.
+
 - **cleanup: drop unreachable source-loop branch in onVideoTime (2026-08-25)**
   — the native `<video>` only mounts in source mode (`nativeSrc` is null
   elsewhere), so the "loop within sample" else branch was dead code.

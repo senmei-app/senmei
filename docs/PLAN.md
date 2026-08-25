@@ -482,7 +482,7 @@ web UI + REST. Both enforce the same license/confirm gates from `core`.
 | Piece | Status | Notes |
 |---|---|---|
 | HTTP adapter (`--http`) | ✅ | axum 0.8 + tower-http; REST + static UI fallback |
-| REST surface | ✅ | `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`, `/api/probe`, `/api/frame` (base64 PNG), `/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema` |
+| REST surface | ✅ | `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`, `/api/probe`, `/api/frame` (raw RGB24 body; `x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema` |
 | Web UI (headless) | ✅ | frontend `backend/` abstraction — `tauri.ts` IPC / `http.ts` REST / `mock.ts` dev, auto-selected, no `isTauri()` in components |
 | Path-input dialogs (Dateizugriff B) | ✅ | `PathDialog` for entering server-side paths in web mode (no native picker) |
 | E2E verified | ✅ | browser against `--http`: import → probe → sample render → done; live progress + output file |

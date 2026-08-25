@@ -53,32 +53,6 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
     senmei_media::probe(&ffprobe, Path::new(input)).map_err(|e| e.to_string())
 }
 
-/// Preview decode budget (longest edge) — display-sized, keeps the frame
-/// transfer cheap. Only ever downscales.
-const PREVIEW_MAX_DIM: u32 = 1280;
-
-/// Decode one frame as raw RGB24 (base64) with the preview decode budget.
-/// Returns `(width, height, base64)` so the frontend can build an `ImageData`.
-pub fn frame_raw(input: &str, position_ms: f64) -> Result<(u32, u32, String), String> {
-    let ff = ffmpeg();
-    let mut dec = senmei_media::Decoder::open_with_range(
-        &ff,
-        Path::new(input),
-        position_ms.max(0.0) as u64,
-        None,
-        senmei_media::Tonemap::Auto,
-        Some(PREVIEW_MAX_DIM),
-    )
-    .map_err(|e| e.to_string())?;
-    let frame = dec
-        .next_frame()
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("no frame at {position_ms:.0}ms for {input}"))?;
-    use base64::Engine as _;
-    let data = base64::engine::general_purpose::STANDARD.encode(frame.data);
-    Ok((frame.width, frame.height, data))
-}
-
 /// List registry models, annotating `downloaded` from the on-disk weight files.
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     match load_registry() {
