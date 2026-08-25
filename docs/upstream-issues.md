@@ -14,10 +14,10 @@ without fusion) is a secondary manifestation of the same autotune machinery and
 is folded into §2; Bug 7 (NAFNet fp16 overflow) is inherent to the weights +
 input, not an upstream bug — its finding is in `docs/models.md` (Notes).
 
-**Status 2026-08-25**: §3 (GroupNorm) and §5 (ONNX reader) are **closed**
-upstream; §1, §2, §4, §6 remain **open**. None of the fixes are in our pinned
-burn fork (`v0.21.0-senmei-burn-store-strides`), so all local workarounds stay
-in place until a fork bump pulls them in.
+**Status 2026-08-25**: §3 (GroupNorm), §5 (ONNX reader) and §7 (burn-tch
+dlopen, not planned) are **closed** upstream; §1, §2, §4, §6 remain **open**.
+None of the fixes are in our pinned burn fork (`v0.21.0-senmei-burn-store-strides`),
+so all local workarounds stay in place until a fork bump pulls them in.
 
 ---
 
@@ -417,4 +417,70 @@ independent of the shape.
 - burn / burn-wgpu / burn-cubecl 0.21.0, wgpu Vulkan on RADV
 - GPU: AMD RX 9070 XT (gfx1201)
 ```
+
+---
+
+## 7. burn-tch: load libtorch at runtime (dlopen), no build-time link — feature request (burn#5416)
+
+**Finding.** Feature request: `burn-tch` loads libtorch at runtime via dlopen
+instead of inheriting `torch-sys`'s build-time link args. Motivation: a
+distributable binary can compile without libtorch installed and pick the
+CPU/CUDA/ROCm runtime at startup. We already maintain production forks for this
+(`senmei-app/tch-rs` @ `v0.22.0-senmei-dlopen`, `senmei-app/burn` @
+`v0.21.0-senmei-burn-tch-dlopen`) wired via `[patch.crates-io]`.
+**Status 2026-08-25**: **closed as not planned** (burn#5416, laggui) — requires
+runtime-loading support in `tch-rs`/`torch-sys` upstream; burn won't carry a
+patched upstream dependency. Revisit if upstream merges/releases dlopen
+support. Our forks remain the long-term path (already in production).
+
+**Paste-ready text** (Title + Body):
+
+```text
+burn-tch: load libtorch at runtime (dlopen), no build-time link
+```
+
+Body:
+
+```text
+<!-- Please search existing issues to avoid creating duplicates -->
+
+### Feature description
+
+`burn-tch` loads libtorch at runtime (dlopen) instead of linking it at
+build time.
+
+Today `burn-tch` inherits the libtorch linking from `torch-sys` (via `tch`):
+`torch-sys`'s build script emits libtorch link args, so libtorch must be
+resolvable while the crate is being built. A `dlopen` mode would skip those
+link args and resolve the `libtorch.so` symbols at runtime, so the crate
+compiles without libtorch present and loads it on startup.
+
+### Feature motivation
+
+For distributable binaries (e.g. a desktop video app shipping on
+Linux/Windows/macOS), build-time libtorch linking forces the build machine to
+have libtorch installed or the binary to bundle it. Runtime loading lets the
+same binary run against whatever libtorch the target system has, and lets the
+user pick the runtime variant (CPU / CUDA / ROCm) at startup.
+
+### (Optional) Suggest a Solution
+
+A `dlopen` build feature in `burn-tch` (plus the matching `torch-sys`/`tch`
+change) that:
+
+- skips the build-time libtorch link args,
+- resolves the libtorch symbols via `dlopen` at runtime,
+- keeps the existing build-time-link behavior as the default (no breakage).
+
+We already maintain working forks for this and use them in production:
+
+- `senmei-app/tch-rs` @ `v0.22.0-senmei-dlopen` (dlopen in `torch-sys`/`tch`)
+- `senmei-app/burn` @ `v0.21.0-senmei-burn-tch-dlopen` (burn-tch build script
+  no longer adds libtorch link args)
+
+wired via `[patch.crates-io]` for a Vulkan + optional ROCm/libtorch backend
+(runtime variant selection). Happy to contribute this as a PR if it fits
+`burn-tch`'s direction.
+```
+
 
