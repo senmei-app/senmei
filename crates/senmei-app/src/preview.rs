@@ -93,7 +93,9 @@ pub fn read_frame_inner(
 /// a cap. Frames now use a stable name, so only cross-file leftovers remain.
 fn cap_preview_dir(dir: &std::path::Path) {
     const MAX_FILES: usize = 400;
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut files: Vec<_> = entries.flatten().map(|e| e.path()).collect();
     if files.len() <= MAX_FILES {
         return;
@@ -118,7 +120,11 @@ pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<Str
     let path = dir.join(format!("audio_{ns}.mp3"));
     // Cache only complete tracks; a failed run must not leave a 0-byte file
     // that later looks "done".
-    if path.exists() && std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
+    if path.exists()
+        && std::fs::metadata(&path)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false)
+    {
         return Ok(path.to_string_lossy().into_owned());
     }
     let _ = std::fs::remove_file(&path);

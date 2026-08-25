@@ -152,7 +152,9 @@ impl<B: Backend> RrdbNet<B> {
             Some(c) => leaky_relu(c.forward(nearest2x(feat)), 0.2),
             None => feat,
         };
-        let out = self.conv_last.forward(leaky_relu(self.conv_hr.forward(feat), 0.2));
+        let out = self
+            .conv_last
+            .forward(leaky_relu(self.conv_hr.forward(feat), 0.2));
         // Crop to the exact input·scale (shuffle padding / odd dims).
         out.slice([0..n, 0..3, 0..h * self.scale, 0..w * self.scale])
     }

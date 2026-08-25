@@ -53,13 +53,20 @@ impl Client {
     }
 
     fn notify(&mut self, method: &str) {
-        writeln!(self.stdin, "{}", serde_json::json!({"jsonrpc":"2.0","method":method}))
-            .unwrap();
+        writeln!(
+            self.stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","method":method})
+        )
+        .unwrap();
         self.stdin.flush().unwrap();
     }
 
     fn call_tool(&mut self, name: &str, args: serde_json::Value) -> serde_json::Value {
-        let r = self.request("tools/call", serde_json::json!({"name": name, "arguments": args}));
+        let r = self.request(
+            "tools/call",
+            serde_json::json!({"name": name, "arguments": args}),
+        );
         let text = r["result"]["content"][0]["text"]
             .as_str()
             .expect("tool text");
@@ -138,7 +145,10 @@ fn agent_loop_probe_sample_compare_render() {
         "compare_sample",
         serde_json::json!({"original": input_s, "rendered": sample_s}),
     );
-    assert!(cmp["psnrDb"].is_number() && cmp["ssim"].is_number(), "no metrics: {cmp}");
+    assert!(
+        cmp["psnrDb"].is_number() && cmp["ssim"].is_number(),
+        "no metrics: {cmp}"
+    );
 
     // 4. propose + confirm full render
     let out = dir.join("out.mp4");

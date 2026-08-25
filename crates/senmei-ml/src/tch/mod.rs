@@ -10,9 +10,9 @@ use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
+use burn::tensor::f16;
 use burn_store::BurnpackStore;
 use burn_tch::{LibTorch, LibTorchDevice};
-use burn::tensor::f16;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -55,8 +55,7 @@ static RUNTIME_LIBTORCH: OnceLock<
 static PRELOADED: std::sync::Mutex<Vec<libloading::os::unix::Library>> =
     std::sync::Mutex::new(Vec::new());
 #[cfg(windows)]
-static PRELOADED: std::sync::Mutex<Vec<libloading::Library>> =
-    std::sync::Mutex::new(Vec::new());
+static PRELOADED: std::sync::Mutex<Vec<libloading::Library>> = std::sync::Mutex::new(Vec::new());
 
 /// Preload the downloaded per-GPU ROCm SDK libs (Koharu's ordered list) with
 /// RTLD_LAZY|GLOBAL so the versioned SONAMEs (`libMIOpen.so.1`, …) that the
@@ -111,10 +110,7 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
         let hw = crate::runtime::detect();
         let resolved = crate::runtime::resolve(data_dir, &hw);
         if let Ok(Some(inst)) = &resolved {
-            if matches!(
-                inst.variant,
-                crate::runtime::TorchVariant::Rocm(_)
-            ) {
+            if matches!(inst.variant, crate::runtime::TorchVariant::Rocm(_)) {
                 // Preload the pinned per-GPU ROCm SDK (Koharu-style). Never
                 // touch the system ROCm: a system HIP/HSA mixed with the SDK's
                 // copies (both RTLD_GLOBAL) gives two HIP runtimes and crashes
@@ -138,7 +134,7 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                     return Err(
                         "libtorch tensor probe failed (wrapper/runtime ABI mismatch; set \
                          SENMEI_LIBTORCH_ENV to use a local LIBTORCH install)"
-                        .into(),
+                            .into(),
                     );
                 }
                 return Ok(Some(inst.clone()));
@@ -154,7 +150,7 @@ fn ensure_loaded(data_dir: &Path) -> Result<()> {
                 return Err(
                     "libtorch tensor probe failed (wrapper/runtime ABI mismatch; set \
                      SENMEI_LIBTORCH_ENV to use a local LIBTORCH install)"
-                    .into(),
+                        .into(),
                 );
             }
         } else if let Err(e) = &resolved {
@@ -205,7 +201,6 @@ impl TchEngine {
         m.load_from_ncnn(&bytes, &self.device).map_err(Error::new)?;
         Ok(Model::RifeNet(m))
     }
-
 }
 
 impl InferenceEngine for TchEngine {

@@ -142,9 +142,18 @@ pub fn download_model(
             _ => m.num_block,
         })
         .unwrap_or(4);
-    let layer_norm = registry.resolve(model_id, &dir).map(|m| m.layer_norm).unwrap_or(false);
-    let dysample = registry.resolve(model_id, &dir).map(|m| m.dysample).unwrap_or(true);
-    let shuffle = registry.resolve(model_id, &dir).map(|m| m.shuffle).unwrap_or(1);
+    let layer_norm = registry
+        .resolve(model_id, &dir)
+        .map(|m| m.layer_norm)
+        .unwrap_or(false);
+    let dysample = registry
+        .resolve(model_id, &dir)
+        .map(|m| m.dysample)
+        .unwrap_or(true);
+    let shuffle = registry
+        .resolve(model_id, &dir)
+        .map(|m| m.shuffle)
+        .unwrap_or(1);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -166,7 +175,9 @@ pub fn download_model(
         .ok_or_else(|| format!("model {model_id} has no weights"))?;
     let is_ncnn = weight.ends_with(".bin");
     if !weight.ends_with(".bpk") && !is_ncnn {
-        return Err(format!("expected f16 burnpack or ncnn weight, got {weight}"));
+        return Err(format!(
+            "expected f16 burnpack or ncnn weight, got {weight}"
+        ));
     }
     let is_archive = url.ends_with(".zip");
     // Multi-model archives (e.g. the nihui rife release zip bundles every
@@ -182,8 +193,14 @@ pub fn download_model(
         log::info!("download_model: {model_id} already present, skipping");
         return Ok(target.to_string_lossy().into_owned());
     }
-    let onnx = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("onnx");
-    let st = std::path::Path::new(&url).extension().and_then(|e| e.to_str()) == Some("safetensors");
+    let onnx = std::path::Path::new(&url)
+        .extension()
+        .and_then(|e| e.to_str())
+        == Some("onnx");
+    let st = std::path::Path::new(&url)
+        .extension()
+        .and_then(|e| e.to_str())
+        == Some("safetensors");
     let ext = if onnx {
         "onnx"
     } else if st {
@@ -231,7 +248,12 @@ pub fn download_model(
     }
     let conv = if onnx {
         senmei_ml::convert_onnx_to_bpk(
-            &meta.arch, &source, &target, meta.scale, convert_arg, shuffle,
+            &meta.arch,
+            &source,
+            &target,
+            meta.scale,
+            convert_arg,
+            shuffle,
         )
     } else if st {
         senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale)
@@ -748,13 +770,16 @@ pub fn render(
                 Some(id) => match engine_for_model(id, opts.backend) {
                     Ok(e) => Some(senmei_pipeline::Interpolator::with_engine(f, e)),
                     Err(e) => {
-                        log::warn!("interpolation model {id} unavailable, using CPU interpolator: {e}");
+                        log::warn!(
+                            "interpolation model {id} unavailable, using CPU interpolator: {e}"
+                        );
                         None
                     }
                 },
                 None => None,
             };
-            pipeline.set_interpolator(interp.unwrap_or_else(|| senmei_pipeline::Interpolator::new(f)));
+            pipeline
+                .set_interpolator(interp.unwrap_or_else(|| senmei_pipeline::Interpolator::new(f)));
         }
     }
     if let Some(parent) = output.parent() {
@@ -983,7 +1008,9 @@ mod tests {
         assert!(obj.contains_key("renderConfig"));
         assert!(obj.contains_key("constraints"));
 
-        let slots = obj["modelSlots"].as_array().expect("modelSlots is an array");
+        let slots = obj["modelSlots"]
+            .as_array()
+            .expect("modelSlots is an array");
         assert_eq!(slots.len(), 4);
         for slot in slots {
             assert!(slot.get("field").is_some());
@@ -1010,7 +1037,8 @@ mod tests {
 
     #[test]
     fn parses_metric_summaries() {
-        let psnr = "[Parsed_psnr_0 @ 0x55] PSNR y:37.0 u:41.0 v:41.0 average:38.234 min:36.1 max:40.2";
+        let psnr =
+            "[Parsed_psnr_0 @ 0x55] PSNR y:37.0 u:41.0 v:41.0 average:38.234 min:36.1 max:40.2";
         assert_eq!(parse_after(psnr, "average:"), Some(38.234));
         let ssim = "[Parsed_ssim_0 @ 0x55] SSIM Y:0.98 (12.0) U:0.97 (11.0) V:0.96 (10.0) All:0.981234 (12.3)";
         assert_eq!(parse_after(ssim, "All:"), Some(0.981234));
@@ -1029,15 +1057,44 @@ mod tests {
         assert!(validate(&base()).is_ok());
 
         let bad = |cfg: RenderConfig| validate(&cfg).unwrap_err();
-        assert!(bad(RenderConfig { scale: Some(5), ..base() }).contains("scale"));
-        assert!(bad(RenderConfig { scale: Some(0), ..base() }).contains("scale"));
-        assert!(bad(RenderConfig { fps_multiplier: Some(0), ..base() }).contains("fps_multiplier"));
-        assert!(bad(RenderConfig { tonemap: Some("weird".into()), ..base() }).contains("tonemap"));
-        assert!(bad(RenderConfig { resize: Some(0.0), ..base() }).contains("resize"));
-        assert!(bad(RenderConfig { start_ms: Some(2000), end_ms: Some(1000), ..base() }).contains("end_ms"));
         assert!(bad(RenderConfig {
-            filter: Some(FilterConfig { dedup_threshold: Some(1.5), ..Default::default() }),
+            scale: Some(5),
             ..base()
-        }).contains("dedup"));
+        })
+        .contains("scale"));
+        assert!(bad(RenderConfig {
+            scale: Some(0),
+            ..base()
+        })
+        .contains("scale"));
+        assert!(bad(RenderConfig {
+            fps_multiplier: Some(0),
+            ..base()
+        })
+        .contains("fps_multiplier"));
+        assert!(bad(RenderConfig {
+            tonemap: Some("weird".into()),
+            ..base()
+        })
+        .contains("tonemap"));
+        assert!(bad(RenderConfig {
+            resize: Some(0.0),
+            ..base()
+        })
+        .contains("resize"));
+        assert!(bad(RenderConfig {
+            start_ms: Some(2000),
+            end_ms: Some(1000),
+            ..base()
+        })
+        .contains("end_ms"));
+        assert!(bad(RenderConfig {
+            filter: Some(FilterConfig {
+                dedup_threshold: Some(1.5),
+                ..Default::default()
+            }),
+            ..base()
+        })
+        .contains("dedup"));
     }
 }

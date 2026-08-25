@@ -29,9 +29,9 @@ pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(()
 
 #[cfg(test)]
 mod tests {
+    use super::projects::PipelineStep;
     use super::*;
     use std::collections::HashMap;
-    use super::projects::PipelineStep;
 
     fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
         let _guard = super::TEST_ENV_LOCK.lock().unwrap();
@@ -139,8 +139,8 @@ mod tests {
             let mut tar_bytes = h.to_vec();
             tar_bytes.extend_from_slice(&[0u8; 1024]); // EOF blocks
 
-            let archive = std::env::temp_dir()
-                .join(format!("senmei-tarslip-{}.tar.xz", std::process::id()));
+            let archive =
+                std::env::temp_dir().join(format!("senmei-tarslip-{}.tar.xz", std::process::id()));
             let file = std::fs::File::create(&archive).unwrap();
             let mut xz = liblzma::write::XzEncoder::new(file, 6);
             use std::io::Write;

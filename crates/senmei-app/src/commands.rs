@@ -219,8 +219,10 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
         info.width,
         info.height
     );
-    Ok(serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
-        .map_err(|e| e.to_string())?)
+    Ok(
+        serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
+            .map_err(|e| e.to_string())?,
+    )
 }
 
 #[tauri::command]
@@ -754,8 +756,7 @@ mod tests {
     #[test]
     fn prune_samples_keeps_newest_by_mtime() {
         let _guard = crate::store::TEST_ENV_LOCK.lock().unwrap();
-        let base =
-            std::env::temp_dir().join(format!("senmei-prune-test-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("senmei-prune-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::env::set_var("XDG_DATA_HOME", &base);
         let dir = store::data_dir().join("samples");

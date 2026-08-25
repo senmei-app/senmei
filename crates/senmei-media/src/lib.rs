@@ -1,5 +1,5 @@
-mod decoder;
 mod content;
+mod decoder;
 mod downloader;
 mod encoder;
 mod ffmpeg;
@@ -10,8 +10,8 @@ mod probe;
 mod process;
 mod videos;
 
-pub use decoder::{Decoder, Tonemap};
 pub use content::is_anime;
+pub use decoder::{Decoder, Tonemap};
 pub use downloader::download_to_temp;
 pub use downloader::{
     extract_binary, extract_zip, extract_zip_prefix, fetch, sha256_hex, verify_checksum,

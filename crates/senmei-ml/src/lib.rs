@@ -70,8 +70,6 @@ pub(crate) use burn_wgpu::Vulkan as BurnBackend;
 pub use burn::BurnEngine;
 #[cfg(feature = "burn")]
 pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk, convert_safetensors_to_bpk};
-#[cfg(feature = "tch")]
-pub use tch::{TchDevice, TchEngine};
 pub use engine::{
     backend_info, engine_for_model, infer_denoise_tiled, infer_tiled, BackendInfo, EngineBackend,
     EngineCaps, InferOptions, InferenceEngine, Rgb8Batch,
@@ -83,10 +81,12 @@ pub use runtime::{
     detect, pick_device, pick_variant, resolve, vram_available_bytes, vram_total_bytes, Hardware,
     TorchInstall, TorchVariant,
 };
+#[cfg(feature = "tch")]
+pub use tch::{TchDevice, TchEngine};
 pub use tensor::Tensor;
-pub use tiling::{crop, pad_to, stitch, uniform_tile};
 #[cfg(any(feature = "burn", feature = "tch"))]
 pub use tiling::crop_rgb24;
+pub use tiling::{crop, pad_to, stitch, uniform_tile};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

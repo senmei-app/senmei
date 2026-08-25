@@ -232,7 +232,9 @@ fn run_tiled(
 }
 
 /// Which inference backend to use. `Auto` picks the best compiled one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize, specta::Type,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum EngineBackend {
     /// LibTorch if compiled, else Vulkan.
@@ -258,8 +260,8 @@ pub struct BackendInfo {
 pub fn backend_info() -> BackendInfo {
     // Runtime dlopen probe — `tch::Cuda` would need the loader initialized.
     let hw = crate::runtime::detect();
-    let gpu_count = hw.cuda.as_ref().map_or(0, |v| v.len())
-        + hw.rocm.as_ref().map_or(0, |v| v.len());
+    let gpu_count =
+        hw.cuda.as_ref().map_or(0, |v| v.len()) + hw.rocm.as_ref().map_or(0, |v| v.len());
     BackendInfo {
         vulkan_compiled: cfg!(feature = "burn"),
         libtorch_compiled: cfg!(feature = "tch"),

@@ -131,7 +131,9 @@ mod cuda {
             let get_count = *library.get::<DeviceGetCount>(b"cuDeviceGetCount\0").ok()?;
             let get_device = *library.get::<DeviceGet>(b"cuDeviceGet\0").ok()?;
             let get_name = *library.get::<DeviceGetName>(b"cuDeviceGetName\0").ok()?;
-            let get_mem = *library.get::<DeviceTotalMem>(b"cuDeviceTotalMem_v2\0").ok()?;
+            let get_mem = *library
+                .get::<DeviceTotalMem>(b"cuDeviceTotalMem_v2\0")
+                .ok()?;
 
             if init(0) != 0 {
                 return None;
@@ -157,7 +159,10 @@ mod cuda {
                 if get_mem(&mut vram, handle) != 0 {
                     continue;
                 }
-                devices.push(Device { name, vram_bytes: vram });
+                devices.push(Device {
+                    name,
+                    vram_bytes: vram,
+                });
             }
             Some(devices)
         }
@@ -243,7 +248,10 @@ mod hip {
         } else {
             &["libamdhip64.so", "libamdhip64.so.7"]
         };
-        let Some(library) = names.iter().find_map(|name| unsafe { Library::new(*name).ok() }) else {
+        let Some(library) = names
+            .iter()
+            .find_map(|name| unsafe { Library::new(*name).ok() })
+        else {
             return (None, None);
         };
         unsafe {
@@ -290,7 +298,10 @@ mod hip {
                 if get_mem(&mut vram, index) != 0 {
                     continue;
                 }
-                devices.push(Device { name, vram_bytes: vram });
+                devices.push(Device {
+                    name,
+                    vram_bytes: vram,
+                });
             }
             (Some(devices), gfx_target)
         }
@@ -312,7 +323,10 @@ mod hip {
                     .take_while(|b| b.is_ascii_alphanumeric())
                     .count();
                 let t = std::str::from_utf8(&properties[start..start + 3 + suffix]).ok()?;
-                t[3..].bytes().any(|b| b.is_ascii_digit()).then(|| t.to_owned())
+                t[3..]
+                    .bytes()
+                    .any(|b| b.is_ascii_digit())
+                    .then(|| t.to_owned())
             })
     }
 }

@@ -50,14 +50,25 @@ fn x265_preset() -> &'static str {
 /// `-encoders` even without a GPU and then fail at runtime).
 #[cfg(target_os = "linux")]
 const HW_ENCODERS: [&str; 8] = [
-    "hevc_vaapi", "hevc_nvenc", "hevc_qsv", "hevc_amf",
-    "h264_vaapi", "h264_nvenc", "h264_qsv", "h264_amf",
+    "hevc_vaapi",
+    "hevc_nvenc",
+    "hevc_qsv",
+    "hevc_amf",
+    "h264_vaapi",
+    "h264_nvenc",
+    "h264_qsv",
+    "h264_amf",
 ];
 #[cfg(target_os = "macos")]
 const HW_ENCODERS: [&str; 2] = ["hevc_videotoolbox", "h264_videotoolbox"];
 #[cfg(target_os = "windows")]
 const HW_ENCODERS: [&str; 6] = [
-    "hevc_nvenc", "hevc_qsv", "hevc_amf", "h264_nvenc", "h264_qsv", "h264_amf",
+    "hevc_nvenc",
+    "hevc_qsv",
+    "hevc_amf",
+    "h264_nvenc",
+    "h264_qsv",
+    "h264_amf",
 ];
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 const HW_ENCODERS: [&str; 0] = [];
@@ -92,7 +103,12 @@ fn vaapi_device() -> Option<std::path::PathBuf> {
             .unwrap_or(0)
     };
     let mut cards: Vec<(u32, u64)> = (0..8u32)
-        .map(|n| (n, vram(&Path::new("/sys/class/drm").join(format!("card{n}")))))
+        .map(|n| {
+            (
+                n,
+                vram(&Path::new("/sys/class/drm").join(format!("card{n}"))),
+            )
+        })
         .filter(|(_, v)| *v > 0)
         .collect();
     // Discrete GPU first by default; lowest VRAM (the iGPU) when offloading.
@@ -130,7 +146,9 @@ fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     let mut cmd = Command::new(ffmpeg);
     cmd.arg("-hide_banner").arg("-loglevel").arg("error");
     if codec.ends_with("_vaapi") {
-        let Some(dev) = vaapi_device() else { return false };
+        let Some(dev) = vaapi_device() else {
+            return false;
+        };
         // Two tokens — one "-init_hw_device vaapi=va:..." token makes ffmpeg
         // exit 8 (the space breaks its arg parser) and disables HW encode.
         cmd.args(["-init_hw_device", &format!("vaapi=va:{}", dev.display())]);
@@ -138,7 +156,12 @@ fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     }
     // A small probe already clears every VA-API HEVC encoder's minimum size;
     // the caller re-probes at the real output resolution for HW codecs.
-    cmd.args(["-f", "lavfi", "-i", &format!("testsrc=duration=0.1:size={w}x{h}:rate=10")]);
+    cmd.args([
+        "-f",
+        "lavfi",
+        "-i",
+        &format!("testsrc=duration=0.1:size={w}x{h}:rate=10"),
+    ]);
     if codec.ends_with("_vaapi") {
         cmd.args(["-vf", "format=nv12,hwupload"]);
     }
@@ -268,7 +291,14 @@ fn pick_from_caps(
     let chain: &[&str] = if pref == EncoderPref::Software {
         &["libkvazaar", "libx265", "libopenh264", "libx264", "h264"]
     } else {
-        &["libkvazaar", "libx265", "libopenh264", "libx264", "h264_nvenc", "h264"]
+        &[
+            "libkvazaar",
+            "libx265",
+            "libopenh264",
+            "libx264",
+            "h264_nvenc",
+            "h264",
+        ]
     };
     for &codec in chain {
         if codec == "libopenh264" && !openh264_ok {
@@ -310,7 +340,10 @@ fn extract_audio_range(
     let tmp = std::env::temp_dir().join(format!(
         "senmei_audio_{}_{}.m4a",
         std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_nanos()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_nanos()
     ));
     let mut cmd = Command::new(ffmpeg);
     cmd.arg("-y").arg("-loglevel").arg("error");
@@ -327,7 +360,9 @@ fn extract_audio_range(
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     let ok = cmd.status().map(|s| s.success()).unwrap_or(false);
-    let empty = std::fs::metadata(&tmp).map(|m| m.len() == 0).unwrap_or(true);
+    let empty = std::fs::metadata(&tmp)
+        .map(|m| m.len() == 0)
+        .unwrap_or(true);
     if !ok || empty {
         let _ = std::fs::remove_file(&tmp);
         return None;
@@ -388,7 +423,10 @@ impl Encoder {
         // `-senmei_vaapi auto|igpu` — encode on the iGPU (offload) vs the
         // default discrete GPU; set before the probes so they use the same node.
         if let Some(pos) = extra_args.iter().position(|a| a == "-senmei_vaapi") {
-            let igpu = extra_args.get(pos + 1).map(|v| v == "igpu").unwrap_or(false);
+            let igpu = extra_args
+                .get(pos + 1)
+                .map(|v| v == "igpu")
+                .unwrap_or(false);
             set_vaapi_prefer_igpu(igpu);
             extra_args.drain(pos..pos + 2);
         }
@@ -437,7 +475,10 @@ impl Encoder {
             video_codec,
             width,
             height,
-            vaapi.as_ref().map(|d| d.display().to_string()).unwrap_or_else(|| "cpu".into())
+            vaapi
+                .as_ref()
+                .map(|d| d.display().to_string())
+                .unwrap_or_else(|| "cpu".into())
         );
         let mut cmd = Command::new(ffmpeg);
         cmd.arg("-y");
@@ -705,7 +746,11 @@ mod tests {
                 verify_full(codec)
             );
         }
-        for pref in [EncoderPref::Auto, EncoderPref::Hardware, EncoderPref::Software] {
+        for pref in [
+            EncoderPref::Auto,
+            EncoderPref::Hardware,
+            EncoderPref::Software,
+        ] {
             let (codec, _) = pick_from_caps(&caps, 2304, 1728, pref, &verify, &verify_full);
             println!("SENMEI_FFMPEG probe @2304x1728 pref={pref:?} -> {codec}");
         }
@@ -733,7 +778,8 @@ mod tests {
     fn listed_but_unverified_hw_falls_back() {
         let mut caps = vec!["libkvazaar".to_string()];
         caps.extend(HW_ENCODERS.iter().map(|c| c.to_string()));
-        let (codec, args) = pick_from_caps(&caps, 1920, 1080, EncoderPref::Auto, &|_| false, &|_| false);
+        let (codec, args) =
+            pick_from_caps(&caps, 1920, 1080, EncoderPref::Auto, &|_| false, &|_| false);
         assert_eq!(codec, "libkvazaar");
         assert!(args.contains(&"-preset".to_string()));
     }

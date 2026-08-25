@@ -79,7 +79,9 @@ impl<B: Backend> SrvggNet<B> {
         body.push(conv3x3(num_feat, 3 * scale * scale, device));
         Self {
             body,
-            prelu: (0..=num_conv).map(|_| Prelu::new(num_feat, device)).collect(),
+            prelu: (0..=num_conv)
+                .map(|_| Prelu::new(num_feat, device))
+                .collect(),
             scale,
         }
     }
@@ -120,8 +122,8 @@ mod tests {
     #[ignore = "needs GPU + converted srvgg bpk + torch ref bins (tools/srvgg_verify.py); needs RUST_MIN_STACK=33554432"]
     fn srvgg_matches_torch_reference() {
         let device = WgpuDevice::DiscreteGpu(0);
-        let dir = std::env::var("SENMEI_SRVGG_VERIFY_DIR")
-            .unwrap_or_else(|_| "/tmp/srvgg_verify".into());
+        let dir =
+            std::env::var("SENMEI_SRVGG_VERIFY_DIR").unwrap_or_else(|_| "/tmp/srvgg_verify".into());
         let scale = std::env::var("SENMEI_SRVGG_SCALE")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
@@ -154,11 +156,7 @@ mod tests {
         for u in &res.unused {
             println!("  unused {u}");
         }
-        assert!(
-            res.missing.is_empty(),
-            "missing tensors: {:?}",
-            res.missing
-        );
+        assert!(res.missing.is_empty(), "missing tensors: {:?}", res.missing);
 
         let x = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
@@ -187,11 +185,7 @@ mod tests {
         let mut m = SrvggNet::<BurnBackend<f16>>::new(64, 16, 2, &device);
         let mut store = BurnpackStore::from_file("/tmp/animevideo_x2.f16.bpk");
         let res = m.load_from(&mut store).unwrap();
-        assert!(
-            res.missing.is_empty(),
-            "missing tensors: {:?}",
-            res.missing
-        );
+        assert!(res.missing.is_empty(), "missing tensors: {:?}", res.missing);
 
         let (h, w): (usize, usize) = (16, 24);
         let x = Tensor::<BurnBackend<f16>, 4>::from_data(
@@ -207,7 +201,11 @@ mod tests {
         let out = m.forward(x);
         assert_eq!(out.dims(), [1, 3, h * 2, w * 2]);
         assert!(
-            out.into_data().to_vec::<f16>().unwrap().iter().all(|v| v.to_f32().is_finite()),
+            out.into_data()
+                .to_vec::<f16>()
+                .unwrap()
+                .iter()
+                .all(|v| v.to_f32().is_finite()),
             "non-finite output"
         );
     }

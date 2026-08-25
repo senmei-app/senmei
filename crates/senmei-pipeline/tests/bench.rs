@@ -91,7 +91,12 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
 fn bench_upscaler_1080p_fullframe() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &std::env::temp_dir()).unwrap();
+    let mut engine = senmei_ml::engine_for_model(
+        &mref,
+        senmei_ml::EngineBackend::default(),
+        &std::env::temp_dir(),
+    )
+    .unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();
@@ -140,8 +145,7 @@ fn bench_upscaler_1080p_fullframe() {
 fn bench_upscale_step() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine =
-        senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();
@@ -277,7 +281,10 @@ fn bench_upscale_batch_dvd() {
     senmei_pipeline::set_pipeline_depth(0);
     assert_eq!(out_n, total - 1, "reference must produce all frames");
 
-    println!("\n==== {} DVD-frames: per-frame vs process_batch (scale {scale}) ====", mref.id);
+    println!(
+        "\n==== {} DVD-frames: per-frame vs process_batch (scale {scale}) ====",
+        mref.id
+    );
     println!(
         "frames: {total} (rep {rep}) | per-frame(pipelined) {single_ms:.1} ms/frame ({:.1} FPS)",
         1000.0 / single_ms
@@ -316,8 +323,7 @@ fn bench_upscale_batch_dvd() {
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
 fn bench_upscale_pipelined() {
-    let _model_id =
-        std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
+    let _model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
     let frames = bench_frames();
     let total = frames.len();
@@ -444,7 +450,12 @@ fn bench_pipeline_full_render() {
         .success();
     assert!(ok);
 
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &std::env::temp_dir()).unwrap();
+    let mut engine = senmei_ml::engine_for_model(
+        &mref,
+        senmei_ml::EngineBackend::default(),
+        &std::env::temp_dir(),
+    )
+    .unwrap();
     engine.load(&mref).unwrap();
     let steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Upscale::new(2, Some(engine)))];
@@ -531,8 +542,8 @@ fn bench_upscaler_requested_scale_png() {
         frame = render(engine.as_mut());
     }
     let el = t0.elapsed().as_secs_f64() / 3.0;
-    let bytes = senmei_media::encode_png(frame.width as u32, frame.height as u32, &frame.data)
-        .unwrap();
+    let bytes =
+        senmei_media::encode_png(frame.width as u32, frame.height as u32, &frame.data).unwrap();
     let out_path = std::path::Path::new(&frame_path)
         .parent()
         .unwrap()
@@ -609,7 +620,10 @@ fn bench_upscalers_real_frames() {
         .unwrap_or_else(|| std::env::current_dir().unwrap());
     println!("\n==== real-frame upscaler sweep @ {w}x{h} ====");
     println!("outputs -> {}", out_dir.display());
-    println!("{:<30} {:>5} {:>10} {:>8}", "model", "scale", "ms/frame", "FPS");
+    println!(
+        "{:<30} {:>5} {:>10} {:>8}",
+        "model", "scale", "ms/frame", "FPS"
+    );
 
     for id in &upscale_ids {
         let Some(mref) = registry.resolve(id, &models_dir) else {
@@ -622,8 +636,7 @@ fn bench_upscalers_real_frames() {
         }
         // Panic-isolate each model: one broken model must not abort the sweep.
         let row = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut engine =
-                senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+            let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
             engine.load(&mref).unwrap();
             let mut step = senmei_pipeline::Upscale::new(mref.scale, Some(engine));
             let mut warm = frames.clone();
@@ -641,18 +654,14 @@ fn bench_upscalers_real_frames() {
                 }
                 let el = t0.elapsed().as_secs_f64() / iters as f64;
                 for (i, out) in timed.iter().enumerate() {
-                    let bytes = senmei_media::encode_png(
-                        out.width as u32,
-                        out.height as u32,
-                        &out.data,
-                    )
-                    .unwrap();
+                    let bytes =
+                        senmei_media::encode_png(out.width as u32, out.height as u32, &out.data)
+                            .unwrap();
                     std::fs::write(out_dir.join(format!("{id}__{}.png", tags[i])), bytes).unwrap();
                 }
                 format!("{:>10.1} {:>8.1}", el * 1000.0, 1.0 / el)
             } else {
-                let mut engine =
-                    senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
+                let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
                 engine.load(&mref).unwrap();
                 let opts = InferOptions {
                     tile_size: Some(512),

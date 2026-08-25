@@ -3,7 +3,7 @@
 //! display server needed).
 
 use clap::Parser;
-use rmcp::{ServiceExt, transport::stdio};
+use rmcp::{transport::stdio, ServiceExt};
 use senmei_server::mcp::SenmeiServer;
 
 #[cfg(feature = "http")]

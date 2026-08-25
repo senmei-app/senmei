@@ -157,7 +157,8 @@ mod tests {
         let p = pad_to(&t, 8, 8);
         assert_eq!(p.shape, vec![1, 3, 8, 8]);
         let c = crop(&p, 6, 6);
-        assert_eq!(c.shape, vec![1, 3, 6, 6]);        assert_eq!(c.data, t.data);
+        assert_eq!(c.shape, vec![1, 3, 6, 6]);
+        assert_eq!(c.data, t.data);
     }
 
     #[test]

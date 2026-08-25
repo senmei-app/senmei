@@ -38,7 +38,6 @@ impl BurnEngine {
         m.load_from_ncnn(&bytes, &self.device).map_err(Error::new)?;
         Ok(Model::RifeNet(m))
     }
-
 }
 
 impl InferenceEngine for BurnEngine {
@@ -63,7 +62,9 @@ impl InferenceEngine for BurnEngine {
     }
 
     fn warmup(&mut self) {
-        let Some(model) = self.model.as_ref() else { return };
+        let Some(model) = self.model.as_ref() else {
+            return;
+        };
         if !core::single_input_rgb(model) {
             return;
         }
@@ -146,7 +147,6 @@ impl InferenceEngine for BurnEngine {
         core::infer_denoise(model, input, sigma, &self.device)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -771,13 +771,7 @@ mod tests {
             .collect();
         let input = Tensor::new(vec![1, 3, 64, 64], input);
         let out = engine
-            .infer_denoise(
-                &input,
-                0.1,
-                &InferOptions {
-                    tile_size: None,
-                },
-            )
+            .infer_denoise(&input, 0.1, &InferOptions { tile_size: None })
             .unwrap()
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
@@ -837,13 +831,7 @@ mod tests {
             .collect();
         let input = Tensor::new(vec![1, 3, 64, 64], input);
         let out = engine
-            .infer_denoise(
-                &input,
-                0.1,
-                &InferOptions {
-                    tile_size: None,
-                },
-            )
+            .infer_denoise(&input, 0.1, &InferOptions { tile_size: None })
             .unwrap()
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
@@ -899,13 +887,7 @@ mod tests {
             .collect();
         let input = Tensor::new(vec![1, 3, 64, 64], input);
         let out = engine
-            .infer_denoise(
-                &input,
-                0.1,
-                &InferOptions {
-                    tile_size: None,
-                },
-            )
+            .infer_denoise(&input, 0.1, &InferOptions { tile_size: None })
             .unwrap()
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 64, 64]);
@@ -968,13 +950,7 @@ mod tests {
             .collect();
         let input = Tensor::new(vec![1, 3, 66, 50], input);
         let out = engine
-            .infer_denoise(
-                &input,
-                0.1,
-                &InferOptions {
-                    tile_size: None,
-                },
-            )
+            .infer_denoise(&input, 0.1, &InferOptions { tile_size: None })
             .unwrap()
             .unwrap();
         assert_eq!(out.shape, vec![1, 3, 66, 50]);
@@ -1067,7 +1043,10 @@ mod tests {
         eprintln!("scunet denoise full-frame vs infer_denoise_tiled: mae={mae:.5}");
         // Both go through the same full-frame path now; any tiling regression
         // shows up as a large diff (the broken tiled path measured mae ≈ 0.13).
-        assert!(mae < 0.001, "denoise tiled path diverged from full-frame (mae {mae:.5})");
+        assert!(
+            mae < 0.001,
+            "denoise tiled path diverged from full-frame (mae {mae:.5})"
+        );
     }
 
     /// NAFNet via the generic `infer` path (what the Deblur step uses): scale-1

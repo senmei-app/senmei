@@ -3,8 +3,8 @@
 //! backend and saves through [`ToF16`] so `BurnEngine` can load it as f16.
 
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, SafmnNet, Scunet,
-    Span, SrvggNet, UpCunet2x, UpCunet2xFast,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, SafmnNet, Scunet, Span,
+    SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::BurnBackend;
 use crate::{Error, Result};
@@ -223,8 +223,8 @@ pub fn convert_pth_to_bpk(
         "dncnn" => {
             // Torch `model.{2i}.weight/bias` (ReLU sits at odd `{2i+1}` slots,
             // no params) map onto the burn `c{2i}` field names 1:1.
-            let mut store = PytorchStore::from_file(pth_path)
-                .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
+            let mut store =
+                PytorchStore::from_file(pth_path).with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Dncnn::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
@@ -233,8 +233,8 @@ pub fn convert_pth_to_bpk(
         }
         "ffdnet" => {
             // Same `model.{2i}` layout as DnCNN (ReLU at odd slots).
-            let mut store = PytorchStore::from_file(pth_path)
-                .with_key_remapping(r"^model\.(\d+)\.", "c$1.");
+            let mut store =
+                PytorchStore::from_file(pth_path).with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Ffdnet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
@@ -358,13 +358,8 @@ pub fn convert_pth_to_bpk(
             for (from, to) in safmn_remap_patterns() {
                 store = store.with_key_remapping(from, to);
             }
-            let mut m = SafmnNet::<BurnBackend>::new(
-                128,
-                num_block as usize,
-                2.0,
-                scale as usize,
-                &device,
-            );
+            let mut m =
+                SafmnNet::<BurnBackend>::new(128, num_block as usize, 2.0, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -442,7 +437,12 @@ pub fn convert_onnx_to_bpk(
 /// Phhofm ships fused release weights as safetensors; the keys already match
 /// the module state dict apart from the torch `upsampler.0` Sequential index,
 /// remapped here. Saved through [`ToF16`] like the `.pth` path.
-pub fn convert_safetensors_to_bpk(arch: &str, st_path: &Path, bpk_path: &Path, scale: u32) -> Result<()> {
+pub fn convert_safetensors_to_bpk(
+    arch: &str,
+    st_path: &Path,
+    bpk_path: &Path,
+    scale: u32,
+) -> Result<()> {
     let remapper = KeyRemapper::from_patterns(vec![(r"^upsampler\.0\.", "upsampler.")])
         .map_err(|e| Error::new(e.to_string()))?;
     let device = WgpuDevice::DiscreteGpu(0);
@@ -660,4 +660,3 @@ mod tests {
         assert_eq!(paths, expected);
     }
 }
-

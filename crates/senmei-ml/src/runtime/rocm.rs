@@ -33,7 +33,9 @@ pub fn is_complete(data_dir: &Path, target: &str) -> bool {
             && root.join("_rocm_sdk_libraries/bin/MIOpen.dll").is_file()
     } else {
         root.join("_rocm_sdk_core/lib/libamdhip64.so.7").is_file()
-            && root.join("_rocm_sdk_libraries/lib/libMIOpen.so.1").is_file()
+            && root
+                .join("_rocm_sdk_libraries/lib/libMIOpen.so.1")
+                .is_file()
     }
 }
 

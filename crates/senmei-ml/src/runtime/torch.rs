@@ -243,7 +243,11 @@ fn download(
 ) -> Result<(), String> {
     let archive_dir = data_dir.join("libtorch").join("temp");
     let is_rocm = matches!(variant, TorchVariant::Rocm(_));
-    let archive_name = if is_rocm { "libtorch.whl" } else { "libtorch.zip" };
+    let archive_name = if is_rocm {
+        "libtorch.whl"
+    } else {
+        "libtorch.zip"
+    };
     let archive = archive_dir.join(archive_name);
     let _ = std::fs::remove_file(&archive);
     senmei_media::download_to_temp(
@@ -280,7 +284,11 @@ fn download(
 
     // The zip/wheel extracts a `libtorch/` / `torch/` root; move it to the
     // versioned install dir.
-    let root = if is_rocm { stage.join("torch") } else { stage.join("libtorch") };
+    let root = if is_rocm {
+        stage.join("torch")
+    } else {
+        stage.join("libtorch")
+    };
     if !root.is_dir() {
         return Err("libtorch archive did not contain its root dir".into());
     }
@@ -293,11 +301,7 @@ fn download(
 }
 
 /// Extract only entries under `prefixes` from a wheel/zip, preserving paths.
-fn extract_wheel_prefixes(
-    archive: &Path,
-    dest: &Path,
-    prefixes: &[&str],
-) -> Result<(), String> {
+fn extract_wheel_prefixes(archive: &Path, dest: &Path, prefixes: &[&str]) -> Result<(), String> {
     senmei_media::extract_zip(archive, dest, |name| {
         prefixes.iter().any(|p| name.starts_with(p))
     })
@@ -353,8 +357,8 @@ mod tests {
         // path (and its cache reuse) is exercised deterministically.
         let had_libtorch = std::env::var_os("LIBTORCH");
         std::env::remove_var("LIBTORCH");
-        let data_dir = std::env::temp_dir()
-            .join(format!("senmei_torch_cache_{}", std::process::id()));
+        let data_dir =
+            std::env::temp_dir().join(format!("senmei_torch_cache_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&data_dir);
         let variant = TorchVariant::Cuda("cu128");
         let lib = install_dir(&data_dir, &variant).join("lib");
@@ -363,7 +367,10 @@ mod tests {
             std::fs::write(lib.join(name), b"").unwrap();
         }
         let hw = Hardware {
-            cuda: Some(vec![Device { name: "test-gpu".into(), vram_bytes: 1 << 30 }]),
+            cuda: Some(vec![Device {
+                name: "test-gpu".into(),
+                vram_bytes: 1 << 30,
+            }]),
             ..Default::default()
         };
         let a = resolve(&data_dir, &hw).unwrap().expect("variant resolves");
@@ -382,8 +389,14 @@ mod tests {
     fn pick_device_prefers_most_vram() {
         let hw = Hardware {
             rocm: Some(vec![
-                Device { name: "apu".into(), vram_bytes: 2 << 30 },
-                Device { name: "dgpu".into(), vram_bytes: 16 << 30 },
+                Device {
+                    name: "apu".into(),
+                    vram_bytes: 2 << 30,
+                },
+                Device {
+                    name: "dgpu".into(),
+                    vram_bytes: 16 << 30,
+                },
             ]),
             ..Default::default()
         };

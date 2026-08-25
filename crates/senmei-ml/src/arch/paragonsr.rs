@@ -94,8 +94,7 @@ impl<B: Backend> GroupNorm1<B> {
         let ds = d.clone() / s;
         let m = (ds.clone() * ds).mean_dim(1).mean_dim(2).mean_dim(3); // var / s^2
         let inv = (m + 1e-5 / (s * s)).sqrt().recip() / s;
-        (d * inv) * self.weight.val().reshape([1, c, 1, 1])
-            + self.bias.val().reshape([1, c, 1, 1])
+        (d * inv) * self.weight.val().reshape([1, c, 1, 1]) + self.bias.val().reshape([1, c, 1, 1])
     }
 }
 
@@ -152,7 +151,9 @@ impl<B: Backend> GatedFfn<B> {
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let g = self.spatial_mixer.forward(self.project_in_g.forward(x.clone()));
+        let g = self
+            .spatial_mixer
+            .forward(self.project_in_g.forward(x.clone()));
         let i = self.project_in_i.forward(x);
         self.project_out.forward(mish(g) * i)
     }
@@ -184,8 +185,13 @@ impl<B: Backend> ParagonBlock<B> {
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let y = self.ls1.forward(self.context.forward(self.norm1.forward(x.clone()))) + x.clone();
-        self.ls2.forward(self.transformer.forward(self.norm2.forward(y.clone()))) + y
+        let y = self
+            .ls1
+            .forward(self.context.forward(self.norm1.forward(x.clone())))
+            + x.clone();
+        self.ls2
+            .forward(self.transformer.forward(self.norm2.forward(y.clone())))
+            + y
     }
 }
 

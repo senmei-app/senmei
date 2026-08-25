@@ -4,18 +4,21 @@
 //! passed in by the engines.
 #![cfg(any(feature = "burn", feature = "tch"))]
 
+use super::Rgb8Batch;
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, RifeNet, SafmnNet,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RifeNet, RrdbNet, SafmnNet,
     Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
-use super::Rgb8Batch;
 use burn::tensor::backend::Backend;
 use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
 #[cfg(any(feature = "burn", feature = "tch"))]
-use burn::tensor::{module::interpolate, ops::{InterpolateMode, InterpolateOptions}};
+use burn::tensor::{
+    module::interpolate,
+    ops::{InterpolateMode, InterpolateOptions},
+};
 use burn_store::{BurnpackStore, ModuleSnapshot};
 
 /// The loaded arch, generic over the backend (`BurnBackend<f16>` or
@@ -146,7 +149,12 @@ pub fn load_arch<B: Backend>(
             Ok(Model::NafNet(m))
         }
         "real-plksr" => {
-            let mut m = RealPlk::new(model.scale as usize, model.layer_norm, model.dysample, device);
+            let mut m = RealPlk::new(
+                model.scale as usize,
+                model.layer_norm,
+                model.dysample,
+                device,
+            );
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::RealPlk(m))
         }
@@ -184,7 +192,12 @@ fn to_burn<B: Backend>(input: &Tensor, device: &B::Device) -> Result<BurnTensor<
     if input.shape.len() != 4 {
         return Err(Error::new("expected NCHW input"));
     }
-    let [n, c, h, w] = [input.shape[0], input.shape[1], input.shape[2], input.shape[3]];
+    let [n, c, h, w] = [
+        input.shape[0],
+        input.shape[1],
+        input.shape[2],
+        input.shape[3],
+    ];
     Ok(BurnTensor::<B, 4>::from_data(
         TensorData::new(input.data.clone(), [n, c, h, w]).convert::<B::FloatElem>(),
         device,
@@ -239,8 +252,13 @@ pub fn infer_rgb8<B: Backend>(
 where
     B::FloatElem: ElemToU8,
 {
-    let batch =
-        infer_rgb8_batch(model, std::slice::from_ref(input), native_scale, scale, device)?;
+    let batch = infer_rgb8_batch(
+        model,
+        std::slice::from_ref(input),
+        native_scale,
+        scale,
+        device,
+    )?;
     Some(batch.map(|mut v| v.pop().unwrap()))
 }
 
@@ -295,11 +313,7 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         return Some(Err(Error::new("expected NCHW input")));
     }
     for inp in inputs {
-        if inp.shape.len() != 4
-            || inp.shape[1] != c
-            || inp.shape[2] != h
-            || inp.shape[3] != w
-        {
+        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
             return Some(Err(Error::new("batch inputs must share NCHW dims")));
         }
     }
@@ -416,7 +430,9 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         // `clone` is a cheap handle copy in burn, `slice` shares the device
         // buffer). n=1 slices directly; n>1 stacks the frames' slices.
         let batch = if n == 1 {
-            gpu_frames[0].clone().slice([0..1, 0..c, y..y + tile, x..x + tile])
+            gpu_frames[0]
+                .clone()
+                .slice([0..1, 0..c, y..y + tile, x..x + tile])
         } else {
             let parts: Vec<_> = gpu_frames
                 .iter()
@@ -658,7 +674,12 @@ pub fn infer_denoise<B: Backend>(
     if input.shape.len() != 4 || input.shape[1] != 3 {
         return Some(Err(Error::new("expected 3-channel NCHW input")));
     }
-    let [n, _c, h, w] = [input.shape[0], input.shape[1], input.shape[2], input.shape[3]];
+    let [n, _c, h, w] = [
+        input.shape[0],
+        input.shape[1],
+        input.shape[2],
+        input.shape[3],
+    ];
     let rgb = match to_burn::<B>(input, device) {
         Ok(x) => x,
         Err(e) => return Some(Err(e)),
@@ -712,9 +733,12 @@ mod tests {
         assert!(fused_peak_allocation(1, 4480, 6400, 3) <= LIMIT); // SD/720p×4 (~2.2 GiB)
         assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT); // 720p×4
         assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT); // 1080p×2
-        // Adaptive: crash cap on big cards, half of total VRAM on small ones.
+                                                                   // Adaptive: crash cap on big cards, half of total VRAM on small ones.
         assert_eq!(fused_peak_limit(None), LIMIT);
         assert_eq!(fused_peak_limit(Some(16 * 1024 * 1024 * 1024)), LIMIT);
-        assert_eq!(fused_peak_limit(Some(4 * 1024 * 1024 * 1024)), 2 * 1024 * 1024 * 1024);
+        assert_eq!(
+            fused_peak_limit(Some(4 * 1024 * 1024 * 1024)),
+            2 * 1024 * 1024 * 1024
+        );
     }
 }

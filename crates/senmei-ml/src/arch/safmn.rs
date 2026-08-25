@@ -72,8 +72,7 @@ impl<B: Backend> LayerNorm<B> {
         let ds = d.clone() / s;
         let m = (ds.clone() * ds).mean_dim(1); // var / s^2
         let inv = (m.clamp_min(1e-7) + eps / (s * s)).sqrt().recip() / s;
-        (d * inv) * self.weight.val().reshape([1, c, 1, 1])
-            + self.bias.val().reshape([1, c, 1, 1])
+        (d * inv) * self.weight.val().reshape([1, c, 1, 1]) + self.bias.val().reshape([1, c, 1, 1])
     }
 }
 
@@ -130,14 +129,7 @@ impl<B: Backend> Safm<B> {
                 let k = 2usize.pow(i as u32);
                 // h/w are multiples of 8 (padded in `SafmnNet::forward`), so
                 // kernel=stride=2^i is an exact adaptive max-pool to h/2^i.
-                let pooled = max_pool2d(
-                    parts[i].clone(),
-                    [k, k],
-                    [k, k],
-                    [0, 0],
-                    [1, 1],
-                    false,
-                );
+                let pooled = max_pool2d(parts[i].clone(), [k, k], [k, k], [0, 0], [1, 1], false);
                 let s = self.mfr[i].forward(pooled);
                 out.push(interpolate(
                     s,
@@ -190,7 +182,13 @@ pub struct SafmnNet<B: Backend> {
 }
 
 impl<B: Backend> SafmnNet<B> {
-    pub fn new(dim: usize, n_blocks: usize, ffn_scale: f32, scale: usize, device: &B::Device) -> Self {
+    pub fn new(
+        dim: usize,
+        n_blocks: usize,
+        ffn_scale: f32,
+        scale: usize,
+        device: &B::Device,
+    ) -> Self {
         Self {
             to_feat: conv2d(3, dim, 3, 1, 1, device),
             blocks: (0..n_blocks)
@@ -233,8 +231,8 @@ mod tests {
     #[ignore = "needs GPU + converted safmn bpk + torch ref bins (tools/safmn_verify.py); needs RUST_MIN_STACK=33554432"]
     fn safmn_matches_torch_reference() {
         let device = WgpuDevice::DiscreteGpu(0);
-        let dir = std::env::var("SENMEI_SAFMN_VERIFY_DIR")
-            .unwrap_or_else(|_| "/tmp/safmn_verify".into());
+        let dir =
+            std::env::var("SENMEI_SAFMN_VERIFY_DIR").unwrap_or_else(|_| "/tmp/safmn_verify".into());
         let scale = std::env::var("SENMEI_SAFMN_SCALE")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
@@ -263,11 +261,7 @@ mod tests {
         for u in &res.unused {
             println!("  unused {u}");
         }
-        assert!(
-            res.missing.is_empty(),
-            "missing tensors: {:?}",
-            res.missing
-        );
+        assert!(res.missing.is_empty(), "missing tensors: {:?}", res.missing);
 
         let x = Tensor::<BurnBackend<f16>, 4>::from_data(
             TensorData::new(x_v, [n, c, h, w]).convert::<f16>(),
@@ -297,11 +291,7 @@ mod tests {
         let mut m = SafmnNet::<BurnBackend<f16>>::new(128, 16, 2.0, 2, &device);
         let mut store = BurnpackStore::from_file("/tmp/safmn/safmn_x2.f16.bpk");
         let res = m.load_from(&mut store).unwrap();
-        assert!(
-            res.missing.is_empty(),
-            "missing tensors: {:?}",
-            res.missing
-        );
+        assert!(res.missing.is_empty(), "missing tensors: {:?}", res.missing);
 
         let (h, w): (usize, usize) = (17, 25); // not a multiple of 8
         let x = Tensor::<BurnBackend<f16>, 4>::from_data(

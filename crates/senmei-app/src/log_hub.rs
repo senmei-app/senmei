@@ -118,7 +118,11 @@ fn append_log(dir: &Path, line: &str) {
     if std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) >= LOG_MAX_BYTES {
         rotate_logs(&path);
     }
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
         let _ = writeln!(f, "{line}");
     }
 }

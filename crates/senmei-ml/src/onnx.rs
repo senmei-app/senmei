@@ -72,8 +72,8 @@ fn parse_tensor(msg: &[u8]) -> Result<OnnxTensor, String> {
         return Err("TensorProto uses external data, not supported by the byte reader".to_string());
     }
     let name = first_string(msg, 8)?.unwrap_or_default().to_string();
-    let dtype = first_varint(msg, 2)?
-        .ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
+    let dtype =
+        first_varint(msg, 2)?.ok_or_else(|| "TensorProto missing data_type".to_string())? as i32;
 
     // dims: field 1, packed (length-delimited) or repeated varints.
     let mut dims = Vec::new();
@@ -138,8 +138,8 @@ fn packed_varints_to_bytes(msg: &[u8], width: usize) -> Result<Vec<u8>, String> 
     let mut out = Vec::with_capacity(msg.len() * width);
     let mut pos = 0;
     while pos < msg.len() {
-        let (v, next) = varint(msg, pos)
-            .ok_or_else(|| "malformed varint in packed ints".to_string())?;
+        let (v, next) =
+            varint(msg, pos).ok_or_else(|| "malformed varint in packed ints".to_string())?;
         out.extend_from_slice(&v.to_le_bytes()[..width.min(8)]);
         pos = next;
     }
