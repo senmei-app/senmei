@@ -145,7 +145,6 @@ impl PreviewCache {
             finished: false,
         })
     }
-
 }
 
 #[cfg(test)]
@@ -187,11 +186,16 @@ mod tests {
             let ok = std::process::Command::new("ffmpeg")
                 .args([
                     "-y",
-                    "-f", "lavfi",
-                    "-i", "color=black:s=320x180:r=24:d=4",
-                    "-vf", "geq=lum='min(255,N*4)':cb=128:cr=128",
-                    "-c:v", "mpeg4",
-                    "-pix_fmt", "yuv420p",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=black:s=320x180:r=24:d=4",
+                    "-vf",
+                    "geq=lum='min(255,N*4)':cb=128:cr=128",
+                    "-c:v",
+                    "mpeg4",
+                    "-pix_fmt",
+                    "yuv420p",
                 ])
                 .arg(&video)
                 .status()
@@ -210,12 +214,7 @@ mod tests {
                 .frame(&video.to_string_lossy(), t)
                 .expect("frame during playback");
             // geq sets a uniform luma per frame → avg RGB == the frame's luma.
-            let avg = frame
-                .data
-                .iter()
-                .map(|&b| b as f64)
-                .sum::<f64>()
-                / frame.data.len() as f64;
+            let avg = frame.data.iter().map(|&b| b as f64).sum::<f64>() / frame.data.len() as f64;
             assert!(
                 avg + 0.5 >= last_avg,
                 "frame at {t}ms jumped backward in time (avg {avg:.1} < last {last_avg:.1})"

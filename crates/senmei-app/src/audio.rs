@@ -89,9 +89,8 @@ fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result
     }
     p.sink = None;
     let ffmpeg = senmei_media::resolve(&crate::store::data_dir());
-    let (pipe, rx) =
-        senmei_media::stream_pcm(&ffmpeg, Path::new(input), position_ms, 48_000)
-            .map_err(|e| e.to_string())?;
+    let (pipe, rx) = senmei_media::stream_pcm(&ffmpeg, Path::new(input), position_ms, 48_000)
+        .map_err(|e| e.to_string())?;
     let source = PcmSource {
         rx,
         buf: Vec::new().into_iter(),
@@ -177,4 +176,3 @@ pub fn audio_set_volume(volume: f64) -> Result<(), String> {
         Ok(())
     })
 }
-

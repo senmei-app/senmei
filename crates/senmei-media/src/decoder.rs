@@ -186,11 +186,16 @@ mod tests {
             let ok = std::process::Command::new("ffmpeg")
                 .args([
                     "-y",
-                    "-f", "lavfi",
-                    "-i", "color=black:s=1920x1080:r=24:d=1",
-                    "-vf", "geq=lum='mod(Y,256)':cb=128:cr=128",
-                    "-c:v", "mpeg4",
-                    "-pix_fmt", "yuv420p",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=black:s=1920x1080:r=24:d=1",
+                    "-vf",
+                    "geq=lum='mod(Y,256)':cb=128:cr=128",
+                    "-c:v",
+                    "mpeg4",
+                    "-pix_fmt",
+                    "yuv420p",
                 ])
                 .arg(&video)
                 .status()
@@ -204,9 +209,15 @@ mod tests {
             .args(["-v", "error", "-ss", "0.5", "-i"])
             .arg(&video)
             .args([
-                "-vf", "scale=1280:720",
-                "-frames:v", "1",
-                "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+                "-vf",
+                "scale=1280:720",
+                "-frames:v",
+                "1",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-",
             ])
             .output()
             .unwrap();

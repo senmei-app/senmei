@@ -121,9 +121,7 @@ async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
 
 async fn frame(Json(p): Json<FrameParams>) -> ApiResult {
     match core::frame_raw(&p.input, p.position_ms) {
-        Ok((w, h, data)) => {
-            json_ok(&serde_json::json!({ "width": w, "height": h, "data": data }))
-        }
+        Ok((w, h, data)) => json_ok(&serde_json::json!({ "width": w, "height": h, "data": data })),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }

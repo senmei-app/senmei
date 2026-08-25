@@ -249,11 +249,11 @@ pub async fn read_frame(
             height: frame.height,
         })
         .map_err(|e| e.to_string())?;
-    on_frame.send(FramePixels(frame.data)).map_err(|e| e.to_string())?;
+    on_frame
+        .send(FramePixels(frame.data))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
-
-
 
 /// Keep only the `keep` newest sample render files in `dir` (deletes older
 /// video files so the sample folder never grows unbounded).
@@ -652,7 +652,11 @@ mod tests {
 
         let frame =
             read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
-        assert_eq!((frame.width, frame.height), (160, 120), "below the 1280 budget");
+        assert_eq!(
+            (frame.width, frame.height),
+            (160, 120),
+            "below the 1280 budget"
+        );
         assert_eq!(frame.data.len(), 160 * 120 * 3, "raw RGB24 frame bytes");
         let _ = std::fs::remove_dir_all(&dir);
     }

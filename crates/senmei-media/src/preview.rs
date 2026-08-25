@@ -42,7 +42,11 @@ pub fn stream_pcm(
     sample_rate: u32,
 ) -> Result<(PcmPipe, std::sync::mpsc::Receiver<Vec<u8>>)> {
     let mut child = std::process::Command::new(ffmpeg)
-        .args(["-ss", &format!("{:.3}", position_ms.max(0.0) / 1000.0), "-i"])
+        .args([
+            "-ss",
+            &format!("{:.3}", position_ms.max(0.0) / 1000.0),
+            "-i",
+        ])
         .arg(input)
         .args([
             "-vn",

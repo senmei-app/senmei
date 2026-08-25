@@ -135,12 +135,8 @@ mod tests {
 
         let first = rx.recv().unwrap();
         let (latest, stale) = coalesce(first, &rx);
-        let pos = |v: &[PreviewRequest]| -> Vec<f64> {
-            v.iter().map(|r| r.position_ms).collect()
-        };
+        let pos = |v: &[PreviewRequest]| -> Vec<f64> { v.iter().map(|r| r.position_ms).collect() };
         assert_eq!(pos(&latest).iter().sum::<f64>(), 2400.0); // a@1500 + b@900
         assert_eq!(pos(&stale).iter().sum::<f64>(), 3500.0); // a@1000 + b@500 + a@2000
     }
 }
-
-
