@@ -15,6 +15,11 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   { id: "exportProject", labelKey: "hotkeys.exportProject", default: "Ctrl+E" },
   { id: "togglePlay", labelKey: "hotkeys.togglePlay", default: "Space" },
   { id: "toggleFullscreen", labelKey: "hotkeys.toggleFullscreen", default: "F11" },
+  { id: "mute", labelKey: "hotkeys.mute", default: "M" },
+  { id: "volumeUp", labelKey: "hotkeys.volumeUp", default: "ArrowUp" },
+  { id: "volumeDown", labelKey: "hotkeys.volumeDown", default: "ArrowDown" },
+  { id: "seekBack", labelKey: "hotkeys.seekBack", default: "ArrowLeft" },
+  { id: "seekForward", labelKey: "hotkeys.seekForward", default: "ArrowRight" },
 ];
 
 export function defaultHotkey(id: string): string {

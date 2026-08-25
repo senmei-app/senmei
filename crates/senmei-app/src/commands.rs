@@ -221,8 +221,10 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
         info.width,
         info.height
     );
-    Ok(serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
-        .map_err(|e| e.to_string())?)
+    Ok(
+        serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
+            .map_err(|e| e.to_string())?,
+    )
 }
 
 #[tauri::command]
@@ -493,8 +495,9 @@ pub async fn render(
         };
         let opts = core::RenderOpts {
             tile_size: settings.tile_size.unwrap_or(0),
-            pipeline_depth: settings.pipeline_depth.unwrap_or(1) as usize,
+            pipeline_depth: settings.pipeline_depth.unwrap_or(0) as usize,
             backend: settings.backend.unwrap_or_default(),
+            gpu_index: settings.gpu_index.unwrap_or(0),
             cancel: Some(
                 CANCEL_RENDER
                     .get_or_init(|| Arc::new(AtomicBool::new(false)))
@@ -762,8 +765,7 @@ mod tests {
     #[test]
     fn prune_samples_keeps_newest_by_mtime() {
         let _guard = crate::store::TEST_ENV_LOCK.lock().unwrap();
-        let base =
-            std::env::temp_dir().join(format!("senmei-prune-test-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("senmei-prune-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::env::set_var("XDG_DATA_HOME", &base);
         let dir = store::data_dir().join("samples");

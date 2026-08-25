@@ -35,6 +35,22 @@ version tags — no manual packaging. Process fits `.github/workflows/ci.yml`.
 - **Weights never bundled**: downloaded on demand from `models/metadata.json`.
 - **macOS is experimental** (Metal backend, no GPU tests on hosted runners).
 
+## tch (libtorch) feature builds
+
+The `tch` backend's C++ wrapper must be built against the **same torch headers
+as the runtime download** (2.12 CPU) — a different version compiles but fails
+the runtime tensor probe (ABI mismatch → falls back to burn-Vulkan). Use the
+persisted headers and bypass the fork's version check:
+
+```sh
+unset LD_LIBRARY_PATH LD_DEBUG
+export LIBTORCH=~/.cache/senmei/libtorch-2.12-cpu/libtorch LIBTORCH_BYPASS_VERSION_CHECK=1
+cargo build --release -p senmei --features tch
+```
+
+(If `~/.cache/senmei/libtorch-2.12-cpu` is missing, re-download it from
+`https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.12.0%2Bcpu.zip`.)
+
 ## crates.io
 
 Publishing to crates.io is **optional and deferred** — not every release goes

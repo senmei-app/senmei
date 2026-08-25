@@ -7,12 +7,12 @@
 //! not require a refactor.
 
 pub use senmei_core::core;
-pub mod logging;
-pub mod mcp;
 #[cfg(feature = "http")]
 pub mod http;
+pub mod logging;
+pub mod mcp;
 
-use rmcp::{ServiceExt, transport::stdio};
+use rmcp::{transport::stdio, ServiceExt};
 
 /// Run the headless service (HTTP or MCP over stdio) from the `senmei`
 /// binary. `mcp` wins when both flags are set.

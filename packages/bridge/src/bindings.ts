@@ -273,6 +273,8 @@ export type Settings = {
 	pipelineDepth?: number | null,
 	/**  Preferred inference backend; `None` = auto (libtorch if compiled, else Vulkan). */
 	backend?: EngineBackend | null,
+	/**  Discrete-GPU index for inference (0 = first discrete); `None` = 0. */
+	gpuIndex?: number | null,
 };
 
 /**  Typed params per step type. Only the fields relevant to a step's type are set. */
@@ -306,6 +308,10 @@ export type StepParams = {
 	preset?: string | null,
 	pixFmt?: string | null,
 	tune?: string | null,
+	/**  Encoder backend preference for the output encode: "auto" | "hw" | "sw". */
+	encoderBackend?: string | null,
+	/**  VA-API encode device: "auto" (discrete GPU) | "igpu" (offload encode). */
+	encodeDevice?: string | null,
 	/**  Encoder quality profile (sets crf + preset as a bundle). */
 	quality?: string | null,
 	/**  Output color metadata tags (primaries / transfer / matrix, e.g. bt2020). */

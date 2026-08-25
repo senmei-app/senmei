@@ -27,6 +27,11 @@ export default function Monitor({
   fullVideo = false,
   onToggleFullVideo,
   togglePlayHotkey = "Space",
+  muteHotkey = "M",
+  volumeUpHotkey = "ArrowUp",
+  volumeDownHotkey = "ArrowDown",
+  seekBackHotkey = "ArrowLeft",
+  seekForwardHotkey = "ArrowRight",
 }: {
   file?: string;
   renderedFile: string | null;
@@ -46,6 +51,11 @@ export default function Monitor({
   fullVideo?: boolean;
   onToggleFullVideo?: () => void;
   togglePlayHotkey?: string;
+  muteHotkey?: string;
+  volumeUpHotkey?: string;
+  volumeDownHotkey?: string;
+  seekBackHotkey?: string;
+  seekForwardHotkey?: string;
 }) {
   const { t } = useI18n();
 
@@ -73,6 +83,9 @@ export default function Monitor({
   const debounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
+  // Recent progress samples for a rolling FPS (the queue-lifetime average was
+  // inflated by earlier fast renders).
+  const fpsSamples = useRef<{ t: number; f: number }[]>([]);
   const name = src ? basename(src) : null;
 
   // Manual double-click detection on the monitor surface. A document-level
@@ -179,20 +192,27 @@ export default function Monitor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioReady]);
 
-  // Preview volume.
+  // Preview volume + mute. Mute is frontend-only (the rodio backend has no
+  // mute): while muted we send 0, otherwise the slider value. The volume stays
+  // put while muted, so unmute restores it.
   const [volume, setVolume] = useState(() => {
     const saved = Number(localStorage.getItem("senmei.volume"));
     return Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1;
   });
+  const [muted, setMuted] = useState(false);
   const changeVolume = (v: number) => {
-    setVolume(v);
+    setVolume(Math.min(1, Math.max(0, v)));
     localStorage.setItem("senmei.volume", String(v));
+  };
+  const nudgeVolume = (delta: number) => {
+    setMuted(false); // adjusting the volume un-mutes
+    changeVolume(volume + delta);
   };
   useEffect(() => {
     // Apply on change and once the backend resolves (the mount-time run has
     // no backend yet).
-    void be()?.audioSetVolume(volume).catch(() => {});
-  }, [volume, beReady]);
+    void be()?.audioSetVolume(muted ? 0 : volume).catch(() => {});
+  }, [volume, muted, beReady]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -265,6 +285,43 @@ export default function Monitor({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, nativeSrc, inMs, outMs, togglePlayHotkey]);
+
+  // Mute / volume / seek hotkeys (M, arrows) — same input/button guard as
+  // play/pause. Seek step: 5 s per press (clamped to the clip).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.tagName === "BUTTON" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const combo = comboFromEvent(e);
+      if (combo === muteHotkey) {
+        e.preventDefault();
+        setMuted((m) => !m);
+      } else if (combo === volumeUpHotkey) {
+        e.preventDefault();
+        nudgeVolume(0.1);
+      } else if (combo === volumeDownHotkey) {
+        e.preventDefault();
+        nudgeVolume(-0.1);
+      } else if (combo === seekBackHotkey || combo === seekForwardHotkey) {
+        e.preventDefault();
+        const delta = combo === seekForwardHotkey ? 5000 : -5000;
+        const max = (info?.duration ?? 0) * 1000;
+        onScrub(Math.min(max, Math.max(0, posRef.current + delta)));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volume, info, nativeSrc, inMs, outMs, muteHotkey, volumeUpHotkey, volumeDownHotkey, seekBackHotkey, seekForwardHotkey]);
 
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is
@@ -526,12 +583,29 @@ export default function Monitor({
     return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
+  // Rolling FPS from recent progress deltas (kept ~5 s), so the display shows
+  // the current render rate instead of the queue-lifetime average.
+  useEffect(() => {
+    if (!rendering || !progress) {
+      fpsSamples.current = [];
+      return;
+    }
+    const t = Date.now();
+    fpsSamples.current.push({ t, f: progress.framesProcessed });
+    fpsSamples.current = fpsSamples.current.filter((s) => t - s.t < 5000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress, rendering]);
+
   const stats = (() => {
     if (!rendering || !progress || progress.totalFrames <= 0 || renderStart.current === null) {
       return null;
     }
-    const elapsed = Math.max(0.001, (Date.now() - renderStart.current) / 1000);
-    const fps = progress.framesProcessed / elapsed;
+    const s = fpsSamples.current;
+    const fps =
+      s.length >= 2 && s[s.length - 1].f > s[0].f
+        ? (s[s.length - 1].f - s[0].f) / Math.max(0.001, (s[s.length - 1].t - s[0].t) / 1000)
+        : progress.framesProcessed /
+          Math.max(0.001, (Date.now() - renderStart.current) / 1000);
     // Clamp overshoot: the frame-count estimate can lag actual emission, so
     // remaining must never go negative (that rendered "-1:-1:-1").
     const remaining =

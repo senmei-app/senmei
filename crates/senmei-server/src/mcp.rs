@@ -1,10 +1,9 @@
 //! MCP (stdio) adapter over the core service.
 
 use rmcp::{
-    ErrorData as McpError,
     handler::server::wrapper::Parameters,
     model::{CallToolResult, ContentBlock},
-    schemars, tool, tool_router,
+    schemars, tool, tool_router, ErrorData as McpError,
 };
 use serde::Deserialize;
 
@@ -72,12 +71,16 @@ impl SenmeiServer {
         json_ok(&core::ffmpeg_status())
     }
 
-    #[tool(description = "Settings schema: render-config JSON Schema + model slots (which models fill which field) + hard constraints")]
+    #[tool(
+        description = "Settings schema: render-config JSON Schema + model slots (which models fill which field) + hard constraints"
+    )]
     async fn get_settings_schema(&self) -> Result<CallToolResult, McpError> {
         json_ok(&core::settings_schema())
     }
 
-    #[tool(description = "Render a short sample clip (range render, no confirm gate); returns output path + before/after frames as images")]
+    #[tool(
+        description = "Render a short sample clip (range render, no confirm gate); returns output path + before/after frames as images"
+    )]
     async fn render_sample(
         &self,
         Parameters(args): Parameters<core::RenderConfig>,
@@ -97,7 +100,9 @@ impl SenmeiServer {
         }
     }
 
-    #[tool(description = "Compare a rendered sample against its original: PSNR (dB) + SSIM on the original resolution")]
+    #[tool(
+        description = "Compare a rendered sample against its original: PSNR (dB) + SSIM on the original resolution"
+    )]
     async fn compare_sample(
         &self,
         Parameters(args): Parameters<CompareParams>,
@@ -108,7 +113,9 @@ impl SenmeiServer {
         }
     }
 
-    #[tool(description = "Propose a render (validates, does NOT start); confirm with confirm_render")]
+    #[tool(
+        description = "Propose a render (validates, does NOT start); confirm with confirm_render"
+    )]
     async fn propose_render(
         &self,
         Parameters(args): Parameters<core::RenderConfig>,
@@ -163,8 +170,8 @@ impl SenmeiServer {
 }
 
 fn json_ok<T: serde::Serialize>(value: &T) -> Result<CallToolResult, McpError> {
-    let json = serde_json::to_string(value)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    let json =
+        serde_json::to_string(value).map_err(|e| McpError::internal_error(e.to_string(), None))?;
     Ok(CallToolResult::success(vec![ContentBlock::text(json)]))
 }
 
@@ -184,8 +191,8 @@ fn image_block(path: &str) -> Option<ContentBlock> {
 /// `render_sample` result: text summary (paths) + before/after image blocks.
 #[cfg(feature = "render")]
 fn render_sample_result(v: serde_json::Value) -> Result<CallToolResult, McpError> {
-    let text = serde_json::to_string(&v)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    let text =
+        serde_json::to_string(&v).map_err(|e| McpError::internal_error(e.to_string(), None))?;
     let mut blocks = vec![ContentBlock::text(text)];
     for key in ["beforeFrame", "afterFrame"] {
         if let Some(path) = v.get(key).and_then(serde_json::Value::as_str) {

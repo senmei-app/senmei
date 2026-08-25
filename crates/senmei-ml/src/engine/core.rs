@@ -4,18 +4,21 @@
 //! passed in by the engines.
 #![cfg(any(feature = "burn", feature = "tch"))]
 
+use super::Rgb8Batch;
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, RifeNet, SafmnNet,
+    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RifeNet, RrdbNet, SafmnNet,
     Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
-use super::Rgb8Batch;
 use burn::tensor::backend::Backend;
 use burn::tensor::{f16, Tensor as BurnTensor, TensorData};
-#[cfg(feature = "burn")]
-use burn::tensor::{module::interpolate, ops::{InterpolateMode, InterpolateOptions}};
+#[cfg(any(feature = "burn", feature = "tch"))]
+use burn::tensor::{
+    module::interpolate,
+    ops::{InterpolateMode, InterpolateOptions},
+};
 use burn_store::{BurnpackStore, ModuleSnapshot};
 
 /// The loaded arch, generic over the backend (`BurnBackend<f16>` or
@@ -146,7 +149,12 @@ pub fn load_arch<B: Backend>(
             Ok(Model::NafNet(m))
         }
         "real-plksr" => {
-            let mut m = RealPlk::new(model.scale as usize, model.layer_norm, model.dysample, device);
+            let mut m = RealPlk::new(
+                model.scale as usize,
+                model.layer_norm,
+                model.dysample,
+                device,
+            );
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::RealPlk(m))
         }
@@ -184,7 +192,12 @@ fn to_burn<B: Backend>(input: &Tensor, device: &B::Device) -> Result<BurnTensor<
     if input.shape.len() != 4 {
         return Err(Error::new("expected NCHW input"));
     }
-    let [n, c, h, w] = [input.shape[0], input.shape[1], input.shape[2], input.shape[3]];
+    let [n, c, h, w] = [
+        input.shape[0],
+        input.shape[1],
+        input.shape[2],
+        input.shape[3],
+    ];
     Ok(BurnTensor::<B, 4>::from_data(
         TensorData::new(input.data.clone(), [n, c, h, w]).convert::<B::FloatElem>(),
         device,
@@ -226,18 +239,26 @@ pub fn infer<B: Backend>(model: &Model<B>, input: &Tensor, device: &B::Device) -
 /// readback per tile plus a CPU stitch. `native_scale` is the model's own
 /// upscale factor; a requested `scale` above/below it is applied on the GPU
 /// (bilinear re-sample of each tile output) so the fused path works for e.g.
-/// x2 models rendered at x4. Burn-only: the tch engine relies on the trait
-/// default (`None`).
-#[cfg(feature = "burn")]
+/// x2 models rendered at x4. Shared by both engines: burn (Vulkan f16) and
+/// tch (libtorch f32) call it with their own backend.
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8<B: Backend>(
     model: &Model<B>,
     input: &Tensor,
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<(Vec<u8>, u32, u32)>> {
-    let batch =
-        infer_rgb8_batch(model, std::slice::from_ref(input), native_scale, scale, device)?;
+) -> Option<Result<(Vec<u8>, u32, u32)>>
+where
+    B::FloatElem: ElemToU8,
+{
+    let batch = infer_rgb8_batch(
+        model,
+        std::slice::from_ref(input),
+        native_scale,
+        scale,
+        device,
+    )?;
     Some(batch.map(|mut v| v.pop().unwrap()))
 }
 
@@ -248,14 +269,17 @@ pub fn infer_rgb8<B: Backend>(
 /// position in the batch dim — fewer launches/readbacks, the per-tile feather
 /// mask is computed once and shared. Output is bit-identical to `n` separate
 /// `infer_rgb8` calls (batch dim is independent in every conv).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8_batch<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>>
+where
+    B::FloatElem: ElemToU8,
+{
     let batch = match infer_rgb8_batch_prepare(model, inputs, native_scale, scale, device) {
         Some(Ok(b)) => b,
         Some(Err(e)) => return Some(Err(e)),
@@ -267,7 +291,7 @@ pub fn infer_rgb8_batch<B: Backend>(
 /// Forward + GPU canvas accumulation for one batch; the readback is deferred
 /// to [`BurnRgb8Batch::resolve`] so the caller can queue the next forward
 /// before blocking on this one (readback pipelining).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub fn infer_rgb8_batch_prepare<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
@@ -289,11 +313,7 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         return Some(Err(Error::new("expected NCHW input")));
     }
     for inp in inputs {
-        if inp.shape.len() != 4
-            || inp.shape[1] != c
-            || inp.shape[2] != h
-            || inp.shape[3] != w
-        {
+        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
             return Some(Err(Error::new("batch inputs must share NCHW dims")));
         }
     }
@@ -310,6 +330,15 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     let scale_f = scale as f32;
     let out_h = (ph as f32 * scale_f).round() as usize;
     let out_w = (pw as f32 * scale_f).round() as usize;
+    // A requested scale ≠ the model's native scale (e.g. a 2× model at 4×):
+    // accumulate at the native scale and re-sample once at the end. Per-tile
+    // re-sampling plus a requested-scale canvas dominated GPU memory traffic
+    // (measured ~72% memory activity) — the native canvas is 4× smaller here.
+    let resample = scale != native_scale;
+    let native_f = native_scale as f32;
+    let acc_scale = if resample { native_f } else { scale_f };
+    let acc_h = (ph as f32 * acc_scale).round() as usize;
+    let acc_w = (pw as f32 * acc_scale).round() as usize;
     // VRAM guard — no CPU fallback: reject with a clear error before the big
     // canvas/readback allocation instead of silently dropping to the slow CPU
     // path or hitting the OOM crash (which loses the wgpu device handle). The
@@ -339,14 +368,32 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             ))));
         }
     }
-    // Pad + tile each frame once; all frames share the tile grid.
-    let resample = scale != native_scale;
-    let frames: Vec<Vec<(usize, usize, Tensor)>> = inputs
-        .iter()
-        .map(|inp| crate::uniform_tile(&crate::pad_to(inp, ph, pw), tile, step))
-        .collect();
-    let ntiles = frames[0].len();
-    let ov = (overlap as f32 * scale_f).round() as usize;
+    // Pad each frame once (CPU, edge-replicate) and upload it once as f16;
+    // tile regions are then sliced on the device per forward. This removes
+    // the per-tile CPU gather + f32→f16 convert + PCIe upload that kept the
+    // GPU idle between tile forwards (measured ~50% GPU busy with two CPU
+    // cores pegged on the render worker).
+    let mut gpu_frames = Vec::with_capacity(inputs.len());
+    for inp in inputs {
+        let padded = crate::pad_to(inp, ph, pw);
+        match to_burn::<B>(&padded, device) {
+            Ok(t) => gpu_frames.push(t),
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    // Tile grid shared by all frames (y-outer/x-inner — same order as the CPU
+    // `uniform_tile`, so the accumulation order is unchanged).
+    let mut grid = Vec::new();
+    let mut ty = 0;
+    while ty + tile <= ph {
+        let mut tx = 0;
+        while tx + tile <= pw {
+            grid.push((tx, ty));
+            tx += step;
+        }
+        ty += step;
+    }
+    let ov = (overlap as f32 * acc_scale).round() as usize;
     // Feather ramp (partition of unity): a tile edge bordering a neighbour
     // is weighted ~0 → 1 across the overlap, so the model's 1-2px border
     // lines vanish at the seams; the canvas border keeps full weight
@@ -373,42 +420,36 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     // of copy-on-write. A single readback per frame at the end avoids the
     // burn-fusion ordering panic (docs/burn-bugs.md Bug 1).
     let mut accs: Vec<BurnTensor<B, 4>> = (0..n)
-        .map(|_| BurnTensor::<B, 4>::zeros([1, c, out_h, out_w], device))
+        .map(|_| BurnTensor::<B, 4>::zeros([1, c, acc_h, acc_w], device))
         .collect();
     let mut covs: Vec<BurnTensor<B, 4>> = (0..n)
-        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, out_h, out_w], device))
+        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, acc_h, acc_w], device))
         .collect();
-    for k in 0..ntiles {
-        let (x, y, _) = frames[0][k];
-        let mut data = Vec::with_capacity(n * c * tile * tile);
-        for f in &frames {
-            data.extend_from_slice(&f[k].2.data);
-        }
-        let batch = BurnTensor::<B, 4>::from_data(
-            TensorData::new(data, [n, c, tile, tile]).convert::<B::FloatElem>(),
-            device,
-        );
+    for (x, y) in grid {
+        // Slice the tile region on-device (rows are contiguous, row stride pw;
+        // `clone` is a cheap handle copy in burn, `slice` shares the device
+        // buffer). n=1 slices directly; n>1 stacks the frames' slices.
+        let batch = if n == 1 {
+            gpu_frames[0]
+                .clone()
+                .slice([0..1, 0..c, y..y + tile, x..x + tile])
+        } else {
+            let parts: Vec<_> = gpu_frames
+                .iter()
+                .map(|f| f.clone().slice([0..1, 0..c, y..y + tile, x..x + tile]))
+                .collect();
+            BurnTensor::cat(parts, 0)
+        };
         let out = match model.forward(batch) {
             Ok(o) => o,
             Err(e) => return Some(Err(e)),
         };
-        // Re-sample the model's native-scale tile output to the requested
-        // scale on the GPU (e.g. x2 model at x4), so the canvas placement
-        // and feather mask below match `scale` exactly.
-        let out = if resample {
-            let oh = (tile as f32 * scale_f).round() as usize;
-            let ow = (tile as f32 * scale_f).round() as usize;
-            interpolate(
-                out,
-                [oh, ow],
-                InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false),
-            )
-        } else {
-            out
-        };
         let [_, _, oh, ow] = out.dims();
-        let sx = (x as f32 * scale_f).round() as usize;
-        let sy = (y as f32 * scale_f).round() as usize;
+        // Place the native-scale tile in the accumulation canvas (which is at
+        // the model's native scale when a requested scale differs); the single
+        // final re-sample to the requested scale happens after the tile loop.
+        let sx = (x as f32 * acc_scale).round() as usize;
+        let sy = (y as f32 * acc_scale).round() as usize;
         // Clamp before accumulating: out-of-range values (>1.0 at hard
         // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
         let out = out.clamp(0.0, 1.0);
@@ -446,6 +487,16 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
             covs[f] = prev.slice_assign(cregion, csum);
         }
     }
+    // One-shot re-sample of the native-scale canvas to the requested scale
+    // (both the weighted sum and its coverage, so the readback division still
+    // yields the averaged frame).
+    if resample {
+        let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
+        for (acc, cov) in accs.iter_mut().zip(covs.iter_mut()) {
+            *acc = interpolate(acc.clone(), [out_h, out_w], opts.clone());
+            *cov = interpolate(cov.clone(), [out_h, out_w], opts.clone());
+        }
+    }
     let out_h_t = (h as f32 * scale_f).round() as usize;
     let out_w_t = (w as f32 * scale_f).round() as usize;
     Some(Ok(BurnRgb8Batch {
@@ -461,7 +512,7 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
 /// observed ~3.2 GB single-allocation OOM at 1080p×4, a wgpu/burn-internal
 /// buffer) or half the GPU's total VRAM when that is tighter — adapts down on
 /// smaller cards.
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
     const FUSED_PEAK_CEILING: u64 = (2 * 1024 + 512) * 1024 * 1024; // 2.5 GiB
     match total_vram {
@@ -471,19 +522,35 @@ fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
 }
 
 /// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
-/// Canvas (f16 accs+covs) + f32 readback, ×4 for ops/COW/autotune overhead —
-/// a ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
+/// Canvas (accs+covs) + readback, ×4 for ops/COW/autotune overhead — a
+/// ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
 /// tile size and autotune level.
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 fn fused_peak_allocation(n: usize, out_h: usize, out_w: usize, c: usize) -> u64 {
     let canvas = (n * out_h * out_w * (c + 1) * 2) as u64; // accs + covs (f16)
     let readback = (n * out_h * out_w * 3 * 4) as u64; // packed rgb24 f32
     (canvas + readback) * 4
 }
 
+/// Convert a backend float element to a rounded `u8` (`(x+0.5) as u8`).
+/// `burn` uses `f16`, `tch` `f32` — both route through their own `to_f32`.
+trait ElemToU8 {
+    fn to_u8(self) -> u8;
+}
+impl ElemToU8 for f32 {
+    fn to_u8(self) -> u8 {
+        (self + 0.5) as u8
+    }
+}
+impl ElemToU8 for f16 {
+    fn to_u8(self) -> u8 {
+        (self.to_f32() + 0.5) as u8
+    }
+}
+
 /// Deferred readback of one fused batch: blocks on the GPU→CPU transfer, then
 /// converts to packed rgb24 on the CPU (same steps `infer_rgb8_batch` used).
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub struct BurnRgb8Batch<B: Backend> {
     accs: Vec<BurnTensor<B, 4>>,
     covs: Vec<BurnTensor<B, 4>>,
@@ -492,26 +559,46 @@ pub struct BurnRgb8Batch<B: Backend> {
     out_h_t: usize,
 }
 
-#[cfg(feature = "burn")]
-impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B> {
+#[cfg(any(feature = "burn", feature = "tch"))]
+impl<B: Backend> Rgb8Batch for BurnRgb8Batch<B>
+where
+    B::FloatElem: ElemToU8,
+{
     fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>> {
         let mut result = Vec::with_capacity(self.accs.len());
         for (acc, cov) in self.accs.into_iter().zip(self.covs) {
             let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
-            // Read back in f16 and cast to u8 in plain Rust: cubecl-wgpu already
-            // pools the staging buffers, so the remaining per-frame cost is the
-            // CPU-side convert — reading f16 directly skips the full f32 copy
-            // (a `convert::<u8>()` readback would trip the burn-fusion ordering
-            // panic, docs/burn-bugs.md Bug 1). The fused path only runs on
-            // `BurnBackend<f16>`, so the element type is always f16 here.
-            let data: Vec<f16> = match avg.into_data().to_vec::<f16>() {
+            // Read back in the backend's own float elem and cast to u8 in
+            // plain Rust: cubecl-wgpu already pools the staging buffers, so
+            // the remaining per-frame cost is the CPU-side convert — reading
+            // the native elem directly skips the full f32 copy (a
+            // `convert::<u8>()` readback would trip the burn-fusion ordering
+            // panic, docs/burn-bugs.md Bug 1). burn uses f16, tch f32.
+            let data: Vec<B::FloatElem> = match avg.into_data().to_vec::<B::FloatElem>() {
                 Ok(v) => v,
                 Err(e) => return Err(Error::new(e.to_string())),
             };
-            let mut bytes = Vec::with_capacity(data.len());
-            for v in data {
-                bytes.push((v.to_f32() + 0.5) as u8);
-            }
+            // Parallel elem→u8: the convert is the main-thread stall after the
+            // GPU readback (with pipeline_depth it overlaps the next forward,
+            // but a 12 M-element convert still delays the next submit). Split
+            // across cores so the main thread re-queues the GPU sooner.
+            let mut bytes = vec![0u8; data.len()];
+            std::thread::scope(|s| {
+                let nt = std::thread::available_parallelism()
+                    .map(|p| p.get())
+                    .unwrap_or(4)
+                    .min(16);
+                let chunk = data.len().div_ceil(nt);
+                // chunks/chunks_mut yield disjoint slices, so each spawned
+                // closure owns a non-overlapping (data, out) pair.
+                for (d, o) in data.chunks(chunk).zip(bytes.chunks_mut(chunk)) {
+                    s.spawn(move || {
+                        for (dd, oo) in d.iter().zip(o.iter_mut()) {
+                            *oo = ElemToU8::to_u8(*dd);
+                        }
+                    });
+                }
+            });
             let cropped = crate::crop_rgb24(&bytes, self.out_w, self.out_h_t, self.out_w_t);
             result.push((cropped, self.out_w_t as u32, self.out_h_t as u32));
         }
@@ -587,7 +674,12 @@ pub fn infer_denoise<B: Backend>(
     if input.shape.len() != 4 || input.shape[1] != 3 {
         return Some(Err(Error::new("expected 3-channel NCHW input")));
     }
-    let [n, _c, h, w] = [input.shape[0], input.shape[1], input.shape[2], input.shape[3]];
+    let [n, _c, h, w] = [
+        input.shape[0],
+        input.shape[1],
+        input.shape[2],
+        input.shape[3],
+    ];
     let rgb = match to_burn::<B>(input, device) {
         Ok(x) => x,
         Err(e) => return Some(Err(e)),
@@ -641,9 +733,12 @@ mod tests {
         assert!(fused_peak_allocation(1, 4480, 6400, 3) <= LIMIT); // SD/720p×4 (~2.2 GiB)
         assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT); // 720p×4
         assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT); // 1080p×2
-        // Adaptive: crash cap on big cards, half of total VRAM on small ones.
+                                                                   // Adaptive: crash cap on big cards, half of total VRAM on small ones.
         assert_eq!(fused_peak_limit(None), LIMIT);
         assert_eq!(fused_peak_limit(Some(16 * 1024 * 1024 * 1024)), LIMIT);
-        assert_eq!(fused_peak_limit(Some(4 * 1024 * 1024 * 1024)), 2 * 1024 * 1024 * 1024);
+        assert_eq!(
+            fused_peak_limit(Some(4 * 1024 * 1024 * 1024)),
+            2 * 1024 * 1024 * 1024
+        );
     }
 }

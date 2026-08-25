@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: no torch-sys build in the macOS workspace tests (2026-08-25)** —
+  `senmei-pipeline`'s dev-dependency forced `senmei-ml/tch`, so
+  `cargo test --workspace` built `torch-sys` everywhere and its build script
+  panicked on arm64 macOS (no libtorch wheel on PyPI) — the `v0.1.10` release
+  run failed and skipped bundle/publish. tch is now an opt-in pipeline feature
+  (`cargo test -p senmei-pipeline --features tch --test bench` for
+  `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
+  bundle job which already skips tch on macOS.
+
 - **perf: preview frames over a raw Tauri Channel (2026-08-24)** — the Tauri
   `read_frame` now delivers width/height on a `Channel<FrameMeta>` (JSON) and
   the raw RGB24 pixels on a `Channel<FramePixels>` whose `IpcResponse` sends
@@ -123,6 +132,127 @@
   machine + LRU). Preview frames are downscaled to a 1280-long-edge budget
   (never upscale; render/export stays full-res) on both the Tauri and HTTP
   paths.
+
+## 0.1.10 (2026-08-25)
+
+- **perf: tch engine runs f16 on the fused RGB8 GPU path (2026-08-25)** —
+  the libtorch backend now uses `LibTorch<f16>` (was f32: half the memory
+  bandwidth, matches burn) and implements `infer_rgb8`/`_batch`/`_submit`
+  over the shared fused path (device-side tiling, native-scale accumulation,
+  GPU re-sample, parallel elem→u8 readback) instead of the generic CPU
+  roundtrip (`frame_to_tensor` → tiled `infer` → CPU `bilinear` →
+  `tensor_to_frame`). `engine::core`'s fused functions, the VRAM guard, and
+  `crop_rgb24`/`current_tile_size` are now feature-gated on `burn` **or**
+  `tch`; the readback converts the backend's own float elem (f16/f32) via a
+  small `ElemToU8` helper. `real-cugan-pro-conservative-x2` 576×432 → 4×:
+  106.7 → **59.6 ms (16.8 FPS)**; the real app render ~100 → **~66 ms
+  (~15 FPS)**. tch keeps a GPU tiled fallback when the fused path is rejected
+  (e.g. the VRAM guard at very large outputs) — `Some(Err)` from core maps to
+  `None` so the pipeline falls back instead of erroring.
+
+- **fix: VA-API probe failed on a single-token `-init_hw_device` (2026-08-24)** —
+  `test_encode`/`Encoder::open` passed `-init_hw_device vaapi=va:...` as one
+  argv token with a space; ffmpeg's arg parser breaks on it (exit 8), so every
+  VA-API probe failed and HW encode was silently disabled — Auto/Hardware fell
+  back to the software `libx265` (7–10 FPS). Split into two tokens; the probe's
+  stderr now lands in the log (`warn!` on failure) instead of `/dev/null`, the
+  chosen encoder/device is logged on open, and the encode's stderr tail on
+  finish.
+
+- **feat: system `libx265` HEVC fallback (2026-08-24)** — `pick_from_caps`
+  now tries `libx265` right after `libkvazaar`, so an H.265 selection stays
+  real HEVC on system FFmpeg builds without kvazaar (previously it silently
+  fell through to the H.264 `libopenh264` ABR path, dropping
+  `-tune grain`/`-pix_fmt yuv420p10le`). GPL, kvazaar still preferred;
+  `SENMEI_X265_PRESET` override.
+
+- **feat: device-side tile slicing in the fused RGB8 path (2026-08-24)** —
+  upload each padded frame once (f32→f16) and slice tile regions on the GPU
+  instead of per-tile CPU gather + convert + PCIe upload. Cuts the
+  main-thread tile-prep cost between forwards (GPU was ~50% busy with two
+  CPU cores pegged on the render worker); output bit-identical to the tiled
+  path (verified), FPS-neutral at 576×432 (2 tiles) but scales on larger
+  frames with many tiles.
+
+- **test: per-frame bench PNGs + requested-scale render (2026-08-24)** —
+  `bench_upscalers_real_frames` writes one PNG per input frame; new
+  `bench_upscaler_requested_scale_png` renders one model at a requested
+  scale (native tiled infer + `Resize`) to compare grain preservation vs a
+  native model (e.g. 2× model at 4×).
+
+- **perf: `pipeline_depth` default 2 (2026-08-24)** — the upscale step keeps
+  2 readbacks in flight by default (was 1), overlapping each frame's readback
+  with the next forward. Measured −22 % on `real-cugan-pro-conservative-x2`
+  1080p@2 (docs/benchmarks.md); depth 3 adds ~1 %. `0` in settings = owning
+  default.
+
+- **feat: preview hotkeys (2026-08-24)** — `M` mute, `↑`/`↓` volume (±0.1),
+  `←`/`→` seek (±5 s) in the monitor, configurable in Settings → Hotkeys.
+  Mute is frontend-only (the rodio backend has no mute): it sends 0 while
+  muted and the slider value otherwise.
+
+- **perf: tempo-safe encoder quality presets (2026-08-24)** — High/Medium now
+  use `veryfast` (was `medium`), Low `fast`, Very High `medium`, Lossless
+  `slow`. At a fixed CRF the preset only trades bitrate for speed (same
+  visible quality), and slow presets at 4× made the encoder the bottleneck
+  (measured ~730 ms/frame libx265 2304×1728 10-bit vs ~105 ms upscale).
+  Default output preset is `veryfast`.
+
+- **fix: drop `-tune` for libkvazaar (2026-08-24)** — kvazaar has no
+  `-tune grain` (its tune set is ssim/psnr/fast_decode/zero_latency/znx_*);
+  the frontend always sends `-tune` for H.265, which would fail the encode on
+  the bundled LGPL build. The backend now strips `-tune` when libkvazaar is
+  the active codec (x264/x265 keep it).
+
+- **fix: enable VA-API hardware encode (2026-08-24)** — two false negatives
+  fixed: `vaapi_device()` now picks the discrete GPU (highest VRAM, matching
+  the Vulkan inference device) instead of the first render node (the iGPU,
+  which lacks HEVC encode at typical sizes), and `test_encode` uses 640×480
+  (the 64×48 probe is below every VA-API HEVC encoder's floor). VA-API
+  encoders also get software flags stripped (`-preset`/`-tune`/`-crf`/
+  `-pix_fmt`) and a `-qp 20` default. On the RX 9070, `hevc_vaapi` 10-bit
+  encodes at ~90 FPS @ 2304×1728, so the encoder never throttles the
+  pipeline (encode is hidden behind the upscale).
+
+- **feat: encoder backend preference + fallback (2026-08-24)** — the Output
+  step gains an Encoder select (Auto / Hardware / Software) carried via a
+  `-senmei_encoder` sentinel. Auto = verified hardware encoders (each must
+  also pass a probe at the real output resolution) with a software fallback;
+  Software skips hardware entirely. This is the planned fallback: if no
+  hardware encoder verifies at the output size, the render falls through to
+  the software chain instead of failing.
+
+- **feat: multi-GPU support (2026-08-24)** — Settings → GPU (inference) index
+  (`gpuIndex`, default 0 = first discrete GPU) threads into the burn engine
+  (`WgpuDevice::DiscreteGpu(index)`). Encode follows the inference GPU via
+  `vaapi_device()` (highest VRAM) with a `SENMEI_VAAPI_DEVICE` override for
+  e.g. offloading encode to the iGPU while the discrete GPU runs inference.
+
+- **perf: fused-path render optimizations (2026-08-24)** — (a) a requested
+  scale ≠ the model's native scale (e.g. a 2× model at 4×) now accumulates at
+  the native scale and re-samples once at the end instead of per tile (less
+  GPU memory traffic; identical for single-tile frames, faster on larger
+  multi-tile inputs); (b) the readback f16→u8 convert is parallelized across
+  cores (it was the main-thread stall after the GPU readback). Measured on
+  the RX 9070: `real-cugan-pro-conservative-x2` @4× (576×432) fused path
+  91.5 → **72.8 ms (13.7 FPS)**. New `bench_fused_requested_scale` measures
+  the fused path at a requested scale.
+
+- **feat: VA-API 10-bit + quality + iGPU encode (2026-08-24)** — (a) a
+  requested 10-bit `-pix_fmt` (`yuv420p10le`) now makes the VA-API encode
+  10-bit HEVC — the 8-bit rgb24 frame is upconverted to P010 before the
+  hardware encode (verified `Main 10 / yuv420p10le` output), cutting banding;
+  (b) the Output step's CRF now maps to VA-API `-qp` (the hardware quality
+  knob) instead of a fixed `-qp 20`; (c) a new Output-step "Encode GPU" select
+  (Auto / iGPU) offloads the encode to the iGPU while the discrete GPU runs
+  inference (via a `-senmei_vaapi` sentinel).
+
+- **fix: live FPS shows the current render rate (2026-08-24)** — the render
+  progress FPS was `framesProcessed / time-since-render-start` (the
+  queue-lifetime average), which earlier fast renders inflated (e.g. a stale
+  38-40 FPS during a ~10 FPS upscale). It now uses a rolling window over the
+  last ~5 s of progress deltas.
+
 
 ## 0.1.9 (2026-08-24)
 

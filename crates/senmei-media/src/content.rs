@@ -102,7 +102,9 @@ mod tests {
 
     fn clip(ff: &Path, out: &Path, src: &str) {
         let _ = Command::new(ff)
-            .args(["-y", "-f", "lavfi", "-i", src, "-t", "1", "-pix_fmt", "yuv420p"])
+            .args([
+                "-y", "-f", "lavfi", "-i", src, "-t", "1", "-pix_fmt", "yuv420p",
+            ])
             .arg(out)
             .status();
     }
@@ -111,7 +113,10 @@ mod tests {
     #[test]
     #[ignore = "needs SENMEI_FFMPEG"]
     fn flat_anime_versus_noisy_live() {
-        let Some(ff) = std::env::var("SENMEI_FFMPEG").ok().filter(|p| !p.is_empty()) else {
+        let Some(ff) = std::env::var("SENMEI_FFMPEG")
+            .ok()
+            .filter(|p| !p.is_empty())
+        else {
             eprintln!("SENMEI_FFMPEG not set, skipping");
             return;
         };
@@ -120,9 +125,20 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let anime = dir.join("anime.mp4");
         let live = dir.join("live.mp4");
-        clip(ff, &anime, "color=c=0x6688aa:duration=1:size=320x180:rate=24");
-        clip(ff, &live, "testsrc=duration=1:size=320x180:rate=24,noise=alls=20:allf=t");
-        assert!(is_anime(ff, &anime, 1000), "flat color should look like anime");
+        clip(
+            ff,
+            &anime,
+            "color=c=0x6688aa:duration=1:size=320x180:rate=24",
+        );
+        clip(
+            ff,
+            &live,
+            "testsrc=duration=1:size=320x180:rate=24,noise=alls=20:allf=t",
+        );
+        assert!(
+            is_anime(ff, &anime, 1000),
+            "flat color should look like anime"
+        );
         assert!(!is_anime(ff, &live, 1000), "noisy testsrc should look live");
         let _ = std::fs::remove_file(&anime);
         let _ = std::fs::remove_file(&live);

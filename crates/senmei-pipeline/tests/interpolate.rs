@@ -94,7 +94,12 @@ fn rife_interpolates_real_model_e2e() {
     let mut registry = senmei_ml::Registry::new();
     registry.load_dir(&models_dir).unwrap();
     let mref = registry.resolve("rife-v4.6", &models_dir).unwrap();
-    let mut engine = senmei_ml::engine_for_model(&mref, senmei_ml::EngineBackend::default(), &std::env::temp_dir()).unwrap();
+    let mut engine = senmei_ml::engine_for_model(
+        &mref,
+        senmei_ml::EngineBackend::default(),
+        &std::env::temp_dir(),
+    )
+    .unwrap();
     engine.load(&mref).unwrap();
 
     let steps: Vec<Box<dyn senmei_pipeline::Step>> = vec![Box::new(senmei_pipeline::Passthrough)];

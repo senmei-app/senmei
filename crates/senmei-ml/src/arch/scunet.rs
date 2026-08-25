@@ -118,7 +118,8 @@ impl<B: Backend> Wmsa<B> {
     fn forward(&self, x: Tensor<B, 4>, sw: bool) -> Tensor<B, 4> {
         let [b, h, w, c] = x.dims();
         let device = self.relative_position_params.device();
-        let n_heads = self.input_dim / HEAD_DIM;        let hh = h / WS;
+        let n_heads = self.input_dim / HEAD_DIM;
+        let hh = h / WS;
         let ww = w / WS;
         let nw = hh * ww;
         let shift = (WS / 2) as i64;
@@ -180,7 +181,9 @@ impl<B: Backend> Wmsa<B> {
         let probs = softmax(sim, 4);
 
         let out = probs.matmul(v); // [heads, b, nw, np, hd]
-        let out = out.permute([1, 2, 3, 0, 4]).reshape([b, nw, NP, self.input_dim]);
+        let out = out
+            .permute([1, 2, 3, 0, 4])
+            .reshape([b, nw, NP, self.input_dim]);
         let out = self.linear.forward(out);
 
         // Window reverse.
@@ -197,24 +200,34 @@ impl<B: Backend> Wmsa<B> {
 
     /// -inf for cross-window (shifted) token pairs; layout [heads, b, nw, np, np].
     fn sw_mask(&self, sim: Tensor<B, 5>, hh: usize, ww: usize) -> Tensor<B, 5> {
-        let device = self.relative_position_params.device();        let (row, col) = sw_cross_patterns();
+        let device = self.relative_position_params.device();
+        let (row, col) = sw_cross_patterns();
         let row_t = Tensor::<B, 2, Bool>::from_data(TensorData::new(row, [NP, NP]), &device);
         let col_t = Tensor::<B, 2, Bool>::from_data(TensorData::new(col, [NP, NP]), &device);
         let mut mask = Tensor::<B, 4, Bool>::zeros([hh, ww, NP, NP], &device);
         if hh > 0 {
             mask = mask.slice_assign(
                 [hh - 1..hh, 0..ww, 0..NP, 0..NP],
-                row_t.unsqueeze_dim::<3>(0).unsqueeze_dim::<4>(0).expand([1, ww, NP, NP]),
+                row_t
+                    .unsqueeze_dim::<3>(0)
+                    .unsqueeze_dim::<4>(0)
+                    .expand([1, ww, NP, NP]),
             );
         }
         if ww > 0 {
             mask = mask.slice_assign(
                 [0..hh, ww - 1..ww, 0..NP, 0..NP],
-                col_t.unsqueeze_dim::<3>(0).unsqueeze_dim::<4>(0).expand([hh, 1, NP, NP]),
+                col_t
+                    .unsqueeze_dim::<3>(0)
+                    .unsqueeze_dim::<4>(0)
+                    .expand([hh, 1, NP, NP]),
             );
         }
         let nw = hh * ww;
-        let mask = mask.reshape([nw, NP, NP]).unsqueeze_dim::<4>(0).unsqueeze_dim::<5>(0);
+        let mask = mask
+            .reshape([nw, NP, NP])
+            .unsqueeze_dim::<4>(0)
+            .unsqueeze_dim::<5>(0);
         let neg_inf = Tensor::<B, 5>::full([1, 1, nw, NP, NP], f32::NEG_INFINITY, &device);
         let [heads, b, _, np1, np2] = sim.dims();
         sim.mask_where(
@@ -276,7 +289,9 @@ impl<B: Backend> ConvBlock<B> {
     }
 
     fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let h = self.c2.forward(burn::tensor::activation::relu(self.c0.forward(x.clone())));
+        let h = self
+            .c2
+            .forward(burn::tensor::activation::relu(self.c0.forward(x.clone())));
         x + h
     }
 }
@@ -398,16 +413,34 @@ impl<B: Backend> Scunet<B> {
         }
 
         let x1 = self.m_head.forward(x0);
-        let x = self.m_down1.iter().fold(x1.clone(), |acc, b| b.forward(acc));
+        let x = self
+            .m_down1
+            .iter()
+            .fold(x1.clone(), |acc, b| b.forward(acc));
         let x2 = self.m_down1_down.forward(x);
-        let x = self.m_down2.iter().fold(x2.clone(), |acc, b| b.forward(acc));
+        let x = self
+            .m_down2
+            .iter()
+            .fold(x2.clone(), |acc, b| b.forward(acc));
         let x3 = self.m_down2_down.forward(x);
-        let x = self.m_down3.iter().fold(x3.clone(), |acc, b| b.forward(acc));
+        let x = self
+            .m_down3
+            .iter()
+            .fold(x3.clone(), |acc, b| b.forward(acc));
         let x4 = self.m_down3_down.forward(x);
         let x = self.m_body.iter().fold(x4.clone(), |acc, b| b.forward(acc));
-        let x = self.m_up3.iter().fold(self.m_up3_up.forward(x + x4), |acc, b| b.forward(acc));
-        let x = self.m_up2.iter().fold(self.m_up2_up.forward(x + x3), |acc, b| b.forward(acc));
-        let x = self.m_up1.iter().fold(self.m_up1_up.forward(x + x2), |acc, b| b.forward(acc));
+        let x = self
+            .m_up3
+            .iter()
+            .fold(self.m_up3_up.forward(x + x4), |acc, b| b.forward(acc));
+        let x = self
+            .m_up2
+            .iter()
+            .fold(self.m_up2_up.forward(x + x3), |acc, b| b.forward(acc));
+        let x = self
+            .m_up1
+            .iter()
+            .fold(self.m_up1_up.forward(x + x2), |acc, b| b.forward(acc));
         let x = self.m_tail.forward(x + x1);
 
         x.slice([0..b, 0..3, 0..h, 0..w])

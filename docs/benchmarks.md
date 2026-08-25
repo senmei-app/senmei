@@ -48,6 +48,34 @@ numerically verified vs torch (f32 max diff ~6e-6; fp16 ~1.7e-2).
 | up2x | fp16 | **136 ms** | **302 ms** | beats ncnn (249 / 398 ms) |
 | ShuffleCugan | fp16 | **46 ms** | **103 ms** | pixel-unshuffle ⇒ UNet at half-res |
 
+## tch (libtorch) — f16 fused path (2026-08-25)
+
+After the libtorch backend moved to `LibTorch<f16>` + the shared fused RGB8
+path (device-side tiling, native-scale accumulation, GPU re-sample). App path:
+`real-cugan-pro-conservative-x2`, 576×432 DVD frames → 4× (2304×1728).
+
+| Path | ms/frame | FPS |
+|---|---|---|
+| tch f32 (previous, CPU roundtrip) | 106.7 | 9.4 |
+| **tch f16 fused (current)** | **59.6** | **16.8** |
+| real app render (tch f16, VA-API encode) | ~66 | ~15 |
+
+Frame batching (MIOpen) does **not** help — measured with
+`bench_upscale_batch_dvd` (576×432 → 4×, pipelined depth 2 reference):
+
+| Batch | vs. per-frame |
+|---|---|
+| 1 | 100 % (baseline) |
+| 2 | 102 % |
+| 4 | 104 % |
+| 8 | 109 % |
+
+Larger batched matmuls regress on this backend too (same as Vulkan/burn,
+docs/benchmarks.md above) — the fused path already carries all frames in the
+batch dim per tile position, and the model floor (~44 ms @ native 2×) is the
+bottleneck, not launch/readback overhead.
+
+
 Caveats: heavy build (~800 crates / 1.6 GB `target/`); `PytorchStore` can't cast
 f32→f16 at load (pre-convert weights, or `BurnpackStore` + `HalfPrecisionAdapter`).
 
@@ -172,8 +200,22 @@ GPU stays busy during the transfer.
 
 ~22 % faster than the sync path. Depth 1 (double-buffered readback) captures
 nearly all of it — depth 2/3 add nothing here because the bench has no encoder
-write to hide behind the GPU (the full app may benefit). Default depth = 1,
-configurable via `pipeline_depth`.
+write to hide behind the GPU (the full app may benefit).
+
+### Depth 2 default (2026-08-24)
+
+Same bench, heavier model (`real-cugan-pro-conservative-x2`, 1080p@2 — the
+shipped grain model): depth now matters.
+
+| Depth | ms/frame | FPS | vs depth 1 |
+|---|---|---|---|
+| 1 | 777.5 | 1.3 | — |
+| **2** | **607.1** | **1.6** | **−22 %** |
+| 3 | 596.3 | 1.7 | −23 % |
+
+Depth 2 is the sweet spot (depth 3 adds ~1 %). The heavier model's bigger
+canvas/readback makes the overlap worthwhile where the light model's didn't.
+Default depth = **2** (was 1), `0` in settings = owning default.
 
 ## Real-frame upscaler sweep (2026-08-23)
 

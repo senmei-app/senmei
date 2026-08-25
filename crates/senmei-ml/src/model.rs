@@ -410,7 +410,10 @@ mod tests {
         assert_eq!(registry.models()[38].scale, 4);
         assert_eq!(registry.models()[38].arch, "srvgg");
         assert!(registry.models()[38].loadable);
-        assert_eq!(registry.models()[38].license.as_deref(), Some("BSD-3-Clause"));
+        assert_eq!(
+            registry.models()[38].license.as_deref(),
+            Some("BSD-3-Clause")
+        );
         assert_eq!(registry.models()[38].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(
             registry.models()[38]
@@ -423,7 +426,10 @@ mod tests {
         assert_eq!(registry.models()[39].arch, "realesrgan");
         assert!(registry.models()[39].loadable);
         assert_eq!(
-            registry.models()[39].metadata.get("shuffle").and_then(|v| v.as_u64()),
+            registry.models()[39]
+                .metadata
+                .get("shuffle")
+                .and_then(|v| v.as_u64()),
             Some(2)
         );
         assert_eq!(registry.models()[40].id, "real-cugan-hfa2k-x2");
@@ -435,8 +441,14 @@ mod tests {
         assert_eq!(registry.models()[41].scale, 2);
         assert_eq!(registry.models()[41].license.as_deref(), Some("MIT"));
         assert_eq!(registry.models()[41].sha256.as_deref().unwrap().len(), 64);
-        for (i, preset) in [42, 43, 44].into_iter().zip(["no-denoise", "conservative", "denoise3x"]) {
-            assert_eq!(registry.models()[i].id, format!("real-cugan-pro-{preset}-x2"));
+        for (i, preset) in [42, 43, 44]
+            .into_iter()
+            .zip(["no-denoise", "conservative", "denoise3x"])
+        {
+            assert_eq!(
+                registry.models()[i].id,
+                format!("real-cugan-pro-{preset}-x2")
+            );
             assert_eq!(registry.models()[i].arch, "upcunet2x");
             assert!(registry.models()[i].loadable);
             assert_eq!(registry.models()[i].license.as_deref(), Some("Apache-2.0"));

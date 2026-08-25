@@ -22,8 +22,22 @@ pub fn set_tile_size(n: u32) {
     TILE_SIZE.store(n, Ordering::Relaxed);
 }
 
-/// Read the fused RGB8 tile size (burn-only; the tch engine tiles internally).
+/// Discrete-GPU index for inference (app settings); 0 = first discrete GPU.
+static GPU_INDEX: AtomicU32 = AtomicU32::new(0);
+
+/// Select the discrete-GPU index used by the burn engine (0-based).
+pub fn set_gpu_index(n: u32) {
+    GPU_INDEX.store(n, Ordering::Relaxed);
+}
+
+/// Discrete-GPU index for inference (0 = first discrete GPU).
 #[cfg(feature = "burn")]
+pub(crate) fn gpu_index() -> u32 {
+    GPU_INDEX.load(Ordering::Relaxed)
+}
+
+/// Read the fused RGB8 tile size (both engines tile internally).
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub(crate) fn current_tile_size() -> usize {
     let n = TILE_SIZE.load(Ordering::Relaxed);
     if n > 0 {
@@ -56,8 +70,6 @@ pub(crate) use burn_wgpu::Vulkan as BurnBackend;
 pub use burn::BurnEngine;
 #[cfg(feature = "burn")]
 pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk, convert_safetensors_to_bpk};
-#[cfg(feature = "tch")]
-pub use tch::{TchDevice, TchEngine};
 pub use engine::{
     backend_info, engine_for_model, infer_denoise_tiled, infer_tiled, BackendInfo, EngineBackend,
     EngineCaps, InferOptions, InferenceEngine, Rgb8Batch,
@@ -69,10 +81,12 @@ pub use runtime::{
     detect, pick_device, pick_variant, resolve, vram_available_bytes, vram_total_bytes, Hardware,
     TorchInstall, TorchVariant,
 };
+#[cfg(feature = "tch")]
+pub use tch::{TchDevice, TchEngine};
 pub use tensor::Tensor;
-pub use tiling::{crop, pad_to, stitch, uniform_tile};
-#[cfg(feature = "burn")]
+#[cfg(any(feature = "burn", feature = "tch"))]
 pub use tiling::crop_rgb24;
+pub use tiling::{crop, pad_to, stitch, uniform_tile};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

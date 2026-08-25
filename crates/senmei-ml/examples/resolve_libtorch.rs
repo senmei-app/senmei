@@ -9,7 +9,11 @@ fn main() {
     eprintln!("variant: {:?}", senmei_ml::pick_variant(&hw));
     match senmei_ml::resolve(std::path::Path::new(&data_dir), &hw) {
         Ok(Some(install)) => {
-            println!("resolved: {:?} lib={}", install.variant, install.lib_dir.display());
+            println!(
+                "resolved: {:?} lib={}",
+                install.variant,
+                install.lib_dir.display()
+            );
         }
         Ok(None) => println!("no CUDA/ROCm device detected"),
         Err(e) => {

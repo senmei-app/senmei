@@ -2,10 +2,10 @@
 //! Same license/confirm gates as MCP (they live in `core`).
 
 use axum::{
-    Json, Router,
     body::Body,
-    http::{Request, Response, StatusCode, header},
+    http::{header, Request, Response, StatusCode},
     routing::{get, post},
+    Json, Router,
 };
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -145,12 +145,17 @@ async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
 async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return match tokio::task::spawn_blocking(move || core::download_model(&p.model_id, |_, _| {}))
-            .await
+        return match tokio::task::spawn_blocking(move || {
+            core::download_model(&p.model_id, |_, _| {})
+        })
+        .await
         {
             Ok(Ok(path)) => json_ok(&serde_json::json!({ "bpk": path })),
             Ok(Err(e)) => json_err(StatusCode::BAD_REQUEST, e),
-            Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, format!("join failed: {e}")),
+            Err(e) => json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("join failed: {e}"),
+            ),
         };
     }
     #[cfg(not(feature = "render"))]
@@ -225,8 +230,8 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
 
     match web_dir {
         Some(dir) => {
-            let serve = tower_http::services::ServeDir::new(dir)
-                .append_index_html_on_directories(true);
+            let serve =
+                tower_http::services::ServeDir::new(dir).append_index_html_on_directories(true);
             api.layer(cors).fallback_service(serve)
         }
         // No dir given: serve the UI embedded in the binary (SPA fallback).
@@ -250,7 +255,13 @@ mod tests {
     async fn send(req: Request<Body>) -> (StatusCode, Vec<u8>) {
         let resp = app().oneshot(req).await.unwrap();
         let status = resp.status();
-        let bytes = resp.into_body().collect().await.unwrap().to_bytes().to_vec();
+        let bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec();
         (status, bytes)
     }
 
@@ -279,7 +290,10 @@ mod tests {
         let (status, body) = send(get("/api/backend-info")).await;
         assert_eq!(status, StatusCode::OK);
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert!(v.get("vulkanCompiled").is_some(), "missing vulkanCompiled: {v}");
+        assert!(
+            v.get("vulkanCompiled").is_some(),
+            "missing vulkanCompiled: {v}"
+        );
         assert!(v.get("libtorchCompiled").is_some());
     }
 
@@ -335,7 +349,9 @@ mod tests {
     async fn cors_headers_present() {
         let resp = app().oneshot(get("/api/health")).await.unwrap();
         assert_eq!(
-            resp.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+            resp.headers()
+                .get("access-control-allow-origin")
+                .map(|v| v.to_str().unwrap()),
             Some("*")
         );
     }

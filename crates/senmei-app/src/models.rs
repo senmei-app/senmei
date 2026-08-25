@@ -38,7 +38,9 @@ fn find_metadata_json(root: &Path) -> Option<PathBuf> {
         if depth > 8 {
             continue;
         }
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {
@@ -58,8 +60,7 @@ pub fn ensure_catalog(resource_dir: Option<&Path>) -> Result<PathBuf, String> {
     let dir = data_models_dir();
     let target = dir.join("metadata.json");
     if let Some(source) = resource_dir.and_then(find_metadata_json).or_else(|| {
-        let anchored =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
+        let anchored = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models/metadata.json");
         anchored.is_file().then_some(anchored)
     }) {
         // Refresh when the bundled catalog differs (e.g. after an app update);
@@ -97,8 +98,8 @@ mod tests {
 
     fn with_temp_data_dir(name: &str, test: impl FnOnce()) {
         let _guard = crate::store::TEST_ENV_LOCK.lock().unwrap();
-        let base = std::env::temp_dir()
-            .join(format!("senmei-models-test-{}-{name}", std::process::id()));
+        let base =
+            std::env::temp_dir().join(format!("senmei-models-test-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::env::set_var("XDG_DATA_HOME", &base);
         test();

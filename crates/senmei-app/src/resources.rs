@@ -78,7 +78,10 @@ fn sample_gpu() -> Option<GpuSample> {
             _ => card,
         };
         let utilization = read_number(device.join("gpu_busy_percent")).map(|v| v as f32);
-        if best.as_ref().is_none_or(|b| total > b.vram_total.unwrap_or(0)) {
+        if best
+            .as_ref()
+            .is_none_or(|b| total > b.vram_total.unwrap_or(0))
+        {
             best = Some(GpuSample {
                 name,
                 utilization,
@@ -103,7 +106,10 @@ fn read_memory_pair(device: &Path) -> Option<(u64, u64)> {
     ]
     .into_iter()
     .find_map(|(total, used)| {
-        Some((read_number(device.join(total))?, read_number(device.join(used))?))
+        Some((
+            read_number(device.join(total))?,
+            read_number(device.join(used))?,
+        ))
     })
 }
 

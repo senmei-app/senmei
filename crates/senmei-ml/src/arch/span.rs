@@ -70,7 +70,11 @@ impl<B: Backend> Conv3Xc<B> {
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let h = self.conv1.forward(self.conv0.forward(x.clone()));
-        let h = if self.pad_k96 { pad_channels_to(h, 128) } else { h };
+        let h = if self.pad_k96 {
+            pad_channels_to(h, 128)
+        } else {
+            h
+        };
         let out = self.conv2.forward(h);
         out + self.sk.forward(x)
     }
@@ -287,7 +291,12 @@ mod tests {
             conv.weight = Param::from_tensor(wt);
             conv.bias = Some(Param::from_tensor(b));
 
-            let out: Vec<f32> = conv.forward(x).into_data().convert::<f32>().to_vec().unwrap();
+            let out: Vec<f32> = conv
+                .forward(x)
+                .into_data()
+                .convert::<f32>()
+                .to_vec()
+                .unwrap();
             let mut maxe = 0.0f32;
             let mut mae = 0.0f32;
             for (o, r) in out.iter().zip(&refv) {
@@ -356,7 +365,12 @@ mod tests {
             conv.weight = Param::from_tensor(wt);
             conv.bias = Some(Param::from_tensor(b));
 
-            let out: Vec<f32> = conv.forward(x).into_data().convert::<f32>().to_vec().unwrap();
+            let out: Vec<f32> = conv
+                .forward(x)
+                .into_data()
+                .convert::<f32>()
+                .to_vec()
+                .unwrap();
             let mut maxe = 0.0f32;
             let mut mae = 0.0f32;
             for (o, r) in out.iter().zip(&refv) {
@@ -391,12 +405,10 @@ mod tests {
                 &device,
             );
             let mut conv96 = Conv2dConfig::new([k, 48], [1, 1]).init(&device);
-            conv96.weight = Param::from_tensor(
-                Tensor::<BurnBackend<f16>, 4>::from_data(
-                    TensorData::new(wv.clone(), [48, k, 1, 1]).convert::<f16>(),
-                    &device,
-                ),
-            );
+            conv96.weight = Param::from_tensor(Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(wv.clone(), [48, k, 1, 1]).convert::<f16>(),
+                &device,
+            ));
             conv96.bias = Some(Param::from_tensor(b.clone()));
 
             let mut wp = Vec::with_capacity(48 * 128);
@@ -413,12 +425,10 @@ mod tests {
                 v
             };
             let mut conv128 = Conv2dConfig::new([128, 48], [1, 1]).init(&device);
-            conv128.weight = Param::from_tensor(
-                Tensor::<BurnBackend<f16>, 4>::from_data(
-                    TensorData::new(wp, [48, 128, 1, 1]).convert::<f16>(),
-                    &device,
-                ),
-            );
+            conv128.weight = Param::from_tensor(Tensor::<BurnBackend<f16>, 4>::from_data(
+                TensorData::new(wp, [48, 128, 1, 1]).convert::<f16>(),
+                &device,
+            ));
             conv128.bias = Some(Param::from_tensor(b));
             let x128 = Tensor::<BurnBackend<f16>, 4>::from_data(
                 TensorData::new(xp, [1, 128, h, w]).convert::<f16>(),
@@ -426,7 +436,8 @@ mod tests {
             );
 
             let iters = 100usize;
-            let time = |conv: &burn::nn::conv::Conv2d<BurnBackend<f16>>, inp: &Tensor<BurnBackend<f16>, 4>| {
+            let time = |conv: &burn::nn::conv::Conv2d<BurnBackend<f16>>,
+                        inp: &Tensor<BurnBackend<f16>, 4>| {
                 let t0 = std::time::Instant::now();
                 for _ in 0..iters {
                     conv.forward(inp.clone()).into_data();
@@ -461,7 +472,9 @@ mod tests {
         };
         check(&m.conv_1);
         check(&m.conv_2);
-        for b in [&m.block_1, &m.block_2, &m.block_3, &m.block_4, &m.block_5, &m.block_6] {
+        for b in [
+            &m.block_1, &m.block_2, &m.block_3, &m.block_4, &m.block_5, &m.block_6,
+        ] {
             check(&b.c1_r);
             check(&b.c2_r);
             check(&b.c3_r);

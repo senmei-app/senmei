@@ -27,12 +27,14 @@ export default function SettingsPage({
   language,
   theme,
   tileSize,
+  gpuIndex,
   backend,
   backendInfo,
   hotkeys,
   onLanguageChange,
   onThemeChange,
   onTileSizeChange,
+  onGpuIndexChange,
   onBackendChange,
   onHotkeyChange,
   onBack,
@@ -40,12 +42,14 @@ export default function SettingsPage({
   language: string;
   theme: string;
   tileSize: number;
+  gpuIndex: number;
   backend: EngineBackend;
   backendInfo: BackendInfo | null;
   hotkeys: Record<string, string>;
   onLanguageChange: (lang: Lang) => void;
   onThemeChange: (theme: Theme) => void;
   onTileSizeChange: (n: number) => void;
+  onGpuIndexChange: (n: number) => void;
   onBackendChange: (b: EngineBackend) => void;
   onHotkeyChange: (id: string, combo: string) => void;
   onBack: () => void;
@@ -55,6 +59,12 @@ export default function SettingsPage({
   const [recording, setRecording] = useState<string | null>(null);
   const { status, downloading, pct, error, download } = useFfmpeg();
   const [tileDraft, setTileDraft] = useState(String(tileSize));
+  const [gpuDraft, setGpuDraft] = useState(String(gpuIndex));
+  const commitGpuIndex = () => {
+    const n = Number(gpuDraft);
+    if (Number.isInteger(n) && n >= 0) onGpuIndexChange(n);
+    setGpuDraft(String(gpuIndex));
+  };
   const [exporting, setExporting] = useState(false);
   const [diagMsg, setDiagMsg] = useState<string | null>(null);
   const [modelFiles, setModelFiles] = useState<ModelFileInfo[]>([]);
@@ -284,6 +294,25 @@ export default function SettingsPage({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t("settings.gpu")}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={7}
+                  value={gpuDraft}
+                  onChange={(e) => setGpuDraft(e.target.value)}
+                  onBlur={commitGpuIndex}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  className="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+                <span className="ml-2 text-[11px] text-slate-400">{t("settings.gpuHint")}</span>
               </div>
             </div>
           )}

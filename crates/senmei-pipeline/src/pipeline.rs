@@ -283,7 +283,10 @@ impl Pipeline {
             }
         }
 
-        if main_err.as_ref().is_some_and(|e| e.to_string() == "cancelled") {
+        if main_err
+            .as_ref()
+            .is_some_and(|e| e.to_string() == "cancelled")
+        {
             log::info!("pipeline: cancelled");
         }
 
@@ -316,7 +319,10 @@ impl Pipeline {
             }
             let ms = t.total.as_secs_f64() * 1000.0 / t.frames as f64;
             let fps = t.frames as f64 / t.total.as_secs_f64();
-            log::info!("pipeline: step {} — {ms:.2} ms/frame ({fps:.1} fps)", t.name);
+            log::info!(
+                "pipeline: step {} — {ms:.2} ms/frame ({fps:.1} fps)",
+                t.name
+            );
         }
         Ok(())
     }

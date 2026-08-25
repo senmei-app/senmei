@@ -35,6 +35,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>("en");
   const [theme, setTheme] = useState<string>("dark");
   const [tileSize, setTileSize] = useState<number>(640);
+  const [gpuIndex, setGpuIndex] = useState<number>(0);
   const [backend, setBackend] = useState<EngineBackend>("auto");
   const [backendInfoState, setBackendInfoState] = useState<BackendInfo | null>(null);
   const [hardware, setHardware] = useState<HardwareSnapshot | null>(null);
@@ -81,6 +82,7 @@ export default function App() {
           setTheme(s.theme || "dark");
           setHotkeyOverrides(s.hotkeys ?? {});
           setTileSize(s.tileSize ?? 640);
+          setGpuIndex(s.gpuIndex ?? 0);
           setBackend(s.backend ?? "auto");
         })
         .catch(() => {});
@@ -123,6 +125,7 @@ export default function App() {
         theme,
         hotkeys: Object.keys(hotkeyOverrides).length ? hotkeyOverrides : null,
         tileSize,
+        gpuIndex,
         backend,
         ...partial,
       }),
@@ -173,6 +176,11 @@ export default function App() {
   const changeTileSize = (n: number) => {
     setTileSize(n);
     persistSettings({ tileSize: n });
+  };
+
+  const changeGpuIndex = (n: number) => {
+    setGpuIndex(n);
+    persistSettings({ gpuIndex: n });
   };
 
   // Persist a hotkey override; resetting to the default drops the entry.
@@ -446,6 +454,11 @@ export default function App() {
       fullVideo={fullVideo}
       onToggleFullVideo={toggleFullVideo}
       togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
+      muteHotkey={resolveHotkeys(hotkeyOverrides).mute}
+      volumeUpHotkey={resolveHotkeys(hotkeyOverrides).volumeUp}
+      volumeDownHotkey={resolveHotkeys(hotkeyOverrides).volumeDown}
+      seekBackHotkey={resolveHotkeys(hotkeyOverrides).seekBack}
+      seekForwardHotkey={resolveHotkeys(hotkeyOverrides).seekForward}
     />
   );
 
@@ -464,12 +477,14 @@ export default function App() {
             language={lang}
             theme={theme}
             tileSize={tileSize}
+            gpuIndex={gpuIndex}
             backend={backend}
             backendInfo={backendInfoState}
             hotkeys={resolveHotkeys(hotkeyOverrides)}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
             onTileSizeChange={changeTileSize}
+            onGpuIndexChange={changeGpuIndex}
             onBackendChange={changeBackend}
             onHotkeyChange={changeHotkey}
             onBack={() => setSettingsOpen(false)}

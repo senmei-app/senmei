@@ -46,9 +46,11 @@ pub fn init(data_dir: &Path) {
         .append(true)
         .open(&path)
         .ok()
-        .map(|f| FileSink { file: Mutex::new(f) });
-    let console = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .build();
+        .map(|f| FileSink {
+            file: Mutex::new(f),
+        });
+    let console =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).build();
     let _ = log::set_boxed_logger(Box::new(ServerLogger { console, sink }));
     log::set_max_level(log::LevelFilter::Info);
 }

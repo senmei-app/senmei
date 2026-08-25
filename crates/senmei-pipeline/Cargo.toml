@@ -12,6 +12,12 @@ senmei-media = { path = "../senmei-media", version = "0.1.2" }
 senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 thiserror.workspace = true
 
+[features]
+# Optional libtorch engine for `BENCH_BACKEND=tch`; never default — torch-sys
+# needs a libtorch download with no arm64 macOS wheel, so the workspace test
+# build must stay tch-free.
+tch = ["senmei-ml/tch"]
+
 [dev-dependencies]
 # Burn feature only for the integration tests (real-model upscale).
 senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn"] }

@@ -209,7 +209,12 @@ mod tests {
     impl BatchEngine {
         fn new() -> (Self, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
             let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-            (Self { calls: calls.clone() }, calls)
+            (
+                Self {
+                    calls: calls.clone(),
+                },
+                calls,
+            )
         }
     }
 
@@ -237,7 +242,8 @@ mod tests {
             inputs: &[Tensor],
             scale: u32,
         ) -> Option<senmei_ml::Result<Vec<(Vec<u8>, u32, u32)>>> {
-            self.calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let outs = inputs
                 .iter()
                 .map(|t| {
@@ -259,7 +265,11 @@ mod tests {
                             }
                         }
                     }
-                    (bytes, (w * scale as usize) as u32, (h * scale as usize) as u32)
+                    (
+                        bytes,
+                        (w * scale as usize) as u32,
+                        (h * scale as usize) as u32,
+                    )
                 })
                 .collect();
             Some(Ok(outs))
@@ -271,9 +281,21 @@ mod tests {
         let (engine, calls) = BatchEngine::new();
         let mut step = Upscale::new(2, Some(Box::new(engine)));
         let mut frames = vec![
-            Frame { width: 4, height: 4, data: vec![10u8; 3 * 4 * 4] },
-            Frame { width: 4, height: 4, data: vec![20u8; 3 * 4 * 4] },
-            Frame { width: 4, height: 4, data: vec![30u8; 3 * 4 * 4] },
+            Frame {
+                width: 4,
+                height: 4,
+                data: vec![10u8; 3 * 4 * 4],
+            },
+            Frame {
+                width: 4,
+                height: 4,
+                data: vec![20u8; 3 * 4 * 4],
+            },
+            Frame {
+                width: 4,
+                height: 4,
+                data: vec![30u8; 3 * 4 * 4],
+            },
         ];
         step.process_batch(&mut frames).unwrap();
         assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
@@ -289,8 +311,16 @@ mod tests {
         let (engine, calls) = BatchEngine::new();
         let mut step = Upscale::new(2, Some(Box::new(engine)));
         let mut frames = vec![
-            Frame { width: 4, height: 4, data: vec![10u8; 3 * 4 * 4] },
-            Frame { width: 6, height: 4, data: vec![20u8; 3 * 4 * 6] },
+            Frame {
+                width: 4,
+                height: 4,
+                data: vec![10u8; 3 * 4 * 4],
+            },
+            Frame {
+                width: 6,
+                height: 4,
+                data: vec![20u8; 3 * 4 * 6],
+            },
         ];
         step.process_batch(&mut frames).unwrap();
         // Unequal dims must not hit the batch API; per-frame path still scales.
@@ -328,7 +358,12 @@ mod tests {
             input: &Tensor,
             scale: u32,
         ) -> Option<senmei_ml::Result<(Vec<u8>, u32, u32)>> {
-            let (_, _, h, w) = (input.shape[0], input.shape[1], input.shape[2], input.shape[3]);
+            let (_, _, h, w) = (
+                input.shape[0],
+                input.shape[1],
+                input.shape[2],
+                input.shape[3],
+            );
             let out = senmei_ml::bilinear(input, h * scale as usize, w * scale as usize);
             let mut bytes = vec![0u8; 3 * h * w * scale as usize * scale as usize];
             for y in 0..h {
@@ -346,7 +381,11 @@ mod tests {
                     }
                 }
             }
-            Some(Ok((bytes, (w * scale as usize) as u32, (h * scale as usize) as u32)))
+            Some(Ok((
+                bytes,
+                (w * scale as usize) as u32,
+                (h * scale as usize) as u32,
+            )))
         }
     }
 
@@ -409,6 +448,10 @@ mod tests {
 
     #[test]
     fn upscale_process_batch_defers_then_flushes() {
+        // The deferred-path handoff (1 in-flight, next submit resolves it)
+        // assumes pipeline_depth = 1; pin it explicitly so the test is
+        // independent of the global default (2).
+        crate::set_pipeline_depth(1);
         let mut step = Upscale::new(2, Some(Box::new(PipelinedEngine)));
         let mk = |v: u8| Frame {
             width: 2,
@@ -433,6 +476,7 @@ mod tests {
         let mut tail = Vec::new();
         step.flush(&mut tail).unwrap();
         assert_eq!(tail.len(), 1);
+        crate::set_pipeline_depth(0);
     }
 
     #[test]
@@ -469,10 +513,26 @@ mod tests {
     fn process_batch_default_drops_frames() {
         let mut step = DropMarked;
         let mut frames = vec![
-            Frame { width: 1, height: 1, data: vec![1] },
-            Frame { width: 1, height: 1, data: vec![42] },
-            Frame { width: 1, height: 1, data: vec![3] },
-            Frame { width: 1, height: 1, data: vec![42] },
+            Frame {
+                width: 1,
+                height: 1,
+                data: vec![1],
+            },
+            Frame {
+                width: 1,
+                height: 1,
+                data: vec![42],
+            },
+            Frame {
+                width: 1,
+                height: 1,
+                data: vec![3],
+            },
+            Frame {
+                width: 1,
+                height: 1,
+                data: vec![42],
+            },
         ];
         step.process_batch(&mut frames).unwrap();
         assert_eq!(frames.len(), 2);
@@ -483,7 +543,11 @@ mod tests {
     #[test]
     fn flush_default_is_noop() {
         let mut step = DropMarked;
-        let mut frames = vec![Frame { width: 1, height: 1, data: vec![42] }];
+        let mut frames = vec![Frame {
+            width: 1,
+            height: 1,
+            data: vec![42],
+        }];
         step.flush(&mut frames).unwrap();
         assert_eq!(frames.len(), 1);
     }
