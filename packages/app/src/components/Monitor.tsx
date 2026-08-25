@@ -390,9 +390,13 @@ export default function Monitor({
     let on = true;
     const fileChanged = file !== prevFile.current;
     prevFile.current = file ?? null;
+    // Result/compare only span the sample window; land on the sample start so
+    // source/result/audio all align (the video may have run past while the
+    // render was busy, leaving the playhead outside the window).
     const next =
-      fileChanged ? 0 : mode === "result" || mode === "compare" ? Math.max(posMs, inMs) : posMs;
+      fileChanged ? 0 : mode === "result" || mode === "compare" ? inMs : posMs;
     setInfo(null);
+    posRef.current = next; // update the playhead ref immediately (audio targets it)
     setPosMs(next);
     // Keep the sound on the (possibly clamped) playhead: switching into the
     // result view repositions the video to the sample in-point, but the
@@ -432,6 +436,7 @@ export default function Monitor({
   }, [src, file, mode, beReady]);
 
   const onScrub = (ms: number) => {
+    posRef.current = ms; // keep the playhead ref current so audio targets it
     setPosMs(ms);
     // A scrub outside the sample window repositions the window to start at the
     // playhead, so "Render Sample" clips from where you're looking.
@@ -507,7 +512,7 @@ export default function Monitor({
     }, 33);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, nativeSrc, info, inMs, outMs]);
+  }, [playing, nativeSrc, info, inMs, outMs, mode]);
 
   const tlMin = tlSource ? 0 : inMs;
   const tlMax = tlSource
