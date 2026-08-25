@@ -23,6 +23,11 @@
   `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
   bundle job which already skips tch on macOS.
 
+- **test: gate HDR tonemap assertion on the zscale filter (2026-08-25)** —
+  brew's ffmpeg can lack libzimg, so the Auto tonemap chain fails silently and
+  the HDR smoke test panicked on macOS; the tonemap assertion now skips where
+  `zscale` is absent (HDR detection + Off decode still tested).
+
 - **fix: gap-free preview audio on seek + stable arrow keys (2026-08-25)** —
   every pipe restart (seek/scrub/arrow) starved rodio during ffmpeg's seek
   decode → audible dropouts. The stream now pre-rolls ~200 ms of PCM before
