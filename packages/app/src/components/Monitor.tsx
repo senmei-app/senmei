@@ -212,7 +212,10 @@ export default function Monitor({
     // playhead so "Render Sample" clips from where you're looking (same as a
     // scrub that passes the window).
     if (mode === "source") {
-      if (outMs > inMs && t >= outMs) {
+      // Re-anchor the window to the playhead only when not rendering — a
+      // render in flight must keep its start (inMs) or result/compare map
+      // to a drifted window.
+      if (!rendering && outMs > inMs && t >= outMs) {
         const fps = info?.fps ?? 0;
         const dur = outMs - inMs;
         const p = snapFrame(t, fps);
@@ -440,7 +443,7 @@ export default function Monitor({
     setPosMs(ms);
     // A scrub outside the sample window repositions the window to start at the
     // playhead, so "Render Sample" clips from where you're looking.
-    if (ms < inMs || ms >= outMs) {
+    if (!rendering && (ms < inMs || ms >= outMs)) {
       const dur = outMs > inMs ? outMs - inMs : 10000;
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
@@ -477,7 +480,7 @@ export default function Monitor({
       let next = prev + elapsed;
       // Keep the sample window anchored to the playhead (source mode plays the
       // whole file): "Render Sample" clips from where you're looking.
-      if (mode === "source" && outMs > inMs && next >= outMs) {
+      if (!rendering && mode === "source" && outMs > inMs && next >= outMs) {
         const fps = info?.fps ?? 0;
         const p = snapFrame(next, fps);
         onSampleChange?.(p, snapFrame(p + (outMs - inMs), fps));
@@ -512,7 +515,7 @@ export default function Monitor({
     }, 33);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, nativeSrc, info, inMs, outMs, mode]);
+  }, [playing, nativeSrc, info, inMs, outMs, mode, rendering]);
 
   const tlMin = tlSource ? 0 : inMs;
   const tlMax = tlSource

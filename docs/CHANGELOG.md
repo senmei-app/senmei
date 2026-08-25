@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: freeze the sample window while rendering (2026-08-25)** — while a
+  render runs, the source video keeps playing and `onVideoTime` re-anchored
+  the sample window to the playhead (`t >= outMs`), so `inMs` drifted forward.
+  Result/compare then mapped source to the drifted `inMs` while the rendered
+  file still spans the original start — source ahead of result, audio at the
+  wrong position. Every re-anchor (`onVideoTime`, scrub, playback loop) is now
+  gated on `!rendering`, keeping the window fixed at the render start until
+  the render finishes.
+
 - **fix: pipeline bench compiles again (2026-08-25)** — the preview decode
   budget added a `max_dim` argument to `Decoder::open_with_range`, but the
   benchmark's three call sites were not updated, so the bench test target did
