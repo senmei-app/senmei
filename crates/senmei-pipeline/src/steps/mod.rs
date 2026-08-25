@@ -409,6 +409,10 @@ mod tests {
 
     #[test]
     fn upscale_process_batch_defers_then_flushes() {
+        // The deferred-path handoff (1 in-flight, next submit resolves it)
+        // assumes pipeline_depth = 1; pin it explicitly so the test is
+        // independent of the global default (2).
+        crate::set_pipeline_depth(1);
         let mut step = Upscale::new(2, Some(Box::new(PipelinedEngine)));
         let mk = |v: u8| Frame {
             width: 2,
@@ -433,6 +437,7 @@ mod tests {
         let mut tail = Vec::new();
         step.flush(&mut tail).unwrap();
         assert_eq!(tail.len(), 1);
+        crate::set_pipeline_depth(0);
     }
 
     #[test]
