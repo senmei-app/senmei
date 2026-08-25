@@ -28,7 +28,7 @@ fn model() -> senmei_ml::ModelRef {
 }
 
 /// Resolve `BENCH_BACKEND`: `vulkan` (default, burn) or `tch`/`libtorch`
-/// (ROCm; needs the `tch` feature, and only exercises the non-fused path).
+/// (ROCm; enable via `--features tch`, and only exercises the non-fused path).
 fn backend() -> senmei_ml::EngineBackend {
     match std::env::var("BENCH_BACKEND").as_deref() {
         Ok("tch") | Ok("libtorch") | Ok("rocm") => senmei_ml::EngineBackend::LibTorch,

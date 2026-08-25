@@ -6,6 +6,17 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **fix: no torch-sys build in the macOS workspace tests (2026-08-25)** —
+  `senmei-pipeline`'s dev-dependency forced `senmei-ml/tch`, so
+  `cargo test --workspace` built `torch-sys` everywhere and its build script
+  panicked on arm64 macOS (no libtorch wheel on PyPI) — the `v0.1.10` release
+  run failed and skipped bundle/publish. tch is now an opt-in pipeline feature
+  (`cargo test -p senmei-pipeline --features tch --test bench` for
+  `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
+  bundle job which already skips tch on macOS.
+
 ## 0.1.10 (2026-08-25)
 
 - **perf: tch engine runs f16 on the fused RGB8 GPU path (2026-08-25)** —
