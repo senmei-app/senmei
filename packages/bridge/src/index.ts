@@ -86,10 +86,8 @@ export const readFrame = (
   onFrame: Channel<FramePixels>,
 ) => commands.readFrame(input, positionMs, projectDir, onMeta, onFrame);
 
-export const extractAudio = (input: string, projectDir: string | null = null) =>
-  commands.extractAudio(input, projectDir);
-
-export const audioLoad = (path: string) => commands.audioLoad(path);
+export const audioLoad = (input: string, positionMs: number) =>
+  commands.audioLoad(input, positionMs);
 export const audioPlay = () => commands.audioPlay();
 export const audioPause = () => commands.audioPause();
 export const audioClear = () => commands.audioClear();

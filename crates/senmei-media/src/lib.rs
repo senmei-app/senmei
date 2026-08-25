@@ -19,7 +19,7 @@ pub use downloader::{
 pub use encoder::Encoder;
 pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
-pub use preview::{encode_png, extract_audio};
+pub use preview::{encode_png, stream_pcm, PcmPipe};
 pub use preview_stream::PreviewCache;
 pub use probe::{probe, VideoInfo};
 pub use videos::find_videos;

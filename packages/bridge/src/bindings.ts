@@ -43,19 +43,13 @@ export const commands = {
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
 	readFrame: (input: string, positionMs: number | null, projectDir: string | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, projectDir, onMeta, onFrame }),
-	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
-	/**
-	 *  Load an extracted audio file (AAC); playback stays paused until
-	 *  `audio_play`.
-	 */
-	audioLoad: (path: string) => __TAURI_INVOKE<null>("audio_load", { path }),
+	/**  Start streaming `input`'s audio at `position_ms` (paused until `audio_play`). */
+	audioLoad: (input: string, positionMs: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
-	/**
-	 *  Drop the current audio source so a stale track can't play while the next
-	 *  one is being extracted.
-	 */
+	/**  Drop the current stream so a stale source can't play while the next loads. */
 	audioClear: () => __TAURI_INVOKE<null>("audio_clear"),
+	/**  Seek = restart the ffmpeg pipe at `position_ms` (keeps play state). */
 	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */

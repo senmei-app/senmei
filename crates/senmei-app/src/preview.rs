@@ -1,7 +1,5 @@
 //! Frame preview helpers: persistent decode streams + raw-frame delivery.
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::{mpsc, OnceLock};
 
 use tauri::ipc::{InvokeResponseBody, IpcResponse};
@@ -103,29 +101,6 @@ pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String>
     })
 }
 
-/// Short stable namespace for one input file, so original/result/compare frames
-/// never share a prune bucket or filename.
-fn frame_ns(input: &str) -> String {
-    let mut h = DefaultHasher::new();
-    input.hash(&mut h);
-    format!("{:016x}", h.finish())
-}
-
-/// Preview scratch dir: under the project (`preview/`) when one is open, else
-/// the app data dir; a non-writable project dir falls back to the data dir.
-fn preview_dir(project_dir: Option<&str>) -> std::path::PathBuf {
-    project_dir
-        .and_then(|p| {
-            let d = std::path::Path::new(p).join("preview");
-            std::fs::create_dir_all(&d).ok().map(|_| d)
-        })
-        .unwrap_or_else(|| {
-            let d = store::data_dir().join("preview");
-            let _ = std::fs::create_dir_all(&d);
-            d
-        })
-}
-
 /// Decode one frame at `position_ms` as raw RGB24 for the preview monitor.
 /// Sends the request to the single decode worker, which serves it from its
 /// warm decode streams (one ffmpeg per file) and applies the preview decode
@@ -179,51 +154,4 @@ mod tests {
     }
 }
 
-/// Extract the source audio once as stereo AAC for the native preview player —
-/// any source audio codec (e.g. AC3 in anime files) is decoded by our FFmpeg
-/// and re-encoded to AAC (small + seekable in rodio). One active track at a
-/// time; stale tracks (incl. old .wav/.flac/.mp3/.webm/.m4a) are dropped when
-/// a new one is extracted.
-pub fn extract_audio_inner(input: &str, project_dir: Option<&str>) -> Result<String, String> {
-    let dir = preview_dir(project_dir);
-    let ns = frame_ns(input);
-    let path = dir.join(format!("audio_{ns}.aac"));
-    // Cache only complete tracks; a failed run must not leave a 0-byte file
-    // that later looks "done".
-    if path.exists()
-        && std::fs::metadata(&path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
-        return Ok(path.to_string_lossy().into_owned());
-    }
-    let _ = std::fs::remove_file(&path);
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().into_owned();
-            let stale = name.starts_with("audio_")
-                && (name.ends_with(".aac")
-                    || name.ends_with(".wav")
-                    || name.ends_with(".flac")
-                    || name.ends_with(".mp3")
-                    || name.ends_with(".webm")
-                    || name.ends_with(".m4a"))
-                && e.path() != path;
-            if stale {
-                let _ = std::fs::remove_file(e.path());
-            }
-        }
-    }
-    let ffmpeg = senmei_media::resolve(&store::data_dir());
-    // Extract to a temp name and rename only on success so a failure never
-    // leaves a partial track at the cached path. The .aac suffix lets ffmpeg
-    // infer the ADTS muxer (it can't from a bare .tmp).
-    let tmp = dir.join(format!("audio_{ns}.tmp.aac"));
-    let _ = std::fs::remove_file(&tmp);
-    senmei_media::extract_audio(&ffmpeg, std::path::Path::new(input), &tmp).map_err(|e| {
-        log::warn!("audio extraction failed: {e}");
-        e.to_string()
-    })?;
-    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
-    Ok(path.to_string_lossy().into_owned())
-}
+

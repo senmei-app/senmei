@@ -155,24 +155,17 @@ export default function Monitor({
     void be()?.audioSeek(ms + AUDIO_LEAD_MS).catch(() => {});
   };
 
-  // A stale extraction after a file switch must not load the old track.
-  const audioFileRef = useRef<string | null>(null);
+  // Stream the file's audio (no extraction wait); a stale load after a file
+  // switch can't stick — each `audioLoad` replaces the current ffmpeg pipe.
   useEffect(() => {
-    // Drop the previous track so a stale sink can't play during extraction.
+    // Drop the previous stream so a stale source can't play while the next loads.
     void be()?.audioClear().catch(() => {});
     setAudioReady(false);
     if (!be() || !file) return;
-    audioFileRef.current = file;
     be()!
-      .extractAudio(file, projectDir ?? null)
-      .then((p) => {
-        if (audioFileRef.current !== file) return;
-        return be()!
-          .audioLoad(p)
-          .then(() => setAudioReady(true))
-          .catch((e) => console.error("audio load failed:", e));
-      })
-      .catch((e) => console.error("preview extractAudio failed:", e));
+      .audioLoad(file, 0)
+      .then(() => setAudioReady(true))
+      .catch((e) => console.error("audio load failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, beReady]);
 

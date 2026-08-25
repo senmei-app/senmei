@@ -35,10 +35,9 @@
 - [ ] Phase 3: true ring buffer around the playhead — decoder thread +
       worker last-frame-wins coalescing landed 2026-08-24; a decoded-frame
       ring buffer for near-position scrubbing is still open
-- [ ] Audio: native Streaming statt Voll-Extraktion — cpal/FFmpeg-PCM (Tauri)
-      + Web Range-stream (`/api/stream`, http.ts `nativeVideoUrl`); große
-      Videos brauchen beim Laden sonst ~10 s bis zum Ton (Entscheidung
-      2026-08-23; AAC-rodio-Pfad ist der aktuelle Zwischenstand)
+- [ ] Web Range-stream (`/api/stream`, http.ts `nativeVideoUrl`) — native
+      Desktop-Audio streamt jetzt FFmpeg→PCM (Tauri, 2026-08-25); die Web-UI
+      (senmei-server --http) hat weiterhin keinen Ton ohne Browser-`<video>`
 - [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open
 
 ## Compliance (2026-08-20)

@@ -299,9 +299,6 @@ export const mockBackend: Backend = {
     return "/demo/project.tar.xz";
   },
 
-  async extractAudio() {
-    return "/demo/audio.aac";
-  },
   async audioLoad() {},
   async audioPlay() {},
   async audioPause() {},

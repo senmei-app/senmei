@@ -39,7 +39,6 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::probe_video,
             commands::suggest_pipeline,
             commands::read_frame,
-            commands::extract_audio,
             audio::audio_load,
             audio::audio_play,
             audio::audio_pause,

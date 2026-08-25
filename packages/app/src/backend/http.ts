@@ -217,9 +217,6 @@ export const httpBackend: Backend = {
   },
 
   // Audio is played by the browser's <video> element in web mode (no rodio).
-  async extractAudio() {
-    return ""; // no separate track extraction over HTTP
-  },
   async audioLoad() {},
   async audioPlay() {},
   async audioPause() {},

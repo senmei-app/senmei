@@ -177,12 +177,8 @@ export const tauriBackend: Backend = {
     return typeof picked === "string" ? picked : null;
   },
 
-  async extractAudio(input, projectDir = null) {
-    return bridge.extractAudio(input, projectDir);
-  },
-
-  async audioLoad(path) {
-    await bridge.audioLoad(path);
+  async audioLoad(input, positionMs) {
+    await bridge.audioLoad(input, positionMs);
   },
   async audioPlay() {
     await bridge.audioPlay();

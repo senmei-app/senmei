@@ -8,9 +8,7 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::models::load_registry;
-use crate::preview::{
-    extract_audio_inner, probe_video_inner, read_frame_inner, FrameMeta, FramePixels,
-};
+use crate::preview::{probe_video_inner, read_frame_inner, FrameMeta, FramePixels};
 use crate::store;
 use senmei_core::core;
 
@@ -255,24 +253,7 @@ pub async fn read_frame(
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn extract_audio(
-    input: String,
-    project_dir: Option<String>,
-    app: tauri::AppHandle,
-) -> Result<String, String> {
-    log::info!("extract_audio: {input}");
-    let path = tauri::async_runtime::spawn_blocking(move || {
-        extract_audio_inner(&input, project_dir.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-    let _ = app
-        .state::<tauri::scope::Scopes>()
-        .allow_file(std::path::Path::new(&path));
-    Ok(path)
-}
+
 
 /// Keep only the `keep` newest sample render files in `dir` (deletes older
 /// video files so the sample folder never grows unbounded).
