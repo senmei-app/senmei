@@ -33,7 +33,7 @@ download URL + sha256).
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 | Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, HFA2k LUDVAE, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
 | Restoration | SAFMN | SAFMN-L Real (LSDIR, x2/x4 v2) | 2/4 | SafmnNet (dim 128 / 16 blocks / ffn_scale 2.0) | Apache-2.0 | loadable (clean burn port; torch mae 0.008 x2 / 0.027 x4 f16 on worst-case random input) | `sunny2109/SAFMN` v0.1.0 · HF mirror `Meloo/SAFMN` |
-| Restoration | ParagonSR | ParagonSR-Nano GAN 2× | 2 | ParagonSrNet (24 feat / 3×2 blocks / ffn 1.5) | MIT | loadable (ONNX-verified mae 0.0009 f16; 62 ms / 16.1 FPS — top-3 fastest 2×) | `Phhofm/ParagonSR2` · `Phhofm/models` release `2xParagonSR_Nano_gan` (fused `.safetensors`) |
+| Restoration | ParagonSR | ParagonSR-Nano GAN 2× | 2 | ParagonSrNet (24 feat / 3×2 blocks / ffn 1.5) | MIT | loadable, but **numerically unstable on high-freq content (see Notes)** | `Phhofm/ParagonSR2` · `Phhofm/models` release `2xParagonSR_Nano_gan` (fused `.safetensors`) |
 
 Weights never committed (`models/*` gitignored); download-on-demand + sha256,
 converted once to f16 `.bpk`.
@@ -158,3 +158,13 @@ Candidates per stack; each needs a clean burn port + permissive license before
   torch-fp16's LayerNorm silently overflows to 0 there, so it is not a faithful
   fp16 reference (only f32 is). MIT confirmed (GoPro width32 weights).
 - f32→f16: pre-convert to `.bpk` (BurnpackStore + HalfPrecisionAdapter).
+- ParagonSR-Nano GAN (`paragonsr-nano-x2`) is **numerically unstable on real
+  content** (2026-08-26): the fused release weights produce out-of-range output
+  of ±26k–84k (torch fp32 reference, faithful arch, original fp32 safetensors)
+  at high-frequency regions (e.g. burned-in subtitles), so the render shows a
+  black band / white specks there and the values wander frame-to-frame. The
+  arch also uses **GroupNorm(1,C) global over H·W** → NOT translation-equivariant,
+  so it must not be tiled. Neither tiling nor full-frame avoids the blowup
+  (full-frame even NaNs on some frames in the tch engine). Do not recommend
+  this model for video with subs; fallin-soft / real-cugan-pro / animevideo-xs
+  are stable.

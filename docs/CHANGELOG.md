@@ -6,6 +6,15 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **docs: flag ParagonSR-Nano GAN as numerically unstable (2026-08-26)** —
+  `models.md` now warns that `paragonsr-nano-x2` produces out-of-range output
+  (±26k–84k, torch fp32 reference) on high-frequency content (burned-in
+  subtitles → black band / white specks) and uses GroupNorm(1,C) global over
+  H·W, so it must not be tiled; recommend fallin-soft / real-cugan-pro /
+  animevideo-xs instead.
+
 ## 0.2.0 (2026-08-26)
 
 - **release: preview media pipeline + review hardening (2026-08-26)** — v0.2.0
