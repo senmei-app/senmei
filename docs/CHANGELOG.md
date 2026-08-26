@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: stop duplicate render submissions while one is running (2026-08-26)** —
+  the global hotkey handler held a stale `startBatch` closure (no
+  `rendering`/`batch` in its effect deps), so every keypress passed the
+  frontend guard and re-POSTed `/api/render` → repeated `400 already running`
+  in the logs. The batch guard now reads a ref (stale-closure-proof), and the
+  HTTP `render` joins a render the server is already running (e.g. after a
+  reload) instead of erroring.
+
 - **feat: web UI logs over HTTP (2026-08-26)** — the server logger now keeps an
   in-memory ring buffer served at `/api/logs` (+`/api/logs/clear`); the web
   frontend `onLog` polls it, so the Logs panel works over HTTP instead of

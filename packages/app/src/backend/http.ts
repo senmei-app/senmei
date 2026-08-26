@@ -264,10 +264,16 @@ export const httpBackend: Backend = {
   async audioSetVolume() {},
 
   async render(input, output, config, onProgress) {
-    await api("/api/render", {
-      method: "POST",
-      body: JSON.stringify({ ...config, input, output }),
-    });
+    try {
+      await api("/api/render", {
+        method: "POST",
+        body: JSON.stringify({ ...config, input, output }),
+      });
+    } catch (e) {
+      // A render is already running (stale frontend after a reload): join it
+      // instead of failing or spamming 400s.
+      if (!String(e).includes("already running")) throw e;
+    }
     // Poll the shared render status until done.
     for (;;) {
       await sleep(500);
