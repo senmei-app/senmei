@@ -388,8 +388,8 @@ impl<B: Backend> Scunet<B> {
 
     pub fn forward(&self, x0: Tensor<B, 4>) -> Tensor<B, 4> {
         let [b, _, h, w] = x0.dims();
-        let pad_h = (h + 63) / 64 * 64;
-        let pad_w = (w + 63) / 64 * 64;
+        let pad_h = h.div_ceil(64) * 64;
+        let pad_w = w.div_ceil(64) * 64;
         // replication pad to a multiple of 64 (`right` extra rows/cols: `rep`
         // starts as one copy, so the loop adds `right - 1` more).
         let mut x0 = x0;

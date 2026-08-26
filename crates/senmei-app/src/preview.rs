@@ -37,10 +37,6 @@ impl IpcResponse for FramePixels {
 }
 
 /// Decode one frame as raw RGB24 via the worker (warm streams + decode budget).
-pub fn read_frame_inner(
-    input: &str,
-    position_ms: f64,
-    _project_dir: Option<&str>,
-) -> Result<senmei_media::Frame, String> {
+pub fn read_frame_inner(input: &str, position_ms: f64) -> Result<senmei_media::Frame, String> {
     worker().frame(input, position_ms)
 }

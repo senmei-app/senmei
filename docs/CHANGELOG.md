@@ -8,6 +8,67 @@
 
 ## Unreleased
 
+- **fix: security hardening — localhost CORS, media allowlist, zip-slip (2026-08-26)** —
+  the headless HTTP server no longer lets arbitrary cross-origin sites read
+  responses (`CorsLayer` locked to the Vite dev origin; `x-frame-*` exposed for
+  dev) and `stream`/`audio`/`frame`/`probe` only serve real media files (no
+  arbitrary local file read); `extract_zip` rejects absolute paths and `..`
+  entries (zip-slip); the model download rejects `weight` names containing path
+  components; `FilterConfig`/`RenderConfig` now compile without the `render`
+  feature, fixing a pre-existing `cargo check -p senmei-server` build break.
+
+- **fix: Copilot review — Windows log rotate, preset leak, hub lock scope (2026-08-26)** —
+  `senmei-core::logging::rotate` clears the destination before rename (Windows
+  `fs::rename` fails on an existing target, so rotation silently stopped and the
+  main log grew unbounded); `preset_env` caches its result in a `OnceLock` so an
+  override string is leaked at most once per process; `log_hub` snapshots the log
+  dir/app handle under the lock and does file IO/emit outside it; the `readFrame`
+  doc no longer claims base64; a stray whitespace-only line in the RIFE forward
+  is gone.
+
+- **docs: transitive zip versions + test-coverage gap (2026-08-26)** — deny.toml
+  records the three `zip` versions in the multi-target graph (0.6.6 / 7.2.0
+  Windows transitives, 8.6.0 via burn-store); todos.md notes the
+  pipeline/projects/mcp/audio/resources paths with no tests.
+
+- **cleanup: review B — clippy mechanical lints + tch test-gate fix (2026-08-26)** —
+  apply clippy fixes across app/core/media/ml/server (`div_ceil`,
+  `is_multiple_of`, literal formatting, needless borrows/lifetimes/returns,
+  let_and_return, manual flatten, const thread-local, `is_none_or`, cfg-tail
+  returns); arch test modules (`paragonsr`/`safmn`/`srvgg`) are gated on
+  `feature = "burn"` so `cargo test --features tch` compiles.
+
+- **refactor: review B — options structs, enum boxing, backend gating (2026-08-26)** —
+  `Encoder::open` and `convert_pth_to_bpk` take an options struct (`EncodeOptions`,
+  `ConvertOptions`) instead of eight positional args; the `Model` enum boxes the
+  `RifeNet` variant and the engines share a `Rgb8Frames` type alias; the ROCm
+  download/preload helpers are item-gated behind `feature = "tch"`;
+  `ProjectSettings`/`RenderOpts`/`BurnEngine` derive `Default`, project-settings
+  paths take `&Path`, and `single_input_rgb` is burn-only.
+
+- **cleanup: review hygiene — dead `project_dir`, stable audio cache key, shared arg filter (2026-08-26)** —
+  dropped the unused `project_dir` parameter from the frame command (prop,
+  wrapper and generated bindings updated); the audio cache key now hashes the
+  source path with SHA-256 (`DefaultHasher` keys changed across versions); the
+  kvazaar/VA-API encoder arg strippers share one `filter_args` helper; preset
+  lookups no longer leak a `String` per call; `suggest_pipeline` uses named
+  constants for its model IDs and thresholds; `download_model` resolves the
+  registry once instead of four times; the redundant `render_sample` pre-check
+  is gone; stale "HTTP as base64" doc corrected.
+
+- **refactor: shared log ring-buffer + rotating file in `senmei-core` (2026-08-26)** — the GUI
+  (`log_hub.rs`) and HTTP (`logging.rs`) loggers duplicated `LogEntry`, a ring
+  buffer and 5 MB file rotation (with subtly divergent implementations); the
+  common parts now live in `senmei-core::logging`, the transports keep only
+  delivery (Tauri event vs HTTP poll). Buffer cap unified at 1000.
+
+- **fix: review warnings — `-an` merge, probe zombie, poll watchdog, private bounds (2026-08-26)** —
+  `buildEncoderArgs` no longer mispairs the valueless `-an` with the next flag
+  (the `copy` value was dropped → `-c:s requires an argument`); `frame_stats`
+  reaps its ffmpeg child (every probe left a zombie); the web render-status poll
+  races a watchdog so a hung server can't leave the UI stuck in "rendering";
+  `ElemToU8` is now `pub(crate)` (silences the `private_bounds` build warnings).
+
 - **docs: close the preview backlog (2026-08-26)** — Phase-3 ring buffer
   dropped (warm streams + ±300 ms tolerance already cover scrubbing; a buffer
   adds complexity without real gain) and the per-viewport DPR decode budget

@@ -39,6 +39,14 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# zip: three versions in the full multi-target graph — 0.6.6/7.2.0 are
+# Windows-only transitives (tauri-build/webview2), 8.6.0 comes via burn-store.
+# warn-level only; revisit on the next Tauri/burn update.
+skip = [
+    { name = "zip", version = "0.6.6" },
+    { name = "zip", version = "7.2.0" },
+    { name = "zip", version = "8.6.0" },
+]
 
 [advisories]
 version = 2

@@ -7938,6 +7938,7 @@ dependencies = [
  "senmei-pipeline",
  "serde",
  "serde_json",
+ "specta",
 ]
 
 [[package]]

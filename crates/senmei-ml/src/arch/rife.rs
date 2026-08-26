@@ -199,7 +199,7 @@ impl<B: Backend> RifeNet<B> {
         let b_15 = b_in2.clone();
         let b_16 = b_in2;
         let b_17 = Tensor::cat(vec![b_1, b_7, b_13], 1);
-        let b_18 = interp(b_17, 1.250000e-01);
+        let b_18 = interp(b_17, 1.25e-1);
         let b_20 = leaky_relu(self.convrelu_0.forward(b_18), 0.2);
         let b_21 = leaky_relu(self.convrelu_1.forward(b_20), 0.2);
         let b_22 = b_21.clone();
@@ -244,7 +244,7 @@ impl<B: Backend> RifeNet<B> {
         let b_76 = leaky_relu(b_75, 2.000000e-01);
         let b_77 = self.deconv_60.forward(b_76);
         let b_flow0 = pixel_shuffle(b_77);
-        let b_79 = interp(b_flow0, 8.000000e+00);
+        let b_79 = interp(b_flow0, 8.0);
         let b_80 = b_79.clone();
         let b_81 = b_79;
         let b_82 = slice_c(b_81, 0, 4);
@@ -253,7 +253,7 @@ impl<B: Backend> RifeNet<B> {
         let b_85 = b_83.clone();
         let b_86 = b_83.clone();
         let b_87 = b_83;
-        let b_88 = interp(b_85, 2.500000e-01);
+        let b_88 = interp(b_85, 2.5e-1);
         let b_89 = b_88 / 4.000000e+00;
         let b_90 = slice_c(b_87, 2, 4);
         let b_91 = warp(b_11, b_90);
@@ -263,7 +263,7 @@ impl<B: Backend> RifeNet<B> {
         let b_95 = b_94.clone();
         let b_96 = b_94;
         let b_97 = Tensor::cat(vec![b_93, b_91, b_14, b_95], 1);
-        let b_98 = interp(b_97, 2.500000e-01);
+        let b_98 = interp(b_97, 2.5e-1);
         let b_99 = Tensor::cat(vec![b_98, b_89], 1);
         let b_101 = leaky_relu(self.convrelu_2.forward(b_99), 0.2);
         let b_102 = leaky_relu(self.convrelu_3.forward(b_101), 0.2);
@@ -309,7 +309,7 @@ impl<B: Backend> RifeNet<B> {
         let b_157 = leaky_relu(b_156, 2.000000e-01);
         let b_158 = self.deconv_61.forward(b_157);
         let b_flow1 = pixel_shuffle(b_158);
-        let b_160 = interp(b_flow1, 4.000000e+00);
+        let b_160 = interp(b_flow1, 4.0);
         let b_161 = b_160.clone();
         let b_162 = b_160;
         let b_163 = slice_c(b_162, 0, 4);
@@ -322,14 +322,14 @@ impl<B: Backend> RifeNet<B> {
         let b_170 = b_96 + b_169;
         let b_171 = b_170.clone();
         let b_172 = b_170;
-        let b_173 = interp(b_166, 5.000000e-01);
+        let b_173 = interp(b_166, 5e-1);
         let b_174 = b_173 / 2.000000e+00;
         let b_175 = slice_c(b_168, 2, 4);
         let b_176 = warp(b_10, b_175);
         let b_177 = slice_c(b_167, 0, 2);
         let b_178 = warp(b_4, b_177);
         let b_179 = Tensor::cat(vec![b_178, b_176, b_15, b_171], 1);
-        let b_180 = interp(b_179, 5.000000e-01);
+        let b_180 = interp(b_179, 5e-1);
         let b_181 = Tensor::cat(vec![b_180, b_174], 1);
         let b_183 = leaky_relu(self.convrelu_4.forward(b_181), 0.2);
         let b_184 = leaky_relu(self.convrelu_5.forward(b_183), 0.2);
@@ -375,7 +375,7 @@ impl<B: Backend> RifeNet<B> {
         let b_239 = leaky_relu(b_238, 2.000000e-01);
         let b_240 = self.deconv_62.forward(b_239);
         let b_flow2 = pixel_shuffle(b_240);
-        let b_242 = interp(b_flow2, 2.000000e+00);
+        let b_242 = interp(b_flow2, 2.0);
         let b_243 = b_242.clone();
         let b_244 = b_242;
         let b_245 = slice_c(b_244, 0, 4);
@@ -449,15 +449,14 @@ impl<B: Backend> RifeNet<B> {
         let b_332 = sigmoid(b_331);
         let b_333 = b_332.clone();
         let b_334 = b_332;
-        let b_335 = sub_r(b_333, 1.000000e+00);
+        let b_335 = sub_r(b_333, 1.0);
         let b_336 = slice_c(b_328, 2, 4);
         let b_337 = warp(b_8, b_336);
         let b_338 = b_337 * b_335;
         let b_339 = slice_c(b_329, 0, 2);
         let b_340 = warp(b_2, b_339);
         let b_341 = b_340 * b_334;
-        let b_out0 = b_341 + b_338;
-        b_out0
+        b_341 + b_338
     }
 
     /// Load weights from the rife-v4.6 ncnn `flownet.bin`.

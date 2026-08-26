@@ -85,19 +85,33 @@ fn safmn_remap_patterns() -> Vec<(String, String)> {
         (r"^to_img\.0\.".to_string(), "to_img_conv.".into()),
     ]
 }
+/// Conversion knobs for the `.pth` → `.bpk` maintainer tool.
+#[derive(Clone, Copy)]
+pub struct ConvertOptions<'a> {
+    pub arch: &'a str,
+    pub pth_path: &'a Path,
+    pub bpk_path: &'a Path,
+    pub scale: u32,
+    pub num_block: u32,
+    pub layer_norm: bool,
+    pub dysample: bool,
+    pub shuffle: u32,
+}
+
 /// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
 /// Loads the f32 state dict on the Vulkan backend (upcunet key remap), then
 /// saves through [`ToF16`] so `BurnEngine` can load it as f16.
-pub fn convert_pth_to_bpk(
-    arch: &str,
-    pth_path: &Path,
-    bpk_path: &Path,
-    scale: u32,
-    num_block: u32,
-    layer_norm: bool,
-    dysample: bool,
-    shuffle: u32,
-) -> Result<()> {
+pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
+    let ConvertOptions {
+        arch,
+        pth_path,
+        bpk_path,
+        scale,
+        num_block,
+        layer_norm,
+        dysample,
+        shuffle,
+    } = *opts;
     let device = WgpuDevice::DiscreteGpu(0);
     let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
     match arch {

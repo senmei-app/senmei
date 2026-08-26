@@ -199,7 +199,7 @@ impl TchEngine {
         let bytes = std::fs::read(path).map_err(|e| Error::new(e.to_string()))?;
         let mut m = RifeNet::new(&self.device);
         m.load_from_ncnn(&bytes, &self.device).map_err(Error::new)?;
-        Ok(Model::RifeNet(m))
+        Ok(Model::RifeNet(Box::new(m)))
     }
 }
 

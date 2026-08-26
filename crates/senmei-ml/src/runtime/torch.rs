@@ -221,7 +221,7 @@ fn is_complete(install: &Path, variant: &TorchVariant, rocm_target: Option<&str>
             // archs with a family wheel (gfx11/gfx12) — gfx9/gfx10 have none,
             // so demanding it there makes every launch re-download the ~2 GB
             // wheel and fail with "libtorch download incomplete".
-            let aotriton_ok = match torch_family(&target) {
+            let aotriton_ok = match torch_family(target) {
                 Some(_) => lib.join("aotriton.images").is_dir(),
                 None => true,
             };

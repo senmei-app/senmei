@@ -3,29 +3,14 @@
 //! app data dir so logs survive crashes. Console stays error-only +
 //! `wgpu_hal=off`.
 
-use std::collections::VecDeque;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use senmei_core::logging::{append_rotating, fmt_ts, LogBuffer, LogEntry};
 use tauri::{AppHandle, Emitter};
 
-const BUFFER_CAP: usize = 500;
-const LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
-const LOG_ROTATIONS: usize = 3;
-
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct LogEntry {
-    pub level: String,
-    pub message: String,
-    pub timestamp: u64,
-}
-
 struct Hub {
-    entries: VecDeque<LogEntry>,
+    entries: LogBuffer,
     app: Option<AppHandle>,
     log_dir: Option<PathBuf>,
 }
@@ -34,7 +19,7 @@ fn hub() -> &'static Arc<Mutex<Hub>> {
     static HUB: OnceLock<Arc<Mutex<Hub>>> = OnceLock::new();
     HUB.get_or_init(|| {
         Arc::new(Mutex::new(Hub {
-            entries: VecDeque::with_capacity(BUFFER_CAP),
+            entries: LogBuffer::default(),
             app: None,
             log_dir: None,
         }))
@@ -61,35 +46,28 @@ impl log::Log for HubLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        let entry = LogEntry {
-            level: record.level().to_string(),
-            message: record.args().to_string(),
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_millis() as u64)
-                .unwrap_or(0),
+        let entry = LogEntry::new(record.level().to_string(), record.args().to_string());
+        // Snapshot under the lock, then do IO/emit outside — a global log mutex
+        // must not block on disk writes or event delivery.
+        let (log_dir, app) = {
+            let guard = hub().lock().unwrap();
+            guard.entries.push(entry.clone());
+            (guard.log_dir.clone(), guard.app.clone())
         };
-        {
-            let mut guard = hub().lock().unwrap();
-            if guard.entries.len() >= BUFFER_CAP {
-                guard.entries.pop_front();
-            }
-            guard.entries.push_back(entry.clone());
-            if let Some(dir) = guard.log_dir.as_deref() {
-                let line = format!(
-                    "[{} {} {}] {} ({}:{})",
-                    fmt_ts(entry.timestamp),
-                    entry.level,
-                    record.module_path().unwrap_or("-"),
-                    entry.message,
-                    record.file().unwrap_or("-"),
-                    record.line().unwrap_or(0),
-                );
-                append_log(dir, &line);
-            }
-            if let Some(app) = guard.app.clone() {
-                let _ = app.emit("log", &entry);
-            }
+        if let Some(dir) = log_dir {
+            let line = format!(
+                "[{} {} {}] {} ({}:{})",
+                fmt_ts(entry.timestamp),
+                entry.level,
+                record.module_path().unwrap_or("-"),
+                entry.message,
+                record.file().unwrap_or("-"),
+                record.line().unwrap_or(0),
+            );
+            append_rotating(&dir, &line);
+        }
+        if let Some(app) = app {
+            let _ = app.emit("log", &entry);
         }
         if self.console.enabled(record.metadata()) {
             self.console.log(record);
@@ -109,52 +87,11 @@ pub fn attach(app: &AppHandle) {
     guard.log_dir = Some(crate::store::data_dir().join("logs"));
 }
 
-/// Append one line to `<dir>/senmei.log`, rotating once it outgrows the cap.
-fn append_log(dir: &Path, line: &str) {
-    if std::fs::create_dir_all(dir).is_err() {
-        return;
-    }
-    let path = dir.join("senmei.log");
-    if std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) >= LOG_MAX_BYTES {
-        rotate_logs(&path);
-    }
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-    {
-        let _ = writeln!(f, "{line}");
-    }
-}
-
-/// Shift `.log.{i-1}` → `.log.{i}`, then the current file → `.log.1`.
-fn rotate_logs(path: &Path) {
-    for i in (2..=LOG_ROTATIONS).rev() {
-        let from = path.with_file_name(format!("senmei.log.{}", i - 1));
-        let to = path.with_file_name(format!("senmei.log.{i}"));
-        let _ = std::fs::rename(&from, &to);
-    }
-    let _ = std::fs::rename(path, &path.with_file_name("senmei.log.1"));
-}
-
-/// `HH:MM:SS.mmm` from epoch ms.
-fn fmt_ts(ms: u64) -> String {
-    let secs = ms / 1000;
-    let millis = ms % 1000;
-    format!(
-        "{:02}:{:02}:{:02}.{:03}",
-        (secs / 3600) % 24,
-        (secs / 60) % 60,
-        secs % 60,
-        millis,
-    )
-}
-
 /// Buffered entries for the Logs panel when it opens.
 #[tauri::command]
 #[specta::specta]
 pub fn get_logs() -> Vec<LogEntry> {
-    hub().lock().unwrap().entries.iter().cloned().collect()
+    hub().lock().unwrap().entries.entries()
 }
 
 /// Empty the buffered log history (Logs panel "Clear").
@@ -162,33 +99,4 @@ pub fn get_logs() -> Vec<LogEntry> {
 #[specta::specta]
 pub fn clear_logs() {
     hub().lock().unwrap().entries.clear();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rotate_shifts_backups_and_drops_oldest() {
-        let dir = std::env::temp_dir().join(format!("senmei-log-test-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let path = dir.join("senmei.log");
-        std::fs::write(&path, b"current").unwrap();
-        std::fs::write(dir.join("senmei.log.1"), b"one").unwrap();
-        std::fs::write(dir.join("senmei.log.2"), b"two").unwrap();
-
-        rotate_logs(&path);
-
-        assert!(!path.exists());
-        assert_eq!(std::fs::read(dir.join("senmei.log.1")).unwrap(), b"current");
-        assert_eq!(std::fs::read(dir.join("senmei.log.2")).unwrap(), b"one");
-        assert_eq!(std::fs::read(dir.join("senmei.log.3")).unwrap(), b"two");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn fmt_ts_pads() {
-        assert_eq!(fmt_ts(0), "00:00:00.000");
-        assert_eq!(fmt_ts(3723_456), "01:02:03.456");
-    }
 }

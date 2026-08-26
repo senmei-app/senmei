@@ -156,6 +156,17 @@ pub fn probe_video(
     core::probe_video(&input)
 }
 
+/// Pipeline-suggestion knobs: interpolation FPS floor, upscale breakpoints and
+/// the model IDs the suggestion maps to (mirrors the registry catalog).
+const FPS_INTERP_THRESHOLD: f64 = 30.0;
+const UPSCALE_1080P: u64 = 1920;
+const UPSCALE_4K: u64 = 3840;
+const INTERP_MODEL: &str = "rife-v4.6";
+const ANIME_UPSCALE_X4: &str = "realesrgan-animevideo-x4";
+const ANIME_UPSCALE_X2: &str = "realesrgan-animevideo-x2";
+const GENERAL_UPSCALE: &str = "bsrgan";
+const DENOISE_MODEL: &str = "drunet-color";
+
 /// Probe content and suggest a default pipeline (content-aware defaults):
 /// anime vs live-action, input resolution, frame rate. Returns a JSON string
 /// (`{ anime, steps: [{ stepType, params }] }`); a `serde_json::Value` return
@@ -175,16 +186,16 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
 
     let mut steps = Vec::new();
     // Interpolate low-fps content to 2× (24 → 48 etc.).
-    if fps > 0.0 && fps < 30.0 {
+    if fps > 0.0 && fps < FPS_INTERP_THRESHOLD {
         steps.push(serde_json::json!({
             "stepType": "interpolation",
-            "params": { "fpsMultiplier": 2, "modelId": "rife-v4.6" }
+            "params": { "fpsMultiplier": 2, "modelId": INTERP_MODEL }
         }));
     }
     // Upscale to at least 1080p, max 4×; anime gets the fast anime upscaler.
-    let scale = if max_dim < 1920 {
+    let scale = if max_dim < UPSCALE_1080P {
         4
-    } else if max_dim < 3840 {
+    } else if max_dim < UPSCALE_4K {
         2
     } else {
         1
@@ -192,12 +203,12 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
     if scale > 1 {
         let model_id = if anime {
             if scale >= 4 {
-                "realesrgan-animevideo-x4"
+                ANIME_UPSCALE_X4
             } else {
-                "realesrgan-animevideo-x2"
+                ANIME_UPSCALE_X2
             }
         } else {
-            "bsrgan"
+            GENERAL_UPSCALE
         };
         steps.push(serde_json::json!({
             "stepType": "upscale",
@@ -208,7 +219,7 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
     if !anime {
         steps.push(serde_json::json!({
             "stepType": "denoise",
-            "params": { "radius": 1, "modelId": "drunet-color" }
+            "params": { "radius": 1, "modelId": DENOISE_MODEL }
         }));
     }
     steps.push(serde_json::json!({ "stepType": "output", "params": {} }));
@@ -219,10 +230,8 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
         info.width,
         info.height
     );
-    Ok(
-        serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
-            .map_err(|e| e.to_string())?,
-    )
+    serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
+            .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -230,15 +239,12 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
 pub async fn read_frame(
     input: String,
     position_ms: f64,
-    project_dir: Option<String>,
     on_meta: Channel<FrameMeta>,
     on_frame: Channel<FramePixels>,
 ) -> Result<(), String> {
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
     // Decode off the main thread so the UI never freezes per frame.
-    let frame = tauri::async_runtime::spawn_blocking(move || {
-        read_frame_inner(&input, position_ms, project_dir.as_deref())
-    })
+    let frame = tauri::async_runtime::spawn_blocking(move || read_frame_inner(&input, position_ms))
     .await
     .map_err(|e| e.to_string())??;
     // Meta (JSON) first, then the raw RGB24 bytes (ArrayBuffer on the JS side)
@@ -293,7 +299,12 @@ pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
-    videos_under(&dir, false)
+    let found = senmei_media::find_videos(std::path::Path::new(&dir), false)
+        .map_err(|e| e.to_string())?;
+    Ok(found
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect())
 }
 
 /// Recursively collect all videos under `dir` (batch folder processing).
@@ -301,15 +312,6 @@ pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
 #[specta::specta]
 pub fn scan_folder(dir: String) -> Result<Vec<String>, String> {
     core::scan_folder(&dir)
-}
-
-fn videos_under(dir: &str, recursive: bool) -> Result<Vec<String>, String> {
-    let found = senmei_media::find_videos(std::path::Path::new(dir), recursive)
-        .map_err(|e| e.to_string())?;
-    Ok(found
-        .into_iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect())
 }
 
 #[tauri::command]
@@ -652,7 +654,7 @@ mod tests {
         assert!(info.duration > 0.0);
 
         let frame =
-            read_frame_inner(&input.to_string_lossy(), 500.0, None).expect("read_frame failed");
+            read_frame_inner(&input.to_string_lossy(), 500.0).expect("read_frame failed");
         assert_eq!(
             (frame.width, frame.height),
             (160, 120),

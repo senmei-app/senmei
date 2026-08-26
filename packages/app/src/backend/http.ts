@@ -22,6 +22,23 @@ const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? ""
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Race a promise against a deadline so a hung server can't block forever.
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 // Web audio plays a server-transcoded track (browsers can't decode every
 // container); one shared element mirrors the rodio surface.
 let audioEl: HTMLAudioElement | null = null;
@@ -318,16 +335,21 @@ export const httpBackend: Backend = {
       // instead of failing or spamming 400s.
       if (!String(e).includes("already running")) throw e;
     }
-    // Poll the shared render status until done.
+    // Poll the shared render status until done. Each poll races a watchdog so
+    // a hung server can't leave the UI stuck in "rendering" forever.
     for (;;) {
       await sleep(500);
-      const st = await api<{
-        state: string;
-        framesProcessed?: number;
-        totalFrames?: number;
-        error?: string | null;
-        steps?: StepTimingInfo[];
-      }>("/api/render/status");
+      const st = await withTimeout(
+        api<{
+          state: string;
+          framesProcessed?: number;
+          totalFrames?: number;
+          error?: string | null;
+          steps?: StepTimingInfo[];
+        }>("/api/render/status"),
+        60_000,
+        "render status timed out (server unresponsive)"
+      );
       if (st.framesProcessed != null || st.steps) {
         onProgress({
           framesProcessed: st.framesProcessed ?? 0,

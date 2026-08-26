@@ -21,28 +21,37 @@ pub struct Encoder {
     temp_audio: Option<PathBuf>,
 }
 
+/// Read a preset env var; the default stays a literal (no per-call leak), only
+/// a set override is leaked once.
+fn preset_env(cache: &'static OnceLock<&'static str>, var: &str, default: &'static str) -> &'static str {
+    *cache.get_or_init(|| {
+        std::env::var(var)
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(|s| -> &'static str { Box::leak(s.into_boxed_str()) })
+            .unwrap_or(default)
+    })
+}
+
 /// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
 /// the GPU pipeline; override via `SENMEI_X264_PRESET`.
 fn x264_preset() -> &'static str {
-    std::env::var("SENMEI_X264_PRESET")
-        .unwrap_or_else(|_| "veryfast".into())
-        .leak()
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_X264_PRESET", "veryfast")
 }
 
 /// kvazaar (HEVC) speed/quality trade-off; override via `SENMEI_KVAZAAR_PRESET`.
 fn kvazaar_preset() -> &'static str {
-    std::env::var("SENMEI_KVAZAAR_PRESET")
-        .unwrap_or_else(|_| "veryfast".into())
-        .leak()
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_KVAZAAR_PRESET", "veryfast")
 }
 
 /// x265 (HEVC) speed/quality trade-off — GPL system fallback when the LGPL
 /// kvazaar is absent, so an H.265 selection still gets a real HEVC encoder
 /// (not the H.264 openh264 fallback); override via `SENMEI_X265_PRESET`.
 fn x265_preset() -> &'static str {
-    std::env::var("SENMEI_X265_PRESET")
-        .unwrap_or_else(|_| "veryfast".into())
-        .leak()
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_X265_PRESET", "veryfast")
 }
 
 /// Hardware encoders to try, HEVC before H.264, per platform. Only used when a
@@ -199,15 +208,22 @@ fn hw_verifier(ffmpeg: &Path) -> impl Fn(&str) -> bool + '_ {
     }
 }
 
-/// kvazaar has no `-tune` (its tune set is ssim/psnr/fast_decode/
-/// zero_latency/znx_*) — strip the caller's `-tune …` so the bundled LGPL
-/// build doesn't fail the encode (x264/x265 accept it; openh264 ignores it).
-fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
+/// Drop `flag <value>` pairs listed in `drop`; `rename` maps a flag (keeping
+/// its value) before copying — shared by the kvazaar/VA-API compat paths.
+fn filter_args(args: &[String], drop: &[&str], rename: &[(&str, &str)]) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "-tune" {
-            i += 2; // drop `-tune <value>`
+        if drop.contains(&args[i].as_str()) {
+            i += 2; // drop flag + value
+        } else if let Some((_, to)) = rename.iter().find(|(f, _)| args[i] == *f) {
+            if let Some(v) = args.get(i + 1) {
+                out.push(to.to_string());
+                out.push(v.clone());
+                i += 2;
+            } else {
+                i += 1;
+            }
         } else {
             out.push(args[i].clone());
             i += 1;
@@ -216,32 +232,19 @@ fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
     out
 }
 
+/// kvazaar has no `-tune` (its tune set is ssim/psnr/fast_decode/
+/// zero_latency/znx_*) — strip the caller's `-tune …` so the bundled LGPL
+/// build doesn't fail the encode (x264/x265 accept it; openh264 ignores it).
+fn kvazaar_compat_args(args: &[String]) -> Vec<String> {
+    filter_args(args, &["-tune"], &[])
+}
+
 /// VA-API encoders take `-qp`/`-rc_mode`, not the software-encoder flags
 /// (`-preset`/`-tune`/`-pix_fmt`) — strip them so a hardware encode doesn't
 /// reject the frontend's options; the frontend's `-crf` is translated to `-qp`
 /// (the VA-API quality knob), so the quality preset stays meaningful.
 fn vaapi_compat_args(args: &[String]) -> Vec<String> {
-    let mut out = Vec::with_capacity(args.len());
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "-crf" => {
-                if let Some(v) = args.get(i + 1) {
-                    out.push("-qp".into());
-                    out.push(v.clone());
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-            "-preset" | "-tune" | "-pix_fmt" => i += 2,
-            _ => {
-                out.push(args[i].clone());
-                i += 1;
-            }
-        }
-    }
-    out
+    filter_args(args, &["-preset", "-tune", "-pix_fmt"], &[("-crf", "-qp")])
 }
 
 /// Encoder backend preference, from the frontend's `-senmei_encoder` sentinel.
@@ -384,6 +387,20 @@ fn override_codec_args(codec: &str, extra_args: &[String], width: u32, height: u
     }
 }
 
+/// Fixed inputs for one encode; the per-call ffmpeg `extra_args` ride along
+/// separately in [`Encoder::open`].
+#[derive(Clone, Copy)]
+pub struct EncodeOptions<'a> {
+    pub ffmpeg: &'a Path,
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub start_ms: u64,
+    pub duration_ms: Option<u64>,
+}
+
 impl Encoder {
     /// `extra_args` are appended after the defaults (before the output path), so
     /// user-supplied codec/filter options override the built-in defaults.
@@ -393,17 +410,17 @@ impl Encoder {
     /// `duration_ms` bounds it (`-t`) to the same range — without it the copied
     /// audio input runs to the end of the source and ffmpeg never exits after
     /// the (shorter) video pipe ends.
-    pub fn open(
-        ffmpeg: &Path,
-        input: &Path,
-        path: &Path,
-        width: u32,
-        height: u32,
-        fps: f64,
-        start_ms: u64,
-        duration_ms: Option<u64>,
-        extra_args: &[String],
-    ) -> Result<Self> {
+    pub fn open(cfg: &EncodeOptions, extra_args: &[String]) -> Result<Self> {
+        let EncodeOptions {
+            ffmpeg,
+            input,
+            output: path,
+            width,
+            height,
+            fps,
+            start_ms,
+            duration_ms,
+        } = *cfg;
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let verify = hw_verifier(ffmpeg);
         let mut extra_args = extra_args.to_vec();
@@ -448,7 +465,7 @@ impl Encoder {
         if let Some(pos) = extra_args.windows(2).position(|w| w[0] == "-c:v") {
             let codec = extra_args[pos + 1].clone();
             extra_args.drain(pos..pos + 2);
-            if caps.iter().any(|e| *e == codec) {
+            if caps.contains(&codec) {
                 video_codec = codec.clone();
                 codec_args = override_codec_args(&codec, &extra_args, width, height);
             } else {
@@ -850,7 +867,20 @@ mod tests {
             .status()
             .unwrap();
         assert!(make.success(), "failed to create test input");
-        let mut enc = Encoder::open(&ff, &input, &out, 64, 64, 30.0, 0, None, &[]).unwrap();
+        let mut enc = Encoder::open(
+            &EncodeOptions {
+                ffmpeg: &ff,
+                input: &input,
+                output: &out,
+                width: 64,
+                height: 64,
+                fps: 30.0,
+                start_ms: 0,
+                duration_ms: None,
+            },
+            &[],
+        )
+        .unwrap();
         let frame = Frame {
             width: 64,
             height: 64,
@@ -919,7 +949,19 @@ mod tests {
         let out_t = out.clone();
         let _ = std::thread::spawn(move || {
             let run = (|| -> Result<()> {
-                let mut enc = Encoder::open(&ff, &input_t, &out_t, 64, 64, 30.0, 0, None, &extra)?;
+                let mut enc = Encoder::open(
+                    &EncodeOptions {
+                        ffmpeg: &ff,
+                        input: &input_t,
+                        output: &out_t,
+                        width: 64,
+                        height: 64,
+                        fps: 30.0,
+                        start_ms: 0,
+                        duration_ms: None,
+                    },
+                    &extra,
+                )?;
                 let frame = Frame {
                     width: 64,
                     height: 64,

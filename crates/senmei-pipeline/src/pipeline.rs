@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use senmei_media::{Decoder, Encoder};
+use senmei_media::{Decoder, EncodeOptions, Encoder};
 
 use crate::{Error, Interpolator, Result, Step};
 
@@ -123,14 +123,16 @@ impl Pipeline {
         let (out_tx, out_rx) = std::sync::mpsc::sync_channel::<senmei_media::Frame>(2);
 
         let encoder = Encoder::open(
-            ffmpeg,
-            input,
-            output,
-            w,
-            h,
-            fps,
-            start_ms,
-            end_ms.map(|e| e.saturating_sub(start_ms)),
+            &EncodeOptions {
+                ffmpeg,
+                input,
+                output,
+                width: w,
+                height: h,
+                fps,
+                start_ms,
+                duration_ms: end_ms.map(|e| e.saturating_sub(start_ms)),
+            },
             &self.encoder_args,
         )?;
         let enc_cancel = self.cancel.clone();
@@ -156,7 +158,7 @@ impl Pipeline {
                     frames_processed: processed,
                     total_frames,
                 });
-                if enc_n % 60 == 0 {
+                if enc_n.is_multiple_of(60) {
                     log::info!(
                         "pipeline: encode {:.1} ms/frame",
                         enc_acc.as_secs_f64() * 1000.0 / enc_n as f64
@@ -228,7 +230,7 @@ impl Pipeline {
                     }
                     proc_n += pending.len() as u64;
                     proc_acc += t0.elapsed();
-                    if proc_n % 60 == 0 {
+                    if proc_n.is_multiple_of(60) {
                         log::info!(
                             "pipeline: process {:.1} ms/frame ({:.1} fps)",
                             proc_acc.as_secs_f64() * 1000.0 / proc_n as f64,
@@ -306,13 +308,8 @@ impl Pipeline {
             Some(e) if e.to_string() != "encode channel closed" => return Err(e),
             _ => {}
         }
-        match enc_res {
-            Err(e) => return Err(e),
-            Ok(()) => {}
-        }
-        if let Err(e) = dec_res {
-            return Err(e);
-        }
+        enc_res?;
+        dec_res?;
         for t in &self.timings {
             if t.frames == 0 {
                 continue;

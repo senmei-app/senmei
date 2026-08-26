@@ -207,7 +207,8 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   if (params?.colorTransfer) structured.push("-color_trc", params.colorTransfer);
   if (params?.colorMatrix) structured.push("-colorspace", params.colorMatrix);
   const ac = params?.audioCodec;
-  if (ac === "None") structured.push("-an");
+  let dropAudio = false;
+  if (ac === "None") dropAudio = true;
   else if (ac && AUDIO_MAP[ac]) structured.push("-c:a", AUDIO_MAP[ac]);
   if (params?.subtitleMode === "Copy") structured.push("-c:s", "copy");
 
@@ -217,5 +218,7 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   for (let i = 0; i + 1 < structured.length; i += 2) {
     if (!customFlags.has(structured[i])) merged.push(structured[i], structured[i + 1]);
   }
+  // `-an` is valueless — it must not shift the flag/value pairing above.
+  if (dropAudio && !customFlags.has("-an")) merged.push("-an");
   return merged;
 }

@@ -105,26 +105,18 @@ pub fn download_model(
         .find(|m| m.id == model_id)
         .cloned()
         .ok_or_else(|| format!("model not found: {model_id}"))?;
-    let convert_arg = registry
-        .resolve(model_id, &dir)
+    let resolved = registry.resolve(model_id, &dir);
+    let convert_arg = resolved
+        .as_ref()
         .map(|m| match m.arch.as_str() {
             "span" => m.feature_channels,
             "srvgg" => m.num_conv,
             _ => m.num_block,
         })
         .unwrap_or(4);
-    let layer_norm = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.layer_norm)
-        .unwrap_or(false);
-    let dysample = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.dysample)
-        .unwrap_or(true);
-    let shuffle = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.shuffle)
-        .unwrap_or(1);
+    let layer_norm = resolved.as_ref().map(|m| m.layer_norm).unwrap_or(false);
+    let dysample = resolved.as_ref().map(|m| m.dysample).unwrap_or(true);
+    let shuffle = resolved.as_ref().map(|m| m.shuffle).unwrap_or(1);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -149,6 +141,10 @@ pub fn download_model(
         return Err(format!(
             "expected f16 burnpack or ncnn weight, got {weight}"
         ));
+    }
+    // Weights are plain filenames in the models dir — never path components.
+    if std::path::Path::new(&weight).components().count() != 1 {
+        return Err(format!("unsafe weight path in metadata: {weight}"));
     }
     let is_archive = url.ends_with(".zip");
     // Multi-model archives (e.g. the nihui rife release zip bundles every
@@ -229,16 +225,16 @@ pub fn download_model(
     } else if st {
         senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale)
     } else {
-        senmei_ml::convert_pth_to_bpk(
-            &meta.arch,
-            &source,
-            &target,
-            meta.scale,
-            convert_arg,
+        senmei_ml::convert_pth_to_bpk(&senmei_ml::ConvertOptions {
+            arch: meta.arch.as_str(),
+            pth_path: source.as_path(),
+            bpk_path: target.as_path(),
+            scale: meta.scale,
+            num_block: convert_arg,
             layer_norm,
             dysample,
             shuffle,
-        )
+        })
     };
     if let Err(e) = conv {
         log::error!("download_model {model_id}: conversion failed: {e}");
@@ -301,6 +297,7 @@ impl Drop for RenderGate {
 /// `cancel`/`pause` are `None`, the shared core flags (used by
 /// `confirm_render`/`cancel_render`) are used.
 #[cfg(feature = "render")]
+#[derive(Default)]
 pub struct RenderOpts {
     pub tile_size: u32,
     /// Readback pipeline depth (batches kept in flight); 0 = default (2).
@@ -312,20 +309,9 @@ pub struct RenderOpts {
     pub pause: Option<Arc<AtomicBool>>,
 }
 
-#[cfg(feature = "render")]
-impl Default for RenderOpts {
-    fn default() -> Self {
-        Self {
-            tile_size: 0,
-            pipeline_depth: 0,
-            backend: senmei_ml::EngineBackend::default(),
-            gpu_index: 0,
-            cancel: None,
-            pause: None,
-        }
-    }
-}
-
+// `FilterConfig`/`RenderConfig` are plain (de)serializable config shapes used by
+// both transports; keep them compiled regardless of the `render` feature so
+// `senmei-server` builds without it.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FilterConfig {
@@ -394,7 +380,7 @@ pub fn settings_schema() -> serde_json::Value {
         let kind_v = serde_json::Value::String(kind.to_string());
         let candidates: Vec<serde_json::Value> = models
             .iter()
-            .filter(|m| serde_json::to_value(&m.kind).ok() == Some(kind_v.clone()))
+            .filter(|m| serde_json::to_value(m.kind).ok() == Some(kind_v.clone()))
             .map(|m| {
                 serde_json::json!({
                     "id": m.id,
@@ -587,16 +573,12 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
         }
     }
     let mut ids: Vec<&str> = Vec::new();
-    for id in [config.model_id.as_deref(), config.interp_model.as_deref()] {
-        if let Some(id) = id {
-            ids.push(id);
-        }
+    for id in [config.model_id.as_deref(), config.interp_model.as_deref()].into_iter().flatten() {
+        ids.push(id);
     }
     if let Some(f) = config.filter.as_ref() {
-        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()] {
-            if let Some(id) = id {
-                ids.push(id);
-            }
+        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()].into_iter().flatten() {
+            ids.push(id);
         }
     }
     let (registry, _) = load_registry()?;
@@ -811,9 +793,7 @@ fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<
 /// rawvideo-pipe stream has no mux-sync hazard.
 #[cfg(feature = "render")]
 pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> {
-    if render_status().state == "running" {
-        return Err("a render is already running".into());
-    }
+    // The RenderGate inside render() serializes; no pre-check needed here.
     validate(&config)?;
     let (start, end) = match (config.start_ms, config.end_ms) {
         (Some(s), Some(e)) if e > s => (s, e),

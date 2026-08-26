@@ -75,7 +75,7 @@ fn vram_mem_info() -> Option<(u64, u64)> {
         };
         let total = read("mem_info_vram_total")?;
         let used = read("mem_info_vram_used").unwrap_or(0);
-        if best.map_or(true, |(t, _)| total > t) {
+        if best.is_none_or(|(t, _)| total > t) {
             best = Some((total, used));
         }
     }

@@ -15,9 +15,10 @@ pub use content::is_anime;
 pub use decoder::{Decoder, Tonemap};
 pub use downloader::download_to_temp;
 pub use downloader::{
-    extract_binary, extract_zip, extract_zip_prefix, fetch, sha256_hex, verify_checksum,
+    extract_binary, extract_zip, extract_zip_prefix, fetch, sha256_hex, sha256_hex_str,
+    verify_checksum,
 };
-pub use encoder::Encoder;
+pub use encoder::{EncodeOptions, Encoder};
 pub use ffmpeg::{download, ffprobe_next_to, probe as probe_ffmpeg, resolve, FfmpegInfo};
 pub use frame::Frame;
 pub use preview::{encode_png, stream_pcm, PcmPipe};

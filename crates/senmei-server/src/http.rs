@@ -1,14 +1,13 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
-use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use std::time::SystemTime;
 
 use axum::{
     body::Body,
     extract::Query,
-    http::{header, Request, Response, StatusCode},
+    http::{header, Method, Request, Response, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -52,6 +51,22 @@ fn not_found() -> Response<Body> {
         .status(StatusCode::NOT_FOUND)
         .body(Body::empty())
         .unwrap()
+}
+
+/// The localhost REST API serves caller-supplied paths (`stream`/`audio`/
+/// `frame`/`probe`). Restrict to real media files so a cross-origin page can't
+/// read arbitrary local files (CORS is locked down too — see `router`).
+fn media_path(p: &std::path::Path) -> bool {
+    p.is_file()
+        && p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+            matches!(
+                e,
+                "mp4" | "m4v" | "mkv" | "webm" | "mov" | "avi" | "ts" | "m2ts" | "mts"
+                    | "flv" | "wmv" | "mpg" | "mpeg" | "vob" | "3gp" | "f4v" | "ogv"
+                    | "mp3" | "flac" | "ogg" | "oga" | "opus" | "wav" | "aac" | "m4a"
+                    | "wma" | "ac3" | "ape"
+            )
+        })
 }
 
 #[derive(Deserialize)]
@@ -136,7 +151,7 @@ async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Bo
 
 async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
     let path = std::path::Path::new(&p.path);
-    if !path.is_file() {
+    if !media_path(path) {
         return not_found();
     }
     serve_file(path.to_path_buf(), req).await
@@ -168,11 +183,12 @@ fn prune_audio_cache(dir: &std::path::Path) {
 /// Transcode the source audio to a cached Vorbis/Ogg track (Chrome rejects
 /// this build's audio-only AAC MP4; libvorbis is LGPL-safe).
 fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
+    if !media_path(std::path::Path::new(input)) {
+        return Err("not a media file".into());
+    }
     let dir = audio_cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    input.hash(&mut h);
-    let out = dir.join(format!("{:016x}.ogg", h.finish()));
+    let out = dir.join(format!("{}.ogg", senmei_media::sha256_hex_str(input)));
     if out.is_file() {
         return Ok(out);
     }
@@ -214,6 +230,9 @@ async fn backend_info() -> ApiResult {
 }
 
 async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
+    if !media_path(std::path::Path::new(&p.input)) {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    }
     match core::probe_video(&p.input) {
         Ok(info) => json_ok(&info),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
@@ -229,6 +248,9 @@ fn preview_worker() -> &'static senmei_media::PreviewWorker {
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
 async fn frame(Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
+    if !media_path(std::path::Path::new(&p.input)) {
+        return Err(json_err(StatusCode::BAD_REQUEST, "not a media file"));
+    }
     match preview_worker().frame(&p.input, p.position_ms) {
         Ok(f) => Ok(Response::builder()
             .status(StatusCode::OK)
@@ -258,7 +280,7 @@ async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
 async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return match tokio::task::spawn_blocking(move || {
+        match tokio::task::spawn_blocking(move || {
             core::download_model(&p.model_id, |_, _| {})
         })
         .await
@@ -269,7 +291,7 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("join failed: {e}"),
             ),
-        };
+        }
     }
     #[cfg(not(feature = "render"))]
     {
@@ -290,10 +312,10 @@ async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
             cfg.input,
             cfg.output
         );
-        return match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
+        match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
             Ok(msg) => json_ok(&serde_json::json!({ "started": msg })),
             Err(e) => json_err(StatusCode::BAD_REQUEST, e),
-        };
+        }
     }
     #[cfg(not(feature = "render"))]
     {
@@ -308,7 +330,7 @@ async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
 async fn render_status() -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return json_ok(&core::render_status());
+        json_ok(&core::render_status())
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
@@ -318,7 +340,7 @@ async fn render_cancel() -> ApiResult {
     #[cfg(feature = "render")]
     {
         core::cancel_render();
-        return json_ok(&serde_json::json!({ "cancelled": true }));
+        json_ok(&serde_json::json!({ "cancelled": true }))
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
@@ -345,11 +367,21 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/render/status", get(render_status))
         .route("/api/render/cancel", post(render_cancel));
 
-    // Permissive CORS for the Vite dev server (localhost:1420 → :8765).
+    // The built UI is same-origin, so CORS is only needed for the Vite dev
+    // server (localhost:1420 → :8765). Locking origins/methods keeps a random
+    // website from reading localhost responses (arbitrary file access).
     let cors = tower_http::cors::CorsLayer::new()
-        .allow_origin(tower_http::cors::Any)
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any);
+        .allow_origin([
+            "http://localhost:1420".parse().unwrap(),
+            "http://127.0.0.1:1420".parse().unwrap(),
+        ])
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::CONTENT_TYPE])
+        .expose_headers([
+            header::CONTENT_TYPE,
+            "x-frame-width".parse().unwrap(),
+            "x-frame-height".parse().unwrap(),
+        ]);
 
     match web_dir {
         Some(dir) => {
@@ -469,13 +501,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cors_headers_present() {
+    async fn cors_only_allows_known_origins() {
+        // No Origin header → not a CORS request, no allow-origin header.
         let resp = app().oneshot(get("/api/health")).await.unwrap();
+        assert!(resp.headers().get("access-control-allow-origin").is_none());
+
+        // Unknown cross-origin site → browser blocks reading the response.
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/api/health")
+            .header("origin", "https://evil.example")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app().oneshot(req).await.unwrap();
+        assert!(resp.headers().get("access-control-allow-origin").is_none());
+
+        // Vite dev origin → allow-origin echoes the known origin.
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/api/health")
+            .header("origin", "http://localhost:1420")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app().oneshot(req).await.unwrap();
         assert_eq!(
             resp.headers()
                 .get("access-control-allow-origin")
                 .map(|v| v.to_str().unwrap()),
-            Some("*")
+            Some("http://localhost:1420")
         );
     }
 

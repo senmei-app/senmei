@@ -3,3 +3,4 @@
 //! HTTP, GUI) calls into here so the gates live once.
 
 pub mod core;
+pub mod logging;

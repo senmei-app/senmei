@@ -237,7 +237,7 @@ impl<B: Backend> RealPlk<B> {
         let dim = 64;
         let in_ch = 3 * scale * scale;
         let dysample = dysample && scale > 1;
-        let groups = if scale % 2 != 0 { 3 } else { 4 };
+        let groups = if !scale.is_multiple_of(2) { 3 } else { 4 };
         let out = 2 * groups * scale * scale;
         Self {
             head: conv2d(3, dim, 3, 1, device),
@@ -264,7 +264,7 @@ impl<B: Backend> RealPlk<B> {
         let h = self.tail.forward(h);
         let s2 = self.scale * self.scale;
         let h = h + repeat_interleave(x, s2);
-        let groups = if self.scale % 2 != 0 { 3 } else { 4 };
+        let groups = if !self.scale.is_multiple_of(2) { 3 } else { 4 };
         match (&self.offset, &self.scope, &self.end_conv) {
             (Some(o), Some(s), Some(e)) => dysample_forward(h, o, s, e, self.scale, groups),
             _ => pixel_shuffle(h, self.scale), // scale=1 → identity
@@ -377,9 +377,9 @@ fn coords_grid<B: Backend>(h: usize, w: usize, device: &B::Device) -> Tensor<B, 
     // channel 0: W coords repeated over H rows
     let mut data = Vec::with_capacity(2 * h * w);
     for coord in 0..2 {
-        for y in 0..h {
-            for x in 0..w {
-                data.push(if coord == 0 { cw[x] } else { ch[y] });
+        for &cy in &ch {
+            for &cx in &cw {
+                data.push(if coord == 0 { cx } else { cy });
             }
         }
     }
