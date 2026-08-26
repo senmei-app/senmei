@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **cleanup: review B — clippy mechanical lints + tch test-gate fix (2026-08-26)** —
+  apply clippy fixes across app/core/media/ml/server (`div_ceil`,
+  `is_multiple_of`, literal formatting, needless borrows/lifetimes/returns,
+  let_and_return, manual flatten, const thread-local, `is_none_or`, cfg-tail
+  returns); arch test modules (`paragonsr`/`safmn`/`srvgg`) are gated on
+  `feature = "burn"` so `cargo test --features tch` compiles.
+
 - **refactor: review B — options structs, enum boxing, backend gating (2026-08-26)** —
   `Encoder::open` and `convert_pth_to_bpk` take an options struct (`EncodeOptions`,
   `ConvertOptions`) instead of eight positional args; the `Model` enum boxes the

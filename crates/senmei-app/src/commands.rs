@@ -230,10 +230,8 @@ pub fn suggest_pipeline(input: String) -> Result<String, String> {
         info.width,
         info.height
     );
-    Ok(
-        serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
-            .map_err(|e| e.to_string())?,
-    )
+    serde_json::to_string(&serde_json::json!({ "anime": anime, "steps": steps }))
+            .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

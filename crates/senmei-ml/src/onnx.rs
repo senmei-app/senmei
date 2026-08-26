@@ -181,12 +181,12 @@ fn skip(msg: &[u8], pos: usize, wire: u64) -> Option<usize> {
 }
 
 /// First length-delimited (wire type 2) field payload with the given number.
-fn first_length_delimited<'a>(msg: &'a [u8], want: u64) -> Result<Option<&'a [u8]>, String> {
+fn first_length_delimited(msg: &[u8], want: u64) -> Result<Option<&[u8]>, String> {
     Ok(length_delimited_fields(msg, want)?.into_iter().next())
 }
 
 /// All length-delimited (wire type 2) field payloads with the given number.
-fn length_delimited_fields<'a>(msg: &'a [u8], want: u64) -> Result<Vec<&'a [u8]>, String> {
+fn length_delimited_fields(msg: &[u8], want: u64) -> Result<Vec<&[u8]>, String> {
     let mut out = Vec::new();
     let mut pos = 0;
     while pos < msg.len() {
@@ -226,7 +226,7 @@ fn first_varint(msg: &[u8], want: u64) -> Result<Option<u64>, String> {
 }
 
 /// First string (length-delimited UTF-8) payload with the given field number.
-fn first_string<'a>(msg: &'a [u8], want: u64) -> Result<Option<&'a str>, String> {
+fn first_string(msg: &[u8], want: u64) -> Result<Option<&str>, String> {
     Ok(first_length_delimited(msg, want)?.and_then(|b| std::str::from_utf8(b).ok()))
 }
 

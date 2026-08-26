@@ -245,8 +245,8 @@ impl<B: Backend> NafNet<B> {
     /// multiples of 16 and cropped back.
     pub fn forward(&self, inp: Tensor<B, 4>) -> Tensor<B, 4> {
         let [n, c, h, w] = inp.dims();
-        let ph = (h + 15) / 16 * 16;
-        let pw = (w + 15) / 16 * 16;
+        let ph = h.div_ceil(16) * 16;
+        let pw = w.div_ceil(16) * 16;
         let mut x = inp.clone();
         if ph > h {
             let z = Tensor::<B, 4>::zeros([n, c, ph - h, w], &inp.device());

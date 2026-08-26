@@ -62,9 +62,7 @@ fn frame_stats(ffmpeg: &Path, input: &Path, at_ms: f64) -> Option<(f64, f64)> {
     // Reap the child — without wait() every probe leaves a zombie behind.
     let read = child.stdout.take().and_then(|mut o| o.read_to_end(&mut buf).ok());
     let _ = child.wait();
-    if read.is_none() {
-        return None;
-    }
+    read?;
     let w = 64usize;
     let h = buf.len() / w;
     if h < 3 || buf.len() < w * h {

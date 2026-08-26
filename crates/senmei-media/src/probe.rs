@@ -145,7 +145,7 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
         .unwrap_or(duration);
 
     // Display dimensions after rotation: 90°/270° swap stored w/h.
-    let rotation = stream_rotation(&stream);
+    let rotation = stream_rotation(stream);
     let (width, height) = if rotation == 90 || rotation == 270 {
         (stream.height, stream.width)
     } else {

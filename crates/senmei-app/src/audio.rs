@@ -62,7 +62,7 @@ struct Player {
 
 // OutputStream is !Send; a thread-local keeps it sound (commands on main thread).
 thread_local! {
-    static PLAYER: RefCell<Option<Player>> = RefCell::new(None);
+    static PLAYER: RefCell<Option<Player>> = const { RefCell::new(None) };
 }
 
 fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T, String> {

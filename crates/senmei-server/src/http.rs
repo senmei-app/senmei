@@ -255,7 +255,7 @@ async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
 async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return match tokio::task::spawn_blocking(move || {
+        match tokio::task::spawn_blocking(move || {
             core::download_model(&p.model_id, |_, _| {})
         })
         .await
@@ -266,7 +266,7 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("join failed: {e}"),
             ),
-        };
+        }
     }
     #[cfg(not(feature = "render"))]
     {
@@ -287,10 +287,10 @@ async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
             cfg.input,
             cfg.output
         );
-        return match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
+        match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
             Ok(msg) => json_ok(&serde_json::json!({ "started": msg })),
             Err(e) => json_err(StatusCode::BAD_REQUEST, e),
-        };
+        }
     }
     #[cfg(not(feature = "render"))]
     {
@@ -305,7 +305,7 @@ async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
 async fn render_status() -> ApiResult {
     #[cfg(feature = "render")]
     {
-        return json_ok(&core::render_status());
+        json_ok(&core::render_status())
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
@@ -315,7 +315,7 @@ async fn render_cancel() -> ApiResult {
     #[cfg(feature = "render")]
     {
         core::cancel_render();
-        return json_ok(&serde_json::json!({ "cancelled": true }));
+        json_ok(&serde_json::json!({ "cancelled": true }))
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
