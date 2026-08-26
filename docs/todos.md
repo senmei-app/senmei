@@ -17,6 +17,10 @@
 - [ ] Adopt Real-CUGAN up2x conservative (`cugan_up2x-latest-conservative.pth`) — same UpCunet2x arch as real-cugan-x2; balanced preset for real film (Pro-conservative already adopted as real-cugan-pro-conservative-x2)
 
 
+## Test coverage (2026-08-26)
+- [ ] `pipeline.rs`/`projects.rs`/`mcp.rs`/`audio.rs`/`resources.rs` have 0 `#[test]`s — add cancel/pause-path coverage in `pipeline.rs::run()`.
+
+
 # Not yet
 - [ ] Project website
 - [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)

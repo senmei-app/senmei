@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: transitive zip versions + test-coverage gap (2026-08-26)** — deny.toml
+  records the three `zip` versions in the multi-target graph (0.6.6 / 7.2.0
+  Windows transitives, 8.6.0 via burn-store); todos.md notes the
+  pipeline/projects/mcp/audio/resources paths with no tests.
+
 - **cleanup: review B — clippy mechanical lints + tch test-gate fix (2026-08-26)** —
   apply clippy fixes across app/core/media/ml/server (`div_ceil`,
   `is_multiple_of`, literal formatting, needless borrows/lifetimes/returns,
