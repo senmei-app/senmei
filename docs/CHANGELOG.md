@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **cleanup: shared serve_file helper for the Range handlers (2026-08-26)** —
+  `/api/stream` and `/api/audio` both wrapped `ServeFile` the same way;
+  extracted one `serve_file` helper.
+
 - **refactor: probe via core, drop the app-side duplicate (2026-08-26)** —
   `probe_video_inner` duplicated `core::probe_video` (same data dir/ffprobe);
   the call sites now use `senmei_core::core::probe_video` directly.

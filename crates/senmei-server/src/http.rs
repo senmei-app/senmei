@@ -129,16 +129,21 @@ struct StreamParams {
 /// (seeking needs 206 partial content). Accepts server-side paths like the
 /// other REST endpoints; unsupported codecs error in the `<video>` and the
 /// frontend falls back to FFmpeg-decoded frames.
+/// Serve one file with Range support (206 partial content) for the browser.
+/// ServeFile streams its own body type; wrap it as an axum Body.
+async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Body> {
+    match tower_http::services::ServeFile::new(path).oneshot(req).await {
+        Ok(resp) => resp.map(axum::body::Body::new),
+        Err(_) => not_found(),
+    }
+}
+
 async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
     let path = std::path::Path::new(&p.path);
     if !path.is_file() {
         return not_found();
     }
-    match tower_http::services::ServeFile::new(path).oneshot(req).await {
-        // ServeFile streams its own body type; wrap it as an axum Body.
-        Ok(resp) => resp.map(axum::body::Body::new),
-        Err(_) => not_found(),
-    }
+    serve_file(path.to_path_buf(), req).await
 }
 
 fn audio_cache_dir() -> std::path::PathBuf {
@@ -203,10 +208,7 @@ async fn audio(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Bo
             return json_err(StatusCode::BAD_REQUEST, "audio transcode failed").into_response();
         }
     };
-    match tower_http::services::ServeFile::new(out).oneshot(req).await {
-        Ok(resp) => resp.map(axum::body::Body::new),
-        Err(_) => not_found(),
-    }
+    serve_file(out, req).await
 }
 
 /// Empty the buffered log history (Logs panel "Clear").
