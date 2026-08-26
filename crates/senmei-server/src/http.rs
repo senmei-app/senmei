@@ -197,6 +197,13 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
 async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
     #[cfg(feature = "render")]
     {
+        // Mirror the desktop's `render start: … config` log so HTTP renders are
+        // auditable (model, scale, range) against the pipeline that ran.
+        log::info!(
+            "http render start: {} -> {} (config {cfg:?})",
+            cfg.input,
+            cfg.output
+        );
         return match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
             Ok(msg) => json_ok(&serde_json::json!({ "started": msg })),
             Err(e) => json_err(StatusCode::BAD_REQUEST, e),
