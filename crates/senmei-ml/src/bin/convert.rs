@@ -53,9 +53,16 @@ fn main() -> senmei_ml::Result<()> {
     } else if input.extension().and_then(|e| e.to_str()) == Some("safetensors") {
         senmei_ml::convert_safetensors_to_bpk(&args[1], input, out, scale)?;
     } else {
-        senmei_ml::convert_pth_to_bpk(
-            &args[1], input, out, scale, num_block, layer_norm, dysample, shuffle,
-        )?;
+        senmei_ml::convert_pth_to_bpk(&senmei_ml::ConvertOptions {
+            arch: args[1].as_str(),
+            pth_path: input,
+            bpk_path: out,
+            scale,
+            num_block,
+            layer_norm,
+            dysample,
+            shuffle,
+        })?;
     }
     println!("converted {} -> {}", args[1], args[3]);
     Ok(())

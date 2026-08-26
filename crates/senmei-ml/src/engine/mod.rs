@@ -23,6 +23,9 @@ pub struct InferOptions {
 /// until the transfer completes and converts to packed rgb24 on the CPU. Split
 /// from the forward so the caller can queue the next batch's GPU work before
 /// resolving the previous readback (keeps the GPU busy during the transfer).
+/// Raw decoded frames: (rgb24 bytes, width, height).
+pub type Rgb8Frames = Vec<(Vec<u8>, u32, u32)>;
+
 pub trait Rgb8Batch: Send {
     fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>>;
 }
@@ -61,7 +64,7 @@ pub trait InferenceEngine: Send + Sync {
         &mut self,
         inputs: &[Tensor],
         scale: u32,
-    ) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>> {
+    ) -> Option<Result<Rgb8Frames>> {
         let _ = (inputs, scale);
         None
     }
@@ -327,7 +330,7 @@ pub fn engine_for_model(
             #[cfg(feature = "burn")]
             {
                 log::info!("engine: auto -> burn-Vulkan ({})", model.id);
-                return Ok(Box::new(crate::burn::BurnEngine::new()));
+                Ok(Box::new(crate::burn::BurnEngine::new()))
             }
             #[cfg(not(feature = "burn"))]
             {

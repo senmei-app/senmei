@@ -6,11 +6,13 @@
 //! bare system without ROCm loads libtorch incompletely and the wrapper's
 //! tensor ABI breaks (see tch/mod.rs).
 
+#[cfg(feature = "tch")]
 use std::path::{Path, PathBuf};
 
 /// ROCm SDK release published on the AMD wheel index; must match the pinned
 /// libtorch (`rocm7.14`) — mirrors Koharu's runtime.
 pub const ROCM_VERSION: &str = "7.14.0";
+#[cfg(feature = "tch")]
 pub(crate) const INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
 
 pub(crate) fn wheel_platform() -> &'static str {
@@ -21,11 +23,13 @@ pub(crate) fn wheel_platform() -> &'static str {
     }
 }
 
+#[cfg(feature = "tch")]
 fn install_dir(data_dir: &Path, target: &str) -> PathBuf {
     data_dir.join("rocm").join(ROCM_VERSION).join(target)
 }
 
 /// Whether the per-GPU SDK is fully present on disk.
+#[cfg(feature = "tch")]
 pub fn is_complete(data_dir: &Path, target: &str) -> bool {
     let root = install_dir(data_dir, target);
     if cfg!(target_os = "windows") {
@@ -41,6 +45,7 @@ pub fn is_complete(data_dir: &Path, target: &str) -> bool {
 
 /// Download + extract the three per-GPU ROCm SDK wheels into
 /// `data_dir/rocm/<ver>/<gfx>`; returns the install root. No-op when complete.
+#[cfg(feature = "tch")]
 pub fn download(data_dir: &Path, target: &str) -> Result<PathBuf, String> {
     let platform = wheel_platform();
     let root = install_dir(data_dir, target);
@@ -84,6 +89,7 @@ pub fn download(data_dir: &Path, target: &str) -> Result<PathBuf, String> {
 /// The SDK library files (relative to the install root) to preload with
 /// RTLD_GLOBAL before libtorch, in dependency order — mirrors Koharu's
 /// `Rocm::activate`.
+#[cfg(feature = "tch")]
 pub fn preload_libs() -> &'static [&'static str] {
     if cfg!(target_os = "windows") {
         &[

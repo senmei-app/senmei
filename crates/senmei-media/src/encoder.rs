@@ -382,6 +382,20 @@ fn override_codec_args(codec: &str, extra_args: &[String], width: u32, height: u
     }
 }
 
+/// Fixed inputs for one encode; the per-call ffmpeg `extra_args` ride along
+/// separately in [`Encoder::open`].
+#[derive(Clone, Copy)]
+pub struct EncodeOptions<'a> {
+    pub ffmpeg: &'a Path,
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub start_ms: u64,
+    pub duration_ms: Option<u64>,
+}
+
 impl Encoder {
     /// `extra_args` are appended after the defaults (before the output path), so
     /// user-supplied codec/filter options override the built-in defaults.
@@ -391,17 +405,17 @@ impl Encoder {
     /// `duration_ms` bounds it (`-t`) to the same range — without it the copied
     /// audio input runs to the end of the source and ffmpeg never exits after
     /// the (shorter) video pipe ends.
-    pub fn open(
-        ffmpeg: &Path,
-        input: &Path,
-        path: &Path,
-        width: u32,
-        height: u32,
-        fps: f64,
-        start_ms: u64,
-        duration_ms: Option<u64>,
-        extra_args: &[String],
-    ) -> Result<Self> {
+    pub fn open(cfg: &EncodeOptions, extra_args: &[String]) -> Result<Self> {
+        let EncodeOptions {
+            ffmpeg,
+            input,
+            output: path,
+            width,
+            height,
+            fps,
+            start_ms,
+            duration_ms,
+        } = *cfg;
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let verify = hw_verifier(ffmpeg);
         let mut extra_args = extra_args.to_vec();
@@ -446,7 +460,7 @@ impl Encoder {
         if let Some(pos) = extra_args.windows(2).position(|w| w[0] == "-c:v") {
             let codec = extra_args[pos + 1].clone();
             extra_args.drain(pos..pos + 2);
-            if caps.iter().any(|e| *e == codec) {
+            if caps.contains(&codec) {
                 video_codec = codec.clone();
                 codec_args = override_codec_args(&codec, &extra_args, width, height);
             } else {
@@ -848,7 +862,20 @@ mod tests {
             .status()
             .unwrap();
         assert!(make.success(), "failed to create test input");
-        let mut enc = Encoder::open(&ff, &input, &out, 64, 64, 30.0, 0, None, &[]).unwrap();
+        let mut enc = Encoder::open(
+            &EncodeOptions {
+                ffmpeg: &ff,
+                input: &input,
+                output: &out,
+                width: 64,
+                height: 64,
+                fps: 30.0,
+                start_ms: 0,
+                duration_ms: None,
+            },
+            &[],
+        )
+        .unwrap();
         let frame = Frame {
             width: 64,
             height: 64,
@@ -917,7 +944,19 @@ mod tests {
         let out_t = out.clone();
         let _ = std::thread::spawn(move || {
             let run = (|| -> Result<()> {
-                let mut enc = Encoder::open(&ff, &input_t, &out_t, 64, 64, 30.0, 0, None, &extra)?;
+                let mut enc = Encoder::open(
+                    &EncodeOptions {
+                        ffmpeg: &ff,
+                        input: &input_t,
+                        output: &out_t,
+                        width: 64,
+                        height: 64,
+                        fps: 30.0,
+                        start_ms: 0,
+                        duration_ms: None,
+                    },
+                    &extra,
+                )?;
                 let frame = Frame {
                     width: 64,
                     height: 64,

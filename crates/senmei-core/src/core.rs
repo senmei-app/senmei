@@ -221,16 +221,16 @@ pub fn download_model(
     } else if st {
         senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale)
     } else {
-        senmei_ml::convert_pth_to_bpk(
-            &meta.arch,
-            &source,
-            &target,
-            meta.scale,
-            convert_arg,
+        senmei_ml::convert_pth_to_bpk(&senmei_ml::ConvertOptions {
+            arch: meta.arch.as_str(),
+            pth_path: source.as_path(),
+            bpk_path: target.as_path(),
+            scale: meta.scale,
+            num_block: convert_arg,
             layer_norm,
             dysample,
             shuffle,
-        )
+        })
     };
     if let Err(e) = conv {
         log::error!("download_model {model_id}: conversion failed: {e}");
@@ -293,6 +293,7 @@ impl Drop for RenderGate {
 /// `cancel`/`pause` are `None`, the shared core flags (used by
 /// `confirm_render`/`cancel_render`) are used.
 #[cfg(feature = "render")]
+#[derive(Default)]
 pub struct RenderOpts {
     pub tile_size: u32,
     /// Readback pipeline depth (batches kept in flight); 0 = default (2).
@@ -305,18 +306,6 @@ pub struct RenderOpts {
 }
 
 #[cfg(feature = "render")]
-impl Default for RenderOpts {
-    fn default() -> Self {
-        Self {
-            tile_size: 0,
-            pipeline_depth: 0,
-            backend: senmei_ml::EngineBackend::default(),
-            gpu_index: 0,
-            cancel: None,
-            pause: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
@@ -386,7 +375,7 @@ pub fn settings_schema() -> serde_json::Value {
         let kind_v = serde_json::Value::String(kind.to_string());
         let candidates: Vec<serde_json::Value> = models
             .iter()
-            .filter(|m| serde_json::to_value(&m.kind).ok() == Some(kind_v.clone()))
+            .filter(|m| serde_json::to_value(m.kind).ok() == Some(kind_v.clone()))
             .map(|m| {
                 serde_json::json!({
                     "id": m.id,
@@ -579,16 +568,12 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
         }
     }
     let mut ids: Vec<&str> = Vec::new();
-    for id in [config.model_id.as_deref(), config.interp_model.as_deref()] {
-        if let Some(id) = id {
-            ids.push(id);
-        }
+    for id in [config.model_id.as_deref(), config.interp_model.as_deref()].into_iter().flatten() {
+        ids.push(id);
     }
     if let Some(f) = config.filter.as_ref() {
-        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()] {
-            if let Some(id) = id {
-                ids.push(id);
-            }
+        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()].into_iter().flatten() {
+            ids.push(id);
         }
     }
     let (registry, _) = load_registry()?;

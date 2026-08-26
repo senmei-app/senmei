@@ -4,7 +4,7 @@
 //! passed in by the engines.
 #![cfg(any(feature = "burn", feature = "tch"))]
 
-use super::Rgb8Batch;
+use super::{Rgb8Batch, Rgb8Frames};
 use crate::arch::{
     Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RifeNet, RrdbNet, SafmnNet,
     Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
@@ -28,7 +28,7 @@ pub enum Model<B: Backend> {
     UpCunet2xFast(UpCunet2xFast<B>),
     RrdbNet(RrdbNet<B>),
     SrvggNet(SrvggNet<B>),
-    RifeNet(RifeNet<B>),
+    RifeNet(Box<RifeNet<B>>),
     IfrNet(IfrNet<B>),
     Drunet(Drunet<B>),
     Dncnn(Dncnn<B>),
@@ -217,6 +217,7 @@ fn to_tensor<B: Backend>(out: BurnTensor<B, 4>, shape: [usize; 4]) -> Result<Ten
 /// Models whose single-input `forward` takes a 3-channel RGB tensor (used to
 /// pick warmup inputs; DRUNet wants 4ch, FFDNet/RIFE/IFRNet have no
 /// single-input forward at all).
+#[cfg(feature = "burn")]
 pub fn single_input_rgb<B: Backend>(model: &Model<B>) -> bool {
     !matches!(
         model,
@@ -276,7 +277,7 @@ pub fn infer_rgb8_batch<B: Backend>(
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<Vec<(Vec<u8>, u32, u32)>>>
+) -> Option<Result<Rgb8Frames>>
 where
     B::FloatElem: ElemToU8,
 {
@@ -456,10 +457,9 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
         let wy = feather(oh, y > 0, y + tile < ph);
         let wx = feather(ow, x > 0, x + tile < pw);
         let mut wv = Vec::with_capacity(oh * ow);
-        for yy in 0..oh {
-            let wyy = wy[yy];
-            for xx in 0..ow {
-                wv.push(wyy * wx[xx]);
+        for &wyy in &wy {
+            for &wxx in &wx {
+                wv.push(wyy * wxx);
             }
         }
         let wmask = BurnTensor::<B, 4>::from_data(
@@ -628,8 +628,8 @@ pub fn infer_interp<B: Backend>(
     // The flow estimators run on a downscaled grid (RIFE 1/32, IFRNet 1/16
     // via its pyramid), so pad to a multiple and crop back (like the refs).
     let pad = if model.is_rife() { 32 } else { 16 };
-    let pad_h = (h + pad - 1) / pad * pad;
-    let pad_w = (w + pad - 1) / pad * pad;
+    let pad_h = h.div_ceil(pad) * pad;
+    let pad_w = w.div_ceil(pad) * pad;
     let pad = |x: BurnTensor<B, 4>| {
         let mut x = x;
         if pad_h > h {
@@ -700,8 +700,8 @@ pub fn infer_denoise<B: Backend>(
     }
     let sigma_map = BurnTensor::<B, 4>::ones([n, 1, h, w], device) * sigma;
     let x = BurnTensor::cat(vec![rgb, sigma_map], 1);
-    let pad_h = (h + 7) / 8 * 8;
-    let pad_w = (w + 7) / 8 * 8;
+    let pad_h = h.div_ceil(8) * 8;
+    let pad_w = w.div_ceil(8) * 8;
     let mut x = x;
     if pad_h > h {
         let z = BurnTensor::<B, 4>::zeros([n, 4, pad_h - h, w], device);

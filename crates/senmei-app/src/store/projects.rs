@@ -101,6 +101,7 @@ pub struct PipelineStep {
 /// Per-project Inspector settings persisted in `<project>/project.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct ProjectSettings {
     #[serde(default)]
     pub steps: Vec<PipelineStep>,
@@ -110,25 +111,16 @@ pub struct ProjectSettings {
     pub output_dir: Option<String>,
 }
 
-impl Default for ProjectSettings {
-    fn default() -> Self {
-        Self {
-            steps: Vec::new(),
-            files: Vec::new(),
-            output_dir: None,
-        }
-    }
-}
 
 fn projects_path() -> PathBuf {
     data_dir().join("projects.json")
 }
 
-fn project_settings_path(project_dir: &PathBuf) -> PathBuf {
+fn project_settings_path(project_dir: &Path) -> PathBuf {
     project_dir.join("project.json")
 }
 
-pub fn load_project_settings(project_dir: &PathBuf) -> ProjectSettings {
+pub fn load_project_settings(project_dir: &Path) -> ProjectSettings {
     std::fs::read_to_string(project_settings_path(project_dir))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -136,7 +128,7 @@ pub fn load_project_settings(project_dir: &PathBuf) -> ProjectSettings {
 }
 
 pub fn save_project_settings(
-    project_dir: &PathBuf,
+    project_dir: &Path,
     settings: &ProjectSettings,
 ) -> Result<(), String> {
     let path = project_settings_path(project_dir);

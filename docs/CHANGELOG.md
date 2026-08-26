@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **refactor: review B — options structs, enum boxing, backend gating (2026-08-26)** —
+  `Encoder::open` and `convert_pth_to_bpk` take an options struct (`EncodeOptions`,
+  `ConvertOptions`) instead of eight positional args; the `Model` enum boxes the
+  `RifeNet` variant and the engines share a `Rgb8Frames` type alias; the ROCm
+  download/preload helpers are item-gated behind `feature = "tch"`;
+  `ProjectSettings`/`RenderOpts`/`BurnEngine` derive `Default`, project-settings
+  paths take `&Path`, and `single_input_rgb` is burn-only.
+
 - **cleanup: review hygiene — dead `project_dir`, stable audio cache key, shared arg filter (2026-08-26)** —
   dropped the unused `project_dir` parameter from the frame command (prop,
   wrapper and generated bindings updated); the audio cache key now hashes the
