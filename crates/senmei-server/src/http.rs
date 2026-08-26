@@ -110,6 +110,17 @@ async fn ffmpeg_status() -> ApiResult {
     json_ok(&core::ffmpeg_status())
 }
 
+/// Recent log lines for the web UI Logs panel.
+async fn logs() -> ApiResult {
+    json_ok(&crate::logging::entries())
+}
+
+/// Empty the buffered log history (Logs panel "Clear").
+async fn logs_clear() -> ApiResult {
+    crate::logging::clear();
+    json_ok(&serde_json::json!({ "ok": true }))
+}
+
 async fn backend_info() -> ApiResult {
     json_ok(&senmei_ml::backend_info())
 }
@@ -228,6 +239,8 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/settings-schema", get(settings_schema))
         .route("/api/ffmpeg", get(ffmpeg_status))
         .route("/api/backend-info", get(backend_info))
+        .route("/api/logs", get(logs))
+        .route("/api/logs/clear", post(logs_clear))
         .route("/api/probe", post(probe))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))

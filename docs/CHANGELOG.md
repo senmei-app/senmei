@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **feat: web UI logs over HTTP (2026-08-26)** — the server logger now keeps an
+  in-memory ring buffer served at `/api/logs` (+`/api/logs/clear`); the web
+  frontend `onLog` polls it, so the Logs panel works over HTTP instead of
+  showing "No log entries" (`getLogs`/`clearLogs` were no-ops before).
+
 - **fix: preview frame requests can't hang (2026-08-25)** — the decode worker
   now answers within 10 s (`recv_timeout`) instead of blocking a Tauri command
   or HTTP request forever, and the Tauri `readFrame` wrapper resolves once both

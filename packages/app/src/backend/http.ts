@@ -62,13 +62,39 @@ export const httpBackend: Backend = {
   },
 
   async getLogs(): Promise<LogEntry[]> {
-    return [];
+    return api<LogEntry[]>("/api/logs");
   },
 
-  async clearLogs() {},
+  async clearLogs() {
+    await api<{ ok: boolean }>("/api/logs/clear", { method: "POST" });
+  },
 
-  onLog() {
-    return () => {};
+  // The server has no push channel (unlike the Tauri event), so poll the
+  // buffer: seed with the current tail, then deliver entries appended after it.
+  onLog(listener: (entry: LogEntry) => void): () => void {
+    let lastCount = 0;
+    let timer: number | undefined;
+    const poll = async (seed = false) => {
+      let logs: LogEntry[] = [];
+      try {
+        logs = await api<LogEntry[]>("/api/logs");
+      } catch {
+        return;
+      }
+      if (seed) {
+        lastCount = logs.length; // existing entries come via getLogs()
+        return;
+      }
+      if (logs.length < lastCount) lastCount = 0; // buffer was cleared
+      for (let i = lastCount; i < logs.length; i++) listener(logs[i]);
+      lastCount = logs.length;
+    };
+    void poll(true).then(() => {
+      timer = window.setInterval(() => poll(), 1000);
+    });
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
   },
 
   async listModels() {
