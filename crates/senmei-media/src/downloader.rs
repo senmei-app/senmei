@@ -112,6 +112,11 @@ pub fn sha256_hex(path: &Path) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(&bytes)))
 }
 
+/// Stable hex SHA-256 of a string (cache keys that survive restarts).
+pub fn sha256_hex_str(s: &str) -> String {
+    format!("{:x}", Sha256::digest(s.as_bytes()))
+}
+
 /// Case-insensitive SHA-256 comparison against an expected value.
 pub fn verify_checksum(actual: &str, expected: &str) -> Result<()> {
     if actual.eq_ignore_ascii_case(expected) {

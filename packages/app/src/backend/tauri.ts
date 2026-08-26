@@ -7,7 +7,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as bridge from "@senmei/bridge";
-import type { DownloadProgress, LogEntry, RenderProgress } from "@senmei/bridge";
+import type { DownloadProgress, FramePixels, LogEntry, RenderProgress } from "@senmei/bridge";
 import type { Backend, FrameSource, RawFrame } from "./types";
 
 export const tauriBackend: Backend = {
@@ -57,7 +57,7 @@ export const tauriBackend: Backend = {
     return bridge.probeVideo(input);
   },
 
-  async readFrame(input, positionMs, projectDir = null): Promise<RawFrame> {
+  async readFrame(input, positionMs): Promise<RawFrame> {
     // bridge.readFrame delivers width/height on the meta channel (JSON) and
     // the raw RGB24 on the frame channel (ArrayBuffer) — no base64 over IPC.
     // Either channel may arrive first; resolve once both are in.
@@ -68,13 +68,14 @@ export const tauriBackend: Backend = {
         meta = m;
         if (pixels) resolve({ width: meta.width, height: meta.height, data: pixels });
       });
-      // Specta types the frame payload `number[]`, but Tauri delivers a raw
-      // ArrayBuffer — `any` keeps the wrapper the single cast site.
-      const onFrame = new Channel<any>((buf: ArrayBuffer) => {
-        pixels = new Uint8Array(buf);
+      // Specta types the frame payload as `number[]`, but Tauri delivers a raw
+      // `ArrayBuffer` — the cast below is the single site reconciling the two
+      // (raw bytes over IPC, no base64).
+      const onFrame = new Channel<FramePixels>((buf: FramePixels) => {
+        pixels = new Uint8Array(buf as unknown as ArrayBuffer);
         if (meta) resolve({ width: meta.width, height: meta.height, data: pixels });
       });
-      bridge.readFrame(input, positionMs, projectDir, onMeta, onFrame).catch(reject);
+      bridge.readFrame(input, positionMs, onMeta, onFrame).catch(reject);
     });
   },
 

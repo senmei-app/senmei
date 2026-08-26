@@ -81,10 +81,9 @@ export const probeVideo = (input: string) => commands.probeVideo(input);
 export const readFrame = (
   input: string,
   positionMs: number | null,
-  projectDir: string | null = null,
   onMeta: Channel<FrameMeta>,
   onFrame: Channel<FramePixels>,
-) => commands.readFrame(input, positionMs, projectDir, onMeta, onFrame);
+) => commands.readFrame(input, positionMs, onMeta, onFrame);
 
 export const audioLoad = (input: string, positionMs: number) =>
   commands.audioLoad(input, positionMs);

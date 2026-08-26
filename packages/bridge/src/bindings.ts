@@ -42,7 +42,7 @@ export const commands = {
 	 *  makes specta's TS export recurse forever.
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
-	readFrame: (input: string, positionMs: number | null, projectDir: string | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, projectDir, onMeta, onFrame }),
+	readFrame: (input: string, positionMs: number | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, onMeta, onFrame }),
 	audioLoad: (input: string, positionMs: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
@@ -155,6 +155,7 @@ export type HardwareSnapshot = {
 	gpuMemoryTotalBytes: number | null,
 };
 
+/**  One log line for a Logs panel (GUI + HTTP share the shape). */
 export type LogEntry = {
 	level: string,
 	message: string,

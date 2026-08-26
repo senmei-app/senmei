@@ -21,7 +21,6 @@ export default function Monitor({
   timings = [],
   sampleInMs = 0,
   sampleOutMs = 0,
-  projectDir,
   onSampleChange,
   onRenderSample,
   fullVideo = false,
@@ -43,7 +42,6 @@ export default function Monitor({
   prevRenderedFile?: string | null;
   sampleInMs?: number;
   sampleOutMs?: number;
-  projectDir?: string | null;
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
   /** Full Video Mode: the app fullscreens the OS window and shows only this
@@ -148,11 +146,9 @@ export default function Monitor({
   }, []);
   const be = () => beRef.current;
 
-  // rodio/cpal buffer output; the lead nudges the source onto the playhead.
-  // 0 = no compensation yet (measure the residual first).
-  const AUDIO_LEAD_MS = 0;
+  // rodio/cpal buffer output; audioSeek lands the source on the playhead.
   const syncAudio = (ms: number) => {
-    void be()?.audioSeek(ms + AUDIO_LEAD_MS).catch(() => {});
+    void be()?.audioSeek(ms).catch(() => {});
   };
 
   // Stream the file's audio; a fresh `audioLoad` replaces the current pipe.
@@ -336,7 +332,7 @@ export default function Monitor({
     return Promise.all(
       targets.map(({ path, ms: t }) =>
         b
-          .readFrame(path, t, projectDir ?? null)
+          .readFrame(path, t)
           .then((frame) => ({ path, frame }))
           .catch((e) => {
             console.error("readFrame failed:", e);

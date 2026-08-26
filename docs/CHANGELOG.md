@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **cleanup: review hygiene — dead `project_dir`, stable audio cache key, shared arg filter (2026-08-26)** —
+  dropped the unused `project_dir` parameter from the frame command (prop,
+  wrapper and generated bindings updated); the audio cache key now hashes the
+  source path with SHA-256 (`DefaultHasher` keys changed across versions); the
+  kvazaar/VA-API encoder arg strippers share one `filter_args` helper; preset
+  lookups no longer leak a `String` per call; `suggest_pipeline` uses named
+  constants for its model IDs and thresholds; `download_model` resolves the
+  registry once instead of four times; the redundant `render_sample` pre-check
+  is gone; stale "HTTP as base64" doc corrected.
+
 - **refactor: shared log ring-buffer + rotating file in `senmei-core` (2026-08-26)** — the GUI
   (`log_hub.rs`) and HTTP (`logging.rs`) loggers duplicated `LogEntry`, a ring
   buffer and 5 MB file rotation (with subtly divergent implementations); the

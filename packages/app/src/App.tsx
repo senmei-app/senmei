@@ -446,7 +446,6 @@ export default function App() {
       rendering={batch.rendering}
       progress={batch.progress}
       timings={batch.timings}
-      projectDir={projectDir}
       sampleInMs={sampleRange?.inMs ?? 0}
       sampleOutMs={sampleRange?.outMs ?? 0}
       onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}

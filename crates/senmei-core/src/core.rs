@@ -105,26 +105,18 @@ pub fn download_model(
         .find(|m| m.id == model_id)
         .cloned()
         .ok_or_else(|| format!("model not found: {model_id}"))?;
-    let convert_arg = registry
-        .resolve(model_id, &dir)
+    let resolved = registry.resolve(model_id, &dir);
+    let convert_arg = resolved
+        .as_ref()
         .map(|m| match m.arch.as_str() {
             "span" => m.feature_channels,
             "srvgg" => m.num_conv,
             _ => m.num_block,
         })
         .unwrap_or(4);
-    let layer_norm = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.layer_norm)
-        .unwrap_or(false);
-    let dysample = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.dysample)
-        .unwrap_or(true);
-    let shuffle = registry
-        .resolve(model_id, &dir)
-        .map(|m| m.shuffle)
-        .unwrap_or(1);
+    let layer_norm = resolved.as_ref().map(|m| m.layer_norm).unwrap_or(false);
+    let dysample = resolved.as_ref().map(|m| m.dysample).unwrap_or(true);
+    let shuffle = resolved.as_ref().map(|m| m.shuffle).unwrap_or(1);
     if meta.license_blocked() {
         return Err(format!(
             "model {model_id} has an unconfirmed/restrictive license ({}); refusing download",
@@ -811,9 +803,7 @@ fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<
 /// rawvideo-pipe stream has no mux-sync hazard.
 #[cfg(feature = "render")]
 pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> {
-    if render_status().state == "running" {
-        return Err("a render is already running".into());
-    }
+    // The RenderGate inside render() serializes; no pre-check needed here.
     validate(&config)?;
     let (start, end) = match (config.start_ms, config.end_ms) {
         (Some(s), Some(e)) if e > s => (s, e),

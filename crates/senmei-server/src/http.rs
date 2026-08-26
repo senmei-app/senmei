@@ -1,7 +1,6 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
-use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use std::time::SystemTime;
 
@@ -170,9 +169,7 @@ fn prune_audio_cache(dir: &std::path::Path) {
 fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
     let dir = audio_cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    input.hash(&mut h);
-    let out = dir.join(format!("{:016x}.ogg", h.finish()));
+    let out = dir.join(format!("{}.ogg", senmei_media::sha256_hex_str(input)));
     if out.is_file() {
         return Ok(out);
     }
