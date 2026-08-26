@@ -142,6 +142,10 @@ pub fn download_model(
             "expected f16 burnpack or ncnn weight, got {weight}"
         ));
     }
+    // Weights are plain filenames in the models dir — never path components.
+    if std::path::Path::new(&weight).components().count() != 1 {
+        return Err(format!("unsafe weight path in metadata: {weight}"));
+    }
     let is_archive = url.ends_with(".zip");
     // Multi-model archives (e.g. the nihui rife release zip bundles every
     // version) need a version-specific entry; default to the weight filename.
@@ -305,8 +309,9 @@ pub struct RenderOpts {
     pub pause: Option<Arc<AtomicBool>>,
 }
 
-#[cfg(feature = "render")]
-
+// `FilterConfig`/`RenderConfig` are plain (de)serializable config shapes used by
+// both transports; keep them compiled regardless of the `render` feature so
+// `senmei-server` builds without it.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FilterConfig {

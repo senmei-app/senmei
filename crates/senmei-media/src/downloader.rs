@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Component, Path};
 
 use sha2::{Digest, Sha256};
 
@@ -44,6 +44,15 @@ where
         let mut entry = zip.by_index(i).map_err(Error::from)?;
         let name = entry.name().to_owned();
         if !filter(&name) {
+            continue;
+        }
+        // Reject absolute paths and `..`/prefix components (zip-slip).
+        let rel = Path::new(&name);
+        if rel.is_absolute()
+            || rel
+                .components()
+                .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir))
+        {
             continue;
         }
         let out = dest.join(&name);

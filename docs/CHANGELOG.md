@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: security hardening — localhost CORS, media allowlist, zip-slip (2026-08-26)** —
+  the headless HTTP server no longer lets arbitrary cross-origin sites read
+  responses (`CorsLayer` locked to the Vite dev origin; `x-frame-*` exposed for
+  dev) and `stream`/`audio`/`frame`/`probe` only serve real media files (no
+  arbitrary local file read); `extract_zip` rejects absolute paths and `..`
+  entries (zip-slip); the model download rejects `weight` names containing path
+  components; `FilterConfig`/`RenderConfig` now compile without the `render`
+  feature, fixing a pre-existing `cargo check -p senmei-server` build break.
+
 - **fix: Copilot review — Windows log rotate, preset leak, hub lock scope (2026-08-26)** —
   `senmei-core::logging::rotate` clears the destination before rename (Windows
   `fs::rename` fails on an existing target, so rotation silently stopped and the
