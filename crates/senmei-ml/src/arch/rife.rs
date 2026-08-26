@@ -456,7 +456,6 @@ impl<B: Backend> RifeNet<B> {
         let b_339 = slice_c(b_329, 0, 2);
         let b_340 = warp(b_2, b_339);
         let b_341 = b_340 * b_334;
-        
         b_341 + b_338
     }
 

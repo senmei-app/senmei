@@ -47,24 +47,27 @@ impl log::Log for HubLogger {
 
     fn log(&self, record: &log::Record) {
         let entry = LogEntry::new(record.level().to_string(), record.args().to_string());
-        {
+        // Snapshot under the lock, then do IO/emit outside — a global log mutex
+        // must not block on disk writes or event delivery.
+        let (log_dir, app) = {
             let guard = hub().lock().unwrap();
             guard.entries.push(entry.clone());
-            if let Some(dir) = guard.log_dir.as_deref() {
-                let line = format!(
-                    "[{} {} {}] {} ({}:{})",
-                    fmt_ts(entry.timestamp),
-                    entry.level,
-                    record.module_path().unwrap_or("-"),
-                    entry.message,
-                    record.file().unwrap_or("-"),
-                    record.line().unwrap_or(0),
-                );
-                append_rotating(dir, &line);
-            }
-            if let Some(app) = guard.app.clone() {
-                let _ = app.emit("log", &entry);
-            }
+            (guard.log_dir.clone(), guard.app.clone())
+        };
+        if let Some(dir) = log_dir {
+            let line = format!(
+                "[{} {} {}] {} ({}:{})",
+                fmt_ts(entry.timestamp),
+                entry.level,
+                record.module_path().unwrap_or("-"),
+                entry.message,
+                record.file().unwrap_or("-"),
+                record.line().unwrap_or(0),
+            );
+            append_rotating(&dir, &line);
+        }
+        if let Some(app) = app {
+            let _ = app.emit("log", &entry);
         }
         if self.console.enabled(record.metadata()) {
             self.console.log(record);

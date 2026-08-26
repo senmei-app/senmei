@@ -73,7 +73,7 @@ export interface Backend {
 
   // Media
   probeVideo(input: string): Promise<VideoInfo>;
-  /// Decode a preview frame at `positionMs` (raw RGB24, base64).
+  /// Decode a preview frame at `positionMs` (raw RGB24 bytes).
   readFrame(input: string, positionMs: number): Promise<RawFrame>;
   /// Native-playable URL for a video file; `null` when the transport can't
   /// stream it (web falls back to FFmpeg-decoded frames).

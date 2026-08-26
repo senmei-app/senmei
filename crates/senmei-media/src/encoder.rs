@@ -23,30 +23,35 @@ pub struct Encoder {
 
 /// Read a preset env var; the default stays a literal (no per-call leak), only
 /// a set override is leaked once.
-fn preset_env(var: &str, default: &'static str) -> &'static str {
-    std::env::var(var)
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(|s| -> &'static str { Box::leak(s.into_boxed_str()) })
-        .unwrap_or(default)
+fn preset_env(cache: &'static OnceLock<&'static str>, var: &str, default: &'static str) -> &'static str {
+    *cache.get_or_init(|| {
+        std::env::var(var)
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(|s| -> &'static str { Box::leak(s.into_boxed_str()) })
+            .unwrap_or(default)
+    })
 }
 
 /// x264 speed/quality trade-off. Default `veryfast` keeps 2160p encode ahead of
 /// the GPU pipeline; override via `SENMEI_X264_PRESET`.
 fn x264_preset() -> &'static str {
-    preset_env("SENMEI_X264_PRESET", "veryfast")
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_X264_PRESET", "veryfast")
 }
 
 /// kvazaar (HEVC) speed/quality trade-off; override via `SENMEI_KVAZAAR_PRESET`.
 fn kvazaar_preset() -> &'static str {
-    preset_env("SENMEI_KVAZAAR_PRESET", "veryfast")
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_KVAZAAR_PRESET", "veryfast")
 }
 
 /// x265 (HEVC) speed/quality trade-off — GPL system fallback when the LGPL
 /// kvazaar is absent, so an H.265 selection still gets a real HEVC encoder
 /// (not the H.264 openh264 fallback); override via `SENMEI_X265_PRESET`.
 fn x265_preset() -> &'static str {
-    preset_env("SENMEI_X265_PRESET", "veryfast")
+    static CACHE: OnceLock<&'static str> = OnceLock::new();
+    preset_env(&CACHE, "SENMEI_X265_PRESET", "veryfast")
 }
 
 /// Hardware encoders to try, HEVC before H.264, per platform. Only used when a

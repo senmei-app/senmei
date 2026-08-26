@@ -103,7 +103,10 @@ fn rotate(path: &Path) {
             path.with_file_name(format!("senmei.log.{i}"))
         };
         if src.exists() {
-            let _ = fs::rename(&src, path.with_file_name(format!("senmei.log.{}", i + 1)));
+            let dst = path.with_file_name(format!("senmei.log.{}", i + 1));
+            // Windows `rename` fails when the target exists — clear it first.
+            let _ = fs::remove_file(&dst);
+            let _ = fs::rename(&src, dst);
         }
     }
 }

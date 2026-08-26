@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: Copilot review — Windows log rotate, preset leak, hub lock scope (2026-08-26)** —
+  `senmei-core::logging::rotate` clears the destination before rename (Windows
+  `fs::rename` fails on an existing target, so rotation silently stopped and the
+  main log grew unbounded); `preset_env` caches its result in a `OnceLock` so an
+  override string is leaked at most once per process; `log_hub` snapshots the log
+  dir/app handle under the lock and does file IO/emit outside it; the `readFrame`
+  doc no longer claims base64; a stray whitespace-only line in the RIFE forward
+  is gone.
+
 - **docs: transitive zip versions + test-coverage gap (2026-08-26)** — deny.toml
   records the three `zip` versions in the multi-target graph (0.6.6 / 7.2.0
   Windows transitives, 8.6.0 via burn-store); todos.md notes the
