@@ -534,7 +534,7 @@ fn fused_peak_allocation(n: usize, out_h: usize, out_w: usize, c: usize) -> u64 
 
 /// Convert a backend float element to a rounded `u8` (`(x+0.5) as u8`).
 /// `burn` uses `f16`, `tch` `f32` — both route through their own `to_f32`.
-trait ElemToU8 {
+pub(crate) trait ElemToU8 {
     fn to_u8(self) -> u8;
 }
 impl ElemToU8 for f32 {

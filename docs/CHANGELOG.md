@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: review warnings — `-an` merge, probe zombie, poll watchdog, private bounds (2026-08-26)** —
+  `buildEncoderArgs` no longer mispairs the valueless `-an` with the next flag
+  (the `copy` value was dropped → `-c:s requires an argument`); `frame_stats`
+  reaps its ffmpeg child (every probe left a zombie); the web render-status poll
+  races a watchdog so a hung server can't leave the UI stuck in "rendering";
+  `ElemToU8` is now `pub(crate)` (silences the `private_bounds` build warnings).
+
 - **docs: close the preview backlog (2026-08-26)** — Phase-3 ring buffer
   dropped (warm streams + ±300 ms tolerance already cover scrubbing; a buffer
   adds complexity without real gain) and the per-viewport DPR decode budget
