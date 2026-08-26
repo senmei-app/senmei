@@ -125,12 +125,8 @@ struct StreamParams {
     path: String,
 }
 
-/// Serve a file with HTTP Range support so the browser `<video>` can play it
-/// (seeking needs 206 partial content). Accepts server-side paths like the
-/// other REST endpoints; unsupported codecs error in the `<video>` and the
-/// frontend falls back to FFmpeg-decoded frames.
-/// Serve one file with Range support (206 partial content) for the browser.
-/// ServeFile streams its own body type; wrap it as an axum Body.
+/// Serve a file with Range support (206) for the browser `<video>`; unsupported
+/// codecs fall back to FFmpeg frames.
 async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Body> {
     match tower_http::services::ServeFile::new(path).oneshot(req).await {
         Ok(resp) => resp.map(axum::body::Body::new),
@@ -169,10 +165,8 @@ fn prune_audio_cache(dir: &std::path::Path) {
     }
 }
 
-/// Transcode a source's audio track to a playable Vorbis/Ogg track, cached by
-/// input path hash. Chrome can't decode arbitrary containers (e.g. AVI) and
-/// rejects this ffmpeg build's audio-only AAC MP4, so Ogg/Vorbis is used —
-/// LGPL-safe (libvorbis is BSD) and playable everywhere.
+/// Transcode the source audio to a cached Vorbis/Ogg track (Chrome rejects
+/// this build's audio-only AAC MP4; libvorbis is LGPL-safe).
 fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
     let dir = audio_cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -197,9 +191,7 @@ fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
     Ok(out)
 }
 
-/// Serve the source's audio transcoded to a playable Vorbis/Ogg track (Range
-/// support). The browser `<video>` can't decode arbitrary containers, so the
-/// web UI plays sound from this track while frames come from FFmpeg.
+/// Serve the source audio as a playable Vorbis/Ogg track (Range support).
 async fn audio(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
     let input = p.path;
     let out = match tokio::task::spawn_blocking(move || transcode_audio(&input)).await {
@@ -228,8 +220,7 @@ async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
     }
 }
 
-/// Shared preview decode worker (warm streams + last-frame-wins) — same path
-/// as Tauri, so the web UI scrubs without respawning ffmpeg per frame.
+// Same worker as Tauri — scrubbing doesn't respawn ffmpeg per frame.
 fn preview_worker() -> &'static senmei_media::PreviewWorker {
     static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
     W.get_or_init(|| senmei_media::PreviewWorker::new(core::ffmpeg()))
@@ -293,8 +284,7 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
 async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        // Mirror the desktop's `render start: … config` log so HTTP renders are
-        // auditable (model, scale, range) against the pipeline that ran.
+        // Mirror the desktop's config log so HTTP renders are auditable.
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
             cfg.input,

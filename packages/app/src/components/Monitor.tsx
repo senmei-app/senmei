@@ -198,9 +198,8 @@ export default function Monitor({
     changeVolume(volume + delta);
   };
   useEffect(() => {
-    // Apply on change and once the backend resolves (the mount-time run has
-    // no backend yet). Both transports route this to their audio player
-    // (rodio on Tauri, an <audio> element on the web).
+    // Apply on change and once the backend resolves; both transports route it
+    // to their audio player (rodio on Tauri, an <audio> element on the web).
     void be()?.audioSetVolume(muted ? 0 : volume).catch(() => {});
   }, [volume, muted, beReady]);
 

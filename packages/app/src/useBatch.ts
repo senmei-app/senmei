@@ -37,9 +37,7 @@ export interface UseBatchDeps {
 export function useBatch({ files, selected, steps, outputDir, projectDir, onError }: UseBatchDeps) {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [rendering, setRendering] = useState(false);
-  // Mirrors `rendering` for callers holding a stale closure (e.g. the global
-  // hotkey handler): the start guard reads the ref so a second start can't slip
-  // through while a render is already running.
+  // Ref so stale closures (e.g. the hotkey handler) see the current state.
   const renderingRef = useRef(false);
   useEffect(() => {
     renderingRef.current = rendering;

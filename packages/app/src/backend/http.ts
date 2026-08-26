@@ -22,9 +22,8 @@ const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? ""
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Web audio plays a server-transcoded AAC track (the browser <video> can't
-// decode arbitrary containers like AVI); one shared element mirrors the Tauri
-// rodio surface so the monitor drives it identically.
+// Web audio plays a server-transcoded track (browsers can't decode every
+// container); one shared element mirrors the rodio surface.
 let audioEl: HTMLAudioElement | null = null;
 function audioElement(): HTMLAudioElement {
   if (!audioEl) {
@@ -83,8 +82,7 @@ export const httpBackend: Backend = {
     await api<{ ok: boolean }>("/api/logs/clear", { method: "POST" });
   },
 
-  // The server has no push channel (unlike the Tauri event), so poll the
-  // buffer: seed with the current tail, then deliver entries appended after it.
+  // No push channel over HTTP — poll the buffer and deliver appended entries.
   onLog(listener: (entry: LogEntry) => void): () => void {
     let lastCount = 0;
     let timer: number | undefined;
@@ -150,9 +148,8 @@ export const httpBackend: Backend = {
   },
 
   nativeVideoUrl(input) {
-    // Serve the file with Range support so the browser <video> plays video +
-    // audio (the desktop rodio path is Tauri-only); unsupported codecs error
-    // and the monitor falls back to FFmpeg-decoded frames.
+    // Range-stream the source so the browser <video> plays video+audio;
+    // unsupported codecs fall back to FFmpeg frames.
     return `${base()}/api/stream?path=${encodeURIComponent(input)}`;
   },
 
@@ -275,8 +272,7 @@ export const httpBackend: Backend = {
     const el = audioElement();
     el.src = `${base()}/api/audio?path=${encodeURIComponent(input)}`;
     el.load();
-    // Resolve once playable, then land on the playhead. A seek before metadata
-    // aborts the pending load (the first /api/audio request transcodes).
+    // Seek once playable — a pre-metadata seek aborts the pending (slow) transcode.
     await new Promise<void>((resolve) => {
       const onReady = () => {
         el.removeEventListener("canplay", onReady);
@@ -304,8 +300,7 @@ export const httpBackend: Backend = {
   },
   async audioSeek(positionMs) {
     const el = audioElement();
-    // A seek before metadata aborts the pending load; the initial position is
-    // set by audioLoad once the track is ready.
+    // A pre-metadata seek aborts the pending load (audioLoad sets the start).
     if (el.readyState >= 1) el.currentTime = positionMs / 1000;
   },
   async audioSetVolume(volume) {

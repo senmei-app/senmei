@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **cleanup: trim preview/audio comments to the necessary (2026-08-26)** — cut
+  narration and stale wording (e.g. the web-audio comment still said AAC after
+  the switch to Vorbis/Ogg); kept the invariants and rationale.
+
 - **cleanup: shared serve_file helper for the Range handlers (2026-08-26)** —
   `/api/stream` and `/api/audio` both wrapped `ServeFile` the same way;
   extracted one `serve_file` helper.

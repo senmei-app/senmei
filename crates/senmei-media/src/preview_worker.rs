@@ -9,8 +9,7 @@ use std::time::Duration;
 use crate::frame::Frame;
 use crate::PreviewCache;
 
-/// A frame request must never hang the caller (Tauri command / HTTP request);
-/// a stuck decode (e.g. an ffmpeg spawn that never emits a frame) times out.
+/// Bound a frame request so a stuck decode can't hang the caller.
 const FRAME_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// One decode request; the worker answers on `respond`.
