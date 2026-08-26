@@ -120,7 +120,8 @@ silently falls back denoise/deblur to the CPU reference on unknown archs (e.g.
 `scunet` before it existed), so rebuild after model-arch changes.
 REST surface: `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`,
 `/api/logs`, `/api/logs/clear`, `/api/stream` (Range-stream for the browser
-`<video>`), `/api/probe`, `/api/frame` (raw RGB24 body;
+`<video>`), `/api/audio` (transcoded Vorbis/Ogg track for the browser `<audio>`),
+`/api/probe`, `/api/frame` (raw RGB24 body;
 `x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render`
 (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema`. Same gates as
 MCP — both transports get license/confirm enforcement from `core`.

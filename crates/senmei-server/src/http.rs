@@ -1,12 +1,15 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
+use std::time::SystemTime;
 
 use axum::{
     body::Body,
     extract::Query,
     http::{header, Request, Response, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -133,6 +136,74 @@ async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<B
     }
     match tower_http::services::ServeFile::new(path).oneshot(req).await {
         // ServeFile streams its own body type; wrap it as an axum Body.
+        Ok(resp) => resp.map(axum::body::Body::new),
+        Err(_) => not_found(),
+    }
+}
+
+fn audio_cache_dir() -> std::path::PathBuf {
+    crate::core::data_dir().join("audio-cache")
+}
+
+/// Keep the newest ~20 cached tracks so the cache can't grow unbounded.
+fn prune_audio_cache(dir: &std::path::Path) {
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|x| x == "ogg").unwrap_or(false))
+        .collect();
+    files.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH)
+    });
+    for p in files.iter().take(files.len().saturating_sub(20)) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// Transcode a source's audio track to a playable Vorbis/Ogg track, cached by
+/// input path hash. Chrome can't decode arbitrary containers (e.g. AVI) and
+/// rejects this ffmpeg build's audio-only AAC MP4, so Ogg/Vorbis is used —
+/// LGPL-safe (libvorbis is BSD) and playable everywhere.
+fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
+    let dir = audio_cache_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    input.hash(&mut h);
+    let out = dir.join(format!("{:016x}.ogg", h.finish()));
+    if out.is_file() {
+        return Ok(out);
+    }
+    let ff = crate::core::ffmpeg();
+    let status = std::process::Command::new(ff)
+        .args(["-y", "-loglevel", "error", "-i"])
+        .arg(input)
+        .args(["-vn", "-c:a", "libvorbis", "-b:a", "96k", "-f", "ogg"])
+        .arg(&out)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() || !out.is_file() {
+        return Err("audio transcode failed".into());
+    }
+    prune_audio_cache(&dir);
+    Ok(out)
+}
+
+/// Serve the source's audio transcoded to a playable Vorbis/Ogg track (Range
+/// support). The browser `<video>` can't decode arbitrary containers, so the
+/// web UI plays sound from this track while frames come from FFmpeg.
+async fn audio(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
+    let input = p.path;
+    let out = match tokio::task::spawn_blocking(move || transcode_audio(&input)).await {
+        Ok(Ok(o)) => o,
+        _ => {
+            return json_err(StatusCode::BAD_REQUEST, "audio transcode failed").into_response();
+        }
+    };
+    match tower_http::services::ServeFile::new(out).oneshot(req).await {
         Ok(resp) => resp.map(axum::body::Body::new),
         Err(_) => not_found(),
     }
@@ -272,6 +343,7 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/logs", get(logs))
         .route("/api/logs/clear", post(logs_clear))
         .route("/api/stream", get(stream))
+        .route("/api/audio", get(audio))
         .route("/api/probe", post(probe))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))

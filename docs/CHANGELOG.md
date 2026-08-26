@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: web UI audio for any container via transcoded `<audio>` (2026-08-26)**
+  — `/api/audio` transcodes the source's audio track to a cached **Vorbis/Ogg**
+  track (LGPL-safe; this ffmpeg build's audio-only AAC MP4 is rejected by
+  Chrome's demuxer) and serves it with Range support; the web backend drives a
+  shared `<audio>` element (mirroring the rodio surface), so the web UI has
+  sound even for containers the browser `<video>` can't decode (e.g.
+  AVI/MPEG-4). The source `<video>` stays muted — the track carries the sound
+  on both transports.
+
 - **feat: web UI audio via native `<video>` Range-stream (2026-08-26)** — new
   `/api/stream` serves files with HTTP Range support (206 partial content), so
   the browser `<video>` in the web UI plays video+audio natively; `http.ts`

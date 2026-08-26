@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import type { RenderProgress, StepTimingInfo, VideoInfo } from "@senmei/bridge";
-import { backend, isWeb, type Backend } from "../backend";
+import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
 import { comboFromEvent } from "../hotkeys";
 import { basename } from "../paths";
@@ -199,12 +199,9 @@ export default function Monitor({
   };
   useEffect(() => {
     // Apply on change and once the backend resolves (the mount-time run has
-    // no backend yet). In web mode the <video> itself carries the sound (no
-    // rodio), so mirror mute/volume onto it directly.
+    // no backend yet). Both transports route this to their audio player
+    // (rodio on Tauri, an <audio> element on the web).
     void be()?.audioSetVolume(muted ? 0 : volume).catch(() => {});
-    if (isWeb() && videoRef.current) {
-      videoRef.current.volume = muted ? 0 : volume;
-    }
   }, [volume, muted, beReady]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
@@ -646,9 +643,7 @@ export default function Monitor({
                   if (el) el.volume = volume;
                 }}
                 src={nativeSrc}
-                // Tauri: rodio plays the sound, so the <video> stays muted. Web:
-                // the <video> carries the audio (no rodio) — leave it audible.
-                muted={!isWeb()}
+                muted
                 onError={() => setNativeFailed(true)}
                 onLoadedMetadata={(e) => (e.currentTarget.currentTime = inMs / 1000)}
                 onTimeUpdate={onVideoTime}

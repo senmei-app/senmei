@@ -22,6 +22,20 @@ const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? ""
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Web audio plays a server-transcoded AAC track (the browser <video> can't
+// decode arbitrary containers like AVI); one shared element mirrors the Tauri
+// rodio surface so the monitor drives it identically.
+let audioEl: HTMLAudioElement | null = null;
+function audioElement(): HTMLAudioElement {
+  if (!audioEl) {
+    audioEl = new Audio();
+    audioEl.preload = "auto";
+    audioEl.style.display = "none";
+    document.body.appendChild(audioEl); // DOM-attached so it can't be GC'd
+  }
+  return audioEl;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}${path}`, {
     headers: { "content-type": "application/json" },
@@ -257,14 +271,46 @@ export const httpBackend: Backend = {
     return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
-  // No audio in web mode yet — nativeVideoUrl is null (no raw-file stream), so
-  // there's no browser <video> to carry sound; rodio is Tauri-only. See todos.md.
-  async audioLoad() {},
-  async audioPlay() {},
-  async audioPause() {},
-  async audioClear() {},
-  async audioSeek() {},
-  async audioSetVolume() {},
+  async audioLoad(input, positionMs): Promise<void> {
+    const el = audioElement();
+    el.src = `${base()}/api/audio?path=${encodeURIComponent(input)}`;
+    el.load();
+    // Resolve once playable, then land on the playhead. A seek before metadata
+    // aborts the pending load (the first /api/audio request transcodes).
+    await new Promise<void>((resolve) => {
+      const onReady = () => {
+        el.removeEventListener("canplay", onReady);
+        if (el.readyState >= 1) el.currentTime = positionMs / 1000;
+        resolve();
+      };
+      el.addEventListener("canplay", onReady);
+      window.setTimeout(() => {
+        el.removeEventListener("canplay", onReady);
+        resolve();
+      }, 8000);
+    });
+  },
+  async audioPlay() {
+    audioElement().play().catch(() => {});
+  },
+  async audioPause() {
+    audioElement().pause();
+  },
+  async audioClear() {
+    const el = audioElement();
+    el.pause();
+    el.removeAttribute("src");
+    el.load();
+  },
+  async audioSeek(positionMs) {
+    const el = audioElement();
+    // A seek before metadata aborts the pending load; the initial position is
+    // set by audioLoad once the track is ready.
+    if (el.readyState >= 1) el.currentTime = positionMs / 1000;
+  },
+  async audioSetVolume(volume) {
+    audioElement().volume = volume;
+  },
 
   async render(input, output, config, onProgress) {
     try {
