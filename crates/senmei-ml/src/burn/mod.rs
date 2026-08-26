@@ -157,7 +157,7 @@ impl InferenceEngine for BurnEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{f16, TensorData};
+    use burn::tensor::f16;
 
     #[test]
     #[ignore = "requires Vulkan + models/up2x-no-denoise.pth.f16.bpk (via senmei-ml-convert)"]
