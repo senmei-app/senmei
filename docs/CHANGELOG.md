@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **refactor: shared log ring-buffer + rotating file in `senmei-core` (2026-08-26)** — the GUI
+  (`log_hub.rs`) and HTTP (`logging.rs`) loggers duplicated `LogEntry`, a ring
+  buffer and 5 MB file rotation (with subtly divergent implementations); the
+  common parts now live in `senmei-core::logging`, the transports keep only
+  delivery (Tauri event vs HTTP poll). Buffer cap unified at 1000.
+
 - **fix: review warnings — `-an` merge, probe zombie, poll watchdog, private bounds (2026-08-26)** —
   `buildEncoderArgs` no longer mispairs the valueless `-an` with the next flag
   (the `copy` value was dropped → `-c:s requires an argument`); `frame_stats`

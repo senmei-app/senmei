@@ -2,98 +2,40 @@
 //! rotating `senmei.log` (Info+) in the app data dir — same scheme as the GUI,
 //! so crashes and HTTP errors survive without a visible terminal.
 
-use std::collections::VecDeque;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::OnceLock;
 
-use serde::Serialize;
+use senmei_core::logging::{append_rotating, fmt_ts, LogBuffer, LogEntry};
 
-const LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
-const LOG_ROTATIONS: usize = 3;
 /// In-memory ring buffer feeding the web UI Logs panel over HTTP.
-const BUFFER_CAP: usize = 1000;
-
-/// One log line for the web UI Logs panel (mirrors the GUI `LogEntry` shape).
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LogEntry {
-    pub level: String,
-    pub message: String,
-    pub timestamp: u64,
-}
-
-fn buffer() -> &'static Mutex<VecDeque<LogEntry>> {
-    static BUF: OnceLock<Mutex<VecDeque<LogEntry>>> = OnceLock::new();
-    BUF.get_or_init(|| Mutex::new(VecDeque::with_capacity(BUFFER_CAP)))
+fn buffer() -> &'static LogBuffer {
+    static BUF: OnceLock<LogBuffer> = OnceLock::new();
+    BUF.get_or_init(LogBuffer::default)
 }
 
 /// Buffered entries for the web UI Logs panel when it opens.
 pub fn entries() -> Vec<LogEntry> {
-    buffer().lock().unwrap().iter().cloned().collect()
+    buffer().entries()
 }
 
 /// Empty the buffered log history (Logs panel "Clear").
 pub fn clear() {
-    buffer().lock().unwrap().clear();
-}
-
-fn epoch_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
-struct FileSink {
-    file: Mutex<fs::File>,
-}
-
-fn rotated(path: &Path, n: usize) -> PathBuf {
-    path.with_file_name(format!("senmei.log.{n}"))
-}
-
-fn rotate(path: &Path) {
-    for i in (0..LOG_ROTATIONS).rev() {
-        let src = if i == 0 {
-            path.to_path_buf()
-        } else {
-            rotated(path, i)
-        };
-        if src.exists() {
-            let _ = fs::rename(&src, rotated(path, i + 1));
-        }
-    }
+    buffer().clear();
 }
 
 /// Install the server logger (idempotent): stdout via env_logger + a rotating
 /// file in `data_dir/logs`. Safe to call once.
 pub fn init(data_dir: &Path) {
     let logs_dir = data_dir.join("logs");
-    let _ = fs::create_dir_all(&logs_dir);
-    let path = logs_dir.join("senmei.log");
-    if path.metadata().map(|m| m.len()).unwrap_or(0) > LOG_MAX_BYTES {
-        rotate(&path);
-    }
-    let sink = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .ok()
-        .map(|f| FileSink {
-            file: Mutex::new(f),
-        });
     let console =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).build();
-    let _ = log::set_boxed_logger(Box::new(ServerLogger { console, sink }));
+    let _ = log::set_boxed_logger(Box::new(ServerLogger { console, logs_dir }));
     log::set_max_level(log::LevelFilter::Info);
 }
 
 struct ServerLogger {
     console: env_logger::Logger,
-    sink: Option<FileSink>,
+    logs_dir: PathBuf,
 }
 
 impl log::Log for ServerLogger {
@@ -104,33 +46,16 @@ impl log::Log for ServerLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let entry = LogEntry {
-            level: record.level().to_string(),
-            message: record.args().to_string(),
-            timestamp: epoch_ms(),
-        };
-        let mut buf = buffer().lock().unwrap();
-        if buf.len() >= BUFFER_CAP {
-            buf.pop_front();
-        }
-        buf.push_back(entry);
-        drop(buf);
+        let entry = LogEntry::new(record.level().to_string(), record.args().to_string());
+        buffer().push(entry.clone());
         self.console.log(record);
-        if let Some(sink) = &self.sink {
-            let line = format!("[{} {}] {}\n", stamp(), record.level(), record.args());
-            let mut f = sink.file.lock().unwrap();
-            let _ = f.write_all(line.as_bytes());
-            let _ = f.flush();
-        }
+        let line = format!(
+            "[{} {}] {}",
+            fmt_ts(entry.timestamp),
+            record.level(),
+            record.args()
+        );
+        append_rotating(&self.logs_dir, &line);
     }
     fn flush(&self) {}
-}
-
-fn stamp() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let (h, m, s) = ((secs / 3600) % 24, (secs / 60) % 60, secs % 60);
-    format!("{h:02}:{m:02}:{s:02}")
 }
