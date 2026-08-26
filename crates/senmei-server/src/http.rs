@@ -5,12 +5,14 @@ use std::sync::OnceLock;
 
 use axum::{
     body::Body,
+    extract::Query,
     http::{header, Request, Response, StatusCode},
     routing::{get, post},
     Json, Router,
 };
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt;
 
 use crate::core;
 
@@ -113,6 +115,27 @@ async fn ffmpeg_status() -> ApiResult {
 /// Recent log lines for the web UI Logs panel.
 async fn logs() -> ApiResult {
     json_ok(&crate::logging::entries())
+}
+
+#[derive(Deserialize)]
+struct StreamParams {
+    path: String,
+}
+
+/// Serve a file with HTTP Range support so the browser `<video>` can play it
+/// (seeking needs 206 partial content). Accepts server-side paths like the
+/// other REST endpoints; unsupported codecs error in the `<video>` and the
+/// frontend falls back to FFmpeg-decoded frames.
+async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
+    let path = std::path::Path::new(&p.path);
+    if !path.is_file() {
+        return not_found();
+    }
+    match tower_http::services::ServeFile::new(path).oneshot(req).await {
+        // ServeFile streams its own body type; wrap it as an axum Body.
+        Ok(resp) => resp.map(axum::body::Body::new),
+        Err(_) => not_found(),
+    }
 }
 
 /// Empty the buffered log history (Logs panel "Clear").
@@ -248,6 +271,7 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/backend-info", get(backend_info))
         .route("/api/logs", get(logs))
         .route("/api/logs/clear", post(logs_clear))
+        .route("/api/stream", get(stream))
         .route("/api/probe", post(probe))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))

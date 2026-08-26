@@ -14,6 +14,7 @@ senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
 rmcp = { version = "3", features = ["server", "transport-io"] }
 axum = { version = "0.8", optional = true }
 tower-http = { version = "0.6", features = ["fs", "cors"], optional = true }
+tower = { version = "0.5", features = ["util"] }
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true
@@ -28,7 +29,6 @@ rust-embed = { version = "8", features = ["mime-guess"], optional = true }
 [dev-dependencies]
 # Router smoke tests (oneshot + body collect); no GPU / no network (system
 # ffmpeg is on PATH in CI and dev).
-tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 
 [features]

@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **feat: web UI audio via native `<video>` Range-stream (2026-08-26)** — new
+  `/api/stream` serves files with HTTP Range support (206 partial content), so
+  the browser `<video>` in the web UI plays video+audio natively; `http.ts`
+  `nativeVideoUrl` points at it and the monitor unmutes the `<video>` in web
+  mode (rodio is Tauri-only). Unsupported codecs error in the `<video>` and
+  fall back to FFmpeg-decoded frames. No `media-src` CSP change needed: the
+  web UI is served without a CSP header (the Tauri webview CSP already allows
+  media).
+
 - **fix: stop duplicate render submissions while one is running (2026-08-26)** —
   the global hotkey handler held a stale `startBatch` closure (no
   `rendering`/`batch` in its effect deps), so every keypress passed the

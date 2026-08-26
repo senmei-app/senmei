@@ -482,7 +482,7 @@ web UI + REST. Both enforce the same license/confirm gates from `core`.
 | Piece | Status | Notes |
 |---|---|---|
 | HTTP adapter (`--http`) | ✅ | axum 0.8 + tower-http; REST + static UI fallback |
-| REST surface | ✅ | `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`, `/api/logs`, `/api/logs/clear`, `/api/probe`, `/api/frame` (raw RGB24 body; `x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema` |
+| REST surface | ✅ | `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`, `/api/logs`, `/api/logs/clear`, `/api/stream` (Range-stream), `/api/probe`, `/api/frame` (raw RGB24 body; `x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema` |
 | Web UI (headless) | ✅ | frontend `backend/` abstraction — `tauri.ts` IPC / `http.ts` REST / `mock.ts` dev, auto-selected, no `isTauri()` in components |
 | Path-input dialogs (Dateizugriff B) | ✅ | `PathDialog` for entering server-side paths in web mode (no native picker) |
 | E2E verified | ✅ | browser against `--http`: import → probe → sample render → done; live progress + output file |
@@ -538,7 +538,7 @@ lib), and gives full codec coverage (incl. H.265) everywhere.
 | Frame transport | RGB24 → PNG → temp-file/base64 → `<img>` | ✅ raw frames → `putImageData` (Tauri `Channel` ArrayBuffer; HTTP raw body) — no `<img>`, no base64 |
 | Preview resolution | full source (4K = 8 MB/frame) | **decode budget** — `max_dim` hint (canvas×DPR, cap 1280/1920), `scale=…:-2`, never upscale; render/export stays full-res |
 | Audio (desktop) | `extract_audio` → **MP3** for rodio (codec hack) | **FFmpeg → PCM → native sink** (rodio/cpal) — all codecs, no rodio-codec dep |
-| Audio (web UI) | none | Range-stream → `<audio>`/`<video>` (browser decodes) |
+| Audio (web UI) | none | ✅ Range-stream (`/api/stream`) → browser `<video>` plays video+audio |
 | Concurrency | sync per-request decode | **decoder thread + ring buffer** (last-frame-wins) |
 | `PreviewCache` | binary-search EOF hack, catch-up loop, FIFO evict | correct video-stream duration probing (root cause) + state machine + LRU |
 
@@ -558,5 +558,5 @@ licensing).
 **Phases:** 1 ✅ = PreviewCache simplification · 2 ✅ = raw-frame transport +
 decode budget (worker seam, no `FrameSink` trait) · 3 = decoder thread/ring
 buffer (warm streams + last-frame-wins done; true ring buffer open) · 4 =
-audio (desktop FFmpeg→PCM rodio done; web Range-stream open). Todos in
+audio (desktop FFmpeg→PCM rodio done; web Range-stream done). Todos in
 `todos.md`.

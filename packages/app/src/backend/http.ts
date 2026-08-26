@@ -135,8 +135,11 @@ export const httpBackend: Backend = {
     return { width, height, data };
   },
 
-  nativeVideoUrl() {
-    return null; // server doesn't stream raw files yet -> FFmpeg frame fallback
+  nativeVideoUrl(input) {
+    // Serve the file with Range support so the browser <video> plays video +
+    // audio (the desktop rodio path is Tauri-only); unsupported codecs error
+    // and the monitor falls back to FFmpeg-decoded frames.
+    return `${base()}/api/stream?path=${encodeURIComponent(input)}`;
   },
 
   async setWindowFullscreen() {},

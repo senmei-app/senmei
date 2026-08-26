@@ -35,9 +35,6 @@
 - [ ] Phase 3: true ring buffer around the playhead — decoder thread +
       worker last-frame-wins coalescing landed 2026-08-24; a decoded-frame
       ring buffer for near-position scrubbing is still open
-- [ ] Web Range-stream (`/api/stream`, http.ts `nativeVideoUrl`) — native
-      Desktop-Audio streamt jetzt FFmpeg→PCM (Tauri, 2026-08-25); die Web-UI
-      (senmei-server --http) hat weiterhin keinen Ton ohne Browser-`<video>`
 - [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open
 
 ## Compliance (2026-08-20)
@@ -81,12 +78,6 @@
 - [ ] senmei-ml: Arch-Unit-Tests für real_plksr (0; auch upcunet/scunet/dncnn)
 
 ## Web / headless
-- [ ] Audio in the web UI (senmei-server --http): currently no sound — no
-      native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer
-      option A: server streams the raw file with Range requests (new
-      `/api/stream` endpoint) so the browser `<video>` plays video+audio;
-      wire `nativeVideoUrl` in `http.ts` + `media-src` CSP. (decision
-      2026-08-20: deferred, backlog)
 - [ ] License policy (web): model download over HTTP uses POST without progress
       events — add progress once streaming lands (or poll download status)
 - [ ] Web UI hardware/GPU status: `httpBackend.hardwareStatus` returns `null`

@@ -119,7 +119,8 @@ RUST_MIN_STACK=33554432 cargo run -p senmei-server --features render,http -- --h
 silently falls back denoise/deblur to the CPU reference on unknown archs (e.g.
 `scunet` before it existed), so rebuild after model-arch changes.
 REST surface: `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`,
-`/api/logs`, `/api/logs/clear`, `/api/probe`, `/api/frame` (raw RGB24 body;
+`/api/logs`, `/api/logs/clear`, `/api/stream` (Range-stream for the browser
+`<video>`), `/api/probe`, `/api/frame` (raw RGB24 body;
 `x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render`
 (+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema`. Same gates as
 MCP — both transports get license/confirm enforcement from `core`.
