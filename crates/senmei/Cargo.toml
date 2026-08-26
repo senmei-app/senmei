@@ -15,8 +15,8 @@ log.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 tokio.workspace = true
-senmei-app = { path = "../senmei-app", version = "0.1.2" }
-senmei-server = { path = "../senmei-server", version = "0.1.4", features = ["http"] }
+senmei-app = { path = "../senmei-app", version = "0.2.0" }
+senmei-server = { path = "../senmei-server", version = "0.2.0", features = ["http"] }
 specta-typescript = "0.0.12"
 tauri = { version = "2", features = ["protocol-asset", "custom-protocol"] }
 tauri-plugin-dialog = "2"

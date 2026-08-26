@@ -17,7 +17,7 @@ log.workspace = true
 libloading = "0.9"
 
 # Reuse the download/verify/extract helpers for runtime libtorch fetching.
-senmei-media = { path = "../senmei-media", version = "0.1.2" }
+senmei-media = { path = "../senmei-media", version = "0.2.0" }
 
 # libtorch zip extraction.
 zip.workspace = true

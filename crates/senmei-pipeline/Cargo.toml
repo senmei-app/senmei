@@ -8,8 +8,8 @@ description = "Render orchestration for Senmei: queue, events, and progress."
 
 [dependencies]
 log.workspace = true
-senmei-media = { path = "../senmei-media", version = "0.1.2" }
-senmei-ml = { path = "../senmei-ml", version = "0.1.2" }
+senmei-media = { path = "../senmei-media", version = "0.2.0" }
+senmei-ml = { path = "../senmei-ml", version = "0.2.0" }
 thiserror.workspace = true
 
 [features]
@@ -20,4 +20,4 @@ tch = ["senmei-ml/tch"]
 
 [dev-dependencies]
 # Burn feature only for the integration tests (real-model upscale).
-senmei-ml = { path = "../senmei-ml", version = "0.1.2", features = ["burn"] }
+senmei-ml = { path = "../senmei-ml", version = "0.2.0", features = ["burn"] }

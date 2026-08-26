@@ -6,7 +6,13 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
-## Unreleased
+## 0.2.0 (2026-08-26)
+
+- **release: preview media pipeline + review hardening (2026-08-26)** — v0.2.0
+  ships the preview media pipeline from #5 (native `<video>` Range-stream,
+  transcoded Vorbis/Ogg audio, logs over HTTP, headless web UI) and the
+  review/security batch from #6 (shared core logging, Review A/B fixes, Copilot
+  follow-ups, localhost CORS + media allowlist + zip-slip hardening).
 
 - **fix: security hardening — localhost CORS, media allowlist, zip-slip (2026-08-26)** —
   the headless HTTP server no longer lets arbitrary cross-origin sites read
