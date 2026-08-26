@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: close the preview backlog (2026-08-26)** — Phase-3 ring buffer
+  dropped (warm streams + ±300 ms tolerance already cover scrubbing; a buffer
+  adds complexity without real gain) and the per-viewport DPR decode budget
+  deferred (the fixed 1280 cap is fine except HiDPI fullscreen).
+
 - **cleanup: trim preview/audio comments to the necessary (2026-08-26)** — cut
   narration and stale wording (e.g. the web-audio comment still said AAC after
   the switch to Vorbis/Ogg); kept the invariants and rationale.

@@ -32,10 +32,12 @@
       if hardware decode or canvas throughput demands it
 
 ## Preview / Media (2026-08-23, PLAN §18)
-- [ ] Phase 3: true ring buffer around the playhead — decoder thread +
-      worker last-frame-wins coalescing landed 2026-08-24; a decoded-frame
-      ring buffer for near-position scrubbing is still open
-- [ ] Per-viewport decode budget (canvas×DPR hint) — fixed 1280 cap landed, hint refinement open
+
+> 2026-08-26: warm streams + last-frame-wins landed; web audio (Range-stream
+> + transcoded Vorbis/Ogg `<audio>`) done. Phase-3 ring buffer **dropped**
+> (warm streams + ±300 ms tolerance already cover scrubbing; a buffer adds
+> complexity without real gain) and the per-viewport DPR budget **deferred**
+> (the fixed 1280 cap is fine except HiDPI fullscreen).
 
 ## Compliance (2026-08-20)
 
