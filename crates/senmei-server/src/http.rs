@@ -1,14 +1,21 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
+use std::hash::{Hash, Hasher};
+use std::sync::OnceLock;
+use std::time::SystemTime;
+
 use axum::{
     body::Body,
+    extract::Query,
     http::{header, Request, Response, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt;
 
 use crate::core;
 
@@ -108,6 +115,100 @@ async fn ffmpeg_status() -> ApiResult {
     json_ok(&core::ffmpeg_status())
 }
 
+/// Recent log lines for the web UI Logs panel.
+async fn logs() -> ApiResult {
+    json_ok(&crate::logging::entries())
+}
+
+#[derive(Deserialize)]
+struct StreamParams {
+    path: String,
+}
+
+/// Serve a file with Range support (206) for the browser `<video>`; unsupported
+/// codecs fall back to FFmpeg frames.
+async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Body> {
+    match tower_http::services::ServeFile::new(path).oneshot(req).await {
+        Ok(resp) => resp.map(axum::body::Body::new),
+        Err(_) => not_found(),
+    }
+}
+
+async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
+    let path = std::path::Path::new(&p.path);
+    if !path.is_file() {
+        return not_found();
+    }
+    serve_file(path.to_path_buf(), req).await
+}
+
+fn audio_cache_dir() -> std::path::PathBuf {
+    crate::core::data_dir().join("audio-cache")
+}
+
+/// Keep the newest ~20 cached tracks so the cache can't grow unbounded.
+fn prune_audio_cache(dir: &std::path::Path) {
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|x| x == "ogg").unwrap_or(false))
+        .collect();
+    files.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH)
+    });
+    for p in files.iter().take(files.len().saturating_sub(20)) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// Transcode the source audio to a cached Vorbis/Ogg track (Chrome rejects
+/// this build's audio-only AAC MP4; libvorbis is LGPL-safe).
+fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
+    let dir = audio_cache_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    input.hash(&mut h);
+    let out = dir.join(format!("{:016x}.ogg", h.finish()));
+    if out.is_file() {
+        return Ok(out);
+    }
+    let ff = crate::core::ffmpeg();
+    let status = std::process::Command::new(ff)
+        .args(["-y", "-loglevel", "error", "-i"])
+        .arg(input)
+        .args(["-vn", "-c:a", "libvorbis", "-b:a", "96k", "-f", "ogg"])
+        .arg(&out)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() || !out.is_file() {
+        return Err("audio transcode failed".into());
+    }
+    prune_audio_cache(&dir);
+    Ok(out)
+}
+
+/// Serve the source audio as a playable Vorbis/Ogg track (Range support).
+async fn audio(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
+    let input = p.path;
+    let out = match tokio::task::spawn_blocking(move || transcode_audio(&input)).await {
+        Ok(Ok(o)) => o,
+        _ => {
+            return json_err(StatusCode::BAD_REQUEST, "audio transcode failed").into_response();
+        }
+    };
+    serve_file(out, req).await
+}
+
+/// Empty the buffered log history (Logs panel "Clear").
+async fn logs_clear() -> ApiResult {
+    crate::logging::clear();
+    json_ok(&serde_json::json!({ "ok": true }))
+}
+
 async fn backend_info() -> ApiResult {
     json_ok(&senmei_ml::backend_info())
 }
@@ -119,10 +220,24 @@ async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
     }
 }
 
-async fn frame(Json(p): Json<FrameParams>) -> ApiResult {
-    match core::frame_png(&p.input, p.position_ms) {
-        Ok(data) => json_ok(&serde_json::json!({ "data": data, "mime": "image/png" })),
-        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+// Same worker as Tauri — scrubbing doesn't respawn ffmpeg per frame.
+fn preview_worker() -> &'static senmei_media::PreviewWorker {
+    static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
+    W.get_or_init(|| senmei_media::PreviewWorker::new(core::ffmpeg()))
+}
+
+/// One raw RGB24 frame as the response body; width/height ride in headers so
+/// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
+async fn frame(Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
+    match preview_worker().frame(&p.input, p.position_ms) {
+        Ok(f) => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header("x-frame-width", f.width.to_string())
+            .header("x-frame-height", f.height.to_string())
+            .body(Body::from(f.data))
+            .expect("frame response")),
+        Err(e) => Err(json_err(StatusCode::BAD_REQUEST, e)),
     }
 }
 
@@ -169,6 +284,12 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
 async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
     #[cfg(feature = "render")]
     {
+        // Mirror the desktop's config log so HTTP renders are auditable.
+        log::info!(
+            "http render start: {} -> {} (config {cfg:?})",
+            cfg.input,
+            cfg.output
+        );
         return match core::propose_render(cfg).and_then(|_| core::confirm_render()) {
             Ok(msg) => json_ok(&serde_json::json!({ "started": msg })),
             Err(e) => json_err(StatusCode::BAD_REQUEST, e),
@@ -211,6 +332,10 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/settings-schema", get(settings_schema))
         .route("/api/ffmpeg", get(ffmpeg_status))
         .route("/api/backend-info", get(backend_info))
+        .route("/api/logs", get(logs))
+        .route("/api/logs/clear", post(logs_clear))
+        .route("/api/stream", get(stream))
+        .route("/api/audio", get(audio))
         .route("/api/probe", post(probe))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))

@@ -42,17 +42,12 @@ export const commands = {
 	 *  makes specta's TS export recurse forever.
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
-	readFrame: (input: string, positionMs: number | null, projectDir: string | null) => __TAURI_INVOKE<string>("read_frame", { input, positionMs, projectDir }),
-	extractAudio: (input: string, projectDir: string | null) => __TAURI_INVOKE<string>("extract_audio", { input, projectDir }),
-	/**  Load an extracted audio file (MP3); playback stays paused until `audio_play`. */
-	audioLoad: (path: string) => __TAURI_INVOKE<null>("audio_load", { path }),
+	readFrame: (input: string, positionMs: number | null, projectDir: string | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, projectDir, onMeta, onFrame }),
+	audioLoad: (input: string, positionMs: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
-	/**
-	 *  Drop the current audio source so a stale track can't play while the next
-	 *  one is being extracted.
-	 */
 	audioClear: () => __TAURI_INVOKE<null>("audio_clear"),
+	/**  Seek = restart the pipe at position (keeps play state). */
 	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
 	/**  Abort the active render (the pipeline checks the flag between frames). */
@@ -132,6 +127,22 @@ export type FilterParams = {
 	 */
 	ffmpegFilter?: string | null,
 };
+
+/**
+ *  Width/height of a decoded preview frame, delivered as JSON on the meta
+ *  channel ahead of the raw pixels.
+ */
+export type FrameMeta = {
+	width: number,
+	height: number,
+};
+
+/**
+ *  Raw RGB24 for the frame channel — `IpcResponse::Raw` = ArrayBuffer (no
+ *  base64); not `Serialize` so the blanket JSON impl doesn't apply. Specta
+ *  can't type `ArrayBuffer`, so the frontend casts the channel.
+ */
+export type FramePixels = number[];
 
 export type HardwareSnapshot = {
 	/**  Overall system CPU load in 0..1. */

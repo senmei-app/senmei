@@ -1,5 +1,7 @@
 import { useI18n } from "../../i18n";
 import { basename } from "../../paths";
+import type { RawFrame } from "../../backend/types";
+import FrameCanvas from "./FrameCanvas";
 
 /// Side-by-side A/B or original↔result comparison. Renders nothing when the
 /// mode doesn't apply (source/result single-view handled by Monitor).
@@ -14,7 +16,7 @@ export default function CompareView({
   file?: string;
   effRendered: string | null;
   prevRenderedFile?: string | null;
-  frames: Record<string, string>;
+  frames: Record<string, RawFrame>;
 }) {
   const { t } = useI18n();
 
@@ -23,11 +25,9 @@ export default function CompareView({
       <div className="flex h-full w-full">
         <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
           {frames[prevRenderedFile] ? (
-            <img
-              src={frames[prevRenderedFile]}
-              alt="A"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[prevRenderedFile]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500">
@@ -41,11 +41,9 @@ export default function CompareView({
         </div>
         <div className="relative flex-1 overflow-hidden">
           {frames[effRendered] ? (
-            <img
-              src={frames[effRendered]}
-              alt="B"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[effRendered]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500">
@@ -66,11 +64,9 @@ export default function CompareView({
       <div className="flex h-full w-full">
         <div className="relative flex-1 overflow-hidden border-r border-slate-700/50">
           {frames[file] ? (
-            <img
-              src={frames[file]}
-              alt="original"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[file]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500">
@@ -84,11 +80,9 @@ export default function CompareView({
         </div>
         <div className="relative flex-1 overflow-hidden">
           {frames[effRendered] ? (
-            <img
-              src={frames[effRendered]}
-              alt="result"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[effRendered]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500">

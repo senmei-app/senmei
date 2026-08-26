@@ -98,7 +98,8 @@ impl Pipeline {
     ) -> Result<()> {
         log::info!("pipeline: decode/encode {input:?} -> {output:?}");
         let (start_ms, end_ms) = self.range.unwrap_or((0, None));
-        let mut decoder = Decoder::open_with_range(ffmpeg, input, start_ms, end_ms, self.tonemap)?;
+        let mut decoder =
+            Decoder::open_with_range(ffmpeg, input, start_ms, end_ms, self.tonemap, None)?;
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
         // The interpolator emits 1 frame for the first input and `factor` for
         // each following one, so the output count is `1 + (N-1)*factor`, not

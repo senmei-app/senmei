@@ -32,11 +32,12 @@
       if hardware decode or canvas throughput demands it
 
 ## Preview / Media (2026-08-23, PLAN §18)
-- [ ] Phase 1: PreviewCache — correct video-stream duration probing (drop binary-search), state machine + LRU
-- [ ] Phase 2: raw-frame transport + `FrameSink` trait (Tauri Channel raw → putImageData; HTTP binary); PNG/base64 out
-- [ ] Phase 2b: preview decode budget (`max_dim` hint, `scale=…:-2`, never upscale; render stays full-res)
-- [ ] Phase 3: decoder thread + ring buffer (last-frame-wins) for smooth scrubbing
-- [ ] Phase 4: audio — FFmpeg→PCM→native sink (rodio/cpal) instead of MP3 transcode; web Range-stream
+
+> 2026-08-26: warm streams + last-frame-wins landed; web audio (Range-stream
+> + transcoded Vorbis/Ogg `<audio>`) done. Phase-3 ring buffer **dropped**
+> (warm streams + ±300 ms tolerance already cover scrubbing; a buffer adds
+> complexity without real gain) and the per-viewport DPR budget **deferred**
+> (the fixed 1280 cap is fine except HiDPI fullscreen).
 
 ## Compliance (2026-08-20)
 
@@ -79,12 +80,6 @@
 - [ ] senmei-ml: Arch-Unit-Tests für real_plksr (0; auch upcunet/scunet/dncnn)
 
 ## Web / headless
-- [ ] Audio in the web UI (senmei-server --http): currently no sound — no
-      native `<video>` (no raw-file stream), rodio path is Tauri-only. Prefer
-      option A: server streams the raw file with Range requests (new
-      `/api/stream` endpoint) so the browser `<video>` plays video+audio;
-      wire `nativeVideoUrl` in `http.ts` + `media-src` CSP. (decision
-      2026-08-20: deferred, backlog)
 - [ ] License policy (web): model download over HTTP uses POST without progress
       events — add progress once streaming lands (or poll download status)
 - [ ] Web UI hardware/GPU status: `httpBackend.hardwareStatus` returns `null`

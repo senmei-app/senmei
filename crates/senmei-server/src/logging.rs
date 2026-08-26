@@ -2,14 +2,50 @@
 //! rotating `senmei.log` (Info+) in the app data dir — same scheme as the GUI,
 //! so crashes and HTTP errors survive without a visible terminal.
 
+use std::collections::VecDeque;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
 
 const LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
 const LOG_ROTATIONS: usize = 3;
+/// In-memory ring buffer feeding the web UI Logs panel over HTTP.
+const BUFFER_CAP: usize = 1000;
+
+/// One log line for the web UI Logs panel (mirrors the GUI `LogEntry` shape).
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogEntry {
+    pub level: String,
+    pub message: String,
+    pub timestamp: u64,
+}
+
+fn buffer() -> &'static Mutex<VecDeque<LogEntry>> {
+    static BUF: OnceLock<Mutex<VecDeque<LogEntry>>> = OnceLock::new();
+    BUF.get_or_init(|| Mutex::new(VecDeque::with_capacity(BUFFER_CAP)))
+}
+
+/// Buffered entries for the web UI Logs panel when it opens.
+pub fn entries() -> Vec<LogEntry> {
+    buffer().lock().unwrap().iter().cloned().collect()
+}
+
+/// Empty the buffered log history (Logs panel "Clear").
+pub fn clear() {
+    buffer().lock().unwrap().clear();
+}
+
+fn epoch_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 struct FileSink {
     file: Mutex<fs::File>,
@@ -68,6 +104,17 @@ impl log::Log for ServerLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
+        let entry = LogEntry {
+            level: record.level().to_string(),
+            message: record.args().to_string(),
+            timestamp: epoch_ms(),
+        };
+        let mut buf = buffer().lock().unwrap();
+        if buf.len() >= BUFFER_CAP {
+            buf.pop_front();
+        }
+        buf.push_back(entry);
+        drop(buf);
         self.console.log(record);
         if let Some(sink) = &self.sink {
             let line = format!("[{} {}] {}\n", stamp(), record.level(), record.args());

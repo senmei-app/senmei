@@ -39,9 +39,18 @@ export type {
   VideoInfo,
 } from "@senmei/bridge";
 
-/// A preview frame, already usable as an `<img src>` (transport-specific:
-/// Tauri returns an `asset://`/`convertFileSrc` URL, HTTP a data URI).
+/// A URL usable as an `<img>`/`<video>` `src` (Tauri: `asset://`, HTTP: data).
 export type FrameSource = string;
+
+/// A decoded preview frame: raw RGB24 pixels + dimensions, for direct canvas
+/// rendering via `ImageData` (no `<img>`/PNG round-trip). Tauri delivers the
+/// bytes as an `ArrayBuffer` (raw channel), HTTP as base64 (decoded here).
+export interface RawFrame {
+  width: number;
+  height: number;
+  /// Raw RGB24 pixels.
+  data: Uint8Array;
+}
 
 /// Register a drag-and-drop handler; returns an unregister function.
 export type DropHandler = (paths: string[]) => void;
@@ -63,8 +72,8 @@ export interface Backend {
 
   // Media
   probeVideo(input: string): Promise<VideoInfo>;
-  /// Extract a preview frame at `positionMs`; result is img-src ready.
-  readFrame(input: string, positionMs: number, projectDir?: string | null): Promise<FrameSource>;
+  /// Decode a preview frame at `positionMs` (raw RGB24, base64).
+  readFrame(input: string, positionMs: number, projectDir?: string | null): Promise<RawFrame>;
   /// Native-playable URL for a video file; `null` when the transport can't
   /// stream it (web falls back to FFmpeg-decoded frames).
   nativeVideoUrl(input: string): FrameSource | null;
@@ -114,9 +123,8 @@ export interface Backend {
   /// Pick a single file with the given filters (project archives).
   pickFile(filters: { name: string; extensions: string[] }[], title?: string): Promise<string | null>;
 
-  // Audio (native rodio in Tauri; web: the `<video>` element plays sound)
-  extractAudio(input: string, projectDir?: string | null): Promise<string>;
-  audioLoad(path: string): Promise<void>;
+  // Audio (streamed PCM via rodio in Tauri; web: the `<video>` element plays sound)
+  audioLoad(input: string, positionMs: number): Promise<void>;
   audioPlay(): Promise<void>;
   audioPause(): Promise<void>;
   audioClear(): Promise<void>;

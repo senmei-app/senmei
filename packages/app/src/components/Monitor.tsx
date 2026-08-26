@@ -7,8 +7,10 @@ import { basename } from "../paths";
 import { fmt, fmtDuration, parseDuration, snapFrame } from "./monitor/format";
 import Benchmark from "./monitor/Benchmark";
 import CompareView from "./monitor/CompareView";
+import FrameCanvas from "./monitor/FrameCanvas";
 import ModeTabs from "./monitor/ModeTabs";
 import Timeline from "./monitor/Timeline";
+import type { RawFrame } from "../backend/types";
 
 export default function Monitor({
   file,
@@ -75,11 +77,11 @@ export default function Monitor({
   const [playing, setPlaying] = useState(false);
   const [customVal, setCustomVal] = useState("");
   const [sampleMenu, setSampleMenu] = useState(false);
-  const [frames, setFrames] = useState<Record<string, string>>({});
+  const [frames, setFrames] = useState<Record<string, RawFrame>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
-  const frameBustRef = useRef(0);
+  const audioDebounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   // Recent progress samples for a rolling FPS (the queue-lifetime average was
@@ -146,32 +148,34 @@ export default function Monitor({
   }, []);
   const be = () => beRef.current;
 
-  // A stale extraction after a file switch must not load the old track.
-  const audioFileRef = useRef<string | null>(null);
+  // rodio/cpal buffer output; the lead nudges the source onto the playhead.
+  // 0 = no compensation yet (measure the residual first).
+  const AUDIO_LEAD_MS = 0;
+  const syncAudio = (ms: number) => {
+    void be()?.audioSeek(ms + AUDIO_LEAD_MS).catch(() => {});
+  };
+
+  // Stream the file's audio; a fresh `audioLoad` replaces the current pipe.
   useEffect(() => {
-    // Drop the previous track so a stale sink can't play during extraction.
+    // Drop the previous stream so a stale source can't play while the next loads.
     void be()?.audioClear().catch(() => {});
     setAudioReady(false);
     if (!be() || !file) return;
-    audioFileRef.current = file;
     be()!
-      .extractAudio(file, projectDir ?? null)
-      .then((p) => {
-        if (audioFileRef.current !== file) return;
-        return be()!
-          .audioLoad(p)
-          .then(() => setAudioReady(true))
-          .catch((e) => console.error("audio load failed:", e));
-      })
-      .catch((e) => console.error("preview extractAudio failed:", e));
+      .audioLoad(file, 0)
+      .then(() => setAudioReady(true))
+      .catch((e) => console.error("audio load failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, beReady]);
 
-  // Audio arrives async (extraction takes seconds); if playback already
-  // started, join it at the current position instead of staying silent.
+  // Audio resolves async; apply volume once ready, land on the playhead, and
+  // join playback if it already started.
   useEffect(() => {
-    if (audioReady && playing) {
-      void be()?.audioSeek(posRef.current).catch(() => {});
+    if (!audioReady) return;
+    void be()?.audioSetVolume(volume).catch(() => {});
+    // A fresh load starts at 0 — wrong for the result/compare views.
+    syncAudio(posRef.current);
+    if (playing) {
       void be()?.audioPlay().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,8 +198,10 @@ export default function Monitor({
     changeVolume(volume + delta);
   };
   useEffect(() => {
+    // Apply on change and once the backend resolves; both transports route it
+    // to their audio player (rodio on Tauri, an <audio> element on the web).
     void be()?.audioSetVolume(muted ? 0 : volume).catch(() => {});
-  }, [volume, muted]);
+  }, [volume, muted, beReady]);
 
   const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -206,16 +212,16 @@ export default function Monitor({
     // playhead so "Render Sample" clips from where you're looking (same as a
     // scrub that passes the window).
     if (mode === "source") {
-      if (outMs > inMs && t >= outMs) {
+      // Re-anchor the window to the playhead only when not rendering — a
+      // render in flight must keep its start (inMs) or result/compare map
+      // to a drifted window.
+      if (!rendering && outMs > inMs && t >= outMs) {
         const fps = info?.fps ?? 0;
         const dur = outMs - inMs;
         const p = snapFrame(t, fps);
         onSampleChange?.(p, snapFrame(p + dur, fps));
       }
-      return;
     }
-    const endSec = outMs / 1000;
-    if (endSec > 0 && v.currentTime >= endSec) v.currentTime = inMs / 1000; // loop within sample
   };
 
   const togglePlay = () => {
@@ -223,6 +229,10 @@ export default function Monitor({
     if (nativeSrc && videoRef.current) {
       const v = videoRef.current;
       if (v.paused) {
+        // Sync the sound to the playhead before starting — otherwise the
+        // track keeps its stale position (0 after a fresh load) and plays
+        // off-screen content against the current view.
+        syncAudio(v.currentTime * 1000);
         void v.play();
         void be()?.audioPlay().catch(() => {});
       } else {
@@ -233,8 +243,10 @@ export default function Monitor({
     }
     // Frame-fallback: rodio carries the sound, the timer drives frames.
     setPlaying((p) => {
-      if (!p) void be()?.audioPlay().catch(() => {});
-      else void be()?.audioPause().catch(() => {});
+      if (!p) {
+        syncAudio(posRef.current);
+        void be()?.audioPlay().catch(() => {});
+      } else void be()?.audioPause().catch(() => {});
       return !p;
     });
   };
@@ -325,7 +337,7 @@ export default function Monitor({
       targets.map(({ path, ms: t }) =>
         b
           .readFrame(path, t, projectDir ?? null)
-          .then((src) => ({ path, src }))
+          .then((frame) => ({ path, frame }))
           .catch((e) => {
             console.error("readFrame failed:", e);
             setError(String(e));
@@ -335,14 +347,11 @@ export default function Monitor({
     )
       .then((results) => {
         // Update every side together so compare never shows one ahead of the
-        // other (the result decode is slower than the source decode). Frames
-        // reuse a stable file per source; a query forces the webview to
-        // re-fetch (asset:// URLs cache otherwise). data: URIs are always fresh.
-        const updates: Record<string, string> = {};
+        // other (the result decode is slower than the source decode). Raw
+        // frames are stateless — no cache-busting needed.
+        const updates: Record<string, RawFrame> = {};
         for (const r of results) {
-          if (r) {
-            updates[r.path] = r.src.startsWith("data:") ? r.src : r.src + "?v=" + ++frameBustRef.current;
-          }
+          if (r) updates[r.path] = r.frame;
         }
         if (Object.keys(updates).length) {
           setFrames((prev) => ({ ...prev, ...updates }));
@@ -381,12 +390,28 @@ export default function Monitor({
     let on = true;
     const fileChanged = file !== prevFile.current;
     prevFile.current = file ?? null;
+    // Result/compare/A-B only span the sample window; land on the sample start
+    // so source/result/audio all align (the video may have run past while the
+    // render was busy, leaving the playhead outside the window).
     const next =
-      fileChanged ? 0 : mode === "result" || mode === "compare" ? Math.max(posMs, inMs) : posMs;
+      fileChanged
+        ? 0
+        : mode === "result" || mode === "compare" || mode === "ab"
+          ? inMs
+          : posMs;
     setInfo(null);
+    posRef.current = next; // update the playhead ref immediately (audio targets it)
     setPosMs(next);
-    setPlaying(false);
-    void be()?.audioPause().catch(() => {});
+    // Keep the sound on the (possibly clamped) playhead: switching into the
+    // result view repositions the video to the sample in-point, but the
+    // extracted source track would otherwise stay wherever it was (0 on a
+    // fresh load) and drift out of sync.
+    syncAudio(next);
+    if (fileChanged) {
+      // Full stop only on a file switch; view (mode) toggles keep playing.
+      setPlaying(false);
+      void be()?.audioPause().catch(() => {});
+    }
     setFrames({});
     setError(null);
     setNativeFailed(false);
@@ -415,15 +440,19 @@ export default function Monitor({
   }, [src, file, mode, beReady]);
 
   const onScrub = (ms: number) => {
+    posRef.current = ms; // keep the playhead ref current so audio targets it
     setPosMs(ms);
     // A scrub outside the sample window repositions the window to start at the
     // playhead, so "Render Sample" clips from where you're looking.
-    if (ms < inMs || ms >= outMs) {
+    if (!rendering && (ms < inMs || ms >= outMs)) {
       const dur = outMs > inMs ? outMs - inMs : 10000;
       const fps = info?.fps ?? 0;
       onSampleChange?.(snapFrame(ms, fps), snapFrame(ms + dur, fps));
     }
-    void be()?.audioSeek(ms).catch(() => {});
+    // Coalesce rapid seeks (arrow-repeat): only the last position restarts the
+    // pipe instead of one ffmpeg respawn per key repeat.
+    if (audioDebounce.current) window.clearTimeout(audioDebounce.current);
+    audioDebounce.current = window.setTimeout(() => syncAudio(ms), 120);
     if (nativeSrc && videoRef.current) {
       videoRef.current.currentTime = ms / 1000;
       return;
@@ -452,7 +481,7 @@ export default function Monitor({
       let next = prev + elapsed;
       // Keep the sample window anchored to the playhead (source mode plays the
       // whole file): "Render Sample" clips from where you're looking.
-      if (mode === "source" && outMs > inMs && next >= outMs) {
+      if (!rendering && mode === "source" && outMs > inMs && next >= outMs) {
         const fps = info?.fps ?? 0;
         const p = snapFrame(next, fps);
         onSampleChange?.(p, snapFrame(p + (outMs - inMs), fps));
@@ -467,7 +496,7 @@ export default function Monitor({
         next = inMs; // loop the sample within in..out
         posRef.current = next;
         setPosMs(next);
-        void be()?.audioSeek(inMs).catch(() => {});
+        syncAudio(inMs);
         if (!busy) {
           busy = true;
           loadFrame(inMs).finally(() => {
@@ -487,7 +516,7 @@ export default function Monitor({
     }, 33);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, nativeSrc, info, inMs, outMs]);
+  }, [playing, nativeSrc, info, inMs, outMs, mode, rendering]);
 
   const tlMin = tlSource ? 0 : inMs;
   const tlMax = tlSource
@@ -626,11 +655,9 @@ export default function Monitor({
               />
             </div>
           ) : src && frames[src] ? (
-            <img
-              src={frames[src]}
-              alt="preview"
-              className="h-full w-full object-contain opacity-80"
-            />
+            <div className="flex h-full w-full items-center justify-center">
+              <FrameCanvas frame={frames[src]} className="opacity-80" />
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-200/70 dark:bg-slate-900/70 grayscale">
               <span className="truncate px-4 font-mono text-sm text-slate-500 dark:text-slate-500">

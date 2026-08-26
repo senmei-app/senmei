@@ -15,12 +15,25 @@ import type {
   StepTimingInfo,
   VideoInfo,
 } from "@senmei/bridge";
-import type { Backend, FrameSource } from "./types";
+import type { Backend, RawFrame } from "./types";
 import { openPathDialog } from "./pathDialog";
 
 const base = () => (import.meta.env.VITE_SENMEI_API as string | undefined) ?? "";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Web audio plays a server-transcoded track (browsers can't decode every
+// container); one shared element mirrors the rodio surface.
+let audioEl: HTMLAudioElement | null = null;
+function audioElement(): HTMLAudioElement {
+  if (!audioEl) {
+    audioEl = new Audio();
+    audioEl.preload = "auto";
+    audioEl.style.display = "none";
+    document.body.appendChild(audioEl); // DOM-attached so it can't be GC'd
+  }
+  return audioEl;
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}${path}`, {
@@ -62,13 +75,38 @@ export const httpBackend: Backend = {
   },
 
   async getLogs(): Promise<LogEntry[]> {
-    return [];
+    return api<LogEntry[]>("/api/logs");
   },
 
-  async clearLogs() {},
+  async clearLogs() {
+    await api<{ ok: boolean }>("/api/logs/clear", { method: "POST" });
+  },
 
-  onLog() {
-    return () => {};
+  // No push channel over HTTP — poll the buffer and deliver appended entries.
+  onLog(listener: (entry: LogEntry) => void): () => void {
+    let lastCount = 0;
+    let timer: number | undefined;
+    const poll = async (seed = false) => {
+      let logs: LogEntry[] = [];
+      try {
+        logs = await api<LogEntry[]>("/api/logs");
+      } catch {
+        return;
+      }
+      if (seed) {
+        lastCount = logs.length; // existing entries come via getLogs()
+        return;
+      }
+      if (logs.length < lastCount) lastCount = 0; // buffer was cleared
+      for (let i = lastCount; i < logs.length; i++) listener(logs[i]);
+      lastCount = logs.length;
+    };
+    void poll(true).then(() => {
+      timer = window.setInterval(() => poll(), 1000);
+    });
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
   },
 
   async listModels() {
@@ -85,16 +123,34 @@ export const httpBackend: Backend = {
     return api<VideoInfo>("/api/probe", { method: "POST", body: JSON.stringify({ input }) });
   },
 
-  async readFrame(input, positionMs): Promise<FrameSource> {
-    const res = await api<{ data: string; mime: string }>("/api/frame", {
+  async readFrame(input, positionMs): Promise<RawFrame> {
+    const res = await fetch(`${base()}/api/frame`, {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ input, positionMs }),
     });
-    return `data:${res.mime};base64,${res.data}`;
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const j = await res.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(msg);
+    }
+    // Raw RGB24 body; width/height ride in headers so the payload stays binary
+    // (ArrayBuffer — same shape the Tauri channel delivers).
+    const width = Number(res.headers.get("x-frame-width"));
+    const height = Number(res.headers.get("x-frame-height"));
+    const data = new Uint8Array(await res.arrayBuffer());
+    return { width, height, data };
   },
 
-  nativeVideoUrl() {
-    return null; // server doesn't stream raw files yet -> FFmpeg frame fallback
+  nativeVideoUrl(input) {
+    // Range-stream the source so the browser <video> plays video+audio;
+    // unsupported codecs fall back to FFmpeg frames.
+    return `${base()}/api/stream?path=${encodeURIComponent(input)}`;
   },
 
   async setWindowFullscreen() {},
@@ -212,22 +268,56 @@ export const httpBackend: Backend = {
     return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
-  // Audio is played by the browser's <video> element in web mode (no rodio).
-  async extractAudio() {
-    return ""; // no separate track extraction over HTTP
+  async audioLoad(input, positionMs): Promise<void> {
+    const el = audioElement();
+    el.src = `${base()}/api/audio?path=${encodeURIComponent(input)}`;
+    el.load();
+    // Seek once playable — a pre-metadata seek aborts the pending (slow) transcode.
+    await new Promise<void>((resolve) => {
+      const onReady = () => {
+        el.removeEventListener("canplay", onReady);
+        if (el.readyState >= 1) el.currentTime = positionMs / 1000;
+        resolve();
+      };
+      el.addEventListener("canplay", onReady);
+      window.setTimeout(() => {
+        el.removeEventListener("canplay", onReady);
+        resolve();
+      }, 8000);
+    });
   },
-  async audioLoad() {},
-  async audioPlay() {},
-  async audioPause() {},
-  async audioClear() {},
-  async audioSeek() {},
-  async audioSetVolume() {},
+  async audioPlay() {
+    audioElement().play().catch(() => {});
+  },
+  async audioPause() {
+    audioElement().pause();
+  },
+  async audioClear() {
+    const el = audioElement();
+    el.pause();
+    el.removeAttribute("src");
+    el.load();
+  },
+  async audioSeek(positionMs) {
+    const el = audioElement();
+    // A pre-metadata seek aborts the pending load (audioLoad sets the start).
+    if (el.readyState >= 1) el.currentTime = positionMs / 1000;
+  },
+  async audioSetVolume(volume) {
+    audioElement().volume = volume;
+  },
 
   async render(input, output, config, onProgress) {
-    await api("/api/render", {
-      method: "POST",
-      body: JSON.stringify({ ...config, input, output }),
-    });
+    try {
+      await api("/api/render", {
+        method: "POST",
+        body: JSON.stringify({ ...config, input, output }),
+      });
+    } catch (e) {
+      // A render is already running (stale frontend after a reload): join it
+      // instead of failing or spamming 400s.
+      if (!String(e).includes("already running")) throw e;
+    }
     // Poll the shared render status until done.
     for (;;) {
       await sleep(500);

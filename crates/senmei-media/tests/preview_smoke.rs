@@ -39,9 +39,23 @@ fn preview_backend_functions_work() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Whether this ffmpeg build has a named filter (e.g. `zscale` needs libzimg,
+/// which brew's ffmpeg may lack — the tonemap chain would then fail silently).
+fn has_filter(name: &str) -> bool {
+    Command::new("ffmpeg")
+        .args(["-hide_banner", "-filters"])
+        .output()
+        .map(|o| {
+            let s = String::from_utf8_lossy(&o.stdout);
+            s.lines().any(|l| l.contains(name))
+        })
+        .unwrap_or(false)
+}
+
 /// HDR10 sources: probe detects PQ/bt2020 and the decoder applies the tonemap
 /// filter (Auto) while Off skips it. Gated on libx265 (GPL-only, absent from
-/// the LGPL portable build) because the clip needs a 10-bit encoder.
+/// the LGPL portable build) because the clip needs a 10-bit encoder; the
+/// tonemap assertion is additionally gated on the `zscale` filter.
 #[test]
 fn hdr_source_is_detected_and_tonemapped() {
     let encoders = Command::new("ffmpeg")
@@ -85,16 +99,23 @@ fn hdr_source_is_detected_and_tonemapped() {
     assert!(info.is_hdr(), "HDR10 source should be detected as HDR");
 
     let ffmpeg = std::env::var("SENMEI_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
-    let mut auto = senmei_media::Decoder::open_with_range(
-        std::path::Path::new(&ffmpeg),
-        &input,
-        0,
-        Some(1000),
-        senmei_media::Tonemap::Auto,
-    )
-    .expect("auto decoder");
-    let f = auto.next_frame().expect("next_frame").expect("a frame");
-    assert_eq!((f.width, f.height), (320, 180));
+    // Tonemap needs zscale (libzimg); skip the Auto assertion where the build
+    // lacks it (brew ffmpeg), still checking Off (no filter) below.
+    if has_filter("zscale") {
+        let mut auto = senmei_media::Decoder::open_with_range(
+            std::path::Path::new(&ffmpeg),
+            &input,
+            0,
+            Some(1000),
+            senmei_media::Tonemap::Auto,
+            None,
+        )
+        .expect("auto decoder");
+        let f = auto.next_frame().expect("next_frame").expect("a frame");
+        assert_eq!((f.width, f.height), (320, 180));
+    } else {
+        eprintln!("zscale filter not available, skipping tonemap assertion");
+    }
 
     let mut off = senmei_media::Decoder::open_with_range(
         std::path::Path::new(&ffmpeg),
@@ -102,6 +123,7 @@ fn hdr_source_is_detected_and_tonemapped() {
         0,
         Some(1000),
         senmei_media::Tonemap::Off,
+        None,
     )
     .expect("off decoder");
     off.next_frame().expect("next_frame").expect("a frame");
@@ -162,6 +184,7 @@ fn probe_and_decode_apply_rotation() {
         0,
         Some(2000),
         senmei_media::Tonemap::Auto,
+        None,
     )
     .expect("decoder open");
     let frame = dec.next_frame().expect("next_frame").expect("a frame");

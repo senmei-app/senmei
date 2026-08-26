@@ -8,7 +8,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as bridge from "@senmei/bridge";
 import type { DownloadProgress, LogEntry, RenderProgress } from "@senmei/bridge";
-import type { Backend, FrameSource } from "./types";
+import type { Backend, FrameSource, RawFrame } from "./types";
 
 export const tauriBackend: Backend = {
   async healthCheck() {
@@ -57,11 +57,25 @@ export const tauriBackend: Backend = {
     return bridge.probeVideo(input);
   },
 
-  async readFrame(input, positionMs, projectDir = null): Promise<FrameSource> {
-    // bridge.readFrame resolves to the PNG path (string); convertFileSrc turns
-    // it into an asset:// URL the webview may load.
-    const file = await bridge.readFrame(input, positionMs, projectDir);
-    return convertFileSrc(file);
+  async readFrame(input, positionMs, projectDir = null): Promise<RawFrame> {
+    // bridge.readFrame delivers width/height on the meta channel (JSON) and
+    // the raw RGB24 on the frame channel (ArrayBuffer) — no base64 over IPC.
+    // Either channel may arrive first; resolve once both are in.
+    return new Promise<RawFrame>((resolve, reject) => {
+      let meta: { width: number; height: number } | null = null;
+      let pixels: Uint8Array | null = null;
+      const onMeta = new Channel<{ width: number; height: number }>((m) => {
+        meta = m;
+        if (pixels) resolve({ width: meta.width, height: meta.height, data: pixels });
+      });
+      // Specta types the frame payload `number[]`, but Tauri delivers a raw
+      // ArrayBuffer — `any` keeps the wrapper the single cast site.
+      const onFrame = new Channel<any>((buf: ArrayBuffer) => {
+        pixels = new Uint8Array(buf);
+        if (meta) resolve({ width: meta.width, height: meta.height, data: pixels });
+      });
+      bridge.readFrame(input, positionMs, projectDir, onMeta, onFrame).catch(reject);
+    });
   },
 
   nativeVideoUrl(input): FrameSource | null {
@@ -165,12 +179,8 @@ export const tauriBackend: Backend = {
     return typeof picked === "string" ? picked : null;
   },
 
-  async extractAudio(input, projectDir = null) {
-    return bridge.extractAudio(input, projectDir);
-  },
-
-  async audioLoad(path) {
-    await bridge.audioLoad(path);
+  async audioLoad(input, positionMs) {
+    await bridge.audioLoad(input, positionMs);
   },
   async audioPlay() {
     await bridge.audioPlay();

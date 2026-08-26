@@ -8,6 +8,97 @@
 
 ## Unreleased
 
+- **docs: close the preview backlog (2026-08-26)** — Phase-3 ring buffer
+  dropped (warm streams + ±300 ms tolerance already cover scrubbing; a buffer
+  adds complexity without real gain) and the per-viewport DPR decode budget
+  deferred (the fixed 1280 cap is fine except HiDPI fullscreen).
+
+- **cleanup: trim preview/audio comments to the necessary (2026-08-26)** — cut
+  narration and stale wording (e.g. the web-audio comment still said AAC after
+  the switch to Vorbis/Ogg); kept the invariants and rationale.
+
+- **cleanup: shared serve_file helper for the Range handlers (2026-08-26)** —
+  `/api/stream` and `/api/audio` both wrapped `ServeFile` the same way;
+  extracted one `serve_file` helper.
+
+- **refactor: probe via core, drop the app-side duplicate (2026-08-26)** —
+  `probe_video_inner` duplicated `core::probe_video` (same data dir/ffprobe);
+  the call sites now use `senmei_core::core::probe_video` directly.
+
+- **feat: web UI audio for any container via transcoded `<audio>` (2026-08-26)**
+  — `/api/audio` transcodes the source's audio track to a cached **Vorbis/Ogg**
+  track (LGPL-safe; this ffmpeg build's audio-only AAC MP4 is rejected by
+  Chrome's demuxer) and serves it with Range support; the web backend drives a
+  shared `<audio>` element (mirroring the rodio surface), so the web UI has
+  sound even for containers the browser `<video>` can't decode (e.g.
+  AVI/MPEG-4). The source `<video>` stays muted — the track carries the sound
+  on both transports.
+
+- **feat: web UI audio via native `<video>` Range-stream (2026-08-26)** — new
+  `/api/stream` serves files with HTTP Range support (206 partial content), so
+  the browser `<video>` in the web UI plays video+audio natively; `http.ts`
+  `nativeVideoUrl` points at it and the monitor unmutes the `<video>` in web
+  mode (rodio is Tauri-only). Unsupported codecs error in the `<video>` and
+  fall back to FFmpeg-decoded frames. No `media-src` CSP change needed: the
+  web UI is served without a CSP header (the Tauri webview CSP already allows
+  media).
+
+- **fix: stop duplicate render submissions while one is running (2026-08-26)** —
+  the global hotkey handler held a stale `startBatch` closure (no
+  `rendering`/`batch` in its effect deps), so every keypress passed the
+  frontend guard and re-POSTed `/api/render` → repeated `400 already running`
+  in the logs. The batch guard now reads a ref (stale-closure-proof), and the
+  HTTP `render` joins a render the server is already running (e.g. after a
+  reload) instead of erroring.
+
+- **feat: web UI logs over HTTP (2026-08-26)** — the server logger now keeps an
+  in-memory ring buffer served at `/api/logs` (+`/api/logs/clear`); the web
+  frontend `onLog` polls it, so the Logs panel works over HTTP instead of
+  showing "No log entries" (`getLogs`/`clearLogs` were no-ops before).
+
+- **fix: preview frame requests can't hang (2026-08-25)** — the decode worker
+  now answers within 10 s (`recv_timeout`) instead of blocking a Tauri command
+  or HTTP request forever, and the Tauri `readFrame` wrapper resolves once both
+  the meta and pixel channels arrive (order-independent) instead of dropping
+  the frame if it lands first.
+
+- **docs: PLAN §18 — transport seam is the shared worker, no FrameSink trait
+  (2026-08-25)** — the planned `FrameSink` trait was dropped; the
+  transport-agnostic `PreviewWorker`/`PreviewCache` in `senmei-media` is the
+  seam, both transports now frame raw payloads (Tauri Channel / HTTP body).
+
+- **perf: HTTP preview frames → shared worker + raw RGB24 body (2026-08-25)** —
+  `/api/frame` decodes through the same `PreviewWorker`/`PreviewCache` (warm
+  streams, last-frame-wins, decode budget) as Tauri, so web scrubbing no longer
+  spawns ffmpeg per frame, and returns the raw RGB24 body (width/height in
+  `x-frame-width`/`x-frame-height` headers) instead of base64 JSON. The worker
+  moved from `senmei-app` into `senmei-media` (single `PREVIEW_MAX_DIM`
+  constant); the cold per-request `core::frame_raw` decode is gone.
+
+- **cleanup: drop unreachable source-loop branch in onVideoTime (2026-08-25)**
+  — the native `<video>` only mounts in source mode (`nativeSrc` is null
+  elsewhere), so the "loop within sample" else branch was dead code.
+
+- **fix: A/B compare clamps to the sample in-point like result/compare
+  (2026-08-25)** — switching to A/B landed on the playhead instead of `inMs`,
+  so both rendered panes could read outside the sample window; it now maps to
+  the same moment as result/compare.
+
+- **fix: freeze the sample window while rendering (2026-08-25)** — while a
+  render runs, the source video keeps playing and `onVideoTime` re-anchored
+  the sample window to the playhead (`t >= outMs`), so `inMs` drifted forward.
+  Result/compare then mapped source to the drifted `inMs` while the rendered
+  file still spans the original start — source ahead of result, audio at the
+  wrong position. Every re-anchor (`onVideoTime`, scrub, playback loop) is now
+  gated on `!rendering`, keeping the window fixed at the render start until
+  the render finishes.
+
+- **fix: pipeline bench compiles again (2026-08-25)** — the preview decode
+  budget added a `max_dim` argument to `Decoder::open_with_range`, but the
+  benchmark's three call sites were not updated, so the bench test target did
+  not compile (`cargo test -p senmei-pipeline`). They now pass `None`
+  (full-res, matching the render path), restoring a green test build.
+
 - **fix: no torch-sys build in the macOS workspace tests (2026-08-25)** —
   `senmei-pipeline`'s dev-dependency forced `senmei-ml/tch`, so
   `cargo test --workspace` built `torch-sys` everywhere and its build script
@@ -16,6 +107,101 @@
   (`cargo test -p senmei-pipeline --features tch --test bench` for
   `BENCH_BACKEND=tch`); the workspace test build stays tch-free, matching the
   bundle job which already skips tch on macOS.
+
+- **test: gate HDR tonemap assertion on the zscale filter (2026-08-25)** —
+  brew's ffmpeg can lack libzimg, so the Auto tonemap chain fails silently and
+  the HDR smoke test panicked on macOS; the tonemap assertion now skips where
+  `zscale` is absent (HDR detection + Off decode still tested).
+
+- **fix: gap-free preview audio on seek + stable arrow keys (2026-08-25)** —
+  every pipe restart (seek/scrub/arrow) starved rodio during ffmpeg's seek
+  decode → audible dropouts. The stream now pre-rolls ~200 ms of PCM before
+  the sink starts and reads larger pipe chunks (64 KB); rapid arrow-key seeks
+  coalesce to the last position instead of one ffmpeg respawn per key repeat.
+
+- **perf: streamed native preview audio, FFmpeg→PCM→rodio (2026-08-25)** —
+  the preview player no longer extracts/re-encodes the source to an AAC file;
+  ffmpeg decodes any codec straight to s16le stereo PCM piped into rodio (no
+  rodio-codec dep, no disk file, no full-extraction latency). A seek restarts
+  the pipe at the position (`audio_seek` keeps play state). The IPC surface
+  drops `extractAudio`/`audioLoad(path)` for `audioLoad(input, positionMs)`;
+  the HTTP (web) path still plays sound via the browser `<video>` element.
+  Supersedes the extract→AAC/FLAC/WAV preview-audio iterations.
+
+- **perf: preview frames over a raw Tauri Channel (2026-08-24)** — the Tauri
+  `read_frame` now delivers width/height on a `Channel<FrameMeta>` (JSON) and
+  the raw RGB24 pixels on a `Channel<FramePixels>` whose `IpcResponse` sends
+  an `ArrayBuffer` — no base64 over IPC. `FramePixels` is deliberately not
+  `Serialize` (the blanket JSON `IpcResponse` impl would apply); specta can't
+  express `ArrayBuffer` (it types `Vec<u8>` as `number[]`), so the frontend
+  wrapper casts the channel. HTTP keeps base64 on the wire (decoded in
+  `http.ts`); `RawFrame.data` is now a uniform `Uint8Array`.
+
+- **perf: preview worker last-frame-wins (2026-08-24)** — the preview-decode
+  worker drains its queue before each decode and keeps only the newest
+  position per input; superseded requests are answered with their input's
+  newest frame. A fast scrub can no longer queue stale decodes behind a slow
+  one (upscaled results), and superseded callers unblock instead of waiting on
+  positions nobody wants. Regression test `coalesce_keeps_newest_position_per_
+  input`.
+
+- **fix: preview decode applies the scale filter (2026-08-23)** — the
+  `Decoder` built its ffmpeg command with `-vf` after the output URL
+  (`-f rawvideo ... -`). This ffmpeg build silently drops a filter graph placed
+  after `-`, so any source larger than the preview budget (i.e. upscaled /
+  resized results > 1280 px) was decoded at full resolution while the decoder
+  read only a `1280×720`-sized chunk of each frame — row-shifted, so the
+  preview showed horizontal "stripes" / a torn crop. `-vf` now precedes the
+  output, and `-noautorotate` precedes `-i` (input options). Verified
+  byte-identical to a direct ffmpeg decode; regression test
+  `max_dim_downscales_matching_direct_ffmpeg` (1920×1080 → 1280×720) fails on
+  the old argument order.
+
+- **fix: preview frames stay monotonic during playback (2026-08-23)** — the
+  `PreviewCache` read one frame ahead of the requested position on every call,
+  so the decode ran ahead of the playhead and then re-seeked once the request
+  lagged >300 ms — the displayed frame oscillated between an ahead-read and a
+  seek-back, looking like the image "jumping" / tearing (most visible on slow
+  upscaled decodes, i.e. upscale/resize). Now the nearest frame is returned and
+  the decode never runs past the request. Regression test
+  `forward_playback_stays_monotonic` generates a luminance-ramp video and
+  asserts frames never jump backward in time (fails on the old logic).
+
+- **fix: preview playback + canvas fixes (2026-08-23)** —
+  - `FrameCanvas` scales like the old `<img>` (`object-fit: contain`), so the
+    preview fills the Full Video Mode overlay instead of keeping its intrinsic
+    size.
+  - The saved volume (incl. mute) is applied once the backend resolves and once
+    the audio track loads — the mount-time volume effect previously couldn't
+    reach the backend (no-op), so a muted start stayed audible until re-muted.
+  - Switching preview views (source/result/A/B/compare) no longer stops
+    playback; the full stop (pause audio, reset) happens only on a file switch.
+  - `FrameCanvas` double-buffers: frames decode into an offscreen canvas and
+    composite with one `drawImage`, and the visible canvas is only resized when
+    the dimensions change — direct per-frame `putImageData` tore on webkit2gtk
+    during playback / resolution changes (upscaled results, resize).
+
+- **perf: single preview-decode worker thread (2026-08-23)** — the
+  `PreviewCache` (warm decode streams = ring buffer) now lives on one
+  dedicated worker thread; `read_frame` sends a request and awaits the frame.
+  Decodes are serialized without a global `Mutex` and no thread is spawned per
+  request; coalescing stays client-side (Monitor already debounces).
+
+- **perf: preview frames → raw RGB24 + canvas (2026-08-23)** — the preview
+  transport drops the PNG/`<img>` round-trip on both paths: `read_frame`
+  (Tauri) and `/api/frame` (HTTP) now return raw RGB24 (base64) + dimensions,
+  and the frontend renders via `putImageData` on a canvas (`FrameCanvas`) — no
+  `<img>`, no cache-bust hack. Decode stays in `senmei-media` (transport-
+  agnostic); each transport just frames the payload. HTTP verified end-to-end
+  (1080p source → 1280×720 raw frame).
+
+- **perf: preview decode budget + accurate video duration (2026-08-23)** —
+  probe now reads the video-stream duration (the container over-reports when
+  copied audio runs past the video end) and `Decoder` caps on it, which
+  removed the binary-search EOF hack from `PreviewCache` (now a clean state
+  machine + LRU). Preview frames are downscaled to a 1280-long-edge budget
+  (never upscale; render/export stays full-res) on both the Tauri and HTTP
+  paths.
 
 ## 0.1.10 (2026-08-25)
 
@@ -136,6 +322,7 @@
   queue-lifetime average), which earlier fast renders inflated (e.g. a stale
   38-40 FPS during a ~10 FPS upscale). It now uses a rolling window over the
   last ~5 s of progress deltas.
+
 
 ## 0.1.9 (2026-08-24)
 

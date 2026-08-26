@@ -53,35 +53,6 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
     senmei_media::probe(&ffprobe, Path::new(input)).map_err(|e| e.to_string())
 }
 
-/// Extract one frame as a base64 PNG (fast seek via an ffmpeg pipe).
-pub fn frame_png(input: &str, position_ms: f64) -> Result<String, String> {
-    let ff = ffmpeg();
-    let out = std::process::Command::new(&ff)
-        .args([
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-ss",
-            &format!("{:.3}", position_ms / 1000.0),
-            "-i",
-            input,
-            "-frames:v",
-            "1",
-            "-c:v",
-            "png",
-            "-f",
-            "image2pipe",
-            "-",
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!("frame extraction failed for {input}"));
-    }
-    use base64::Engine as _;
-    Ok(base64::engine::general_purpose::STANDARD.encode(out.stdout))
-}
-
 /// List registry models, annotating `downloaded` from the on-disk weight files.
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     match load_registry() {

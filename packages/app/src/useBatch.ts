@@ -37,6 +37,11 @@ export interface UseBatchDeps {
 export function useBatch({ files, selected, steps, outputDir, projectDir, onError }: UseBatchDeps) {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [rendering, setRendering] = useState(false);
+  // Ref so stale closures (e.g. the hotkey handler) see the current state.
+  const renderingRef = useRef(false);
+  useEffect(() => {
+    renderingRef.current = rendering;
+  }, [rendering]);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
   const [timings, setTimings] = useState<StepTimingInfo[]>([]);
@@ -144,7 +149,8 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     explicit: string[] | null = null,
   ) => {
     const inputs = explicit ?? (onlySelected ? files.filter((f) => selected.includes(f)) : files);
-    if (!inputs.length || rendering) return;
+    if (!inputs.length || renderingRef.current) return;
+    renderingRef.current = true; // block stale-closure re-entry immediately
     const outs = steps.filter((s) => s.enabled && s.stepType === "output");
     const lastOut = outs.length ? outs[outs.length - 1] : undefined;
     const enabled = steps.filter((s) => s.enabled);
@@ -257,6 +263,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
         }
       }
     } finally {
+      renderingRef.current = false;
       setRendering(false);
       setPaused(false);
       setProgress(null);
@@ -264,6 +271,7 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   };
 
   const cancel = () => {
+    renderingRef.current = false;
     setRendering(false);
     setPaused(false);
     setJobs((prev) =>

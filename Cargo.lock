@@ -7908,6 +7908,7 @@ dependencies = [
 name = "senmei-app"
 version = "0.1.10"
 dependencies = [
+ "base64 0.22.1",
  "env_logger",
  "liblzma",
  "log",
@@ -7930,7 +7931,6 @@ dependencies = [
 name = "senmei-core"
 version = "0.1.10"
 dependencies = [
- "base64 0.22.1",
  "log",
  "schemars 1.2.2",
  "senmei-media",
@@ -8631,21 +8631,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5773a4c030a19d9bfaa090f49746ff35c75dfddfa700df7a5939d5e076a57039"
 dependencies = [
  "lazy_static",
- "symphonia-bundle-mp3",
+ "symphonia-codec-aac",
  "symphonia-core",
  "symphonia-metadata",
 ]
 
 [[package]]
-name = "symphonia-bundle-mp3"
+name = "symphonia-codec-aac"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4872dd6bb56bf5eac799e3e957aa1981086c3e613b27e0ac23b176054f7c57ed"
+checksum = "4c263845aa86881416849c1729a54c7f55164f8b96111dba59de46849e73a790"
 dependencies = [
  "lazy_static",
  "log",
  "symphonia-core",
- "symphonia-metadata",
 ]
 
 [[package]]
