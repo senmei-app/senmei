@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **refactor: probe via core, drop the app-side duplicate (2026-08-26)** —
+  `probe_video_inner` duplicated `core::probe_video` (same data dir/ffprobe);
+  the call sites now use `senmei_core::core::probe_video` directly.
+
 - **feat: web UI audio for any container via transcoded `<audio>` (2026-08-26)**
   — `/api/audio` transcodes the source's audio track to a cached **Vorbis/Ogg**
   track (LGPL-safe; this ffmpeg build's audio-only AAC MP4 is rejected by

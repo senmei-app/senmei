@@ -36,15 +36,6 @@ impl IpcResponse for FramePixels {
     }
 }
 
-pub fn probe_video_inner(input: &str) -> Result<senmei_media::VideoInfo, String> {
-    let ffmpeg = senmei_media::resolve(&store::data_dir());
-    let ffprobe = senmei_media::ffprobe_next_to(&ffmpeg);
-    senmei_media::probe(&ffprobe, std::path::Path::new(input)).map_err(|e| {
-        log::warn!("probe_video failed: {e}");
-        e.to_string()
-    })
-}
-
 /// Decode one frame as raw RGB24 via the worker (warm streams + decode budget).
 pub fn read_frame_inner(
     input: &str,

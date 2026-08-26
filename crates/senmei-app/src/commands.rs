@@ -8,7 +8,7 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 
 use crate::models::load_registry;
-use crate::preview::{probe_video_inner, read_frame_inner, FrameMeta, FramePixels};
+use crate::preview::{read_frame_inner, FrameMeta, FramePixels};
 use crate::store;
 use senmei_core::core;
 
@@ -153,7 +153,7 @@ pub fn probe_video(
     let _ = app
         .state::<tauri::scope::Scopes>()
         .allow_file(std::path::Path::new(&input));
-    probe_video_inner(&input)
+    core::probe_video(&input)
 }
 
 /// Probe content and suggest a default pipeline (content-aware defaults):
@@ -163,7 +163,7 @@ pub fn probe_video(
 #[tauri::command]
 #[specta::specta]
 pub fn suggest_pipeline(input: String) -> Result<String, String> {
-    let info = probe_video_inner(&input)?;
+    let info = core::probe_video(&input)?;
     let ffmpeg = senmei_media::resolve(&store::data_dir());
     let anime = senmei_media::is_anime(
         &ffmpeg,
@@ -646,7 +646,8 @@ mod tests {
             .success();
         assert!(ok, "ffmpeg input generation failed");
 
-        let info = probe_video_inner(&input.to_string_lossy()).expect("probe_video failed");
+        let info =
+            senmei_core::core::probe_video(&input.to_string_lossy()).expect("probe_video failed");
         assert_eq!((info.width, info.height), (160, 120));
         assert!(info.duration > 0.0);
 
@@ -708,7 +709,8 @@ mod tests {
             .run(&ffmpeg, &input, &output, |_| {})
             .expect("render failed");
 
-        let info = probe_video_inner(&output.to_string_lossy()).expect("probe output");
+        let info =
+            senmei_core::core::probe_video(&output.to_string_lossy()).expect("probe output");
         assert_eq!((info.width, info.height), (3840, 2160));
         assert!(output.exists());
         let ffprobe = std::process::Command::new("ffprobe")
