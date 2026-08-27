@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **perf: fused f16 pad+cast+upload for the RGB8 path (2026-08-27)** — the
+  per-frame CPU staging was three full-frame allocations: `frame_to_tensor`'s
+  f32 buffer, `pad_to`'s padded f32 buffer, then `to_burn`'s `data.clone()` +
+  a separate f32→f16 convert. The fused path (`pad_to_f16` → `pad_to_burn`)
+  writes the padded buffer directly in the backend's f16 element in one pass
+  (one alloc, half the size) — no clone, no padded-f32 intermediate, ~7× less
+  RAM staging per frame. Bit-identical output vs `pad_to` + cast (new
+  `pad_to_f16_matches_pad_to` test); both engines (burn/tch f16) share it. GPU
+  remains the FPS floor on RDNA4/Vulkan — this cuts main-thread CPU, RAM churn
+  and PCIe staging latency.
+
 - **docs: flag ParagonSR-Nano GAN as numerically unstable (2026-08-26)** —
   `models.md` now warns that `paragonsr-nano-x2` produces out-of-range output
   (±26k–84k, torch fp32 reference) on high-frequency content (burned-in

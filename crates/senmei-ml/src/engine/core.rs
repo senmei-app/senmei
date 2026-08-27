@@ -204,6 +204,59 @@ fn to_burn<B: Backend>(input: &Tensor, device: &B::Device) -> Result<BurnTensor<
     ))
 }
 
+/// Edge-replicate pad `ph×pw` writing the backend's float element directly —
+/// no padded f32 buffer, no `to_burn` clone, no separate f32→f16 convert (the
+/// fused RGB8 path's per-frame staging was three full-frame allocations). Same
+/// layout as `pad_to` + cast, so on-device tile slicing is unchanged.
+fn pad_to_f16<B: Backend>(input: &Tensor, ph: usize, pw: usize) -> Vec<B::FloatElem>
+where
+    B::FloatElem: ElemFromF32,
+{
+    let c = input.shape[1];
+    let h = input.shape[2];
+    let w = input.shape[3];
+    let mut data = Vec::with_capacity(c * ph * pw);
+    data.resize(c * ph * pw, B::FloatElem::from_f32(0.0));
+    for ci in 0..c {
+        for yy in 0..ph {
+            let sy = yy.min(h - 1);
+            let row = &input.data[(ci * h + sy) * w..(ci * h + sy) * w + w];
+            let dst = &mut data[(ci * ph + yy) * pw..(ci * ph + yy) * pw + pw];
+            for (d, s) in dst.iter_mut().zip(row.iter()) {
+                *d = B::FloatElem::from_f32(*s);
+            }
+            let last = B::FloatElem::from_f32(row[w - 1]);
+            for d in dst.iter_mut().skip(w) {
+                *d = last;
+            }
+        }
+    }
+    data
+}
+
+/// `pad_to_f16` + device upload in one call.
+fn pad_to_burn<B: Backend>(
+    input: &Tensor,
+    ph: usize,
+    pw: usize,
+    device: &B::Device,
+) -> Result<BurnTensor<B, 4>>
+where
+    B::FloatElem: ElemFromF32,
+{
+    let [n, c, h, w] = [
+        input.shape[0],
+        input.shape[1],
+        input.shape[2],
+        input.shape[3],
+    ];
+    debug_assert!(ph >= h && pw >= w, "pad_to_burn only grows the canvas");
+    Ok(BurnTensor::<B, 4>::from_data(
+        TensorData::new(pad_to_f16::<B>(input, ph, pw), [n, c, ph, pw]),
+        device,
+    ))
+}
+
 /// Read a backend tensor back as an f32 `Tensor` (NCHW).
 fn to_tensor<B: Backend>(out: BurnTensor<B, 4>, shape: [usize; 4]) -> Result<Tensor> {
     let data = out
@@ -251,7 +304,7 @@ pub fn infer_rgb8<B: Backend>(
     device: &B::Device,
 ) -> Option<Result<(Vec<u8>, u32, u32)>>
 where
-    B::FloatElem: ElemToU8,
+    B::FloatElem: Rgb8Elem,
 {
     let batch = infer_rgb8_batch(
         model,
@@ -279,7 +332,7 @@ pub fn infer_rgb8_batch<B: Backend>(
     device: &B::Device,
 ) -> Option<Result<Rgb8Frames>>
 where
-    B::FloatElem: ElemToU8,
+    B::FloatElem: Rgb8Elem,
 {
     let batch = match infer_rgb8_batch_prepare(model, inputs, native_scale, scale, device) {
         Some(Ok(b)) => b,
@@ -299,7 +352,10 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     native_scale: u32,
     scale: u32,
     device: &B::Device,
-) -> Option<Result<BurnRgb8Batch<B>>> {
+) -> Option<Result<BurnRgb8Batch<B>>>
+where
+    B::FloatElem: Rgb8Elem,
+{
     if inputs.is_empty() {
         return Some(Err(Error::new("empty batch")));
     }
@@ -376,8 +432,10 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
     // cores pegged on the render worker).
     let mut gpu_frames = Vec::with_capacity(inputs.len());
     for inp in inputs {
-        let padded = crate::pad_to(inp, ph, pw);
-        match to_burn::<B>(&padded, device) {
+        // Fused pad + f16 cast + upload: writes the padded buffer in the
+        // backend's float element directly, skipping `pad_to`'s padded f32
+        // buffer, `to_burn`'s clone and the separate f32→f16 convert pass.
+        match pad_to_burn::<B>(inp, ph, pw, device) {
             Ok(t) => gpu_frames.push(t),
             Err(e) => return Some(Err(e)),
         }
@@ -547,6 +605,32 @@ impl ElemToU8 for f16 {
         (self.to_f32() + 0.5) as u8
     }
 }
+
+/// Convert an f32 into the backend's float element (f16 on burn/tch-f16, f32
+/// on tch-f32) without materializing a full f32 copy of the buffer.
+/// `half::f16` has no `From<f32>`, so like `ElemToU8` this routes each
+/// supported element through its own constructor (same rounding as burn's
+/// `TensorData::convert::<f16>`, which uses `f16::from_f32`).
+pub(crate) trait ElemFromF32 {
+    fn from_f32(v: f32) -> Self;
+}
+impl ElemFromF32 for f32 {
+    fn from_f32(v: f32) -> Self {
+        v
+    }
+}
+impl ElemFromF32 for f16 {
+    fn from_f32(v: f32) -> Self {
+        f16::from_f32(v)
+    }
+}
+
+/// The element capability the fused RGB8 path needs end-to-end: cast the f32
+/// CPU buffer to the backend element on upload and back to `u8` on readback.
+#[cfg(any(feature = "burn", feature = "tch"))]
+pub(crate) trait Rgb8Elem: ElemToU8 + ElemFromF32 + Copy {}
+#[cfg(any(feature = "burn", feature = "tch"))]
+impl<T: ElemToU8 + ElemFromF32 + Copy> Rgb8Elem for T {}
 
 /// Deferred readback of one fused batch: blocks on the GPU→CPU transfer, then
 /// converts to packed rgb24 on the CPU (same steps `infer_rgb8_batch` used).
@@ -721,7 +805,8 @@ pub fn infer_denoise<B: Backend>(
 
 #[cfg(all(test, feature = "burn"))]
 mod tests {
-    use super::{fused_peak_allocation, fused_peak_limit};
+    use super::{fused_peak_allocation, fused_peak_limit, pad_to_f16};
+    use burn::tensor::f16;
 
     /// The VRAM guard's ceiling: 1080p×4 is over it (rejected — matches the
     /// observed ~3.2 GB single-allocation OOM on RADV); the common x4/x2 fused
@@ -740,5 +825,24 @@ mod tests {
             fused_peak_limit(Some(4 * 1024 * 1024 * 1024)),
             2 * 1024 * 1024 * 1024
         );
+    }
+
+    /// The fused f16 upload is layout-identical to `pad_to` + cast — on-device
+    /// tile slicing must not change (bit-exact for f16, which uses `from_f32`).
+    #[test]
+    fn pad_to_f16_matches_pad_to() {
+        use crate::tensor::Tensor;
+        let h = 5usize;
+        let w = 7usize;
+        let data: Vec<f32> = (0..3 * h * w).map(|i| i as f32 * 0.5).collect();
+        let t = Tensor::new(vec![1, 3, h, w], data);
+        for (ph, pw) in [(5usize, 7usize), (8, 8), (12, 9)] {
+            let fused = pad_to_f16::<crate::BurnBackend<f16>>(&t, ph, pw);
+            let reference = crate::pad_to(&t, ph, pw).data;
+            assert_eq!(fused.len(), reference.len(), "len at {ph}x{pw}");
+            for (a, b) in fused.iter().zip(reference.iter()) {
+                assert_eq!(f32::from(*a), *b, "mismatch at {ph}x{pw}");
+            }
+        }
     }
 }
