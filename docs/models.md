@@ -119,6 +119,12 @@ Candidates per stack; each needs a clean burn port + permissive license before
   `SpanPlusDynamic_Light` checkpoint is not published under that name on
   HF/Phhofm, so the RVE-hosted copy stays **unverified → blocked** (2026-08-19).
   The SPAN arch (Apache-2.0, `hongyuanyu/SPAN`) stays adoptable via a clean port.
+- ShuffleCUGAN is **license-blocked**: the original `blesslus/ShuffleCUGAN`
+  repo is gone (404, unverifiable → blocked) and its commonly attributed
+  GPL-3.0 is copyleft (`gpl` in the license gate). The `sudo_shuffle_cugan`
+  weights were dropped 2026-08-18 as unclear/SUDO (CHANGELOG). The fast arch
+  is covered by `UpCunet2x_fast` (= ShuffleCugan's half-res pixel-unshuffle
+  UNet) via **fallin** (renarchi/Re-SISR, CC-BY-4.0), so no FPS lever is lost.
 - SPAN f16: intermediates fit f16 (no overflow), but a cubek-convolution f16 1×1
   conv bug (K=96 × N≥32768, `docs/upstream-issues.md` §6) degraded the 48ch
   checkpoints — HFA2k_LUDVAE worst (corr 0.57 vs torch), 2xHFA2kSPAN 0.82,
