@@ -8,6 +8,19 @@
 
 ## Unreleased
 
+- **perf: drop the fused-path coverage canvas + cache feather masks (2026-08-27)** —
+  the feather weights are a partition of unity, so the `covs` canvas is ≡1 and
+  the `acc / cov` readback division is a no-op. Dropping it removes one
+  full-tile add + `slice_assign` per tile, the cov re-sample, the cov readback
+  (half the readback volume) and one canvas channel (−25 % canvas VRAM); the
+  VRAM guard estimate drops, so 1080p×4 renders are no longer rejected.
+  Feather masks (≤9 distinct border classes) are cached per batch instead of
+  rebuilt + re-uploaded per tile. Output is unchanged (partition-of-unity
+  invariant, new `feather_is_partition_of_unity` test; real-model E2E passes).
+  Measured on RX 9070: 512.5 → ~503 ms (real-cugan-x2), 178 ms (fallin-soft,
+  ~noise) — the model forward dominates (>98 %), so GPU-side overhead cuts are
+  ~1 % here.
+
 - **fix: `bench_upscale_step` warm-up mutated `frames[0]` (2026-08-27)** — the
   warm-up ran `step.process` on `frames[0]`, which rewrites the frame to the
   upscaled 4K size, so the timed loop re-fed the 4K output and the fused VRAM

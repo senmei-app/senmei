@@ -20,6 +20,7 @@ use burn::tensor::{
     ops::{InterpolateMode, InterpolateOptions},
 };
 use burn_store::{BurnpackStore, ModuleSnapshot};
+use std::collections::HashMap;
 
 /// The loaded arch, generic over the backend (`BurnBackend<f16>` or
 /// `LibTorch<f32>`).
@@ -475,15 +476,20 @@ where
     // Accumulate tiles into one weighted canvas per frame on the device. We
     // sum rather than replace so the overlap is truly averaged: slice_assign
     // alone leaves the next tile's edge line visible at every seam. The
-    // intermediate view is scoped so the backend can write in place instead
-    // of copy-on-write. A single readback per frame at the end avoids the
-    // burn-fusion ordering panic (docs/burn-bugs.md Bug 1).
+    // feather weights are a partition of unity, so the coverage canvas
+    // (`acc / cov`) is ≡1 and drops out — we accumulate the weighted sum
+    // directly: one less canvas channel, one full-tile add + slice_assign per
+    // tile, and half the readback. The intermediate view is scoped so the
+    // backend can write in place instead of copy-on-write. A single readback
+    // per frame at the end avoids the burn-fusion ordering panic
+    // (docs/burn-bugs.md Bug 1).
     let mut accs: Vec<BurnTensor<B, 4>> = (0..n)
         .map(|_| BurnTensor::<B, 4>::zeros([1, c, acc_h, acc_w], device))
         .collect();
-    let mut covs: Vec<BurnTensor<B, 4>> = (0..n)
-        .map(|_| BurnTensor::<B, 4>::zeros([1, 1, acc_h, acc_w], device))
-        .collect();
+    // Feather masks depend only on the tile's border class (≤3 per axis), so
+    // cache them: ≤9 device tensors per batch instead of a rebuild + upload
+    // per tile (40 tiles @1080p → ~4× less CPU churn and PCIe).
+    let mut masks: HashMap<((bool, bool), (bool, bool)), BurnTensor<B, 4>> = HashMap::new();
     for (x, y) in grid {
         // Slice the tile region on-device (rows are contiguous, row stride pw;
         // `clone` is a cheap handle copy in burn, `slice` shares the device
@@ -512,18 +518,25 @@ where
         // Clamp before accumulating: out-of-range values (>1.0 at hard
         // edges, e.g. burnt-in subtitles) would wrap on the u8 cast below.
         let out = out.clamp(0.0, 1.0);
-        let wy = feather(oh, y > 0, y + tile < ph);
-        let wx = feather(ow, x > 0, x + tile < pw);
-        let mut wv = Vec::with_capacity(oh * ow);
-        for &wyy in &wy {
-            for &wxx in &wx {
-                wv.push(wyy * wxx);
+        let key = ((y > 0, y + tile < ph), (x > 0, x + tile < pw));
+        let wmask = match masks.entry(key) {
+            std::collections::hash_map::Entry::Occupied(e) => e.get().clone(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let wy = feather(oh, (key.0).0, (key.0).1);
+                let wx = feather(ow, (key.1).0, (key.1).1);
+                let mut wv = Vec::with_capacity(oh * ow);
+                for &wyy in &wy {
+                    for &wxx in &wx {
+                        wv.push(wyy * wxx);
+                    }
+                }
+                e.insert(BurnTensor::<B, 4>::from_data(
+                    TensorData::new(wv, [1, 1, oh, ow]).convert::<B::FloatElem>(),
+                    device,
+                ))
+                .clone()
             }
-        }
-        let wmask = BurnTensor::<B, 4>::from_data(
-            TensorData::new(wv, [1, 1, oh, ow]).convert::<B::FloatElem>(),
-            device,
-        );
+        };
         // slice_assign consumes the canvas, so swap a tiny placeholder out of
         // the Vec and put the updated canvas back (avoids a full-canvas COW).
         let placeholder = BurnTensor::<B, 4>::zeros([1, 1, 1, 1], device);
@@ -536,30 +549,19 @@ where
             };
             let prev = std::mem::replace(&mut accs[f], placeholder.clone());
             accs[f] = prev.slice_assign(region, sum);
-            let cregion = [0..1, 0..1, sy..sy + oh, sx..sx + ow];
-            let csum = {
-                let ccur = covs[f].clone().slice(cregion.clone());
-                ccur + wmask.clone()
-            };
-            let prev = std::mem::replace(&mut covs[f], placeholder.clone());
-            covs[f] = prev.slice_assign(cregion, csum);
         }
     }
-    // One-shot re-sample of the native-scale canvas to the requested scale
-    // (both the weighted sum and its coverage, so the readback division still
-    // yields the averaged frame).
+    // One-shot re-sample of the native-scale canvas to the requested scale.
     if resample {
         let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
-        for (acc, cov) in accs.iter_mut().zip(covs.iter_mut()) {
+        for acc in accs.iter_mut() {
             *acc = interpolate(acc.clone(), [out_h, out_w], opts.clone());
-            *cov = interpolate(cov.clone(), [out_h, out_w], opts.clone());
         }
     }
     let out_h_t = (h as f32 * scale_f).round() as usize;
     let out_w_t = (w as f32 * scale_f).round() as usize;
     Some(Ok(BurnRgb8Batch {
         accs,
-        covs,
         out_w,
         out_w_t,
         out_h_t,
@@ -580,12 +582,15 @@ fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
 }
 
 /// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
-/// Canvas (accs+covs) + readback, ×4 for ops/COW/autotune overhead — a
-/// ~3.2 GB single allocation was observed at 1080p×4 on RADV, independent of
-/// tile size and autotune level.
+/// Canvas + readback, ×4 for ops/COW/autotune overhead — a ~3.2 GB single
+/// allocation was observed at 1080p×4 on RADV, independent of tile size and
+/// autotune level.
 #[cfg(any(feature = "burn", feature = "tch"))]
 fn fused_peak_allocation(n: usize, out_h: usize, out_w: usize, c: usize) -> u64 {
-    let canvas = (n * out_h * out_w * (c + 1) * 2) as u64; // accs + covs (f16)
+    // accs only — the coverage canvas was dropped (feather weights are a
+    // partition of unity), halving the readback and removing one canvas
+    // channel.
+    let canvas = (n * out_h * out_w * c * 2) as u64; // accs (f16)
     let readback = (n * out_h * out_w * 3 * 4) as u64; // packed rgb24 f32
     (canvas + readback) * 4
 }
@@ -637,7 +642,6 @@ impl<T: ElemToU8 + ElemFromF32 + Copy> Rgb8Elem for T {}
 #[cfg(any(feature = "burn", feature = "tch"))]
 pub struct BurnRgb8Batch<B: Backend> {
     accs: Vec<BurnTensor<B, 4>>,
-    covs: Vec<BurnTensor<B, 4>>,
     out_w: usize,
     out_w_t: usize,
     out_h_t: usize,
@@ -650,8 +654,10 @@ where
 {
     fn resolve(self: Box<Self>) -> Result<Vec<(Vec<u8>, u32, u32)>> {
         let mut result = Vec::with_capacity(self.accs.len());
-        for (acc, cov) in self.accs.into_iter().zip(self.covs) {
-            let avg = (acc / cov).permute([0, 2, 3, 1]) * 255.0;
+        for acc in self.accs {
+            // The feather weights are a partition of unity, so the coverage
+            // canvas is ≡1 and the `acc / cov` division is dropped.
+            let avg = acc.permute([0, 2, 3, 1]) * 255.0;
             // Read back in the backend's own float elem and cast to u8 in
             // plain Rust: cubecl-wgpu already pools the staging buffers, so
             // the remaining per-frame cost is the CPU-side convert — reading
@@ -808,14 +814,16 @@ mod tests {
     use super::{fused_peak_allocation, fused_peak_limit, pad_to_f16};
     use burn::tensor::f16;
 
-    /// The VRAM guard's ceiling: 1080p×4 is over it (rejected — matches the
-    /// observed ~3.2 GB single-allocation OOM on RADV); the common x4/x2 fused
-    /// renders stay under it, and the cap scales down with total VRAM.
+    /// The VRAM guard's ceiling: a ~4K-class padded canvas is over it
+    /// (rejected); the common x4/x2 fused renders stay under it, and the cap
+    /// scales down with total VRAM. Dropping the coverage canvas (partition
+    /// of unity) brought the 1080p×4 estimate below the ceiling.
     #[test]
     fn fused_vram_guard_window() {
         const LIMIT: u64 = (2 * 1024 + 512) * 1024 * 1024;
-        assert!(fused_peak_allocation(1, 4480, 8320, 3) > LIMIT); // 1080p×4 crash zone
-        assert!(fused_peak_allocation(1, 4480, 6400, 3) <= LIMIT); // SD/720p×4 (~2.2 GiB)
+        assert!(fused_peak_allocation(1, 5120, 8320, 3) > LIMIT); // ~4K-class padded crash zone
+        assert!(fused_peak_allocation(1, 4480, 8320, 3) <= LIMIT); // 1080p×4, now under the cap
+        assert!(fused_peak_allocation(1, 4480, 6400, 3) <= LIMIT); // SD/720p×4 (~2.1 GiB)
         assert!(fused_peak_allocation(1, 2880, 5120, 3) <= LIMIT); // 720p×4
         assert!(fused_peak_allocation(1, 2240, 4160, 3) <= LIMIT); // 1080p×2
                                                                    // Adaptive: crash cap on big cards, half of total VRAM on small ones.
@@ -825,6 +833,57 @@ mod tests {
             fused_peak_limit(Some(4 * 1024 * 1024 * 1024)),
             2 * 1024 * 1024 * 1024
         );
+    }
+
+    /// The feather weights form a partition of unity: every canvas pixel's
+    /// total weight across covering tiles is exactly 1.0, which is the
+    /// invariant the fused path relies on to drop the coverage canvas.
+    #[test]
+    fn feather_is_partition_of_unity() {
+        let tile = 16usize;
+        let overlap = tile / 4;
+        let step = tile - overlap;
+        let h = 40usize;
+        let w = 52usize;
+        let num_y = (h.saturating_sub(tile)).div_ceil(step) + 1;
+        let num_x = (w.saturating_sub(tile)).div_ceil(step) + 1;
+        let ph = (num_y - 1) * step + tile;
+        let pw = (num_x - 1) * step + tile;
+        let ov = overlap;
+        let feather = |n: usize, low: bool, high: bool| -> Vec<f32> {
+            let mut w = vec![1.0f32; n];
+            let o = ov.min(n);
+            if low {
+                for k in 0..o {
+                    w[k] = (k as f32 + 1.0) / (ov as f32 + 1.0);
+                }
+            }
+            if high {
+                for k in 0..o {
+                    w[n - 1 - k] = (k as f32 + 1.0) / (ov as f32 + 1.0);
+                }
+            }
+            w
+        };
+        let mut cov = vec![0f32; ph * pw];
+        let mut ty = 0;
+        while ty + tile <= ph {
+            let mut tx = 0;
+            while tx + tile <= pw {
+                let wy = feather(tile, ty > 0, ty + tile < ph);
+                let wx = feather(tile, tx > 0, tx + tile < pw);
+                for yy in 0..tile {
+                    for xx in 0..tile {
+                        cov[(ty + yy) * pw + tx + xx] += wy[yy] * wx[xx];
+                    }
+                }
+                tx += step;
+            }
+            ty += step;
+        }
+        for (i, v) in cov.iter().enumerate() {
+            assert!((v - 1.0).abs() < 1e-5, "coverage at pixel {i} is {v}, not 1");
+        }
     }
 
     /// The fused f16 upload is layout-identical to `pad_to` + cast — on-device
