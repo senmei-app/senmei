@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **cleanup: move the benchmark out of `tests/` into `benches/` (2026-08-27)** —
+  `crates/senmei-pipeline/tests/bench.rs` (1074 lines) is a benchmark harness,
+  not a test — `cargo test -p senmei-pipeline` compiled it on every run. Now
+  `benches/bench.rs`; run via `cargo bench -p senmei-pipeline -- --ignored
+  --nocapture`.
+
 - **feat: add DIS arch + adopt 2× weights (2026-08-27)** — clean burn port of
   the Apache-2.0 `Kim2091/DIS` real-time SR arch (32 feat / 8–12
   FastResBlocks, PReLU no-BN → tileable + FP16-safe, PixelShuffle upsampler,

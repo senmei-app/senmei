@@ -1,5 +1,5 @@
 //! Real-GPU benchmarks for the selected upscaler at 1080p.
-//! Run one at a time: cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture
+//! Run one at a time: cargo bench -p senmei-pipeline -- --ignored --nocapture
 //! Model selectable via BENCH_MODEL (default: real-cugan-x2).
 //!
 //! `bench_upscaler_1080p_fullframe` measures the raw tiled `engine.infer`
@@ -296,7 +296,7 @@ fn bench_upscale_batch_dvd() {
         let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
         engine.load(&mref).unwrap();
         let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
-        let mut fb = frames.clone();
+        let fb = frames.clone();
         let mut warm = fb[..batch.min(fb.len())].to_vec();
         step.process_batch(&mut warm).unwrap(); // warm-up
         let t0 = Instant::now();
@@ -515,7 +515,7 @@ fn bench_upscaler_requested_scale_png() {
         None,
     )
     .unwrap();
-    let mut f = dec.next_frame().unwrap().expect("frame");
+    let f = dec.next_frame().unwrap().expect("frame");
     let mut engine = senmei_ml::engine_for_model(&mref, backend(), &dir).unwrap();
     engine.load(&mref).unwrap();
     // The fused RGB8 path rejects 4× (VRAM guard), so run tiled at the model's
@@ -568,7 +568,7 @@ fn bench_upscaler_requested_scale_png() {
 /// scale on the given DVD frames. `BENCH_FRAMES` = comma-separated PNG paths
 /// (default: the two frames in `models.bat/`). Measures the whole `Upscale`
 /// step (frame → tiled infer → RGB8 frame), the app's render path.
-/// Run: cargo test -p senmei-pipeline --release --test bench -- --ignored --nocapture bench_upscalers_real_frames
+/// Run: cargo bench -p senmei-pipeline -- --ignored --nocapture bench_upscalers_real_frames
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
 fn bench_upscalers_real_frames() {
