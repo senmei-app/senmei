@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: adopt Real-ESRGAN `animevideov3` (2026-08-27)** — the official XS
+  anime-video SRVGGNetCompact (num_feat 64 / num_conv 16 / x4, distinct PReLU
+  per layer) is registered + downloadable; same `SrvggNet` arch + `srvgg`
+  converter as animevideo-xs/general-x4v3, so no arch change (weights-only).
+  Torch-verified: mae 0.00043 f16, 53/53 tensors loaded. `models.md` backlog →
+  adopted.
+
 - **docs: archive the old benchmark sections in `benchmarks.md` (2026-08-27)** —
   the superseded 2026-08-17/18 engine/app sections (burn-Vulkan shipped path,
   full-app render pipeline, fallin-vs-real-cugan) move into the archive block

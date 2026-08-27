@@ -28,6 +28,7 @@ download URL + sha256).
 | Restoration | RealPLKSR | 4× NomosWebPhoto | 4 | RealPLKSR pixel-shuffle | CC-BY-4.0 | loadable (ONNX-verified mae 0.0007 f16; GroupNorm + pixel-shuffle tail, `dysample=false` variant) | `Phhofm/models` · `4xNomosWebPhoto_RealPLKSR` |
 | Restoration | Real-ESRGAN | animevideo x2/x4 | 2/4 | SRVGGNetCompact (num_conv 16, folded) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | Real-ESRGAN | general-x4v3 | 4 | SRVGGNetCompact (num_conv 32, folded) | BSD-3-Clause | loadable (tiny + fast, real scenes; torch mae 0.0004 f16) | `xinntao/Real-ESRGAN` v0.2.5.0 |
+| Restoration | Real-ESRGAN | animevideov3 | 4 | SRVGGNetCompact (num_conv 16, per-layer PReLU) | BSD-3-Clause | loadable (official XS anime-video model; torch mae 0.0004 f16) | `xinntao/Real-ESRGAN` v0.2.5.0 |
 | Restoration | Real-ESRGAN | x4plus-anime (6B) | 4 | RRDBNet (6 blocks) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
 | Restoration | ESRGAN | BSRGAN | 4 | RRDBNet (23 blocks) | MIT | loadable (torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
@@ -72,7 +73,6 @@ Candidates per stack; each needs a clean burn port + permissive license before
 | Denoise | IRCNN | MIT (KAIR) | maybe (denoise/deblur/deblock) |
 | Denoise | FBCNN | verify | maybe (DeJPEG overlap) |
 | Denoise | VRT / RVRT | verify · not in spandrel | no (temporal/transformer) |
-| Restoration | Real-ESRGAN animevideov3 | BSD-3 | adopt (SRVGGNetCompact) |
 | Restoration | BSRNet | MIT (KAIR) | maybe (BSRGAN adopted; port open) |
 | Restoration | IMDN x4 | MIT (KAIR) | maybe (lightweight) |
 | Restoration | SPAN remaining (ModernSpanimation V1.5/V2, `DeH264_SPAN`; Phhofm `2xBHI_small_span_pretrain`) | Apache-2.0 arch · CC-BY-4.0/MIT weights | adopt (weights-only, arch exists) — NomosUni multijpg/_ldl, ModernSpanimation V1 done |
@@ -89,12 +89,14 @@ Candidates per stack; each needs a clean burn port + permissive license before
 - SRVGGNetCompact (Real-ESRGAN) has two folded layouts that share the
   `SrvggNet` arch and differ in depth + PReLU sharing: animevideo-xs
   (num_conv 16, ONE shared PReLU — every `body.{odd}.weight` is identical) and
-  general-x4v3 (num_conv 32, a distinct PReLU per layer). The arch holds one
-  `Prelu` per mid conv; the converter remaps `body.{2k+1}.weight` →
+  general-x4v3 (num_conv 32, a distinct PReLU per layer); animevideov3 is the
+  16-conv variant with a distinct PReLU per layer (general layout). The arch
+  holds one `Prelu` per mid conv; the converter remaps `body.{2k+1}.weight` →
   `prelu.{k}.weight` (shared checkpoints fill every entry with the same value)
   BEFORE the conv remap (that order matters — the conv remap would otherwise
   produce keys the PReLU patterns would steal). `download_model` passes
-  `num_conv` for `srvgg` archs. Torch mae on random 32×32: 0.0004 (general-x4v3).
+  `num_conv` for `srvgg` archs. Torch mae on random 32×32: 0.0004
+  (general-x4v3, animevideov3).
 
 - SAFMN-L Real (Apache-2.0, `sunny2109/SAFMN` v0.1.0): the `SAFMN_L_Real_LSDIR_*`
   checkpoints are the official "Real" (LSDIR-trained) SAFMN-L weights

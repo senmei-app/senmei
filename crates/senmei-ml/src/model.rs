@@ -212,7 +212,7 @@ mod tests {
         let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
         let mut registry = Registry::new();
         registry.load_dir(path).unwrap();
-        assert_eq!(registry.models().len(), 45);
+        assert_eq!(registry.models().len(), 46);
         assert_eq!(registry.models()[0].id, "fallin-soft");
         assert!(registry.models()[0].loadable);
         assert_eq!(registry.models()[1].id, "fallin-strong");
@@ -453,6 +453,23 @@ mod tests {
             assert!(registry.models()[i].loadable);
             assert_eq!(registry.models()[i].license.as_deref(), Some("Apache-2.0"));
         }
+        assert_eq!(registry.models()[45].id, "realesrgan-animevideov3");
+        assert!(matches!(registry.models()[45].kind, ModelKind::Upscale));
+        assert_eq!(registry.models()[45].scale, 4);
+        assert_eq!(registry.models()[45].arch, "srvgg");
+        assert!(registry.models()[45].loadable);
+        assert_eq!(
+            registry.models()[45].license.as_deref(),
+            Some("BSD-3-Clause")
+        );
+        assert_eq!(registry.models()[45].sha256.as_deref().unwrap().len(), 64);
+        assert_eq!(
+            registry.models()[45]
+                .metadata
+                .get("num_conv")
+                .and_then(|v| v.as_u64()),
+            Some(16)
+        );
         assert!(matches!(registry.models()[17].kind, ModelKind::Interpolate));
         assert_eq!(registry.models()[17].arch, "ifrnet");
         assert!(registry.models()[17].loadable);

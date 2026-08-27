@@ -919,5 +919,26 @@
    "half": true,
    "note": "Real-CUGAN-Pro 2x denoise3x (official bilibili 2022-05, Apache-2.0); same UpCunet2x arch as real-cugan-x2, flat keys + pro=int"
   }
+ },
+ {
+  "id": "realesrgan-animevideov3",
+  "kind": "upscale",
+  "scale": 4,
+  "arch": "srvgg",
+  "family": "real-esrgan",
+  "weights": [
+   "realesr-animevideov3.f16.bpk"
+  ],
+  "license": "BSD-3-Clause",
+  "source_url": "https://github.com/xinntao/Real-ESRGAN",
+  "download_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth",
+  "sha256": "b8a8376811077954d82ca3fcf476f1ac3da3e8a68a4f4d71363008000a18b75d",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_conv": 16,
+   "note": "Real-ESRGAN animevideov3 (BSD-3-Clause) \u2014 official XS anime-video SRVGGNetCompact (num_feat 64 / num_conv 16 / x4, distinct PReLU per layer); tiny + fast; torch-verified mae 0.0004 f16"
+  }
  }
 ]
