@@ -111,7 +111,6 @@ pub struct ProjectSettings {
     pub output_dir: Option<String>,
 }
 
-
 fn projects_path() -> PathBuf {
     data_dir().join("projects.json")
 }
@@ -127,10 +126,7 @@ pub fn load_project_settings(project_dir: &Path) -> ProjectSettings {
         .unwrap_or_default()
 }
 
-pub fn save_project_settings(
-    project_dir: &Path,
-    settings: &ProjectSettings,
-) -> Result<(), String> {
+pub fn save_project_settings(project_dir: &Path, settings: &ProjectSettings) -> Result<(), String> {
     let path = project_settings_path(project_dir);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

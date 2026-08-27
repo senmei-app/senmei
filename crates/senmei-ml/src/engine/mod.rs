@@ -60,11 +60,7 @@ pub trait InferenceEngine: Send + Sync {
     /// Optional fused multi-frame path: `n` same-shaped inputs, one RGB8
     /// result per input, bit-identical to `n` separate `infer_rgb8` calls.
     /// Returns `None` to fall back to per-frame `infer_rgb8`.
-    fn infer_rgb8_batch(
-        &mut self,
-        inputs: &[Tensor],
-        scale: u32,
-    ) -> Option<Result<Rgb8Frames>> {
+    fn infer_rgb8_batch(&mut self, inputs: &[Tensor], scale: u32) -> Option<Result<Rgb8Frames>> {
         let _ = (inputs, scale);
         None
     }

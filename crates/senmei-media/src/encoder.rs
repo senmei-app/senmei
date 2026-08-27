@@ -23,7 +23,11 @@ pub struct Encoder {
 
 /// Read a preset env var; the default stays a literal (no per-call leak), only
 /// a set override is leaked once.
-fn preset_env(cache: &'static OnceLock<&'static str>, var: &str, default: &'static str) -> &'static str {
+fn preset_env(
+    cache: &'static OnceLock<&'static str>,
+    var: &str,
+    default: &'static str,
+) -> &'static str {
     *cache.get_or_init(|| {
         std::env::var(var)
             .ok()

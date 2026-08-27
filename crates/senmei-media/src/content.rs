@@ -60,7 +60,10 @@ fn frame_stats(ffmpeg: &Path, input: &Path, at_ms: f64) -> Option<(f64, f64)> {
         .ok()?;
     let mut buf = Vec::new();
     // Reap the child — without wait() every probe leaves a zombie behind.
-    let read = child.stdout.take().and_then(|mut o| o.read_to_end(&mut buf).ok());
+    let read = child
+        .stdout
+        .take()
+        .and_then(|mut o| o.read_to_end(&mut buf).ok());
     let _ = child.wait();
     read?;
     let w = 64usize;

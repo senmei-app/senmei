@@ -38,7 +38,9 @@ impl<B: Backend> FastResBlock<B> {
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        self.conv2.forward(self.act.forward(self.conv1.forward(x.clone()))) + x
+        self.conv2
+            .forward(self.act.forward(self.conv1.forward(x.clone())))
+            + x
     }
 }
 
@@ -60,7 +62,8 @@ impl<B: Backend> PixelShuffleUpsampler<B> {
     }
 
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        self.act.forward(pixel_shuffle(self.conv.forward(x), self.scale))
+        self.act
+            .forward(pixel_shuffle(self.conv.forward(x), self.scale))
     }
 }
 
@@ -84,11 +87,24 @@ impl<B: Backend> DisNet<B> {
         match scale {
             1 => {}
             2 | 3 => upsampler.push(PixelShuffleUpsampler::new(
-                num_features, num_features, scale, device,
+                num_features,
+                num_features,
+                scale,
+                device,
             )),
             4 => {
-                upsampler.push(PixelShuffleUpsampler::new(num_features, num_features, 2, device));
-                upsampler.push(PixelShuffleUpsampler::new(num_features, num_features, 2, device));
+                upsampler.push(PixelShuffleUpsampler::new(
+                    num_features,
+                    num_features,
+                    2,
+                    device,
+                ));
+                upsampler.push(PixelShuffleUpsampler::new(
+                    num_features,
+                    num_features,
+                    2,
+                    device,
+                ));
             }
             other => panic!("unsupported DIS scale {other}"),
         }

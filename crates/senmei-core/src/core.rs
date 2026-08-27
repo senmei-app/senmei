@@ -573,11 +573,17 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
         }
     }
     let mut ids: Vec<&str> = Vec::new();
-    for id in [config.model_id.as_deref(), config.interp_model.as_deref()].into_iter().flatten() {
+    for id in [config.model_id.as_deref(), config.interp_model.as_deref()]
+        .into_iter()
+        .flatten()
+    {
         ids.push(id);
     }
     if let Some(f) = config.filter.as_ref() {
-        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()].into_iter().flatten() {
+        for id in [f.denoise_model_id.as_deref(), f.deblur_model_id.as_deref()]
+            .into_iter()
+            .flatten()
+        {
             ids.push(id);
         }
     }

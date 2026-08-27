@@ -488,8 +488,7 @@ pub fn convert_safetensors_to_bpk(
             let remapper = KeyRemapper::from_patterns(dis_remap_patterns())
                 .map_err(|e| Error::new(e.to_string()))?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
-            let mut m =
-                DisNet::<BurnBackend>::new(32, num_block as usize, scale as usize, &device);
+            let mut m = DisNet::<BurnBackend>::new(32, num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)

@@ -817,7 +817,11 @@ fn add_noise(frame: &senmei_media::Frame, sigma: f32) -> senmei_media::Frame {
     let data = frame
         .data
         .iter()
-        .map(|&v| (v as f32 + gauss(&mut rng) * sigma * 255.0).round().clamp(0.0, 255.0) as u8)
+        .map(|&v| {
+            (v as f32 + gauss(&mut rng) * sigma * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8
+        })
         .collect();
     senmei_media::Frame {
         width: frame.width,
@@ -934,7 +938,7 @@ fn bench_aux_stacks() {
         frames.push(f);
     }
     let opts = InferOptions { tile_size: None }; // interp is full-frame
-    // No-op baseline: linear blend of the neighbours (same for every model).
+                                                 // No-op baseline: linear blend of the neighbours (same for every model).
     let mut bps = 0.0f64;
     let mut bss = 0.0f64;
     let mut bn = 0u64;
@@ -1017,23 +1021,30 @@ fn bench_aux_stacks() {
         eprintln!("  (real DVD frame missing; using a testsrc frame for denoise/deblur)");
         frames[0].clone()
     };
-    let denoise_opts = InferOptions { tile_size: Some(640) };
+    let denoise_opts = InferOptions {
+        tile_size: Some(640),
+    };
 
     println!("\n==== Denoise (real frame + Gaussian noise σ=0.1) ====");
     let noisy = add_noise(&clean, 0.1);
     let bps = psnr_db(&noisy.data, &clean.data);
     let bss = ssim_avg(&noisy, &clean);
     println!("| (noisy input, no model) | — | — | {bps:.1} | {bss:.3} |");
-    for id in ["drunet-color", "dncnn-color", "ffdnet-color", "scunet-denoise"] {
+    for id in [
+        "drunet-color",
+        "dncnn-color",
+        "ffdnet-color",
+        "scunet-denoise",
+    ] {
         let Some(mut engine) = load_aux_engine(id) else {
             continue;
         };
         let noisy_t = senmei_pipeline::frame_to_tensor(&noisy);
-        let _ = senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts)
-            .unwrap(); // warm-up
+        let _ =
+            senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts).unwrap(); // warm-up
         let t0 = Instant::now();
-        let out = senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts)
-            .unwrap();
+        let out =
+            senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts).unwrap();
         let dt = t0.elapsed().as_secs_f64();
         let den = senmei_pipeline::tensor_to_frame(&out, clean.width, clean.height);
         println!(

@@ -61,10 +61,34 @@ fn media_path(p: &std::path::Path) -> bool {
         && p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
             matches!(
                 e,
-                "mp4" | "m4v" | "mkv" | "webm" | "mov" | "avi" | "ts" | "m2ts" | "mts"
-                    | "flv" | "wmv" | "mpg" | "mpeg" | "vob" | "3gp" | "f4v" | "ogv"
-                    | "mp3" | "flac" | "ogg" | "oga" | "opus" | "wav" | "aac" | "m4a"
-                    | "wma" | "ac3" | "ape"
+                "mp4"
+                    | "m4v"
+                    | "mkv"
+                    | "webm"
+                    | "mov"
+                    | "avi"
+                    | "ts"
+                    | "m2ts"
+                    | "mts"
+                    | "flv"
+                    | "wmv"
+                    | "mpg"
+                    | "mpeg"
+                    | "vob"
+                    | "3gp"
+                    | "f4v"
+                    | "ogv"
+                    | "mp3"
+                    | "flac"
+                    | "ogg"
+                    | "oga"
+                    | "opus"
+                    | "wav"
+                    | "aac"
+                    | "m4a"
+                    | "wma"
+                    | "ac3"
+                    | "ape"
             )
         })
 }
@@ -143,7 +167,10 @@ struct StreamParams {
 /// Serve a file with Range support (206) for the browser `<video>`; unsupported
 /// codecs fall back to FFmpeg frames.
 async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Body> {
-    match tower_http::services::ServeFile::new(path).oneshot(req).await {
+    match tower_http::services::ServeFile::new(path)
+        .oneshot(req)
+        .await
+    {
         Ok(resp) => resp.map(axum::body::Body::new),
         Err(_) => not_found(),
     }
@@ -280,10 +307,8 @@ async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
 async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        match tokio::task::spawn_blocking(move || {
-            core::download_model(&p.model_id, |_, _| {})
-        })
-        .await
+        match tokio::task::spawn_blocking(move || core::download_model(&p.model_id, |_, _| {}))
+            .await
         {
             Ok(Ok(path)) => json_ok(&serde_json::json!({ "bpk": path })),
             Ok(Err(e)) => json_err(StatusCode::BAD_REQUEST, e),

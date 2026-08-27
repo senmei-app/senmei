@@ -69,7 +69,9 @@ pub(crate) use burn_wgpu::Vulkan as BurnBackend;
 #[cfg(feature = "burn")]
 pub use burn::BurnEngine;
 #[cfg(feature = "burn")]
-pub use convert::{convert_onnx_to_bpk, convert_pth_to_bpk, convert_safetensors_to_bpk, ConvertOptions};
+pub use convert::{
+    convert_onnx_to_bpk, convert_pth_to_bpk, convert_safetensors_to_bpk, ConvertOptions,
+};
 pub use engine::{
     backend_info, engine_for_model, infer_denoise_tiled, infer_tiled, BackendInfo, EngineBackend,
     EngineCaps, InferOptions, InferenceEngine, Rgb8Batch,

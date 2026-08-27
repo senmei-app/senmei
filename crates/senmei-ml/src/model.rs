@@ -475,10 +475,7 @@ mod tests {
         assert_eq!(registry.models()[46].scale, 2);
         assert_eq!(registry.models()[46].arch, "dis");
         assert!(registry.models()[46].loadable);
-        assert_eq!(
-            registry.models()[46].license.as_deref(),
-            Some("Apache-2.0")
-        );
+        assert_eq!(registry.models()[46].license.as_deref(), Some("Apache-2.0"));
         assert_eq!(registry.models()[46].sha256.as_deref().unwrap().len(), 64);
         assert_eq!(
             registry.models()[46]

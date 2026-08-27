@@ -899,7 +899,10 @@ mod tests {
             ty += step;
         }
         for (i, v) in cov.iter().enumerate() {
-            assert!((v - 1.0).abs() < 1e-5, "coverage at pixel {i} is {v}, not 1");
+            assert!(
+                (v - 1.0).abs() < 1e-5,
+                "coverage at pixel {i} is {v}, not 1"
+            );
         }
     }
 
