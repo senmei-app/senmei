@@ -397,3 +397,42 @@ Stable in these runs (no hang); the 2026-08-22 RDNA4 mode1-reset risk in the
 tch/ROCm path still stands (see engine-decision notes). Runtime: local
 `SENMEI_LIBTORCH_ENV` + ROCm-7.14 nightly `LIBTORCH` venv + rock dir
 `LD_LIBRARY_PATH`. `engine_for_model(Auto)` still prefers tch when loadable.
+
+### Aux-stack sweep — interp / denoise / deblur (2026-08-27)
+
+`bench_aux_stacks` (new in `bench.rs`): throughput + quality (PSNR dB / SSIM)
+against a known reference per stack, plus the no-op baseline. Burn-Vulkan fp16,
+RX 9070. Inputs: testsrc2 720×576 (interp, dropped middle of a triplet vs the
+real middle) and a real DVD frame (denoise/deblur, synthetic degradation).
+
+**Interpolation** (factor 2):
+
+| path | ms | FPS | PSNR | SSIM |
+|---|---|---|---|---|
+| linear blend (no model) | — | — | 21.3 | 0.929 |
+| rife-v4.6 | 13.6 | 73.5 | 26.2 | 0.925 |
+| ifrnet-vimeo90k | 23.8 | 42.0 | 28.9 | 0.943 |
+| ifrnet-gopro | 23.4 | 42.7 | 17.3 | 0.754 |
+
+Caveat: testsrc2 is a synthetic high-frequency worst case for flow models —
+RIFE under-scores here (SSIM ≈ blend despite +5 dB PSNR) but is 1.7× faster
+than IFRNet; IFRNet-Vimeo90K is the quality pick. Re-check on real motion
+before trusting RIFE's low score (and IFRNet-GoPro is blur-trained — worst on
+this content).
+
+**Denoise** (real DVD frame + Gaussian σ=0.1):
+
+| path | ms | FPS | PSNR | SSIM |
+|---|---|---|---|---|
+| noisy (no model) | — | — | 20.2 | 0.204 |
+| drunet-color | 58.7 | 17.1 | 37.9 | 0.955 |
+| dncnn-color | 23.6 | 42.3 | 36.6 | 0.940 |
+| ffdnet-color | 10.9 | 91.6 | 37.1 | 0.948 |
+
+**FFDNet is the denoise pick**: ~5× faster than DRUNet at ~equal quality
+(37.1 vs 37.9 dB, 0.948 vs 0.955 SSIM); all beat the noisy baseline by
+~17 dB. SCUNet skipped (weights not in `models/`).
+
+**Deblur**: NAFNet-GoPro-width32 weights not downloaded → skipped; blurred
+baseline 40.3 dB / 0.975 — the σ≈1.5 blur is mild, a stronger blur would
+differentiate the model better.

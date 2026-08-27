@@ -712,3 +712,363 @@ fn bench_upscalers_real_frames() {
     println!("  * fused RGB8 path exceeds the VRAM guard at this resolution; raw tiled GPU infer");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- Aux-stack benchmark (interp / denoise / deblur) ----
+
+/// PSNR (dB) between two packed rgb24 buffers of the same length.
+fn psnr_db(a: &[u8], b: &[u8]) -> f64 {
+    assert_eq!(a.len(), b.len(), "psnr: size mismatch");
+    let n = a.len() as f64;
+    let mse = a
+        .iter()
+        .zip(b)
+        .map(|(&x, &y)| {
+            let d = x as f64 - y as f64;
+            d * d
+        })
+        .sum::<f64>()
+        / n;
+    if mse < 1e-12 {
+        99.0
+    } else {
+        10.0 * (255.0f64 * 255.0 / mse).log10()
+    }
+}
+
+/// Mean SSIM over 8×8 windows (RGB channels averaged) between two rgb24 frames.
+fn ssim_avg(a: &senmei_media::Frame, b: &senmei_media::Frame) -> f64 {
+    debug_assert_eq!((a.width, a.height), (b.width, b.height));
+    let w = a.width as usize;
+    let h = a.height as usize;
+    const K1: f64 = 0.01;
+    const K2: f64 = 0.03;
+    const C1: f64 = (K1 * 255.0) * (K1 * 255.0);
+    const C2: f64 = (K2 * 255.0) * (K2 * 255.0);
+    const WIN: usize = 8;
+    let n = (WIN * WIN) as f64;
+    let mut acc = 0.0f64;
+    let mut count = 0u64;
+    for c in 0..3 {
+        let mut yy = 0;
+        while yy + WIN <= h {
+            let mut xx = 0;
+            while xx + WIN <= w {
+                let (mut ma, mut mb) = (0.0f64, 0.0f64);
+                for y in yy..yy + WIN {
+                    for x in xx..xx + WIN {
+                        let p = (y * w + x) * 3 + c;
+                        ma += a.data[p] as f64;
+                        mb += b.data[p] as f64;
+                    }
+                }
+                ma /= n;
+                mb /= n;
+                let (mut va, mut vb, mut cov) = (0.0f64, 0.0f64, 0.0f64);
+                for y in yy..yy + WIN {
+                    for x in xx..xx + WIN {
+                        let p = (y * w + x) * 3 + c;
+                        let da = a.data[p] as f64 - ma;
+                        let db = b.data[p] as f64 - mb;
+                        va += da * da;
+                        vb += db * db;
+                        cov += da * db;
+                    }
+                }
+                va /= n;
+                vb /= n;
+                cov /= n;
+                acc += ((2.0 * ma * mb + C1) * (2.0 * cov + C2))
+                    / ((ma * ma + mb * mb + C1) * (va + vb + C2));
+                count += 1;
+                xx += WIN;
+            }
+            yy += WIN;
+        }
+    }
+    acc / count as f64
+}
+
+/// Deterministic xorshift64 — seeded so noise/blur are reproducible.
+struct XorShift(u64);
+impl XorShift {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+    fn unit(&mut self) -> f32 {
+        (self.next() >> 40) as f32 / (1u64 << 24) as f32
+    }
+}
+
+/// Box–Muller Gaussian (unit variance).
+fn gauss(rng: &mut XorShift) -> f32 {
+    let u1 = rng.unit().max(1e-9);
+    let u2 = rng.unit();
+    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos()
+}
+
+/// Add zero-mean Gaussian noise with std `sigma` (in 0..1) to a frame.
+fn add_noise(frame: &senmei_media::Frame, sigma: f32) -> senmei_media::Frame {
+    let mut rng = XorShift(0x9E37_79B9_7F4A_7C15);
+    let data = frame
+        .data
+        .iter()
+        .map(|&v| (v as f32 + gauss(&mut rng) * sigma * 255.0).round().clamp(0.0, 255.0) as u8)
+        .collect();
+    senmei_media::Frame {
+        width: frame.width,
+        height: frame.height,
+        data,
+    }
+}
+
+/// Separable 5-tap Gaussian blur (σ≈1.5) on a frame.
+fn gaussian_blur(frame: &senmei_media::Frame) -> senmei_media::Frame {
+    const K: [f32; 5] = [0.06136, 0.24477, 0.38774, 0.24477, 0.06136];
+    let w = frame.width as usize;
+    let h = frame.height as usize;
+    let mut tmp = vec![0u8; frame.data.len()];
+    let mut out = vec![0u8; frame.data.len()];
+    for y in 0..h {
+        for x in 0..w {
+            for c in 0..3 {
+                let mut acc = 0.0f32;
+                for (k, kw) in K.iter().enumerate() {
+                    let xx = (x as isize + k as isize - 2).clamp(0, w as isize - 1) as usize;
+                    acc += kw * frame.data[(y * w + xx) * 3 + c] as f32;
+                }
+                tmp[(y * w + x) * 3 + c] = acc.round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+    for y in 0..h {
+        for x in 0..w {
+            for c in 0..3 {
+                let mut acc = 0.0f32;
+                for (k, kw) in K.iter().enumerate() {
+                    let yy = (y as isize + k as isize - 2).clamp(0, h as isize - 1) as usize;
+                    acc += kw * tmp[(yy * w + x) * 3 + c] as f32;
+                }
+                out[(y * w + x) * 3 + c] = acc.round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+    senmei_media::Frame {
+        width: frame.width,
+        height: frame.height,
+        data: out,
+    }
+}
+
+/// Load an aux-stack engine; `None` (with a note) when the weights are missing.
+fn load_aux_engine(model_id: &str) -> Option<Box<dyn senmei_ml::InferenceEngine>> {
+    let models_dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../models"));
+    let mut registry = senmei_ml::Registry::new();
+    registry.load_dir(&models_dir).ok()?;
+    let mref = registry.resolve(model_id, &models_dir)?;
+    if !models_dir.join(&mref.path).is_file() {
+        eprintln!(
+            "  (skip {model_id}: weights not downloaded — {})",
+            mref.path.display()
+        );
+        return None;
+    }
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).ok()?;
+    engine.load(&mref).ok()?;
+    Some(engine)
+}
+
+/// Aux-stack sweep: interpolation / denoise / deblur throughput + quality.
+///
+/// Every stack gets a quantitative quality score against a known reference
+/// (PSNR dB + SSIM) plus the trivial no-op baseline it must beat:
+/// - interp: drop the middle of a real triplet, interpolate it from its
+///   neighbours, compare vs the real middle (baseline = linear blend);
+/// - denoise: add Gaussian noise (σ=0.1) to a real frame, denoise, compare vs
+///   clean (baseline = noisy input);
+/// - deblur: Gaussian-blur a real frame, deblur, compare vs clean
+///   (baseline = blurred input).
+#[test]
+#[ignore = "benchmark: requires Vulkan + aux model bpks + ffmpeg"]
+fn bench_aux_stacks() {
+    let dir = std::env::temp_dir().join("senmei-bench-aux");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ffmpeg = senmei_media::resolve(&dir);
+
+    // --- Interpolation: consecutive testsrc2 frames (smooth motion) ---
+    println!("\n==== Interpolation (720x576, factor 2, dropped-middle vs real) ====");
+    let clip = dir.join("interp.mp4");
+    let ok = std::process::Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=2:size=720x576:rate=24",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "mpeg4",
+        ])
+        .arg(&clip)
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok, "failed to generate interp input");
+    let mut dec = senmei_media::Decoder::open_with_range(
+        &ffmpeg,
+        &clip,
+        0,
+        None,
+        senmei_media::Tonemap::Auto,
+        None,
+    )
+    .unwrap();
+    let mut frames = Vec::new();
+    while let Some(f) = dec.next_frame().unwrap() {
+        frames.push(f);
+    }
+    let opts = InferOptions { tile_size: None }; // interp is full-frame
+    // No-op baseline: linear blend of the neighbours (same for every model).
+    let mut bps = 0.0f64;
+    let mut bss = 0.0f64;
+    let mut bn = 0u64;
+    let mut i = 0;
+    while i + 2 < frames.len() {
+        let a_t = senmei_pipeline::frame_to_tensor(&frames[i]);
+        let b_t = senmei_pipeline::frame_to_tensor(&frames[i + 2]);
+        let real = &frames[i + 1];
+        let bl = senmei_pipeline::tensor_to_frame(
+            &senmei_ml::blend(&a_t, &b_t, 0.5),
+            real.width,
+            real.height,
+        );
+        bps += psnr_db(&bl.data, &real.data);
+        bss += ssim_avg(&bl, real);
+        bn += 1;
+        i += 2;
+    }
+    println!(
+        "| (linear blend, no model) | — | — | {:.1} | {:.3} |",
+        bps / bn as f64,
+        bss / bn as f64
+    );
+    for id in ["rife-v4.6", "ifrnet-vimeo90k", "ifrnet-gopro"] {
+        let Some(mut engine) = load_aux_engine(id) else {
+            continue;
+        };
+        let mut total = 0.0f64;
+        let (mut ps, mut ss) = (0.0f64, 0.0f64);
+        let mut n = 0u64;
+        let mut i = 0;
+        let mut first = true;
+        while i + 2 < frames.len() {
+            let a_t = senmei_pipeline::frame_to_tensor(&frames[i]);
+            let b_t = senmei_pipeline::frame_to_tensor(&frames[i + 2]);
+            let real = &frames[i + 1];
+            let t0 = Instant::now();
+            let out = engine
+                .infer_interp(&a_t, &b_t, 0.5, &opts)
+                .expect("model has no interp path")
+                .unwrap();
+            let dt = t0.elapsed().as_secs_f64();
+            let mid = senmei_pipeline::tensor_to_frame(&out, real.width, real.height);
+            if first {
+                first = false; // warm-up (autotune / first-kernel)
+            } else {
+                total += dt;
+                n += 1;
+                ps += psnr_db(&mid.data, &real.data);
+                ss += ssim_avg(&mid, real);
+            }
+            i += 2;
+        }
+        println!(
+            "| {id} | {:.1} ms | {:.1} FPS | {:.1} | {:.3} |",
+            total * 1000.0 / n as f64,
+            n as f64 / total,
+            ps / n as f64,
+            ss / n as f64
+        );
+    }
+
+    // --- Denoise / Deblur: real DVD frame + synthetic degradation ---
+    let real_frame = std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../models.bat/vlcsnap-2026-08-24-20h04m58s914.png"
+    ));
+    let clean = if real_frame.is_file() {
+        let mut dec = senmei_media::Decoder::open_with_range(
+            &ffmpeg,
+            &real_frame,
+            0,
+            None,
+            senmei_media::Tonemap::Auto,
+            None,
+        )
+        .unwrap();
+        dec.next_frame().unwrap().expect("decode real frame")
+    } else {
+        eprintln!("  (real DVD frame missing; using a testsrc frame for denoise/deblur)");
+        frames[0].clone()
+    };
+    let denoise_opts = InferOptions { tile_size: Some(640) };
+
+    println!("\n==== Denoise (real frame + Gaussian noise σ=0.1) ====");
+    let noisy = add_noise(&clean, 0.1);
+    let bps = psnr_db(&noisy.data, &clean.data);
+    let bss = ssim_avg(&noisy, &clean);
+    println!("| (noisy input, no model) | — | — | {bps:.1} | {bss:.3} |");
+    for id in ["drunet-color", "dncnn-color", "ffdnet-color", "scunet-denoise"] {
+        let Some(mut engine) = load_aux_engine(id) else {
+            continue;
+        };
+        let noisy_t = senmei_pipeline::frame_to_tensor(&noisy);
+        let _ = senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts)
+            .unwrap(); // warm-up
+        let t0 = Instant::now();
+        let out = senmei_ml::infer_denoise_tiled(engine.as_mut(), &noisy_t, 0.1, &denoise_opts)
+            .unwrap();
+        let dt = t0.elapsed().as_secs_f64();
+        let den = senmei_pipeline::tensor_to_frame(&out, clean.width, clean.height);
+        println!(
+            "| {id} | {:.1} ms | {:.1} FPS | {:.1} | {:.3} |",
+            dt * 1000.0,
+            1.0 / dt,
+            psnr_db(&den.data, &clean.data),
+            ssim_avg(&den, &clean)
+        );
+    }
+
+    println!("\n==== Deblur (real frame + Gaussian blur) ====");
+    let blurred = gaussian_blur(&clean);
+    let bps = psnr_db(&blurred.data, &clean.data);
+    let bss = ssim_avg(&blurred, &clean);
+    println!("| (blurred input, no model) | — | — | {bps:.1} | {bss:.3} |");
+    for id in ["nafnet-gopro-width32"] {
+        let Some(mut engine) = load_aux_engine(id) else {
+            continue;
+        };
+        let blurred_t = senmei_pipeline::frame_to_tensor(&blurred);
+        let full = InferOptions { tile_size: None }; // UNet: full-frame, no tiling
+        let _ = senmei_ml::infer_tiled(engine.as_mut(), &blurred_t, &full).unwrap(); // warm-up
+        let t0 = Instant::now();
+        let out = senmei_ml::infer_tiled(engine.as_mut(), &blurred_t, &full).unwrap();
+        let dt = t0.elapsed().as_secs_f64();
+        let deb = senmei_pipeline::tensor_to_frame(&out, clean.width, clean.height);
+        println!(
+            "| {id} | {:.1} ms | {:.1} FPS | {:.1} | {:.3} |",
+            dt * 1000.0,
+            1.0 / dt,
+            psnr_db(&deb.data, &clean.data),
+            ssim_avg(&deb, &clean)
+        );
+    }
+    println!("==========================================================");
+    let _ = std::fs::remove_dir_all(&dir);
+}
