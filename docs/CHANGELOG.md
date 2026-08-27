@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **docs: archive the old benchmark sections in `benchmarks.md` (2026-08-27)** —
+  the superseded 2026-08-17/18 engine/app sections (burn-Vulkan shipped path,
+  full-app render pipeline, fallin-vs-real-cugan) move into the archive block
+  as one-liners; the still-live tiling/autotune design constraints and all
+  current findings stay top-level. ~55 more lines cut.
+
 - **docs: simplify `benchmarks.md` (2026-08-27)** — the dropped/superseded
   backend sections (ncnn, candle, burn-ROCm, torch-ROCm 2026-08-16/17) are
   collapsed into a compact `## Backend history (archive)` block; all live

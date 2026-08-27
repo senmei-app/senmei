@@ -36,18 +36,6 @@ Target device = the actual dev machine, not a synthetic proxy.
 | Vulkan | Mesa/RADV |
 | Rust | 1.96.1 |
 
-## Shipped path — burn-Vulkan (2026-08-17)
-
-Real models (`upcunet_v3`, `sudo_shuffle_cugan`), weights via
-`burn-store::PytorchStore` (key remap `conv.0`/`conv.2` → `conv`/`conv2`),
-numerically verified vs torch (f32 max diff ~6e-6; fp16 ~1.7e-2).
-
-| Model | Dtype | 720p x2 | 1080p x2 | Notes |
-|---|---|---|---|---|
-| up2x | f32 | 966 ms | crash | `burn-fusion` bug `Ordering is bigger than operations` @1080p |
-| up2x | fp16 | **136 ms** | **302 ms** | beats ncnn (249 / 398 ms) |
-| ShuffleCugan | fp16 | **46 ms** | **103 ms** | pixel-unshuffle ⇒ UNet at half-res |
-
 ## tch (libtorch) — f16 fused path (2026-08-25)
 
 After the libtorch backend moved to `LibTorch<f16>` + the shared fused RGB8
@@ -79,38 +67,14 @@ bottleneck, not launch/readback overhead.
 Caveats: heavy build (~800 crates / 1.6 GB `target/`); `PytorchStore` can't cast
 f32→f16 at load (pre-convert weights, or `BurnpackStore` + `HalfPrecisionAdapter`).
 
-## Full-app render pipeline (2026-08-17)
-
-`senmei-pipeline/tests/bench.rs` (`cargo test -p senmei-pipeline --release --test
-bench -- --ignored --nocapture`; env `BENCH_MODEL`, `SENMEI_X264_PRESET`).
-Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
-
-| Path | total | FPS |
-|---|---|---|
-| before (sequential) | 197 ms | 5.1 |
-| after (optimized) | 168 ms | 5.9 |
-| **fused GPU RGB8 step** | **157 ms** | **6.4** |
-| full threaded + x264 veryfast | — | **6.5** |
-
-- Biggest CPU win: 4K `tensor_to_frame` 35.7→9.7 ms via saturating
-  `(x*255+0.5) as u8`; `frame_to_tensor` uses a `x/255` LUT (3.7→1.9 ms).
-- Decode/encode run on threads so CPU I/O hides behind GPU inference; encode uses
-  x264 `-preset veryfast` (was medium — the 2160p bottleneck at 4.7 FPS).
-- **`infer_rgb8`:** NCHW→NHWC, clamp 0..1, scale 0..255, cast to u8 **on GPU**;
-  tiles accumulated on the GPU (overlap-averaged) and read back as one packed
-  frame. The full-frame variant OOM'd autotune + panicked — tiling avoids it
-  (below).
-- 157 ms is burn-Vulkan's floor on RDNA4 (GPU 100 % / 3.2 GHz, no throttling);
-  torch-ROCm fp16 runs the same model at 111.5 ms / 9.0 FPS.
-
-### Autotune failures — root cause & fix (2026-08-18)
+## Autotune failures — root cause & fix (2026-08-18)
 
 Full-frame fused `infer_rgb8` OOM'd autotune on a large matmul (m=1024, n=4M,
 f16) then panicked (upstream-issues.md §1+2). **Fix:** tile `infer_rgb8`
 (640px) so no full-frame matmul reaches autotune; disabling autotune is ~5×
 slower.
 
-### Tile size & GPU stitch (2026-08-18)
+## Tile size & GPU stitch (2026-08-18)
 
 The 512px tiled-fused path (329 ms / 3.0 FPS fallin-soft) was ~2× slower than
 the pre-tiling full-frame fused path (176 ms) — that drop was the price of
@@ -138,22 +102,6 @@ old cost model — 15 u8 readbacks + CPU stitch — is gone). `bench_upscale_ste
 pathological (768 already regresses). Default is 640, override via `SENMEI_TILE`.
 Full-frame fused path (176 ms) is the floor once the autotune OOM is fixed
 upstream.
-
-## Fallin vs real-cugan (2026-08-18)
-
-`bench.rs`, 1080p→2160p x2, Vulkan fp16, autotune + fusion on. Fused step =
-`Upscale` + `infer_rgb8`. **Table = earlier full-frame fused step**; the current
-tiled-fused step measures ~186 ms / 5.4 FPS (fallin-soft), full threaded
-pipeline 2.8 FPS.
-
-| Model | infer | total | FPS | fused step | step FPS | VRAM peak |
-|---|---|---|---|---|---|---|
-| real-cugan-x2 | 359 ms | 374 ms | 2.7 | 380 ms | 2.6 | 14.6 GB |
-| fallin-soft | 193 ms | 205 ms | 4.9 | 176 ms | 5.7 | 8.1 GB |
-| fallin-strong | 196 ms | 208 ms | 4.8 | 177 ms | 5.7 | 8.1 GB |
-
-Fallin Soft/Strong ~2× faster than real-cugan-x2 at ~half the VRAM. VRAM via
-`/sys/class/drm/card1/device/mem_info_vram_used` (baseline ~1.3 GB).
 
 ## Multi-frame batch path — verdict (2026-08-22)
 
@@ -322,10 +270,19 @@ input (animevideo-x2 R=82.5/G=57.2/B=45.7 vs input 81/56/44).
   gfx1201 (ROCm-7.1 software gap).
 - **torch-ROCm original (2026-08-16, superseded):** pathological 7153 ms @1080p
   (MIOpen/RDNA4 collapse) — a software gap fixed by the 7.14 port above.
+- **burn-Vulkan shipped path (2026-08-17):** up2x fp16 136/302 ms @720p/1080p
+  (f32 crashed @1080p — burn-fusion bug), ShuffleCugan fp16 46/103 ms (half-res
+  UNet). Superseded by the model sweep below.
+- **Full-app pipeline (2026-08-17):** 1080p→2160p ShuffleCugan f16 Vulkan —
+  sequential 5.1 → threaded 5.9 → fused step 6.4 → +x264 veryfast **6.5 FPS**;
+  superseded by the tch/ROCm + VA-API path (~15 FPS). CPU wins still in code:
+  LUT `frame_to_tensor` (3.7→1.9 ms), saturating `tensor_to_frame` (35.7→9.7 ms).
+- **Fallin vs real-cugan (2026-08-18):** fallin ~2× faster at ~half the VRAM
+  (8.1 vs 14.6 GB peak). Superseded by the real-frame sweep (2026-08-23).
 
 See `docs/PLAN.md` for the current engine/roadmap status.
 
-### Model sweep — fused step @1080p→2160p ×2 (burn-Vulkan, 2026-08-27)
+## Model sweep — fused step @1080p→2160p ×2 (burn-Vulkan, 2026-08-27)
 
 `bench_upscale_step`, current registry models, RX 9070:
 
@@ -341,7 +298,7 @@ See `docs/PLAN.md` for the current engine/roadmap status.
 fallin-soft is **2.7× faster than real-cugan-x2** within the same catalog —
 model selection is the biggest free FPS lever (with tch/ROCm +1.5× → ~9 FPS).
 
-### tch/ROCm fused path — re-evaluated (2026-08-27)
+## tch/ROCm fused path — re-evaluated (2026-08-27)
 
 The shared fused RGB8 path (fused f16 pad+cast+upload, dropped coverage
 canvas, feather-mask cache) applies to both engines, so the tch/ROCm backend
@@ -358,7 +315,7 @@ tch/ROCm path still stands (see engine-decision notes). Runtime: local
 `SENMEI_LIBTORCH_ENV` + ROCm-7.14 nightly `LIBTORCH` venv + rock dir
 `LD_LIBRARY_PATH`. `engine_for_model(Auto)` still prefers tch when loadable.
 
-### Aux-stack sweep — interp / denoise / deblur (2026-08-27)
+## Aux-stack sweep — interp / denoise / deblur (2026-08-27)
 
 `bench_aux_stacks` (new in `bench.rs`): throughput + quality (PSNR dB / SSIM)
 against a known reference per stack, plus the no-op baseline. Burn-Vulkan fp16,
