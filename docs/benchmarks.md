@@ -364,3 +364,20 @@ tiling OOM'd (tile 512) or hard-faulted the GPU (tile 256, core dump). RealESRGA
 x4plus 640×360→1440p: 924.6 ms.
 
 See `docs/PLAN.md` for the current engine/roadmap status.
+
+### tch/ROCm fused path — re-evaluated (2026-08-27)
+
+The shared fused RGB8 path (fused f16 pad+cast+upload, dropped coverage
+canvas, feather-mask cache) applies to both engines, so the tch/ROCm backend
+was re-measured against burn-Vulkan on the fused app step
+(`bench_upscale_step`, 1080p→2160p x2, RX 9070):
+
+| Model | burn-Vulkan | tch/ROCm | speedup |
+|---|---|---|---|
+| fallin-soft | 178 ms (5.6 FPS) | 112.7 ms (8.9 FPS) | **1.58×** |
+| real-cugan-x2 | 503 ms (2.0 FPS) | 327 ms (3.1 FPS) | **1.54×** |
+
+Stable in these runs (no hang); the 2026-08-22 RDNA4 mode1-reset risk in the
+tch/ROCm path still stands (see engine-decision notes). Runtime: local
+`SENMEI_LIBTORCH_ENV` + ROCm-7.14 nightly `LIBTORCH` venv + rock dir
+`LD_LIBRARY_PATH`. `engine_for_model(Auto)` still prefers tch when loadable.
