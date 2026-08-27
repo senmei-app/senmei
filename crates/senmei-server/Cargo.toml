@@ -7,9 +7,9 @@ repository.workspace = true
 description = "Headless Senmei service (MCP stdio first; HTTP behind a feature)."
 
 [dependencies]
-senmei-core = { path = "../senmei-core", version = "0.2.0" }
-senmei-media = { path = "../senmei-media", version = "0.2.0" }
-senmei-ml = { path = "../senmei-ml", version = "0.2.0" }
+senmei-core = { path = "../senmei-core", version = "0.2.1" }
+senmei-media = { path = "../senmei-media", version = "0.2.1" }
+senmei-ml = { path = "../senmei-ml", version = "0.2.1" }
 
 rmcp = { version = "3", features = ["server", "transport-io"] }
 axum = { version = "0.8", optional = true }

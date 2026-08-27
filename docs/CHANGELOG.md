@@ -6,7 +6,11 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
-## Unreleased
+## 0.2.1 (2026-08-27)
+
+DIS arch + Real-ESRGAN `animevideov3` adopted, fused-path perf (GPU readback
+crop, coverage-canvas drop, f16 pad+cast+upload), benchmark split out of the
+test suite, docs/benchmark cleanup. Since v0.2.0.
 
 - **cleanup: move the benchmark out of `tests/` into `benches/` (2026-08-27)** —
   `crates/senmei-pipeline/tests/bench.rs` (1074 lines) is a benchmark harness,
