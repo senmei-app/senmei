@@ -30,6 +30,8 @@ download URL + sha256).
 | Restoration | Real-ESRGAN | general-x4v3 | 4 | SRVGGNetCompact (num_conv 32, folded) | BSD-3-Clause | loadable (tiny + fast, real scenes; torch mae 0.0004 f16) | `xinntao/Real-ESRGAN` v0.2.5.0 |
 | Restoration | Real-ESRGAN | animevideov3 | 4 | SRVGGNetCompact (num_conv 16, per-layer PReLU) | BSD-3-Clause | loadable (official XS anime-video model; torch mae 0.0004 f16) | `xinntao/Real-ESRGAN` v0.2.5.0 |
 | Restoration | Real-ESRGAN | x4plus-anime (6B) | 4 | RRDBNet (6 blocks) | BSD-3-Clause | loadable | `xinntao/Real-ESRGAN` · VSGAN |
+| Restoration | DIS | DIS Fast 2× | 2 | DisNet (32 feat / 8 FastResBlocks) | Apache-2.0 | loadable (ultra-lightweight real-time; torch mae 0.0013 f16) | `Kim2091/DIS` · `pretrained_models` release |
+| Restoration | DIS | DIS Balanced 2× | 2 | DisNet (32 feat / 12 FastResBlocks) | Apache-2.0 | loadable (speed/quality balance; torch mae 0.0013 f16) | `Kim2091/DIS` · `pretrained_models` release |
 | Restoration | ESRGAN | BSRGAN | 4 | RRDBNet (23 blocks) | MIT | loadable (torch-verified mae 0.001) | `cszn/KAIR` · `BSRGAN.pth` |
 | Deblur | NAFNet | NAFNet-GoPro width32 | 1 | NafNet | MIT | loadable (torch-verified mae 0.0007; fp16-safe on real images) | HF `nyanko7/nafnet-models` · `NAFNet-GoPro-width32.pth` |
 | Restoration | SPAN | SPAN 2× (NomosUni multijpg, _ldl, HFA2k, HFA2k LUDVAE, ModernSpanimation V1) | 2 | Span (feature_channels 48/64) | CC-BY-4.0 · MIT | loadable (f16-safe) | `Phhofm/models` · `TNTwise/Models` |
@@ -137,6 +139,14 @@ Candidates per stack; each needs a clean burn port + permissive license before
   Measured: the padded K=128 path is not slower than the broken K=96 (−9% on the
   conv; K=128 tiles better). V1.5 (64ch) matches torch exactly (corr 1.00).
   bf16 all-NaN on RADV. V1/V1.5 = 64 channels, V2 = 48.
+- DIS (Kim2091/DIS, Apache-2.0) is an ultra-lightweight real-time SR arch:
+  32 feat / 4–12 `FastResBlock`s, PReLU (no BN, no global norm →
+  translation-equivariant + tileable, FP16-safe), a PixelShuffle upsampler
+  (2×/3× single stage, 4× = two ×2) and a bilinear global residual. Released
+  2× weights (`2x-DIS_Fast` 8 / `2x-DIS_Balanced` 12 blocks, `.safetensors`);
+  torch mae 0.0013 f16. Classical-style SR — the Real-CUGAN/RealPLKSR set is
+  stronger on real compressed video; DIS is the FPS lever.
+
 - RealPLKSR_Dysample family (CC-BY-4.0, `Phhofm/models` releases; arch ported via
   4x_Alchemy = dim 64 / 28 blocks / GroupNorm4 → **weights-only only for that config**):
   1× DeNoise/DeJPG/DeH264 (+ DeJPG `_60` q60 variant, 2026-08-20) + 4×

@@ -940,5 +940,47 @@
    "num_conv": 16,
    "note": "Real-ESRGAN animevideov3 (BSD-3-Clause) \u2014 official XS anime-video SRVGGNetCompact (num_feat 64 / num_conv 16 / x4, distinct PReLU per layer); tiny + fast; torch-verified mae 0.0004 f16"
   }
+ },
+ {
+  "id": "dis-fast",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "dis",
+  "family": "dis",
+  "weights": [
+   "2x-DIS_Fast.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/Kim2091/DIS",
+  "download_url": "https://github.com/Kim2091/DIS/releases/download/pretrained_models/2x-DIS_Fast_Pretrain.safetensors",
+  "sha256": "89c299f850476132b419fc3c4d9780f1973dd0c92915599e9eac74681fc99050",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 8,
+   "note": "DIS Fast 2x (Kim2091, Apache-2.0) \u2014 ultra-lightweight real-time SR (32 feat / 8 FastResBlocks); PReLU no-BN tileable + fp16-safe; torch-verified"
+  }
+ },
+ {
+  "id": "dis-balanced",
+  "kind": "upscale",
+  "scale": 2,
+  "arch": "dis",
+  "family": "dis",
+  "weights": [
+   "2x-DIS_Balanced.f16.bpk"
+  ],
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/Kim2091/DIS",
+  "download_url": "https://github.com/Kim2091/DIS/releases/download/pretrained_models/2x-DIS_Balanced_Pretrain.safetensors",
+  "sha256": "e56debc4e60c7a1325cb639a89cea7d0142676f413311947c8de2397ca70b3ae",
+  "loadable": true,
+  "metadata": {
+   "input_range": "0..1",
+   "half": true,
+   "num_block": 12,
+   "note": "DIS Balanced 2x (Kim2091, Apache-2.0) \u2014 32 feat / 12 FastResBlocks; balance of speed and quality; torch-verified"
+  }
  }
 ]

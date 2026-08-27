@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **feat: add DIS arch + adopt 2× weights (2026-08-27)** — clean burn port of
+  the Apache-2.0 `Kim2091/DIS` real-time SR arch (32 feat / 8–12
+  FastResBlocks, PReLU no-BN → tileable + FP16-safe, PixelShuffle upsampler,
+  bilinear global residual) + `dis` converter (scale-2 upsampler index remap)
+  + `dis-fast`/`dis-balanced` registry entries. Torch-verified: mae 0.0013
+  f16, 34/34 tensors. `download_model` now passes num_block for safetensors.
+
 - **feat: adopt Real-ESRGAN `animevideov3` (2026-08-27)** — the official XS
   anime-video SRVGGNetCompact (num_feat 64 / num_conv 16 / x4, distinct PReLU
   per layer) is registered + downloadable; same `SrvggNet` arch + `srvgg`

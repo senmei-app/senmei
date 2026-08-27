@@ -43,7 +43,8 @@ impl<B: Backend> Prelu<B> {
 
 /// PixelShuffle: `[N, C·r², H, W] → [N, C, H·r, W·r]`. The permute matches
 /// torch's `pixel_shuffle` (view [N,C,r,r,H,W] → permute (0,1,4,2,5,3)).
-fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
+/// Shared with the DIS arch.
+pub(crate) fn pixel_shuffle<B: Backend>(x: Tensor<B, 4>, r: usize) -> Tensor<B, 4> {
     let [n, c, h, w] = x.dims();
     let oc = c / (r * r);
     x.reshape([n, oc, r, r, h, w])

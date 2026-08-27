@@ -3,8 +3,8 @@
 //! backend and saves through [`ToF16`] so `BurnEngine` can load it as f16.
 
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, SafmnNet, Scunet, Span,
-    SrvggNet, UpCunet2x, UpCunet2xFast,
+    DisNet, Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RrdbNet, SafmnNet,
+    Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::BurnBackend;
 use crate::{Error, Result};
@@ -84,6 +84,16 @@ fn safmn_remap_patterns() -> Vec<(String, String)> {
         (r"\.ccm\.ccm\.2\.".to_string(), ".ccm.conv2.".into()),
         (r"^to_img\.0\.".to_string(), "to_img_conv.".into()),
     ]
+}
+/// Remap rules for the DIS (scale-2) checkpoints — shared by the converter
+/// and the `dis_conversion_key_contract` test. The single upsampler has no
+/// Sequential index (`upsampler.conv.*`) — mapped onto the burn `Vec`
+/// (`upsampler.0.*`). scale-4 checkpoints already carry `upsampler.{k}.*`.
+fn dis_remap_patterns() -> Vec<(String, String)> {
+    vec![(
+        r"^upsampler\.(conv|act)\.".to_string(),
+        "upsampler.0.$1.".to_string(),
+    )]
 }
 /// Conversion knobs for the `.pth` → `.bpk` maintainer tool.
 #[derive(Clone, Copy)]
@@ -450,21 +460,36 @@ pub fn convert_onnx_to_bpk(
 /// One-time safetensors → f16 `.bpk` conversion (maintainer + download_model).
 /// Phhofm ships fused release weights as safetensors; the keys already match
 /// the module state dict apart from the torch `upsampler.0` Sequential index,
-/// remapped here. Saved through [`ToF16`] like the `.pth` path.
+/// remapped here. DIS scale-2 weights need the inverse remap (no upsampler
+/// index). Saved through [`ToF16`] like the `.pth` path.
 pub fn convert_safetensors_to_bpk(
     arch: &str,
     st_path: &Path,
     bpk_path: &Path,
     scale: u32,
+    num_block: u32,
 ) -> Result<()> {
-    let remapper = KeyRemapper::from_patterns(vec![(r"^upsampler\.0\.", "upsampler.")])
-        .map_err(|e| Error::new(e.to_string()))?;
     let device = WgpuDevice::DiscreteGpu(0);
     let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
     match arch {
         "paragonsr" => {
+            let remapper = KeyRemapper::from_patterns(vec![(r"^upsampler\.0\.", "upsampler.")])
+                .map_err(|e| Error::new(e.to_string()))?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
             let mut m = ParagonSrNet::<BurnBackend>::new(scale as usize, 24, 3, 2, 1.5, &device);
+            m.load_from(&mut store)
+                .map_err(|e| Error::new(e.to_string()))?;
+            m.save_into(&mut save)
+                .map_err(|e| Error::new(e.to_string()))?;
+        }
+        "dis" => {
+            // Kim2091 release weights (2× DIS_Fast / DIS_Balanced): FastResBlock
+            // bodies, a single scale-2 upsampler at `upsampler.*` (no index).
+            let remapper = KeyRemapper::from_patterns(dis_remap_patterns())
+                .map_err(|e| Error::new(e.to_string()))?;
+            let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
+            let mut m =
+                DisNet::<BurnBackend>::new(32, num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
                 .map_err(|e| Error::new(e.to_string()))?;
             m.save_into(&mut save)
@@ -540,7 +565,7 @@ fn onnx_data_to_f32(t: &crate::onnx::OnnxTensor) -> Result<Vec<f32>> {
 
 #[cfg(all(test, feature = "burn"))]
 mod tests {
-    use super::{safmn_remap_patterns, srvgg_remap_patterns};
+    use super::{dis_remap_patterns, safmn_remap_patterns, srvgg_remap_patterns};
     use burn::module::ParamId;
     use burn::tensor::TensorData;
     use burn_store::{KeyRemapper, TensorSnapshot};
@@ -669,6 +694,73 @@ mod tests {
         for k in 0..=num_conv {
             expected.push(format!("prelu.{k}.weight"));
         }
+        expected.sort();
+
+        assert_eq!(paths, expected);
+    }
+
+    /// Key-contract for the DIS (scale-2) conversion — pure key mapping, no
+    /// GPU. Builds a DIS_Fast state dict (head/head_act, 8 FastResBlocks,
+    /// fusion, single `upsampler.*` upsampler, tail) and asserts it remaps
+    /// exactly onto the `DisNet` record paths (`upsampler.0.*`) — no missing,
+    /// no unexpected leftovers.
+    #[test]
+    fn dis_conversion_key_contract() {
+        let num_blocks = 8usize;
+        let mut source = Vec::new();
+        source.push("head.weight".into());
+        source.push("head.bias".into());
+        source.push("head_act.weight".into());
+        for i in 0..num_blocks {
+            source.push(format!("body.{i}.conv1.weight"));
+            source.push(format!("body.{i}.conv2.weight"));
+            source.push(format!("body.{i}.act.weight"));
+        }
+        source.push("fusion.weight".into());
+        source.push("fusion.bias".into());
+        source.push("upsampler.conv.weight".into());
+        source.push("upsampler.conv.bias".into());
+        source.push("upsampler.act.weight".into());
+        source.push("tail.weight".into());
+        source.push("tail.bias".into());
+
+        let snapshots = source
+            .iter()
+            .map(|name| {
+                let mut s = TensorSnapshot::from_data(
+                    TensorData::new(vec![0f32; 1], vec![1]),
+                    name.split('.').map(str::to_string).collect(),
+                    Vec::new(),
+                    ParamId::new(),
+                );
+                s.container_stack = None;
+                s.tensor_id = None;
+                s
+            })
+            .collect();
+
+        let remapper = KeyRemapper::from_patterns(dis_remap_patterns()).unwrap();
+        let (remapped, _) = remapper.remap(snapshots);
+        let mut paths: Vec<String> = remapped.iter().map(|s| s.full_path()).collect();
+        paths.sort();
+        paths.dedup();
+
+        let mut expected = Vec::new();
+        expected.push("head.weight".into());
+        expected.push("head.bias".into());
+        expected.push("head_act.weight".into());
+        for i in 0..num_blocks {
+            expected.push(format!("body.{i}.conv1.weight"));
+            expected.push(format!("body.{i}.conv2.weight"));
+            expected.push(format!("body.{i}.act.weight"));
+        }
+        expected.push("fusion.weight".into());
+        expected.push("fusion.bias".into());
+        expected.push("upsampler.0.conv.weight".into());
+        expected.push("upsampler.0.conv.bias".into());
+        expected.push("upsampler.0.act.weight".into());
+        expected.push("tail.weight".into());
+        expected.push("tail.bias".into());
         expected.sort();
 
         assert_eq!(paths, expected);

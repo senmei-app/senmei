@@ -6,8 +6,8 @@
 
 use super::{Rgb8Batch, Rgb8Frames};
 use crate::arch::{
-    Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RifeNet, RrdbNet, SafmnNet,
-    Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
+    DisNet, Dncnn, Drunet, Ffdnet, IfrNet, NafNet, ParagonSrNet, RealPlk, RifeNet, RrdbNet,
+    SafmnNet, Scunet, Span, SrvggNet, UpCunet2x, UpCunet2xFast,
 };
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
@@ -40,6 +40,7 @@ pub enum Model<B: Backend> {
     Span(Span<B>),
     SafmnNet(SafmnNet<B>),
     ParagonSrNet(ParagonSrNet<B>),
+    DisNet(DisNet<B>),
 }
 
 impl<B: Backend> Model<B> {
@@ -57,6 +58,7 @@ impl<B: Backend> Model<B> {
             Model::Span(m) => Ok(m.forward(x)),
             Model::SafmnNet(m) => Ok(m.forward(x)),
             Model::ParagonSrNet(m) => Ok(m.forward(x)),
+            Model::DisNet(m) => Ok(m.forward(x)),
             Model::RifeNet(_) | Model::IfrNet(_) | Model::Ffdnet(_) => {
                 Err(Error::new("no single-input forward"))
             }
@@ -118,6 +120,13 @@ pub fn load_arch<B: Backend>(
             let mut m = SrvggNet::new(64, model.num_conv as usize, model.scale as usize, device);
             m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
             Ok(Model::SrvggNet(m))
+        }
+        "dis" => {
+            // Registered DIS models: 32 features, body blocks from the
+            // registry (8 DIS_Fast, 12 DIS_Balanced).
+            let mut m = DisNet::new(32, model.num_block as usize, model.scale as usize, device);
+            m.load_from(store).map_err(|e| Error::new(e.to_string()))?;
+            Ok(Model::DisNet(m))
         }
         "ifrnet" => {
             let mut m = IfrNet::new(device);

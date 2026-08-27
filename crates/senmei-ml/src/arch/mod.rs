@@ -3,6 +3,7 @@
 //! per-module doc comments) and stays engine-agnostic: it only depends on
 //! `burn::module` / `burn::tensor` types over `B: Backend`.
 
+pub mod dis;
 pub mod dncnn;
 pub mod drunet;
 pub mod ffdnet;
@@ -19,6 +20,7 @@ pub mod srvgg;
 pub mod upcunet;
 pub mod warp;
 
+pub use dis::DisNet;
 pub use dncnn::Dncnn;
 pub use drunet::Drunet;
 pub use ffdnet::Ffdnet;

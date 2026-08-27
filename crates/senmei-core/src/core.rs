@@ -223,7 +223,7 @@ pub fn download_model(
             shuffle,
         )
     } else if st {
-        senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale)
+        senmei_ml::convert_safetensors_to_bpk(&meta.arch, &source, &target, meta.scale, convert_arg)
     } else {
         senmei_ml::convert_pth_to_bpk(&senmei_ml::ConvertOptions {
             arch: meta.arch.as_str(),
