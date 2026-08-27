@@ -365,6 +365,22 @@ x4plus 640×360→1440p: 924.6 ms.
 
 See `docs/PLAN.md` for the current engine/roadmap status.
 
+### Model sweep — fused step @1080p→2160p ×2 (burn-Vulkan, 2026-08-27)
+
+`bench_upscale_step`, current registry models, RX 9070:
+
+| Model | Arch | ms/frame | FPS |
+|---|---|---|---|
+| real-cugan-x2 | upcunet2x | 510 | 2.0 |
+| realesrgan-animevideo-x2 | srvgg | 306 | 3.3 |
+| **fallin-soft** | fallin-cugan | **184** | **5.4** |
+| span-2x-hfa2k | span | 1137 | 0.9 |
+| real-plksr-2x-public | real-plksr | 4556 | 0.2 |
+| realesrgan-x2plus | rrdb | 2260 | 0.4 |
+
+fallin-soft is **2.7× faster than real-cugan-x2** within the same catalog —
+model selection is the biggest free FPS lever (with tch/ROCm +1.5× → ~9 FPS).
+
 ### tch/ROCm fused path — re-evaluated (2026-08-27)
 
 The shared fused RGB8 path (fused f16 pad+cast+upload, dropped coverage
