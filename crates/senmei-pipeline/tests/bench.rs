@@ -152,7 +152,8 @@ fn bench_upscale_step() {
     let total = frames.len();
 
     let mut step = senmei_pipeline::Upscale::new(bench_scale(), Some(engine));
-    step.process(&mut frames[0]).unwrap(); // warm-up
+    let mut warm = frames[0].clone();
+    step.process(&mut warm).unwrap(); // warm-up (on a clone — process rewrites the frame to the upscaled size)
     let s0 = Instant::now();
     for f in &mut frames {
         step.process(f).unwrap();

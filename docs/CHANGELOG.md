@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: `bench_upscale_step` warm-up mutated `frames[0]` (2026-08-27)** — the
+  warm-up ran `step.process` on `frames[0]`, which rewrites the frame to the
+  upscaled 4K size, so the timed loop re-fed the 4K output and the fused VRAM
+  guard rejected it (~3125 MB > 2560 MB). Warm-up now runs on a clone; the
+  bench works again (real-cugan-x2 @1080p: 512 ms/frame, GPU ~100 % busy).
+
 - **perf: fused f16 pad+cast+upload for the RGB8 path (2026-08-27)** — the
   per-frame CPU staging was three full-frame allocations: `frame_to_tensor`'s
   f32 buffer, `pad_to`'s padded f32 buffer, then `to_burn`'s `data.clone()` +
