@@ -106,10 +106,9 @@ Workload: 1080p testsrc → 2160p x2, ShuffleCugan f16, Vulkan, 48 frames.
 ### Autotune failures — root cause & fix (2026-08-18)
 
 Full-frame fused `infer_rgb8` OOM'd autotune on a large matmul (m=1024, n=4M,
-f16), then panicked `Ordering is bigger than operations` (docs/upstream-issues.md
-§1+2). **Fix:** tile `infer_rgb8` (640px) so no full-frame matmul reaches
-autotune. Guarded by `infer_rgb8_tiled_is_reliable_and_correct`. Disabling
-autotune also works but is ~5× slower.
+f16) then panicked (upstream-issues.md §1+2). **Fix:** tile `infer_rgb8`
+(640px) so no full-frame matmul reaches autotune; disabling autotune is ~5×
+slower.
 
 ### Tile size & GPU stitch (2026-08-18)
 
@@ -308,60 +307,21 @@ residual alone (means ~2/255). Added the base in `SrvggNet::forward`; burn now
 matches torch incl. residual (mae 0.0004) and output brightness matches the
 input (animevideo-x2 R=82.5/G=57.2/B=45.7 vs input 81/56/44).
 
-## Alternatives
+## Backend history (archive)
 
-### torch-ROCm (2026-08-17, ROCm 7.14)
-
-The 2026-08-16 "fp16 impossible on RDNA4" verdict was a **ROCm-7.1 software
-gap** — the machine runs the **7.14 RDNA4 port**. The 7.14-built nightly
-(`2.15.0.dev+rocm7.14`, dedicated 7.14 venv) unlocks RDNA4 fp16
-kernels: WMMA is present; the earlier `LLVM Cannot select` was cubecl-hip/7.1.
-
-| Test | torch 2.13 (7.1-built) | **torch 2.15 (7.14-built)** |
-|---|---|---|
-| fp16 matmul 2048² | 0.29 ms | **0.18 ms** |
-| bf16 matmul 2048² | 0.28 ms | **0.18 ms** |
-| fp32 matmul 2048² | 1.24 ms | 1.43 ms |
-| **ShuffleCugan fp16 1080p→2160p** | 111.5 ms → 9.0 FPS | **41.8 ms → 23.9 FPS** |
-| ShuffleCugan fp32 1080p→2160p | 569.0 ms → 1.8 FPS | 94.2 ms → 10.6 FPS |
-
-- **FP8 not usable on RDNA4 yet** (two gaps): torch never wires fp8 on ROCm
-  (`addmm_cuda not implemented for Float8_*`, `_scaled_mm` CUDA-only), and a
-  direct hipBLASLt 1.4 probe crashes every `hipblasLtMatmul` with a GPU memory
-  fault despite fp8 kernels being compiled for gfx1201 → needs newer ROCm.
-- **fp16 is input-range sensitive:** outside 0..1 (e.g. randn) fp16 collapses
-  to all-NaN; fp32 clean. With normalized 0..1 video (what the app feeds) fp16
-  is clean (max diff vs fp32 0.075, mean 0.0006). **Clamp input to 0..1.**
-- Not portable (ROCm 7.x + RDNA4 + matching torch), heavy libtorch, first-kernel
-  JIT; end-to-end gain smaller than model-only (decode/encode dominate).
-
-### ncnn/Vulkan — dropped
-
-Prebuilt `realcugan-ncnn-vulkan` (auto-tile, fp16, **includes PNG codec
-overhead**): 249 ms @720p, 398 ms @1080p. Was the 2026-08-16 winner but is
-superseded by burn-Vulkan fp16; the C++ shim (`senmei-ncnn`) was removed. ncnn
-survives only as a **weight format** for the RIFE port (`flownet.bin`).
-
-### candle/ROCm — dropped
-
-The `xmiksay/feat/rocm-backend` fork is numerically correct but f32 convs
-materialize im2col (memory cliff from ~640p), f16 ~6× slower than burn-Vulkan,
-and the ShuffleCugan port OOMs even at 64×64.
-
-### burn-ROCm — dropped
-
-f32 works but is slow (up2x 1119 / 2197 ms @720p / 1080p, linear scaling, no
-1080p collapse). fp16/bf16 matmul hits cubecl/ROCm-7.1 `LLVM Cannot select` on
-gfx1201 — a **software gap** (HW WMMA works, see torch-ROCm); bf16 is slower
-than fp16 anyway. Early smoke rows (57 / 2.19 ms) were a 3-conv toy, not
-SR-representative.
-
-### torch-ROCm original rows (2026-08-16, superseded)
-
-Full-image, direct tensor I/O: 139.26 ms @720p, **7153.6 ms @1080p**
-(pathological MIOpen/RDNA4 collapse: 51× slower than 720p despite 2.25× pixels);
-tiling OOM'd (tile 512) or hard-faulted the GPU (tile 256, core dump). RealESRGAN
-x4plus 640×360→1440p: 924.6 ms.
+- **torch-ROCm 7.14 (2026-08-17):** the RDNA4 fp16 gap was a ROCm-7.1 software
+  issue; the 7.14 port unlocks WMMA — ShuffleCugan fp16 1080p→2160p **41.8 ms
+  (23.9 FPS)** vs burn-Vulkan 157 ms (3.8×), still the fastest measured but not
+  portable (ROCm 7.x + RDNA4 + matching torch). **FP8 unusable on RDNA4** (torch
+  never wires fp8; the hipBLASLt fp8 kernel crashes). **fp16 is input-range
+  sensitive** (NaN outside 0..1) — the app clamps 0..1.
+- **ncnn/Vulkan — dropped:** 249/398 ms @720p/1080p, superseded by burn-Vulkan;
+  survives only as RIFE's weight format (`flownet.bin`).
+- **candle/ROCm — dropped:** f32 im2col memory cliff, f16 ~6× slower.
+- **burn-ROCm — dropped:** slow f32; fp16/bf16 matmul `LLVM Cannot select` on
+  gfx1201 (ROCm-7.1 software gap).
+- **torch-ROCm original (2026-08-16, superseded):** pathological 7153 ms @1080p
+  (MIOpen/RDNA4 collapse) — a software gap fixed by the 7.14 port above.
 
 See `docs/PLAN.md` for the current engine/roadmap status.
 

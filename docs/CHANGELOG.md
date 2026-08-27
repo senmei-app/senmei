@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **docs: simplify `benchmarks.md` (2026-08-27)** — the dropped/superseded
+  backend sections (ncnn, candle, burn-ROCm, torch-ROCm 2026-08-16/17) are
+  collapsed into a compact `## Backend history (archive)` block; all live
+  numbers and the fp8/fp16 constraints are preserved. ~55 lines cut.
+
 - **perf: crop the fused readback on the GPU (2026-08-27)** — the padded
   canvas is sliced to the target `out_h_t × out_w_t` on-device before the
   readback, so the bottom/right edge-replicate padding is never transferred
