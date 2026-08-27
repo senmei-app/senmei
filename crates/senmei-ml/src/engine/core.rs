@@ -562,7 +562,6 @@ where
     let out_w_t = (w as f32 * scale_f).round() as usize;
     Some(Ok(BurnRgb8Batch {
         accs,
-        out_w,
         out_w_t,
         out_h_t,
     }))
@@ -642,7 +641,6 @@ impl<T: ElemToU8 + ElemFromF32 + Copy> Rgb8Elem for T {}
 #[cfg(any(feature = "burn", feature = "tch"))]
 pub struct BurnRgb8Batch<B: Backend> {
     accs: Vec<BurnTensor<B, 4>>,
-    out_w: usize,
     out_w_t: usize,
     out_h_t: usize,
 }
@@ -657,7 +655,18 @@ where
         for acc in self.accs {
             // The feather weights are a partition of unity, so the coverage
             // canvas is ≡1 and the `acc / cov` division is dropped.
-            let avg = acc.permute([0, 2, 3, 1]) * 255.0;
+            //
+            // Crop on the GPU before the readback: the edge-replicate pad sits
+            // on the bottom/right, so the top-left `out_h_t × out_w_t` is the
+            // real frame. Reading back only that region skips the CPU
+            // `crop_rgb24` pass and shrinks the PCIe transfer (the padding is
+            // dropped, not copied to the host; the `* 255` below materializes
+            // a contiguous buffer, so the readback is not strided).
+            let [_, c, _, _] = acc.dims();
+            let avg = acc
+                .slice([0..1, 0..c, 0..self.out_h_t, 0..self.out_w_t])
+                .permute([0, 2, 3, 1])
+                * 255.0;
             // Read back in the backend's own float elem and cast to u8 in
             // plain Rust: cubecl-wgpu already pools the staging buffers, so
             // the remaining per-frame cost is the CPU-side convert — reading
@@ -689,8 +698,7 @@ where
                     });
                 }
             });
-            let cropped = crate::crop_rgb24(&bytes, self.out_w, self.out_h_t, self.out_w_t);
-            result.push((cropped, self.out_w_t as u32, self.out_h_t as u32));
+            result.push((bytes, self.out_w_t as u32, self.out_h_t as u32));
         }
         Ok(result)
     }

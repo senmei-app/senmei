@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **perf: crop the fused readback on the GPU (2026-08-27)** — the padded
+  canvas is sliced to the target `out_h_t × out_w_t` on-device before the
+  readback, so the bottom/right edge-replicate padding is never transferred
+  and the CPU `crop_rgb24` pass is dropped (helper removed — dead). The
+  `* 255` materializes a contiguous buffer, so the readback is not strided.
+  Adjacent A/B on RX 9070 (thermal drift ~5 % swamps the ~0.5 % effect): no
+  regression in either round; fallin-soft ~179 ms.
+
 - **perf: drop the fused-path coverage canvas + cache feather masks (2026-08-27)** —
   the feather weights are a partition of unity, so the `covs` canvas is ≡1 and
   the `acc / cov` readback division is a no-op. Dropping it removes one

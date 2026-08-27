@@ -84,8 +84,6 @@ pub use runtime::{
 #[cfg(feature = "tch")]
 pub use tch::{TchDevice, TchEngine};
 pub use tensor::Tensor;
-#[cfg(any(feature = "burn", feature = "tch"))]
-pub use tiling::crop_rgb24;
 pub use tiling::{crop, pad_to, stitch, uniform_tile};
 
 pub type Result<T> = std::result::Result<T, Error>;
