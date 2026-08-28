@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.2.4 (2026-08-28)
+
 - **fix: volume hotkeys use stale volume (2026-08-28)** — the monitor's keydown
   effect closed over an old `volume` (not in its deps), so repeated
   ArrowUp/ArrowDown nudges re-computed from the stale value and the volume
