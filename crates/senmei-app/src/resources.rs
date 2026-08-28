@@ -49,31 +49,7 @@ pub fn sample_hardware() -> HardwareSnapshot {
 
     let gpus = enumerate_gpus();
     let primary = gpus.iter().max_by_key(|g| g.vram_total.unwrap_or(0));
-    // Read utilization for the primary GPU from sysfs.
-    let (gpu_util, gpu_mem_used) = primary.and_then(|g| {
-        // Find the matching card entry to read live stats.
-        let entries = std::fs::read_dir("/sys/class/drm").ok()?;
-        for entry in entries.flatten() {
-            let card = entry.file_name().to_string_lossy().into_owned();
-            if !card.starts_with("card") || card.contains('-') {
-                continue;
-            }
-            let vendor = read_hex(entry.path().join("device/vendor")).unwrap_or(0);
-            let name = match vendor {
-                0x10de => format!("NVIDIA {card}"),
-                0x1002 | 0x1022 => format!("AMD {card}"),
-                0x8086 => format!("Intel {card}"),
-                _ => card,
-            };
-            if name == g.name {
-                let device = entry.path().join("device");
-                let util = read_number(device.join("gpu_busy_percent")).map(|v| v as f32);
-                let mem = read_memory_pair(&device).map(|(_, used)| used);
-                return Some((util, mem));
-            }
-        }
-        None
-    }).unwrap_or((None, None));
+    let (gpu_util, gpu_mem_used) = gpu_live_stats(primary);
     HardwareSnapshot {
         cpu_usage,
         memory_total_bytes,
@@ -133,6 +109,42 @@ fn enumerate_gpus() -> Vec<GpuSample> {
 #[cfg(not(target_os = "linux"))]
 fn enumerate_gpus() -> Vec<GpuSample> {
     Vec::new()
+}
+
+/// Live utilization/memory for the primary GPU from sysfs.
+#[cfg(target_os = "linux")]
+fn gpu_live_stats(primary: Option<&GpuSample>) -> (Option<f32>, Option<u64>) {
+    primary
+        .and_then(|g| {
+            // Find the matching card entry to read live stats.
+            let entries = std::fs::read_dir("/sys/class/drm").ok()?;
+            for entry in entries.flatten() {
+                let card = entry.file_name().to_string_lossy().into_owned();
+                if !card.starts_with("card") || card.contains('-') {
+                    continue;
+                }
+                let vendor = read_hex(entry.path().join("device/vendor")).unwrap_or(0);
+                let name = match vendor {
+                    0x10de => format!("NVIDIA {card}"),
+                    0x1002 | 0x1022 => format!("AMD {card}"),
+                    0x8086 => format!("Intel {card}"),
+                    _ => card,
+                };
+                if name == g.name {
+                    let device = entry.path().join("device");
+                    let util = read_number(device.join("gpu_busy_percent")).map(|v| v as f32);
+                    let mem = read_memory_pair(&device).map(|(_, used)| used);
+                    return Some((util, mem));
+                }
+            }
+            None
+        })
+        .unwrap_or((None, None))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn gpu_live_stats(_primary: Option<&GpuSample>) -> (Option<f32>, Option<u64>) {
+    (None, None)
 }
 
 #[cfg(target_os = "linux")]
