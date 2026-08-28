@@ -8,6 +8,18 @@
 
 ## Unreleased
 
+- **feat: MCP adapter — full tool parity with HTTP (2026-08-28)** — the MCP
+  stdio adapter now exposes `download_model`, `backend_info`, `scan_folder`,
+  and `thumbnail`, matching the HTTP REST surface. The `image_block` helper is
+  always compiled (no longer `cfg(render)`-gated) so `thumbnail` works without
+  the render feature.
+
+- **fix: MCP param structs serde rename (2026-08-28)** — added
+  `#[serde(rename_all = "camelCase")]` to `RenderSampleParams`,
+  `DownloadModelParams`, and `ThumbnailParams` so MCP clients sending camelCase
+  fields (`modelId`, `startMs`, `endMs`, `maxW`) are deserialized correctly.
+  Previously these silently fell through to `None`.
+
 - **ui: volume slider at the timeline (2026-08-28)** — the volume control was
   hidden behind a popover; it now sits inline next to the timeline scrubber
   (icon + slider), the same pattern as Full Video Mode.

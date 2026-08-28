@@ -100,7 +100,11 @@ Source of truth for architecture & decisions: [`docs/PLAN.md`](docs/PLAN.md).
 Senmei runs fully headless over **`senmei-server`** — one transport-agnostic
 `core` (probe/render/models/queue + license/confirm gates) with two adapters:
 
-- **MCP (stdio)** — default; agents drive it over the `senmei_*` tool set.
+- **MCP (stdio)** — default; agents drive it over the `senmei_*` tool set:
+  `health`, `probe_video`, `list_models`, `get_ffmpeg_status`,
+  `get_settings_schema`, `render_sample`, `compare_sample`,
+  `propose_render`, `confirm_render`, `cancel_render`, `get_render_status`,
+  `download_model`, `backend_info`, `scan_folder`, `thumbnail`.
 - **HTTP (axum)** — `--http` serves the built web UI + a REST API. This is the
   browser/headless path: the whole UI works without a display server.
 
@@ -121,9 +125,10 @@ silently falls back denoise/deblur to the CPU reference on unknown archs (e.g.
 REST surface: `/api/health`, `/api/models`, `/api/ffmpeg`, `/api/backend-info`,
 `/api/logs`, `/api/logs/clear`, `/api/stream` (Range-stream for the browser
 `<video>`), `/api/audio` (transcoded Vorbis/Ogg track for the browser `<audio>`),
-`/api/probe`, `/api/frame` (raw RGB24 body;
-`x-frame-width`/`x-frame-height` headers), `/api/download-model`, `/api/render`
-(+`/status`, `/cancel`), `/api/compare`, `/api/settings-schema`. Same gates as
+`/api/probe`, `/api/thumbnail`, `/api/frame` (raw RGB24 body;
+`x-frame-width`/`x-frame-height` headers), `/api/scan-folder`,
+`/api/download-model`, `/api/render` (+`/status`, `/cancel`), `/api/compare`,
+`/api/settings-schema`. Same gates as
 MCP — both transports get license/confirm enforcement from `core`.
 
 Frontend talks to either transport through `packages/app/src/backend/`
