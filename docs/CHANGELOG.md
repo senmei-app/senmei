@@ -6,6 +6,15 @@
 > Each release gets a `## x.y.z (YYYY-MM-DD)` heading; release notes are
 > generated from the section above the latest heading.
 
+## Unreleased
+
+- **docs: SPAN 48ch backend A/B — burn 0.9 / tch 2.2 / RVE ~44 FPS @1080p (2026-08-28)** —
+  `2x_ModernSpanimationV2` measured on the real app step (1080p→2160p, RX 9070):
+  burn/Vulkan 1155 ms (0.9 FPS), tch/ROCm 453 ms (2.2 FPS, 2.55×), RVE/ncnn
+  ~23 ms (~44 FPS reference). The gap to RVE is engine-inherent (ncnn-Winograd
+  vs cubecl im2col→GEMM; SPAN-48ch shapes are cubecl's worst case) — not
+  closable by a backend switch. Recorded in `benchmarks.md` + `models.md`.
+
 ## 0.2.1 (2026-08-27)
 
 DIS arch + Real-ESRGAN `animevideov3` adopted, fused-path perf (GPU readback

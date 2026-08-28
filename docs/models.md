@@ -139,6 +139,9 @@ Candidates per stack; each needs a clean burn port + permissive license before
   Measured: the padded K=128 path is not slower than the broken K=96 (−9% on the
   conv; K=128 tiles better). V1.5 (64ch) matches torch exactly (corr 1.00).
   bf16 all-NaN on RADV. V1/V1.5 = 64 channels, V2 = 48.
+- 48ch SPAN (e.g. ModernSpanimation V2) is burn's slowest upscaler (~0.9 FPS
+  @1080p×2); tch/ROCm is 2.55× faster (453 ms), RVE/ncnn ~44 FPS — the gap is
+  engine-inherent (cubecl im2col vs ncnn-Winograd), not a backend switch (2026-08-28).
 - DIS (Kim2091/DIS, Apache-2.0) is an ultra-lightweight real-time SR arch:
   32 feat / 4–12 `FastResBlock`s, PReLU (no BN, no global norm →
   translation-equivariant + tileable, FP16-safe), a PixelShuffle upsampler
