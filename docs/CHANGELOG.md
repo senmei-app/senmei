@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **refactor: UI review — unify hotkeys, extract components, add safety
+  (2026-08-28)** — merged Monitor's 3 separate hotkey `useEffect` listeners
+  into one unified handler; extracted `DownloadButton` component in StepEditor
+  (4× duplication); memoized `resolveHotkeys` and `monitorEl` in App.tsx;
+  added Escape/Arrow keyboard navigation in MenuBar; model-delete confirmation
+  dialog in SettingsPage; `ErrorBoundary` wrapping the app root.
+
 - **feat: MCP adapter — full tool parity with HTTP (2026-08-28)** — the MCP
   stdio adapter now exposes `download_model`, `backend_info`, `scan_folder`,
   and `thumbnail`, matching the HTTP REST surface. The `image_block` helper is
