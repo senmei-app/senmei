@@ -32,10 +32,10 @@ export function Select({ value, onChange, options, className = "" }: SelectProps
   const selected = options.find((o) => o.value === value);
   const selectedLabel = selected?.label ?? value;
 
-  // Sync active index when value or open changes
+  // Sync active index when dropdown opens or value changes externally
   useEffect(() => {
     if (open) setActiveIdx(options.findIndex((o) => o.value === value));
-  }, [open, value, options]);
+  }, [open, value]);
 
   // Close on outside click
   useEffect(() => {
@@ -104,14 +104,14 @@ export function Select({ value, onChange, options, className = "" }: SelectProps
         ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        className="flex w-full items-center justify-between gap-1 rounded-lg border border-slate-300 bg-white p-1.5 text-left text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
       >
         <span className="truncate">{selectedLabel}</span>
         <Chevron open={open} />
       </button>
 
       {open && (
-        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-950">
           {options.map((opt, i) => (
             <li key={opt.value}>
               <button
@@ -121,7 +121,7 @@ export function Select({ value, onChange, options, className = "" }: SelectProps
                 onMouseEnter={() => setActiveIdx(i)}
                 className={`block w-full px-2.5 py-1.5 text-left text-xs ${
                   i === activeIdx ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "text-slate-700 dark:text-slate-200"
-                } ${opt.value === value ? "font-medium" : ""} ${opt.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"}`}
+                } ${opt.value === value ? "font-medium" : ""} ${opt.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"}`}
               >
                 {opt.label}
               </button>
