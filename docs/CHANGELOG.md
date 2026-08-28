@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **tools: add bump-version.sh for release bumps (2026-08-28)** — one script
+  updates every version site (workspace `Cargo.toml`, crate path-dep pins,
+  `tauri.conf.json`, `packages/app/package.json`) + optional CHANGELOG heading;
+  `--check`/`--show` verify consistency. Sites documented in `docs/RELEASING.md`.
+
 - **fix: bump @senmei/app version to 0.2.3 (2026-08-28)** — `packages/app/package.json`
   was left at 0.2.2 during the release, so the version badge (built from
   `pkg.version` + git HEAD hash in `vite.config.ts`) showed the wrong version.
