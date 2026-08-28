@@ -31,6 +31,7 @@ export type {
   EngineBackend,
   BackendInfo,
   HardwareSnapshot,
+  GpuInfo,
   FrameMeta,
   FramePixels,
 } from "./bindings";

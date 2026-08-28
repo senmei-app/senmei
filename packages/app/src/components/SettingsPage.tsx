@@ -61,12 +61,6 @@ export default function SettingsPage({
   const [recording, setRecording] = useState<string | null>(null);
   const { status, downloading, pct, error, download } = useFfmpeg();
   const [tileDraft, setTileDraft] = useState(String(tileSize));
-  const [gpuDraft, setGpuDraft] = useState(String(gpuIndex));
-  const commitGpuIndex = () => {
-    const n = Number(gpuDraft);
-    if (Number.isInteger(n) && n >= 0) onGpuIndexChange(n);
-    setGpuDraft(String(gpuIndex));
-  };
   const [exporting, setExporting] = useState(false);
   const [diagMsg, setDiagMsg] = useState<string | null>(null);
   const [modelFiles, setModelFiles] = useState<ModelFileInfo[]>([]);
@@ -210,53 +204,37 @@ export default function SettingsPage({
 
         <div className="flex-1 overflow-y-auto p-6">
           {section === "appearance" && (
-            <div className="max-w-xl space-y-6">
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.language")}
-                </label>
-                <div className="flex gap-1">
-                  {(["en", "de"] as Lang[]).map((l) => (
-                    <button
-                      key={l}
-                      onClick={() => onLanguageChange(l)}
-                      className={
-                        language === l
-                          ? "rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white"
-                          : "rounded-md bg-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      }
-                    >
-                      {l.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
+            <div className="max-w-xl space-y-3">
+              {/* Language */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.language")}</span>
+                <select
+                  value={language}
+                  onChange={(e) => onLanguageChange(e.target.value as Lang)}
+                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                </select>
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.theme")}
-                </label>
-                <div className="flex gap-1">
-                  {(["light", "dark", "system"] as Theme[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => onThemeChange(m)}
-                      className={
-                        theme === m
-                          ? "rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white"
-                          : "rounded-md bg-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      }
-                    >
-                      {t(`theme.${m}`)}
-                    </button>
-                  ))}
-                </div>
+              {/* Theme */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.theme")}</span>
+                <select
+                  value={theme}
+                  onChange={(e) => onThemeChange(e.target.value as Theme)}
+                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <option value="light">{t("theme.light")}</option>
+                  <option value="dark">{t("theme.dark")}</option>
+                  <option value="system">{t("theme.system")}</option>
+                </select>
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.tileSize")}
-                </label>
+              {/* Tile size */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.tileSize")}</span>
                 <input
                   type="number"
                   min={128}
@@ -268,60 +246,41 @@ export default function SettingsPage({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.currentTarget.blur();
                   }}
-                  className="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-right text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 />
-                <span className="ml-2 text-[11px] text-slate-400">{t("settings.tileSizeHint")}</span>
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.backend")}
-                </label>
-                <div className="flex gap-1">
-                  {(["auto", "vulkan", "libTorch"] as EngineBackend[]).map((b) => (
-                    <button
-                      key={b}
-                      onClick={() => onBackendChange(b)}
-                      disabled={
-                        b === "vulkan"
-                          ? backendInfo
-                            ? !backendInfo.vulkanCompiled
-                            : false
-                          : b === "libTorch"
-                            ? backendInfo
-                              ? !(backendInfo.libtorchCompiled && backendInfo.cudaAvailable)
-                              : false
-                            : false
-                      }
-                      className={
-                        backend === b
-                          ? "rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white"
-                          : "rounded-md bg-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      }
-                    >
-                      {b === "libTorch" ? "LibTorch" : b === "vulkan" ? "Vulkan" : "Auto"}
-                    </button>
+              {/* Backend */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.backend")}</span>
+                <select
+                  value={backend}
+                  onChange={(e) => onBackendChange(e.target.value as EngineBackend)}
+                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="vulkan" disabled={backendInfo ? !backendInfo.vulkanCompiled : false}>Vulkan</option>
+                  <option value="libTorch" disabled={backendInfo ? !(backendInfo.libtorchCompiled && backendInfo.cudaAvailable) : false}>LibTorch</option>
+                </select>
+              </div>
+
+              {/* GPU index */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.gpu")}</span>
+                <select
+                  value={gpuIndex}
+                  onChange={(e) => onGpuIndexChange(Number(e.target.value))}
+                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  {hardware?.gpus.map((g) => (
+                    <option key={g.index} value={g.index}>
+                      {g.name}{g.vramTotalBytes ? ` (${Math.round(g.vramTotalBytes / 1024 / 1024 / 1024 * 10) / 10} GB)` : ""}
+                    </option>
                   ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {t("settings.gpu")}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={7}
-                  value={gpuDraft}
-                  onChange={(e) => setGpuDraft(e.target.value)}
-                  onBlur={commitGpuIndex}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                  }}
-                  className="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                />
-                <span className="ml-2 text-[11px] text-slate-400">{t("settings.gpuHint")}</span>
+                  {(!hardware?.gpus || hardware.gpus.length === 0) && (
+                    <option value={0}>GPU 0</option>
+                  )}
+                </select>
               </div>
             </div>
           )}

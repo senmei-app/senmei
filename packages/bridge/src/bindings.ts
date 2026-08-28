@@ -146,6 +146,12 @@ export type FrameMeta = {
  */
 export type FramePixels = number[];
 
+export type GpuInfo = {
+	name: string,
+	index: number,
+	vramTotalBytes: number | null,
+};
+
 export type HardwareSnapshot = {
 	/**  Overall system CPU load in 0..1. */
 	cpuUsage: number | null,
@@ -155,6 +161,8 @@ export type HardwareSnapshot = {
 	gpuUtilizationPercent: number | null,
 	gpuMemoryUsedBytes: number | null,
 	gpuMemoryTotalBytes: number | null,
+	/**  All detected GPUs for selection. */
+	gpus: GpuInfo[],
 };
 
 /**  One log line for a Logs panel (GUI + HTTP share the shape). */
