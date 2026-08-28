@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   BackendInfo,
@@ -46,6 +46,39 @@ export default function App() {
   const [selected, setSelected] = useState<string[]>([]);
   const [mediaView, setMediaView] = useState<"library" | "queue">("library");
   const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
+  // Undo/redo history for the step stack — every structural edit commits.
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const stepsRef = useRef(steps);
+  const historyRef = useRef<{ past: PipelineStep[][]; future: PipelineStep[][] }>({ past: [], future: [] });
+  const resetHistory = () => {
+    historyRef.current = { past: [], future: [] };
+    setCanUndo(false);
+    setCanRedo(false);
+  };
+  const commitSteps = useCallback((next: PipelineStep[]) => {
+    historyRef.current.past.push(stepsRef.current);
+    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
+    historyRef.current.future = [];
+    setSteps(next);
+  }, []);
+  const undo = useCallback(() => {
+    const prev = historyRef.current.past.pop();
+    if (!prev) return;
+    historyRef.current.future.push(stepsRef.current);
+    setSteps(prev);
+  }, []);
+  const redo = useCallback(() => {
+    const next = historyRef.current.future.pop();
+    if (!next) return;
+    historyRef.current.past.push(stepsRef.current);
+    setSteps(next);
+  }, []);
+  useEffect(() => {
+    stepsRef.current = steps;
+    setCanUndo(historyRef.current.past.length > 0);
+    setCanRedo(historyRef.current.future.length > 0);
+  }, [steps]);
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("senmei.onboarded") === "1");
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -152,6 +185,7 @@ export default function App() {
     getBackend()
       .then((b) => b.loadProjectSettings(projectDir))
       .then((s: ProjectSettings) => {
+        resetHistory();
         if (s.steps && s.steps.length > 0) setSteps(normalizeSteps(s.steps));
         if (s.files && s.files.length > 0) setFiles(s.files);
         if (s.outputDir) setOutputDir(s.outputDir);
@@ -259,6 +293,7 @@ export default function App() {
         setHealth("suggest produced no steps");
         return;
       }
+      resetHistory();
       setSteps(mapped);
       setHealth(`Suggested pipeline: ${sug.anime ? "anime" : "live-action"} · ${mapped.length} steps`);
     } catch (e) {
@@ -368,6 +403,10 @@ export default function App() {
   // fullscreen keeps the <video> in the DOM (smooth) instead of webkit2gtk's
   // native media fullscreen (separate layer, uncontrolled dblclick). The toggle
   // is pure; the sync effect below applies it to the OS window.
+  const renderSample = useCallback(() => {
+    if (currentFile) void batch.startBatch(false, sampleRange, [currentFile]);
+  }, [currentFile, sampleRange]);
+
   const toggleFullVideo = () => {
     setFullVideo((v) => !v);
   };
@@ -431,12 +470,36 @@ export default function App() {
           e.preventDefault();
           toggleFullVideo();
           break;
+        case hotkeys.renderSample:
+          e.preventDefault();
+          renderSample();
+          break;
+        case hotkeys.toggleMultiSelect:
+          e.preventDefault();
+          setMultiSelect((v) => !v);
+          break;
+        case hotkeys.undo:
+          e.preventDefault();
+          undo();
+          break;
+        case hotkeys.redo:
+          e.preventDefault();
+          redo();
+          break;
+        case hotkeys.viewLibrary:
+          e.preventDefault();
+          setMediaView("library");
+          break;
+        case hotkeys.viewQueue:
+          e.preventDefault();
+          setMediaView("queue");
+          break;
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, selected, projectDir, hotkeyOverrides]);
+  }, [files, selected, projectDir, hotkeyOverrides, renderSample, undo, redo]);
 
   const monitorEl = (
     <Monitor
@@ -446,18 +509,25 @@ export default function App() {
       rendering={batch.rendering}
       progress={batch.progress}
       timings={batch.timings}
+      steps={steps}
       sampleInMs={sampleRange?.inMs ?? 0}
       sampleOutMs={sampleRange?.outMs ?? 0}
       onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
-      onRenderSample={() => currentFile && void batch.startBatch(false, sampleRange, [currentFile])}
+      onRenderSample={renderSample}
       fullVideo={fullVideo}
       onToggleFullVideo={toggleFullVideo}
+      toggleMetaHotkey={resolveHotkeys(hotkeyOverrides).toggleMeta}
+      renderSampleHotkey={resolveHotkeys(hotkeyOverrides).renderSample}
       togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
       muteHotkey={resolveHotkeys(hotkeyOverrides).mute}
       volumeUpHotkey={resolveHotkeys(hotkeyOverrides).volumeUp}
       volumeDownHotkey={resolveHotkeys(hotkeyOverrides).volumeDown}
       seekBackHotkey={resolveHotkeys(hotkeyOverrides).seekBack}
       seekForwardHotkey={resolveHotkeys(hotkeyOverrides).seekForward}
+      modeSourceHotkey={resolveHotkeys(hotkeyOverrides).modeSource}
+      modeResultHotkey={resolveHotkeys(hotkeyOverrides).modeResult}
+      modeCompareHotkey={resolveHotkeys(hotkeyOverrides).modeCompare}
+      modeABHotkey={resolveHotkeys(hotkeyOverrides).modeAB}
     />
   );
 
@@ -479,6 +549,7 @@ export default function App() {
             gpuIndex={gpuIndex}
             backend={backend}
             backendInfo={backendInfoState}
+            hardware={hardware}
             hotkeys={resolveHotkeys(hotkeyOverrides)}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
@@ -503,11 +574,10 @@ export default function App() {
             <TopBar
               file={currentFile ?? undefined}
               projectName={projectDir ? basename(projectDir) : undefined}
-              rendering={batch.rendering}
+              hotkeys={resolveHotkeys(hotkeyOverrides)}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
               onBatchFolder={processFolderFiles}
-              onStartRender={() => batch.startBatch()}
               onCloseProject={closeProject}
               onExportProject={handleExportProject}
               onSettings={() => setSettingsOpen(true)}
@@ -523,15 +593,23 @@ export default function App() {
               onProcessSelected={() => batch.startBatch(true)}
               onProcessAll={() => batch.startBatch(false)}
               onToggleFullscreen={toggleFullVideo}
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              hasFiles={files.length > 0}
+              hasSelection={selected.length > 0}
             />
             <PanelGroup direction="horizontal" className="relative flex flex-1 overflow-hidden">
               <Panel defaultSize={20} minSize={14}>
                 <MediaLibrary
                   files={files}
+                  hotkeys={resolveHotkeys(hotkeyOverrides)}
                   onOpen={openFiles}
                   onRemoveFile={removeFile}
                   outputDir={outputDir}
                   onPickOutputDir={pickOutputDir}
+                  onStartRender={() => batch.startBatch()}
                   rendering={batch.rendering}
                   paused={batch.paused}
                   onTogglePause={batch.togglePause}
@@ -548,7 +626,7 @@ export default function App() {
                   onDiscardQueue={batch.discardQueue}
                 />
               </Panel>
-              <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
+              <PanelResizeHandle className="w-1.5 cursor-col-resize bg-slate-200 transition-colors hover:bg-indigo-300/70 active:bg-indigo-400/80 dark:bg-slate-800/80 dark:hover:bg-indigo-400/40" />
               <Panel
                 defaultSize={55}
                 minSize={35}
@@ -556,9 +634,9 @@ export default function App() {
               >
                 {monitorEl}
               </Panel>
-              <PanelResizeHandle className="w-px bg-slate-200 dark:bg-slate-800/80" />
+              <PanelResizeHandle className="w-1.5 cursor-col-resize bg-slate-200 transition-colors hover:bg-indigo-300/70 active:bg-indigo-400/80 dark:bg-slate-800/80 dark:hover:bg-indigo-400/40" />
               <Panel defaultSize={25} minSize={18}>
-                <RightPanel steps={steps} outputDir={outputDir} onChange={setSteps} onSuggest={suggestPipeline} />
+                <RightPanel steps={steps} outputDir={outputDir} onChange={commitSteps} onSuggest={suggestPipeline} />
               </Panel>
             </PanelGroup>
             <StatusBar

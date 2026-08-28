@@ -6,11 +6,10 @@ import { basename } from "../paths";
 export default function TopBar({
   file,
   projectName,
-  rendering,
+  hotkeys,
   onImportFile,
   onImportFolder,
   onBatchFolder,
-  onStartRender,
   onCloseProject,
   onExportProject,
   onSettings,
@@ -23,14 +22,19 @@ export default function TopBar({
   onProcessSelected,
   onProcessAll,
   onToggleFullscreen,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  hasFiles,
+  hasSelection,
 }: {
   file?: string;
   projectName?: string;
-  rendering?: boolean;
+  hotkeys: Record<string, string>;
   onImportFile: () => void;
   onImportFolder: () => void;
   onBatchFolder: () => void;
-  onStartRender: () => void;
   onCloseProject: () => void;
   onExportProject: () => void;
   onSettings: () => void;
@@ -43,18 +47,25 @@ export default function TopBar({
   onProcessSelected: () => void;
   onProcessAll: () => void;
   onToggleFullscreen: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  hasFiles: boolean;
+  hasSelection: boolean;
 }) {
   const { t } = useI18n();
 
   return (
     <header className="relative z-50 flex h-10 w-full items-center gap-4 border-b border-slate-200 bg-white/90 px-4 text-xs backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
       <div data-tauri-drag-region className="flex items-center space-x-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white shadow-lg shadow-indigo-500/30">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm text-white">
           鮮
         </div>
       </div>
 
       <MenuBar
+        hotkeys={hotkeys}
         onImportFile={onImportFile}
         onImportFolder={onImportFolder}
         onBatchFolder={onBatchFolder}
@@ -70,6 +81,12 @@ export default function TopBar({
         onProcessSelected={onProcessSelected}
         onProcessAll={onProcessAll}
         onToggleFullscreen={onToggleFullscreen}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        hasFiles={hasFiles}
+        hasSelection={hasSelection}
       />
 
       <div data-tauri-drag-region className="flex-1 self-stretch" />
@@ -82,19 +99,7 @@ export default function TopBar({
         {projectName ? `${projectName} / ${file ? basename(file) : t("topbar.noFile")}` : (file ? basename(file) : "")}
       </div>
 
-      <div className="flex items-center space-x-2">
-        <button
-          onClick={onStartRender}
-          disabled={!file || rendering}
-          className="flex items-center space-x-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 font-medium text-white shadow-md shadow-indigo-600/30 transition active:scale-95 disabled:opacity-40"
-        >
-          <span>▶</span>
-          <span>{t("render.start")}</span>
-        </button>
-        <div className="border-l border-slate-200 pl-3 dark:border-slate-800">
-          <WindowControls />
-        </div>
-      </div>
+      <WindowControls />
     </header>
   );
 }

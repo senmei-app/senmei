@@ -9,6 +9,7 @@ mod preview_stream;
 mod preview_worker;
 mod probe;
 mod process;
+mod thumbnail;
 mod videos;
 
 pub use content::is_anime;
@@ -25,6 +26,7 @@ pub use preview::{encode_png, stream_pcm, PcmPipe};
 pub use preview_stream::{PreviewCache, PREVIEW_MAX_DIM};
 pub use preview_worker::PreviewWorker;
 pub use probe::{probe, VideoInfo};
+pub use thumbnail::thumbnail;
 pub use videos::find_videos;
 
 pub type Result<T> = std::result::Result<T, Error>;

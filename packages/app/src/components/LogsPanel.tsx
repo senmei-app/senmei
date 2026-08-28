@@ -23,6 +23,7 @@ export default function LogsPanel() {
   const { t } = useI18n();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [minLevel, setMinLevel] = useState<string>("INFO");
+  const [q, setQ] = useState("");
   const boxRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
 
@@ -59,7 +60,9 @@ export default function LogsPanel() {
   }, [entries]);
 
   const minSev = LEVEL_SEV[minLevel] ?? 0;
-  const shown = entries.filter((e) => (LEVEL_SEV[e.level] ?? 0) >= minSev);
+  const shown = entries.filter(
+    (e) => (LEVEL_SEV[e.level] ?? 0) >= minSev && e.message.toLowerCase().includes(q.trim().toLowerCase()),
+  );
   const [copied, setCopied] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -107,8 +110,8 @@ export default function LogsPanel() {
   const levels = ["ALL", "ERROR", "WARN", "INFO"] as const;
   const chipCls = (active: boolean) =>
     active
-      ? "rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-medium text-white"
-      : "rounded-md bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
+      ? "rounded-md bg-indigo-600 px-2 py-0.5 text-[11px] font-medium text-white"
+      : "rounded-md bg-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -121,9 +124,15 @@ export default function LogsPanel() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("logs.search")}
+            className="w-40 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          />
           <button
             onClick={copyAll}
-            className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            className="rounded-md px-2 py-0.5 text-[11px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           >
             {copied ? t("logs.copied") : t("logs.copy")}
           </button>
@@ -133,7 +142,7 @@ export default function LogsPanel() {
               // Also empty the backend buffer so re-mounts don't reload old logs.
               backend().then((b) => b.clearLogs().catch(() => {}));
             }}
-            className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            className="rounded-md px-2 py-0.5 text-[11px] text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           >
             {t("logs.clear")}
           </button>
@@ -148,7 +157,7 @@ export default function LogsPanel() {
           dragStart.current = null;
           if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 5) selectAll();
         }}
-        className="min-h-0 flex-1 select-text overflow-y-auto px-3 py-2 font-mono text-[10px] leading-relaxed"
+        className="min-h-0 flex-1 select-text overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed"
       >
         {shown.length === 0 && <p className="text-slate-400">{t("logs.empty")}</p>}
         {shown.map((e, i) => (

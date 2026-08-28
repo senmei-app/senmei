@@ -25,6 +25,12 @@ pub struct VideoInfo {
     pub color_transfer: Option<String>,
     /// Source color primaries (e.g. "bt2020").
     pub color_primaries: Option<String>,
+    /// Video codec name (e.g. "h264", "hevc", "av1").
+    pub video_codec: Option<String>,
+    /// First audio stream's codec name (e.g. "aac", "opus").
+    pub audio_codec: Option<String>,
+    /// Video pixel format (e.g. "yuv420p").
+    pub pix_fmt: Option<String>,
 }
 
 impl VideoInfo {
@@ -50,6 +56,8 @@ struct Stream {
     #[serde(default)]
     codec_type: String,
     #[serde(default)]
+    codec_name: String,
+    #[serde(default)]
     width: u32,
     #[serde(default)]
     height: u32,
@@ -61,6 +69,8 @@ struct Stream {
     color_transfer: Option<String>,
     #[serde(default)]
     color_primaries: Option<String>,
+    #[serde(default)]
+    pix_fmt: Option<String>,
     #[serde(default)]
     tags: HashMap<String, String>,
     #[serde(default)]
@@ -122,6 +132,10 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
     }
 
     let parsed: FfprobeOutput = serde_json::from_slice(&output.stdout)?;
+    parse(parsed)
+}
+
+fn parse(parsed: FfprobeOutput) -> Result<VideoInfo> {
     let stream = parsed
         .streams
         .iter()
@@ -152,6 +166,13 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
         (stream.width, stream.height)
     };
 
+    let audio_codec = parsed
+        .streams
+        .iter()
+        .find(|s| s.codec_type == "audio")
+        .map(|s| s.codec_name.clone())
+        .filter(|c| !c.is_empty());
+
     Ok(VideoInfo {
         width,
         height,
@@ -161,6 +182,9 @@ pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
         rotation,
         color_transfer: stream.color_transfer.clone(),
         color_primaries: stream.color_primaries.clone(),
+        video_codec: Some(stream.codec_name.clone()).filter(|c| !c.is_empty()),
+        audio_codec,
+        pix_fmt: stream.pix_fmt.clone(),
     })
 }
 
@@ -177,7 +201,7 @@ fn parse_ratio(s: &str) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::VideoInfo;
+    use super::{parse, FfprobeOutput, VideoInfo};
 
     fn info(transfer: Option<&str>) -> VideoInfo {
         VideoInfo {
@@ -189,6 +213,9 @@ mod tests {
             rotation: 0,
             color_transfer: transfer.map(String::from),
             color_primaries: Some("bt2020".into()),
+            video_codec: Some("h264".into()),
+            audio_codec: Some("aac".into()),
+            pix_fmt: Some("yuv420p".into()),
         }
     }
 
@@ -199,5 +226,43 @@ mod tests {
         assert!(info(Some("smpte428-1")).is_hdr(), "DCI-P3 transfer");
         assert!(!info(Some("bt709")).is_hdr(), "SDR");
         assert!(!info(None).is_hdr(), "no transfer");
+    }
+
+    #[test]
+    fn codec_parsing() {
+        let parsed: FfprobeOutput = serde_json::from_str(
+            r#"{
+                "streams": [
+                    {"codec_type":"video","codec_name":"hevc","width":1280,"height":720,
+                     "avg_frame_rate":"24000/1001","pix_fmt":"yuv420p10le"},
+                    {"codec_type":"audio","codec_name":"opus"}
+                ],
+                "format": {"duration":"12.5"}
+            }"#,
+        )
+        .unwrap();
+        let v = parse(parsed).unwrap();
+        assert_eq!(v.video_codec.as_deref(), Some("hevc"));
+        assert_eq!(v.audio_codec.as_deref(), Some("opus"));
+        assert_eq!(v.pix_fmt.as_deref(), Some("yuv420p10le"));
+        assert_eq!((v.width, v.height), (1280, 720));
+    }
+
+    #[test]
+    fn codec_parsing_without_audio() {
+        let parsed: FfprobeOutput = serde_json::from_str(
+            r#"{
+                "streams": [
+                    {"codec_type":"video","codec_name":"av1","width":3840,"height":2160,
+                     "avg_frame_rate":"60/1"}
+                ],
+                "format": {"duration":"1"}
+            }"#,
+        )
+        .unwrap();
+        let v = parse(parsed).unwrap();
+        assert_eq!(v.video_codec.as_deref(), Some("av1"));
+        assert_eq!(v.audio_codec, None);
+        assert_eq!(v.pix_fmt, None);
     }
 }

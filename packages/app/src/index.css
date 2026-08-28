@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Visible keyboard focus (a11y): a consistent indigo ring on Tab navigation. */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+.dark :focus-visible {
+  outline-color: #818cf8;
+}
+
 /* Native <select> dropdowns render with the OS color scheme; force dark so
    the popup options stay readable instead of white-on-white. */
 .dark {

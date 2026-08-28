@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@senmei/ui";
 import type { ProjectEntry } from "@senmei/bridge";
 import { useI18n } from "../i18n";
@@ -55,7 +56,7 @@ export default function ProjectScreen({
         <p className="mt-1 text-xs text-slate-500">{t("project.subtitle")}</p>
 
         <div className="mt-8 flex w-72 flex-col gap-2">
-          <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.new")}</label>
+          <label className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.new")}</label>
           <div className="flex gap-2">
             <input
               value={name}
@@ -69,7 +70,7 @@ export default function ProjectScreen({
         </div>
 
         <div className="mt-6 w-72">
-          <label className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.existing")}</label>
+          <label className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.existing")}</label>
           <div className="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
             {projects.length === 0 ? (
               <p className="text-xs text-slate-500">{t("project.none")}</p>
@@ -88,9 +89,10 @@ export default function ProjectScreen({
                   <button
                     onClick={() => remove(p.path)}
                     title={t("project.delete")}
+                    aria-label={t("project.delete")}
                     className="px-2.5 py-2 text-sm text-slate-300 transition hover:bg-red-500/10 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
                   >
-                    🗑
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))
@@ -105,7 +107,7 @@ export default function ProjectScreen({
 
       <span
         title={`build ${__BUILD_HASH__}`}
-        className="fixed bottom-3 right-3 rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+        className="fixed bottom-3 right-3 rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
       >
         v{__APP_VERSION__}-{__BUILD_HASH__}
       </span>
@@ -115,7 +117,7 @@ export default function ProjectScreen({
           <div className="w-80 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t("project.delete")}</h2>
             <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">{t("project.deleteConfirm")}</p>
-            <p className="mt-1 truncate font-mono text-[10px] text-slate-400">{confirmPath}</p>
+            <p className="mt-1 truncate font-mono text-[11px] text-slate-400">{confirmPath}</p>
             <div className="mt-4 flex justify-end space-x-2">
               <Button variant="secondary" onClick={() => setConfirmPath(null)}>
                 {t("queue.cancel")}

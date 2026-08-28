@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../i18n";
 
 interface MenuItem {
@@ -7,6 +7,7 @@ interface MenuItem {
   action?: () => void;
   separator?: boolean;
   shortcut?: string;
+  disabled?: boolean;
   children?: MenuItem[];
 }
 
@@ -17,6 +18,7 @@ interface Menu {
 }
 
 export default function MenuBar({
+  hotkeys,
   onImportFile,
   onImportFolder,
   onBatchFolder,
@@ -32,7 +34,14 @@ export default function MenuBar({
   onProcessSelected,
   onProcessAll,
   onToggleFullscreen,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  hasFiles,
+  hasSelection,
 }: {
+  hotkeys: Record<string, string>;
   onImportFile: () => void;
   onImportFolder: () => void;
   onBatchFolder: () => void;
@@ -48,9 +57,30 @@ export default function MenuBar({
   onProcessSelected: () => void;
   onProcessAll: () => void;
   onToggleFullscreen: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  hasFiles: boolean;
+  hasSelection: boolean;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
+
+  // Alt+letter opens the matching menu (Alt+F File, Alt+E Edit, …).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      const map: Record<string, string> = { f: "file", e: "edit", v: "view", p: "process", h: "help" };
+      const key = map[e.key.toLowerCase()];
+      if (key) {
+        e.preventDefault();
+        setOpen((o) => (o === key ? null : key));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const menus: Menu[] = [
     {
@@ -61,12 +91,12 @@ export default function MenuBar({
           key: "import",
           label: t("menu.importVideos"),
           children: [
-            { key: "import-file", label: t("menu.importFile"), shortcut: "Ctrl+O", action: onImportFile },
+            { key: "import-file", label: t("menu.importFile"), shortcut: hotkeys.openFile, action: onImportFile },
             { key: "import-folder", label: t("menu.importFolder"), action: onImportFolder },
           ],
         },
         { key: "close", label: t("menu.closeProject"), action: onCloseProject },
-        { key: "export", label: t("menu.exportProject"), shortcut: "Ctrl+E", action: onExportProject },
+        { key: "export", label: t("menu.exportProject"), shortcut: hotkeys.exportProject, action: onExportProject },
         { key: "sep", separator: true },
         { key: "settings", label: t("menu.settings"), action: onSettings },
       ],
@@ -75,26 +105,28 @@ export default function MenuBar({
       key: "edit",
       label: t("menu.edit"),
       items: [
-        { key: "select-all", label: t("menu.selectAll"), shortcut: "Ctrl+A", action: onSelectAll },
-        { key: "delete-selected", label: t("menu.deleteSelected"), shortcut: "Delete", action: onDeleteSelected },
+        { key: "undo", label: t("menu.undo"), shortcut: hotkeys.undo, action: onUndo, disabled: !canUndo },
+        { key: "redo", label: t("menu.redo"), shortcut: hotkeys.redo, action: onRedo, disabled: !canRedo },
+        { key: "sep", separator: true },
+        { key: "select-all", label: t("menu.selectAll"), shortcut: hotkeys.selectAll, action: onSelectAll, disabled: !hasFiles },
+        { key: "delete-selected", label: t("menu.deleteSelected"), shortcut: hotkeys.deleteSelected, action: onDeleteSelected, disabled: !hasSelection },
       ],
     },
     {
       key: "view",
       label: t("menu.view"),
-      items: [{ key: "full-video", label: t("menu.fullVideo"), action: onToggleFullscreen }],
+      items: [{ key: "full-video", label: t("menu.fullVideo"), shortcut: hotkeys.toggleFullscreen, action: onToggleFullscreen }],
     },
     {
       key: "process",
       label: t("menu.process"),
       items: [
-        { key: "add-all", label: t("menu.addAllQueue"), action: onAddAllToQueue },
-        { key: "add-selected", label: t("menu.addSelectedQueue"), action: onAddSelectedToQueue },
+        { key: "add-all", label: t("menu.addAllQueue"), action: onAddAllToQueue, disabled: !hasFiles },
+        { key: "add-selected", label: t("menu.addSelectedQueue"), action: onAddSelectedToQueue, disabled: !hasSelection },
         { key: "batch-folder", label: t("menu.batchFolder"), action: onBatchFolder },
         { key: "sep1", separator: true },
-        { key: "process-selected", label: t("menu.processSelected"), shortcut: "Ctrl+R", action: onProcessSelected },
-        { key: "process-queue", label: t("menu.processQueue"), shortcut: "Ctrl+R", action: onProcessAll },
-        { key: "process-all", label: t("menu.processAll"), action: onProcessAll },
+        { key: "process-selected", label: t("menu.processSelected"), action: onProcessSelected, disabled: !hasSelection },
+        { key: "process-queue", label: t("menu.processQueue"), shortcut: hotkeys.render, action: onProcessAll, disabled: !hasFiles },
       ],
     },
     {
@@ -106,6 +138,12 @@ export default function MenuBar({
       ],
     },
   ];
+
+  const itemCls = (disabled?: boolean) =>
+    "flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] " +
+    (disabled
+      ? "cursor-default text-slate-400 opacity-60 dark:text-slate-600"
+      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800");
 
   const renderItem = (item: MenuItem): ReactNode => {
     if (item.separator) {
@@ -123,15 +161,16 @@ export default function MenuBar({
             {item.children.map((child) => (
               <button
                 key={child.key}
+                disabled={child.disabled}
                 onClick={() => {
                   setOpen(null);
                   child.action?.();
                 }}
-                className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                className={itemCls(child.disabled)}
               >
                 <span>{child.label}</span>
                 {child.shortcut && (
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500">{child.shortcut}</span>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">{child.shortcut}</span>
                 )}
               </button>
             ))}
@@ -143,15 +182,16 @@ export default function MenuBar({
     return (
       <button
         key={item.key}
+        disabled={item.disabled}
         onClick={() => {
           setOpen(null);
           item.action?.();
         }}
-        className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        className={itemCls(item.disabled)}
       >
         <span>{item.label}</span>
         {item.shortcut && (
-          <span className="text-[9px] text-slate-400 dark:text-slate-500">{item.shortcut}</span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">{item.shortcut}</span>
         )}
       </button>
     );

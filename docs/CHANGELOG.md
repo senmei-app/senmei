@@ -8,6 +8,38 @@
 
 ## Unreleased
 
+- **ui: UI overhaul — meta, hotkeys, settings, consistency (2026-08-28)** —
+  - **Source→output meta**: `probe_video` reports `videoCodec`/`audioCodec`/
+    `pixFmt`; the Monitor shows configured output meta beside the source's as
+    a dark translucent card on the **video surface** (75% opacity,
+    click-to-copy, Info toggle), widened to 352px so `3840×2160` fits; in full
+    video it sits above the control bar with its own Info toggle.
+  - **Overlays**: render progress styled like the meta card (black/75,
+    label/value rows) above the full-video bar; ModeTabs + loading/exit chrome
+    at 60-75% opacity.
+  - **Hotkeys**: added for meta (`I`), sample render (`Ctrl+Shift+R`),
+    multi-select (`Ctrl+Shift+A`), library/queue view (`Ctrl+1/2`), view modes
+    (`1-4`), undo/redo (`Ctrl+Z`/`Ctrl+Shift+Z`); grouped in Settings;
+    tooltips show the bound keys; disabled Result/A-B tabs explain why.
+  - **MenuBar**: shortcuts come from the resolved hotkeys (no hardcoded
+    labels); Process menu cleaned up; Edit gains Undo/Redo + disabled states;
+    `Alt+F/E/V/P/H` open the menus.
+  - **Undo/Redo** for the processing stack.
+  - **Settings**: hotkeys + models grouped by kind; Info gains App + Hardware
+    (live GPU/CPU/RAM) cards.
+  - **Consistency**: emoji → lucide everywhere; font scale unified to 11px;
+    flat buttons (no drop shadows / `active:scale`); uniform header heights;
+    play-row Primary/Secondary hierarchy; logo shadow removed; StatusBar gear
+    → lucide.
+  - **A11y**: `aria-label`s on icon-only buttons + `focus-visible` ring; 6px
+    resize handles.
+  - **Library thumbnails**: real JPEG per tile (`data:image/jpeg`, Tauri IPC +
+    HTTP) + `WxH · codec` line; new `thumbnail` command + `/api/thumbnail`.
+  - **Sample range**: text-input combobox + single-column preset menu (opens
+    upward); Start Render relocated to the Media Library.
+  - **Logs**: case-insensitive text filter.
+  - i18n: en/de key parity restored (dropped dead `topbar.rendering`).
+
 - **test: `SENMEI_TCH_TILED=1` A/B switch (2026-08-28)** — forces the tch
   engine onto the old 640px-tiled fused path, so the full-frame win is
   measurable per model. Sweep @576×432: full-frame is ~1.4-1.9× faster on

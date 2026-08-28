@@ -35,7 +35,7 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">
+          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
             A
           </span>
         </div>
@@ -51,7 +51,7 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">
             B
           </span>
         </div>
@@ -74,7 +74,7 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-slate-300">
             {t("monitor.original")}
           </span>
         </div>
@@ -90,7 +90,7 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-emerald-300">
             {t("monitor.result")}
           </span>
         </div>

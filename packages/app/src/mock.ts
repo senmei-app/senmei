@@ -106,8 +106,21 @@ function demoProbe(): VideoInfo {
     rotation: 0,
     colorTransfer: null,
     colorPrimaries: null,
+    videoCodec: "h264",
+    audioCodec: "aac",
+    pixFmt: "yuv420p",
   };
 }
+
+// Small indigo SVG tile so the mock library shows a real thumbnail.
+const DEMO_THUMB =
+  "data:image/svg+xml;base64," +
+  btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="40">' +
+      '<rect width="56" height="40" fill="#4f46e5"/>' +
+      '<text x="28" y="24" font-size="10" fill="#fff" text-anchor="middle">demo</text>' +
+      "</svg>",
+  );
 
 function demoFrame(): RawFrame {
   // Solid indigo 32x16 raw RGB24 so the preview shows a color in mock/dev.
@@ -205,6 +218,10 @@ export const mockBackend: Backend = {
 
   async probeVideo(_input) {
     return demoProbe();
+  },
+
+  async thumbnail() {
+    return DEMO_THUMB;
   },
 
   async readFrame() {

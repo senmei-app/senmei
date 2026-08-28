@@ -35,6 +35,8 @@ export const commands = {
 	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
+	/**  Small JPEG thumbnail (data URL) for the media library tiles. */
+	thumbnail: (input: string, maxW: number | null) => __TAURI_INVOKE<string>("thumbnail", { input, maxW }),
 	/**
 	 *  Probe content and suggest a default pipeline (content-aware defaults):
 	 *  anime vs live-action, input resolution, frame rate. Returns a JSON string
@@ -340,5 +342,11 @@ export type VideoInfo = {
 	colorTransfer: string | null,
 	/**  Source color primaries (e.g. "bt2020"). */
 	colorPrimaries: string | null,
+	/**  Video codec name (e.g. "h264", "hevc", "av1"). */
+	videoCodec: string | null,
+	/**  First audio stream's codec name (e.g. "aac", "opus"). */
+	audioCodec: string | null,
+	/**  Video pixel format (e.g. "yuv420p"). */
+	pixFmt: string | null,
 };
 

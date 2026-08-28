@@ -5,21 +5,34 @@ export interface HotkeyAction {
   id: string;
   labelKey: string;
   default: string;
+  /** Settings grouping: "global" | "playback" | "view" | "media". */
+  group: string;
 }
 
 export const HOTKEY_ACTIONS: HotkeyAction[] = [
-  { id: "openFile", labelKey: "hotkeys.openFile", default: "Ctrl+O" },
-  { id: "selectAll", labelKey: "hotkeys.selectAll", default: "Ctrl+A" },
-  { id: "deleteSelected", labelKey: "hotkeys.deleteSelected", default: "Delete" },
-  { id: "render", labelKey: "hotkeys.render", default: "Ctrl+R" },
-  { id: "exportProject", labelKey: "hotkeys.exportProject", default: "Ctrl+E" },
-  { id: "togglePlay", labelKey: "hotkeys.togglePlay", default: "Space" },
-  { id: "toggleFullscreen", labelKey: "hotkeys.toggleFullscreen", default: "F11" },
-  { id: "mute", labelKey: "hotkeys.mute", default: "M" },
-  { id: "volumeUp", labelKey: "hotkeys.volumeUp", default: "ArrowUp" },
-  { id: "volumeDown", labelKey: "hotkeys.volumeDown", default: "ArrowDown" },
-  { id: "seekBack", labelKey: "hotkeys.seekBack", default: "ArrowLeft" },
-  { id: "seekForward", labelKey: "hotkeys.seekForward", default: "ArrowRight" },
+  { id: "openFile", labelKey: "hotkeys.openFile", default: "Ctrl+O", group: "global" },
+  { id: "selectAll", labelKey: "hotkeys.selectAll", default: "Ctrl+A", group: "global" },
+  { id: "deleteSelected", labelKey: "hotkeys.deleteSelected", default: "Delete", group: "global" },
+  { id: "undo", labelKey: "hotkeys.undo", default: "Ctrl+Z", group: "global" },
+  { id: "redo", labelKey: "hotkeys.redo", default: "Ctrl+Shift+Z", group: "global" },
+  { id: "render", labelKey: "hotkeys.render", default: "Ctrl+R", group: "global" },
+  { id: "exportProject", labelKey: "hotkeys.exportProject", default: "Ctrl+E", group: "global" },
+  { id: "toggleFullscreen", labelKey: "hotkeys.toggleFullscreen", default: "F11", group: "global" },
+  { id: "togglePlay", labelKey: "hotkeys.togglePlay", default: "Space", group: "playback" },
+  { id: "mute", labelKey: "hotkeys.mute", default: "M", group: "playback" },
+  { id: "volumeUp", labelKey: "hotkeys.volumeUp", default: "ArrowUp", group: "playback" },
+  { id: "volumeDown", labelKey: "hotkeys.volumeDown", default: "ArrowDown", group: "playback" },
+  { id: "seekBack", labelKey: "hotkeys.seekBack", default: "ArrowLeft", group: "playback" },
+  { id: "seekForward", labelKey: "hotkeys.seekForward", default: "ArrowRight", group: "playback" },
+  { id: "toggleMeta", labelKey: "hotkeys.toggleMeta", default: "I", group: "view" },
+  { id: "modeSource", labelKey: "hotkeys.modeSource", default: "1", group: "view" },
+  { id: "modeResult", labelKey: "hotkeys.modeResult", default: "2", group: "view" },
+  { id: "modeCompare", labelKey: "hotkeys.modeCompare", default: "3", group: "view" },
+  { id: "modeAB", labelKey: "hotkeys.modeAB", default: "4", group: "view" },
+  { id: "viewLibrary", labelKey: "hotkeys.viewLibrary", default: "Ctrl+1", group: "media" },
+  { id: "viewQueue", labelKey: "hotkeys.viewQueue", default: "Ctrl+2", group: "media" },
+  { id: "toggleMultiSelect", labelKey: "hotkeys.toggleMultiSelect", default: "Ctrl+Shift+A", group: "media" },
+  { id: "renderSample", labelKey: "hotkeys.renderSample", default: "Ctrl+Shift+R", group: "media" },
 ];
 
 export function defaultHotkey(id: string): string {

@@ -53,6 +53,16 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
     senmei_media::probe(&ffprobe, Path::new(input)).map_err(|e| e.to_string())
 }
 
+/// Small JPEG thumbnail of `input` as a `data:image/jpeg;base64,…` URL
+/// (transport-agnostic — works over Tauri IPC and HTTP alike).
+pub fn thumbnail(input: &str, max_w: u32) -> Result<String, String> {
+    use base64::Engine as _;
+    let bytes =
+        senmei_media::thumbnail(&ffmpeg(), Path::new(input), max_w).map_err(|e| e.to_string())?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:image/jpeg;base64,{b64}"))
+}
+
 /// List registry models, annotating `downloaded` from the on-disk weight files.
 pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     match load_registry() {

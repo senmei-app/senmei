@@ -1,6 +1,9 @@
 // Processing-stack step model. Order top→bottom = execution order.
 // The persisted shape is the Rust backend's PipelineStep (see bindings.ts).
 
+import type { LucideIcon } from "lucide-react";
+import { Eraser, Film, Focus, Package, Ruler, Search, SlidersHorizontal, Wand2, Zap } from "lucide-react";
+
 import type { PipelineStep, RenderProgress, StepParams } from "@senmei/bridge";
 
 export type { PipelineStep, StepParams } from "@senmei/bridge";
@@ -33,16 +36,16 @@ export type StepType =
   | "resize"
   | "output";
 
-export const STEP_META: Record<StepType, { icon: string; labelKey: string; implemented: boolean }> = {
-  interpolation: { icon: "⚡", labelKey: "tab.interpolate", implemented: true },
-  decompress: { icon: "🧼", labelKey: "tab.decompress", implemented: true },
-  upscale: { icon: "🔍", labelKey: "tab.upscale", implemented: true },
-  denoise: { icon: "🧹", labelKey: "tab.denoise", implemented: true },
-  deblur: { icon: "✨", labelKey: "tab.deblur", implemented: true },
-  deduplication: { icon: "🎞️", labelKey: "tab.dedup", implemented: true },
-  filter: { icon: "🎛️", labelKey: "tab.filter", implemented: true },
-  resize: { icon: "📐", labelKey: "tab.resize", implemented: true },
-  output: { icon: "📦", labelKey: "tab.output", implemented: true },
+export const STEP_META: Record<StepType, { icon: LucideIcon; labelKey: string; implemented: boolean }> = {
+  interpolation: { icon: Zap, labelKey: "tab.interpolate", implemented: true },
+  decompress: { icon: Wand2, labelKey: "tab.decompress", implemented: true },
+  upscale: { icon: Search, labelKey: "tab.upscale", implemented: true },
+  denoise: { icon: Eraser, labelKey: "tab.denoise", implemented: true },
+  deblur: { icon: Focus, labelKey: "tab.deblur", implemented: true },
+  deduplication: { icon: Film, labelKey: "tab.dedup", implemented: true },
+  filter: { icon: SlidersHorizontal, labelKey: "tab.filter", implemented: true },
+  resize: { icon: Ruler, labelKey: "tab.resize", implemented: true },
+  output: { icon: Package, labelKey: "tab.output", implemented: true },
 };
 
 /** Encoder quality profiles (RVE-style): each sets crf + preset as a bundle.

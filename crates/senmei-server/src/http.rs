@@ -100,6 +100,13 @@ struct ProbeParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ThumbnailParams {
+    input: String,
+    max_w: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FrameParams {
     input: String,
     position_ms: f64,
@@ -266,6 +273,17 @@ async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
     }
 }
 
+/// Small JPEG thumbnail as a `data:` URL (same payload as the Tauri IPC).
+async fn thumbnail(Json(p): Json<ThumbnailParams>) -> ApiResult {
+    if !media_path(std::path::Path::new(&p.input)) {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    }
+    match core::thumbnail(&p.input, p.max_w.unwrap_or(160)) {
+        Ok(data_url) => json_ok(&serde_json::json!({ "data": data_url })),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+    }
+}
+
 // Same worker as Tauri — scrubbing doesn't respawn ffmpeg per frame.
 fn preview_worker() -> &'static senmei_media::PreviewWorker {
     static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
@@ -384,6 +402,7 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/stream", get(stream))
         .route("/api/audio", get(audio))
         .route("/api/probe", post(probe))
+        .route("/api/thumbnail", post(thumbnail))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))
         .route("/api/scan-folder", post(scan_folder))
@@ -505,6 +524,20 @@ mod tests {
     async fn probe_missing_file_returns_400() {
         let (status, body) = send(post_json(
             "/api/probe",
+            r#"{"input":"/nonexistent/video.mkv"}"#,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(serde_json::from_slice::<serde_json::Value>(&body)
+            .unwrap()
+            .get("error")
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn thumbnail_missing_file_returns_400() {
+        let (status, body) = send(post_json(
+            "/api/thumbnail",
             r#"{"input":"/nonexistent/video.mkv"}"#,
         ))
         .await;

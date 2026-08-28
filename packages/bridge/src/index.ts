@@ -78,6 +78,7 @@ export const downloadModel = (modelId: string, onProgress: Channel<DownloadProgr
   commands.downloadModel(modelId, onProgress);
 
 export const probeVideo = (input: string) => commands.probeVideo(input);
+export const thumbnail = (input: string, maxW: number | null) => commands.thumbnail(input, maxW);
 export const readFrame = (
   input: string,
   positionMs: number | null,

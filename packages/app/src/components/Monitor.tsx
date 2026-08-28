@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { Check, ChevronDown, Info, Pause, Play, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { RenderProgress, StepTimingInfo, VideoInfo } from "@senmei/bridge";
 import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
@@ -8,9 +9,11 @@ import { fmt, fmtDuration, parseDuration, snapFrame } from "./monitor/format";
 import Benchmark from "./monitor/Benchmark";
 import CompareView from "./monitor/CompareView";
 import FrameCanvas from "./monitor/FrameCanvas";
+import MetaBar from "./monitor/MetaBar";
 import ModeTabs from "./monitor/ModeTabs";
 import Timeline from "./monitor/Timeline";
 import type { RawFrame } from "../backend/types";
+import type { PipelineStep } from "../steps";
 
 export default function Monitor({
   file,
@@ -19,6 +22,7 @@ export default function Monitor({
   rendering,
   progress,
   timings = [],
+  steps = [],
   sampleInMs = 0,
   sampleOutMs = 0,
   onSampleChange,
@@ -31,6 +35,12 @@ export default function Monitor({
   volumeDownHotkey = "ArrowDown",
   seekBackHotkey = "ArrowLeft",
   seekForwardHotkey = "ArrowRight",
+  toggleMetaHotkey = "I",
+  renderSampleHotkey = "Ctrl+Shift+R",
+  modeSourceHotkey = "1",
+  modeResultHotkey = "2",
+  modeCompareHotkey = "3",
+  modeABHotkey = "4",
 }: {
   file?: string;
   renderedFile: string | null;
@@ -40,6 +50,8 @@ export default function Monitor({
   timings?: StepTimingInfo[];
   /** Previous render result, kept for A/B compare. */
   prevRenderedFile?: string | null;
+  /** Configured pipeline (drives the source→output meta readout). */
+  steps?: PipelineStep[];
   sampleInMs?: number;
   sampleOutMs?: number;
   onSampleChange?: (inMs: number, outMs: number) => void;
@@ -54,6 +66,12 @@ export default function Monitor({
   volumeDownHotkey?: string;
   seekBackHotkey?: string;
   seekForwardHotkey?: string;
+  toggleMetaHotkey?: string;
+  renderSampleHotkey?: string;
+  modeSourceHotkey?: string;
+  modeResultHotkey?: string;
+  modeCompareHotkey?: string;
+  modeABHotkey?: string;
 }) {
   const { t } = useI18n();
 
@@ -69,18 +87,21 @@ export default function Monitor({
     (mode === "ab" && prevRenderedFile && effRendered) ||
     (mode === "compare" && file && effRendered);
   const [info, setInfo] = useState<VideoInfo | null>(null);
+  const [metaOpen, setMetaOpen] = useState(false);
   const [posMs, setPosMs] = useState(0);
   const inMs = sampleInMs;
   const outMs = sampleOutMs;
   const [playing, setPlaying] = useState(false);
   const [customVal, setCustomVal] = useState("");
   const [sampleMenu, setSampleMenu] = useState(false);
+  const [volumeOpen, setVolumeOpen] = useState(false);
   const [frames, setFrames] = useState<Record<string, RawFrame>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
   const audioDebounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   // Recent progress samples for a rolling FPS (the queue-lifetime average was
   // inflated by earlier fast renders).
@@ -301,12 +322,60 @@ export default function Monitor({
         const delta = combo === seekForwardHotkey ? 5000 : -5000;
         const max = (info?.duration ?? 0) * 1000;
         onScrub(Math.min(max, Math.max(0, posRef.current + delta)));
+      } else if (combo === toggleMetaHotkey) {
+        e.preventDefault();
+        setMetaOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volume, info, nativeSrc, inMs, outMs, muteHotkey, volumeUpHotkey, volumeDownHotkey, seekBackHotkey, seekForwardHotkey]);
+  }, [volume, info, nativeSrc, inMs, outMs, muteHotkey, volumeUpHotkey, volumeDownHotkey, seekBackHotkey, seekForwardHotkey, toggleMetaHotkey]);
+
+  // View-mode hotkeys (1-4): Original / Result / Compare / A-B. Same guard as
+  // the playback hotkeys; honor the ModeTabs' enablement.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.tagName === "BUTTON" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const combo = comboFromEvent(e);
+      switch (combo) {
+        case modeSourceHotkey:
+          e.preventDefault();
+          setMode("source");
+          break;
+        case modeResultHotkey:
+          if (effRendered) {
+            e.preventDefault();
+            setMode("result");
+          }
+          break;
+        case modeCompareHotkey:
+          if (effRendered) {
+            e.preventDefault();
+            setMode("compare");
+          }
+          break;
+        case modeABHotkey:
+          if (effRendered && prevRenderedFile) {
+            e.preventDefault();
+            setMode("ab");
+          }
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modeSourceHotkey, modeResultHotkey, modeCompareHotkey, modeABHotkey, effRendered, prevRenderedFile]);
 
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is
@@ -370,6 +439,16 @@ export default function Monitor({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [sampleMenu]);
+
+  // Volume popover: close on outside click (same pattern as the sample menu).
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) setVolumeOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [volumeOpen]);
 
   // Auto-switch to the Result view once a render completes.
   const prevRendered = useRef<string | null>(null);
@@ -558,6 +637,7 @@ export default function Monitor({
     const fps = info.fps ?? 0;
     const start = snapFrame(Math.min(posMs, durMs), fps);
     onSampleChange?.(start, snapFrame(Math.min(start + ms, durMs), fps));
+    setCustomVal("");
     setSampleMenu(false);
   };
   const pct =
@@ -609,6 +689,8 @@ export default function Monitor({
       fps > 0 ? Math.max(0, (progress.totalFrames - progress.framesProcessed) / fps) : -1;
     return { fps, eta: fmtEta(remaining) };
   })();
+
+  const VolumeIcon = volume === 0 || muted ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
     <main className={"relative flex h-full flex-col bg-slate-100 dark:bg-slate-950" + (fullVideo ? "" : " p-4")}>
@@ -668,10 +750,14 @@ export default function Monitor({
           effRendered={effRendered}
           prevRenderedFile={prevRenderedFile}
           info={info}
+          modeSourceHotkey={modeSourceHotkey}
+          modeResultHotkey={modeResultHotkey}
+          modeCompareHotkey={modeCompareHotkey}
+          modeABHotkey={modeABHotkey}
         />
 
         {loading && (
-          <div className="absolute top-3 right-3 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur">
+          <div className="absolute top-3 right-3 rounded-md bg-black/75 px-2 py-1 font-mono text-[11px] text-slate-300 backdrop-blur">
             …
           </div>
         )}
@@ -680,9 +766,10 @@ export default function Monitor({
           <button
             onClick={onToggleFullVideo}
             title={t("monitor.exitFull")}
-            className="absolute top-10 right-3 z-10 rounded-md bg-black/60 px-2 py-1 font-mono text-[10px] text-slate-300 backdrop-blur hover:bg-black/80"
+            aria-label={t("monitor.exitFull")}
+            className="absolute top-10 right-3 z-10 rounded-md bg-black/75 px-2 py-1 font-mono text-[11px] text-slate-300 backdrop-blur hover:bg-black/85"
           >
-            ✕
+            <X className="h-4 w-4" />
           </button>
         )}
 
@@ -693,7 +780,18 @@ export default function Monitor({
               disabled={!info}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white hover:bg-white/25 disabled:opacity-40"
             >
-              {playing ? "⏸" : "▶"}
+              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setMetaOpen((o) => !o)}
+              title={`${t("meta.title")} (${toggleMetaHotkey})`}
+              aria-label={t("meta.title")}
+              className={
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white transition " +
+                (metaOpen ? "bg-indigo-600 hover:bg-indigo-500" : "bg-white/15 hover:bg-white/25")
+              }
+            >
+              <Info className="h-4 w-4" />
             </button>
             <span className="shrink-0 font-mono text-xs text-slate-200">
               {fmt(tlPos)} / {fmt(tlMax)}
@@ -715,8 +813,10 @@ export default function Monitor({
                 className="scrubber relative z-10 w-full cursor-ew-resize"
               />
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <span className="text-xs leading-none">{volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-slate-200" title={t("monitor.volume")}>
+                <VolumeIcon className="h-4 w-4" />
+              </span>
               <input
                 type="range"
                 min={0}
@@ -731,23 +831,46 @@ export default function Monitor({
         )}
 
         {error && (
-          <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[10px] text-white backdrop-blur">
+          <div className="absolute bottom-3 left-3 max-w-[80%] rounded-md bg-red-600/80 px-2 py-1 font-mono text-[11px] text-white backdrop-blur">
             {error}
           </div>
         )}
 
         {pct !== null && progress && (
-          <div className="absolute bottom-3 left-3 rounded-md bg-black/75 px-3 py-2 font-mono text-[11px] leading-5 text-white backdrop-blur">
-            <div>{t("monitor.status")}: {t("queue.rendering")}</div>
-            <div>{t("monitor.fps")}: {stats ? stats.fps.toFixed(1) : "–"}</div>
-            <div>{t("monitor.eta")}: {stats ? stats.eta : "–"}</div>
-            <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-slate-700">
+          <div
+            className={
+              "absolute left-3 z-30 rounded-xl border border-white/10 bg-black/75 p-2 font-mono text-[11px] text-slate-300 shadow-2xl backdrop-blur" +
+              (fullVideo ? " bottom-24" : " bottom-3")
+            }
+          >
+            <div className="flex justify-between gap-6">
+              <span className="text-slate-500">{t("monitor.status")}</span>
+              <span className="text-slate-200">{t("queue.rendering")}</span>
+            </div>
+            <div className="flex justify-between gap-6">
+              <span className="text-slate-500">{t("monitor.fps")}</span>
+              <span className="text-slate-200">{stats ? stats.fps.toFixed(1) : "–"}</span>
+            </div>
+            <div className="flex justify-between gap-6">
+              <span className="text-slate-500">{t("monitor.eta")}</span>
+              <span className="text-slate-200">{stats ? stats.eta : "–"}</span>
+            </div>
+            <div className="mt-1.5 h-1 w-40 overflow-hidden rounded-full bg-slate-700">
               <div className="h-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
             </div>
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-1 text-slate-400">
               {pct}% · {progress.framesProcessed}/{progress.totalFrames}
             </div>
           </div>
+        )}
+        {info && (
+          <MetaBar
+            info={info}
+            steps={steps}
+            open={metaOpen}
+            onClose={() => setMetaOpen(false)}
+            fullVideo={fullVideo}
+          />
         )}
       </div>
 
@@ -759,116 +882,130 @@ export default function Monitor({
               disabled={!info}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40"
             >
-              {playing ? "⏸" : "▶"}
+              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </button>
+            {info && (
+              <button
+                onClick={() => setMetaOpen((o) => !o)}
+                title={`${t("meta.title")} (${toggleMetaHotkey})`}
+                aria-label={t("meta.title")}
+                className={
+                  "flex h-8 w-8 items-center justify-center rounded-lg border transition " +
+                  (metaOpen
+                    ? "border-indigo-500 bg-indigo-600/10 text-indigo-600 dark:border-indigo-400/60 dark:text-indigo-300"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400")
+                }
+              >
+                <Info className="h-4 w-4" />
+              </button>
+            )}
             <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
               {fmt(tlPos)} / {fmt(tlMax)}
             </span>
-            <div className="flex items-center space-x-1">
-              <span className="text-xs leading-none" title={t("monitor.volume")}>
-                {volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={volume}
-                onChange={(e) => changeVolume(Number(e.target.value))}
-                className="h-1 w-16 cursor-pointer accent-indigo-500"
-              />
+            <div className="relative flex items-center" ref={volumeRef}>
+              <button
+                onClick={() => setVolumeOpen((o) => !o)}
+                title={t("monitor.volume")}
+                aria-label={t("monitor.volume")}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+              >
+                <VolumeIcon className="h-4 w-4" />
+              </button>
+              {volumeOpen && (
+                <div className="absolute bottom-full left-0 z-30 mb-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  <VolumeIcon className="h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={volume}
+                    onChange={(e) => changeVolume(Number(e.target.value))}
+                    className="h-1 w-24 cursor-pointer accent-indigo-500"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
-        <div className="mb-2 flex items-center space-x-1">
-          <span className="text-[10px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
-          <div className="flex divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-            {[
-              { v: "10s", label: "10s", sec: 10 },
-              { v: "30s", label: "30s", sec: 30 },
-              { v: "60s", label: "60s", sec: 60 },
-            ].map((o) => (
-              <button
-                key={o.v}
-                onClick={() => applySample(o.sec)}
-                disabled={!info}
-                className={
-                  "px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 " +
-                  (presetOf() === o.v
-                    ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
-                    : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800")
-                }
-              >
-                {o.label}
-              </button>
-            ))}
-            <button
-              onClick={setFullRange}
-              disabled={!info}
-              className={
-                "px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 " +
-                (presetOf() === "full"
-                  ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
-                  : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800")
-              }
-            >
-              {t("sample.full")}
-            </button>
-          </div>
+        <div className="mb-2 flex w-fit items-center space-x-1">
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">{t("sample.range")}</span>
           <div className="relative flex items-center" ref={sampleMenuRef}>
-            <button
-              onClick={() => {
-                setSampleMenu((m) => !m);
-                setCustomVal(fmtDuration(outMs - inMs));
-              }}
-              disabled={!info}
-              title={t("sample.custom")}
-              className={
-                "rounded-lg border px-2 py-1 text-[10px] leading-none disabled:opacity-40 " +
-                (presetOf() === "custom"
-                  ? "border-indigo-500/60 bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
-                  : "border-slate-200 bg-white text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400")
-              }
-            >
-              ▾
-            </button>
+            <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+              <input
+                value={customVal}
+                onChange={(e) => setCustomVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyCustom();
+                  if (e.key === "Escape") setSampleMenu(false);
+                }}
+                disabled={!info}
+                placeholder={fmtDuration(outMs - inMs)}
+                title={t("sample.customPlaceholder")}
+                className="w-20 bg-white px-2 py-1 font-mono text-[11px] text-slate-700 outline-none focus:border-indigo-500 disabled:opacity-40 dark:bg-slate-900 dark:text-slate-200"
+              />
+              <button
+                onClick={() => {
+                  if (!info) return;
+                  setCustomVal(fmtDuration(outMs - inMs));
+                  setSampleMenu((m) => !m);
+                }}
+                disabled={!info}
+                title={t("sample.custom")}
+                aria-label={t("sample.custom")}
+                className="flex items-center justify-center border-l border-slate-200 bg-white px-1.5 py-1 text-slate-500 hover:text-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+              >
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </div>
             {sampleMenu && (
-              <div className="absolute left-0 bottom-full z-30 mb-1 w-48 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                <p className="mb-1 text-[9px] uppercase tracking-wider text-slate-400">{t("sample.custom")}</p>
-                <div className="flex items-center space-x-1">
-                  <input
-                    value={customVal}
-                    onChange={(e) => setCustomVal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") applyCustom();
-                      if (e.key === "Escape") setSampleMenu(false);
-                    }}
-                    placeholder={t("sample.customPlaceholder")}
-                    autoFocus
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  />
+              <div className="absolute bottom-full left-0 z-30 mb-1 w-20 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                {[
+                  { v: "10s", sec: 10 },
+                  { v: "30s", sec: 30 },
+                  { v: "60s", sec: 60 },
+                ].map((o) => (
                   <button
-                    onClick={applyCustom}
-                    disabled={!info}
-                    title={t("sample.apply")}
-                    className="shrink-0 rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+                    key={o.v}
+                    onClick={() => {
+                      applySample(o.sec);
+                      setSampleMenu(false);
+                    }}
+                    className={
+                      "flex w-full items-center justify-between rounded-md px-2 py-1 text-left font-mono text-[11px] " +
+                      (presetOf() === o.v
+                        ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
+                        : "text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800")
+                    }
                   >
-                    ✓
+                    <span>{o.v}</span>
+                    {presetOf() === o.v && <Check className="h-3 w-3" />}
                   </button>
-                </div>
+                ))}
+                <button
+                  onClick={() => {
+                    setFullRange();
+                    setSampleMenu(false);
+                  }}
+                  className={
+                    "flex w-full items-center justify-between rounded-md px-2 py-1 text-left font-mono text-[11px] " +
+                    (presetOf() === "full"
+                      ? "bg-indigo-600/20 text-indigo-600 dark:text-indigo-300"
+                      : "text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800")
+                  }
+                >
+                  <span>{t("sample.full")}</span>
+                  {presetOf() === "full" && <Check className="h-3 w-3" />}
+                </button>
               </div>
             )}
           </div>
-          {presetOf() === "custom" && (
-            <span className="font-mono text-[10px] text-indigo-500 dark:text-indigo-300">
-              {fmtDuration(outMs - inMs)}
-            </span>
-          )}
           {onRenderSample && (
             <button
               onClick={onRenderSample}
               disabled={!info || outMs <= inMs}
-              className="rounded-lg bg-indigo-600 px-3 py-1 font-mono text-[10px] font-medium text-white shadow-md shadow-indigo-600/30 transition hover:bg-indigo-500 active:scale-95 disabled:opacity-40"
+              title={`${t("sample.render")} (${renderSampleHotkey})`}
+              className="rounded-lg bg-indigo-600 px-3 py-1 font-mono text-[11px] font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40"
             >
               {t("sample.render")}
             </button>
@@ -886,7 +1023,7 @@ export default function Monitor({
         />
         <Benchmark timings={timings} />
         {info && (
-          <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-500">
+          <div className="mt-1 flex justify-between font-mono text-[11px] text-slate-400 dark:text-slate-500">
             <span>
               {t("timeline.in")} {fmt(inMs)}
             </span>

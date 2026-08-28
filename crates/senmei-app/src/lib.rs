@@ -37,6 +37,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::delete_model_file,
             commands::download_model,
             commands::probe_video,
+            commands::thumbnail,
             commands::suggest_pipeline,
             commands::read_frame,
             audio::audio_load,

@@ -156,6 +156,14 @@ pub fn probe_video(
     core::probe_video(&input)
 }
 
+/// Small JPEG thumbnail (data URL) for the media library tiles.
+#[tauri::command]
+#[specta::specta]
+pub fn thumbnail(input: String, max_w: Option<u32>) -> Result<String, String> {
+    log::info!("thumbnail: {input}");
+    core::thumbnail(&input, max_w.unwrap_or(160))
+}
+
 /// Pipeline-suggestion knobs: interpolation FPS floor, upscale breakpoints and
 /// the model IDs the suggestion maps to (mirrors the registry catalog).
 const FPS_INTERP_THRESHOLD: f64 = 30.0;

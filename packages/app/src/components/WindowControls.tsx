@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Minus, Square, X } from "lucide-react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -37,9 +38,9 @@ export default function WindowControls() {
         onClick={minimize}
         title="Minimize"
         aria-label="Minimize"
-        className="flex h-4 w-4 items-end justify-center hover:text-slate-900 dark:hover:text-slate-200 transition"
+        className="flex h-4 w-4 items-center justify-center hover:text-slate-900 dark:hover:text-slate-200 transition"
       >
-        ─
+        <Minus className="h-4 w-4" />
       </button>
       <button
         onClick={toggleMax}
@@ -47,14 +48,7 @@ export default function WindowControls() {
         aria-label={maximized ? "Restore" : "Maximize"}
         className="flex h-4 w-4 items-center justify-center hover:text-slate-900 dark:hover:text-slate-200 transition"
       >
-        {maximized ? (
-          <span className="relative block h-3.5 w-3.5">
-            <span className="absolute left-0 top-0 h-2.5 w-2.5 border border-current" />
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 border border-current bg-white dark:bg-slate-900" />
-          </span>
-        ) : (
-          <span className="block h-3 w-3 border border-current" />
-        )}
+        <Square className="h-3.5 w-3.5" />
       </button>
       <button
         onClick={close}
@@ -62,7 +56,7 @@ export default function WindowControls() {
         aria-label="Close"
         className="hover:text-rose-400 transition"
       >
-        ✕
+        <X className="h-4 w-4" />
       </button>
     </div>
   );

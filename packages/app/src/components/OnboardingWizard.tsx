@@ -89,7 +89,7 @@ export default function OnboardingWizard({ open, onDone }: { open: boolean; onDo
           </div>
           <div>
             <div className="text-sm font-semibold">Senmei</div>
-            <div className="text-[10px] text-slate-400">setup</div>
+            <div className="text-[11px] text-slate-400">setup</div>
           </div>
         </div>
 

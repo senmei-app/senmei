@@ -2,6 +2,7 @@
 // Inspector). Split out of Inspector.tsx to keep that file small.
 
 import type { ReactNode, RefObject } from "react";
+import { ChevronDown, FolderOpen } from "lucide-react";
 import type { ModelMetadata } from "@senmei/bridge";
 import { useI18n } from "../i18n";
 import {
@@ -65,7 +66,7 @@ export default function StepEditor(props: StepEditorProps) {
 
   const field = (label: string, children: ReactNode) => (
     <div>
-      <label className="mb-1 block text-[10px] text-slate-500 dark:text-slate-400">{label}</label>
+      <label className="mb-1 block text-[11px] text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );
@@ -122,7 +123,7 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
-          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
           {field(
             t("fi.fps"),
             segButtons([2, 3, 4], s.params?.fpsMultiplier, (v) => updateParams(s.id, { fpsMultiplier: v })),
@@ -154,7 +155,7 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
-          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
           {field(
             t("up.scale"),
             segButtons([2, 3, 4], s.params?.scale, (v) => updateParams(s.id, { scale: v ?? 2 })),
@@ -195,7 +196,7 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
-          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
           {field(
             t("denoise.radius"),
             <select
@@ -234,7 +235,7 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
-          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
         </>
       );
     }
@@ -259,7 +260,7 @@ export default function StepEditor(props: StepEditorProps) {
               {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
             </button>
           )}
-          {dlError && <p className="text-[10px] text-rose-500">{dlError}</p>}
+          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
           {field(
             t("deblur.amount"),
             <input
@@ -310,12 +311,12 @@ export default function StepEditor(props: StepEditorProps) {
                 onChange={(e) => updateParams(s.id, { threshold: Number(e.target.value) })}
                 className="w-full accent-indigo-500"
               />
-              <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="mt-1 flex justify-between font-mono text-[11px] text-slate-500 dark:text-slate-400">
                 <span>0%</span>
                 <span>{(threshold * 100).toFixed(1)}%</span>
                 <span>5%</span>
               </div>
-              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{t("dedup.hint")}</p>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t("dedup.hint")}</p>
             </div>,
           )}
         </>
@@ -334,7 +335,7 @@ export default function StepEditor(props: StepEditorProps) {
               className={inputCls}
             />,
           )}
-          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{t("filter.hint")}</p>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t("filter.hint")}</p>
         </>
       );
     case "output": {
@@ -395,17 +396,19 @@ export default function StepEditor(props: StepEditorProps) {
               <div className="absolute right-1 flex items-center space-x-1">
                 <button
                   title={t("output.folder.recent")}
+                  aria-label={t("output.folder.recent")}
                   onClick={() => setFolderMenu(folderMenu === s.id ? null : s.id)}
                   className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 >
-                  ▾
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 <button
                   title={t("output.folder.browse")}
+                  aria-label={t("output.folder.browse")}
                   onClick={() => pickOutputFolder(s.id)}
                   className="flex h-6 w-7 items-center justify-center rounded-md bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 hover:bg-indigo-500"
                 >
-                  📂
+                  <FolderOpen className="h-3.5 w-3.5" />
                 </button>
               </div>
               {folderMenu === s.id && (
@@ -538,7 +541,7 @@ export default function StepEditor(props: StepEditorProps) {
             </select>,
           )}
           <div className="border-t border-slate-200 pt-2 dark:border-slate-700/60">
-            <label className="mb-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            <label className="mb-1 block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
               {t("output.color")}
             </label>
             {field(
@@ -626,12 +629,12 @@ export default function StepEditor(props: StepEditorProps) {
               rows={2}
               placeholder="-c:v libx265 -crf 18 -preset medium -pix_fmt yuv420p10le"
               onChange={(e) => updateParams(s.id, { ffmpegArgs: e.target.value })}
-              className={`${inputCls} font-mono text-[10px]`}
+              className={`${inputCls} font-mono text-[11px]`}
             />,
           )}
           {field(
             t("output.preview"),
-            <pre className="whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[9px] leading-4 text-slate-600 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-400">
+            <pre className="whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-2 font-mono text-[11px] leading-4 text-slate-600 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-400">
               {`ffmpeg -y -i input.mp4 ${previewArgs.join(" ") || "(defaults)"} output.${s.params?.container ?? "mkv"}`}
             </pre>,
           )}

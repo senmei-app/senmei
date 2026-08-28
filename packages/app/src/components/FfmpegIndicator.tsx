@@ -19,7 +19,7 @@ export default function FfmpegIndicator() {
         >
           {downloading ? `${pct}%` : t("settings.ffmpeg.download")}
         </button>
-        {error && <span className="max-w-[200px] truncate text-[10px] text-rose-500">{error}</span>}
+        {error && <span className="max-w-[200px] truncate text-[11px] text-rose-500">{error}</span>}
       </div>
     </div>
   );

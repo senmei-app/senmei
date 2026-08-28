@@ -7931,6 +7931,7 @@ dependencies = [
 name = "senmei-core"
 version = "0.2.1"
 dependencies = [
+ "base64 0.22.1",
  "log",
  "schemars 1.2.2",
  "senmei-media",

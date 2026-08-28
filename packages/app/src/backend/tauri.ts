@@ -57,6 +57,10 @@ export const tauriBackend: Backend = {
     return bridge.probeVideo(input);
   },
 
+  async thumbnail(input) {
+    return bridge.thumbnail(input, 160);
+  },
+
   async readFrame(input, positionMs): Promise<RawFrame> {
     // bridge.readFrame delivers width/height on the meta channel (JSON) and
     // the raw RGB24 on the frame channel (ArrayBuffer) — no base64 over IPC.

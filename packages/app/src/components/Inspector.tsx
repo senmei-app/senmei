@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Sparkles, X } from "lucide-react";
 import type { ModelMetadata } from "@senmei/bridge";
 import { backend } from "../backend";
 import { useI18n } from "../i18n";
@@ -274,9 +275,9 @@ export default function Inspector({
             {onSuggest && (
               <button
                 onClick={onSuggest}
-                className="rounded-md px-2 py-0.5 text-[11px] text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-300"
+                className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-300"
               >
-                ✨ {t("presets.suggest")}
+                <Sparkles className="h-3.5 w-3.5" /> {t("presets.suggest")}
               </button>
             )}
             <button
@@ -323,9 +324,10 @@ export default function Inspector({
                 <button
                   onClick={() => removePreset(p.name)}
                   title={t("presets.delete")}
+                  aria-label={t("presets.delete")}
                   className="text-slate-400 hover:text-rose-500"
                 >
-                  ✕
+                  <X className="h-3 w-3" />
                 </button>
               </span>
             ))}
@@ -369,7 +371,9 @@ export default function Inspector({
                     >
                       ≡
                     </span>
-                    <span className="text-indigo-500 dark:text-indigo-400">{meta.icon}</span>
+                    <span className="text-indigo-500 dark:text-indigo-400">
+                      <meta.icon className="h-4 w-4" />
+                    </span>
                     <div className="flex items-center space-x-1.5">
                       <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                         {i + 1}. {t(meta.labelKey)}
@@ -389,7 +393,7 @@ export default function Inspector({
                           : ""}
                       </span>
                       {s.stepType === "output" && s.params?.label && (
-                        <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] text-indigo-600 dark:bg-slate-800 dark:text-indigo-400">
+                        <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[11px] text-indigo-600 dark:bg-slate-800 dark:text-indigo-400">
                           {s.params.label}
                         </span>
                       )}
@@ -401,17 +405,18 @@ export default function Inspector({
                       checked={s.enabled}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggleStep(s.id)}
-                      className="h-[18px] w-[18px] cursor-pointer accent-indigo-500"
+                      className="h-4 w-4 cursor-pointer accent-indigo-500"
                     />
                     <button
                       title="remove"
+                      aria-label="remove"
                       onClick={(e) => {
                         e.stopPropagation();
                         removeStep(s.id);
                       }}
-                      className="text-xs font-bold text-slate-500 hover:text-rose-400"
+                      className="text-xs text-slate-500 hover:text-rose-400"
                     >
-                      ✕
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
@@ -465,8 +470,8 @@ export default function Inspector({
                     onClick={() => addStep(type)}
                     className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
                   >
-                    <span>
-                      {m.icon} {t(m.labelKey)}
+                    <span className="flex items-center gap-2">
+                      <m.icon className="h-4 w-4 text-slate-400" /> {t(m.labelKey)}
                     </span>
                   </button>
                 );
