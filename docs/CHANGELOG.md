@@ -8,11 +8,17 @@
 
 ## Unreleased
 
+## 0.2.3 (2026-08-28)
+
 - **feat: add Chinese (zh) and Japanese (ja) translations (2026-08-28)** — full
-  i18n coverage for all ~190 keys; language selector updated with 中文 and
+  i18n coverage for all 289 keys; language selector updated with 中文 and
   日本語 options.
 
-## 0.2.3 (2026-08-28)
+- **fix: gate sysfs GPU telemetry behind target_os = linux (2026-08-28)** —
+  `read_hex`/`read_number`/`read_memory_pair` were Linux-only but called
+  un-gated from `sample_hardware`, breaking `cargo check` on the macOS and
+  Windows CI runners. Extracted into a linux-gated `gpu_live_stats` helper
+  with a non-Linux stub.
 
 - **ui: replace native selects with custom React dropdown (2026-08-28)** — all
   20 `<select>` elements in SettingsPage and StepEditor now use a custom
