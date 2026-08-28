@@ -94,14 +94,12 @@ export default function Monitor({
   const [playing, setPlaying] = useState(false);
   const [customVal, setCustomVal] = useState("");
   const [sampleMenu, setSampleMenu] = useState(false);
-  const [volumeOpen, setVolumeOpen] = useState(false);
   const [frames, setFrames] = useState<Record<string, RawFrame>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounce = useRef<number | null>(null);
   const audioDebounce = useRef<number | null>(null);
   const sampleMenuRef = useRef<HTMLDivElement>(null);
-  const volumeRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
   // Recent progress samples for a rolling FPS (the queue-lifetime average was
   // inflated by earlier fast renders).
@@ -439,16 +437,6 @@ export default function Monitor({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [sampleMenu]);
-
-  // Volume popover: close on outside click (same pattern as the sample menu).
-  useEffect(() => {
-    if (!volumeOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) setVolumeOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [volumeOpen]);
 
   // Auto-switch to the Result view once a render completes.
   const prevRendered = useRef<string | null>(null);
@@ -902,30 +890,6 @@ export default function Monitor({
             <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
               {fmt(tlPos)} / {fmt(tlMax)}
             </span>
-            <div className="relative flex items-center" ref={volumeRef}>
-              <button
-                onClick={() => setVolumeOpen((o) => !o)}
-                title={t("monitor.volume")}
-                aria-label={t("monitor.volume")}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
-              >
-                <VolumeIcon className="h-4 w-4" />
-              </button>
-              {volumeOpen && (
-                <div className="absolute bottom-full left-0 z-30 mb-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                  <VolumeIcon className="h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={volume}
-                    onChange={(e) => changeVolume(Number(e.target.value))}
-                    className="h-1 w-24 cursor-pointer accent-indigo-500"
-                  />
-                </div>
-              )}
-            </div>
           </div>
         </div>
         <div className="mb-2 flex w-fit items-center space-x-1">
@@ -1011,16 +975,33 @@ export default function Monitor({
             </button>
           )}
         </div>
-        <Timeline
-          tlMin={tlMin}
-          tlMax={tlMax}
-          tlPos={tlPos}
-          scrubPct={scrubPct}
-          inPct={inPct}
-          outPct={outPct}
-          onScrub={onScrub}
-          disabled={!info}
-        />
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <Timeline
+              tlMin={tlMin}
+              tlMax={tlMax}
+              tlPos={tlPos}
+              scrubPct={scrubPct}
+              inPct={inPct}
+              outPct={outPct}
+              onScrub={onScrub}
+              disabled={!info}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5" title={t("monitor.volume")}>
+            <VolumeIcon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={volume}
+              onChange={(e) => changeVolume(Number(e.target.value))}
+              aria-label={t("monitor.volume")}
+              className="h-1 w-16 cursor-pointer accent-indigo-500"
+            />
+          </div>
+        </div>
         <Benchmark timings={timings} />
         {info && (
           <div className="mt-1 flex justify-between font-mono text-[11px] text-slate-400 dark:text-slate-500">

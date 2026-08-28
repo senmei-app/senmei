@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **ui: volume slider at the timeline (2026-08-28)** — the volume control was
+  hidden behind a popover; it now sits inline next to the timeline scrubber
+  (icon + slider), the same pattern as Full Video Mode.
+
 - **fix: review cleanups — benches, tch, thumbnail, undo/redo (2026-08-28)** —
   - **Bench**: `BENCH_SIZE` parse errors use `expect` with a clear message
     instead of an opaque panic; the batch benches document that `flush` (the
