@@ -205,12 +205,19 @@ export default function Monitor({
   });
   const [muted, setMuted] = useState(false);
   const changeVolume = (v: number) => {
-    setVolume(Math.min(1, Math.max(0, v)));
-    localStorage.setItem("senmei.volume", String(v));
+    const next = Math.min(1, Math.max(0, v));
+    setVolume(next);
+    localStorage.setItem("senmei.volume", String(next));
   };
+  // Functional update: the hotkey effect closes over this via a stale closure
+  // (volume isn't in its deps), so read the latest value from the updater.
   const nudgeVolume = (delta: number) => {
     setMuted(false); // adjusting the volume un-mutes
-    changeVolume(volume + delta);
+    setVolume((prev) => {
+      const next = Math.min(1, Math.max(0, prev + delta));
+      localStorage.setItem("senmei.volume", String(next));
+      return next;
+    });
   };
   useEffect(() => {
     // Apply on change and once the backend resolves; both transports route it

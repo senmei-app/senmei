@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **fix: volume hotkeys use stale volume (2026-08-28)** — the monitor's keydown
+  effect closed over an old `volume` (not in its deps), so repeated
+  ArrowUp/ArrowDown nudges re-computed from the stale value and the volume
+  stuck after one step. `nudgeVolume` now uses a functional state update.
+
 - **tools: add bump-version.sh for release bumps (2026-08-28)** — one script
   updates every version site (workspace `Cargo.toml`, crate path-dep pins,
   `tauri.conf.json`, `packages/app/package.json`) + optional CHANGELOG heading;
