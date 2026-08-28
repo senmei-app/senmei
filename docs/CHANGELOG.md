@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **chore: re-point gpu-allocator patch to rebuilt fork (2026-08-28)** — the
+  `senmei-app/gpu-allocator` fork was rebuilt with full upstream history (0.28.0
+  + the `windows 0.62` pin as a real commit, tag `v0.28.0-windows-0.62`
+  moved); `Cargo.lock` re-resolved to the new commit.
+
 ## 0.2.3 (2026-08-28)
 
 - **feat: add Chinese (zh) and Japanese (ja) translations (2026-08-28)** — full

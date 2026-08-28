@@ -3024,7 +3024,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a"
 dependencies = [
- "libloading 0.8.9",
+ "libloading 0.7.4",
 ]
 
 [[package]]
@@ -4207,7 +4207,7 @@ dependencies = [
 [[package]]
 name = "gpu-allocator"
 version = "0.28.0"
-source = "git+https://github.com/senmei-app/gpu-allocator?tag=v0.28.0-windows-0.62#0cbb1f63a5520400dddff3a7721a6c1cfbeb7ec8"
+source = "git+https://github.com/senmei-app/gpu-allocator?tag=v0.28.0-windows-0.62#f450ba21fdb299b6280b128f95c26b58bec9ae90"
 dependencies = [
  "ash",
  "hashbrown 0.16.1",
@@ -4584,7 +4584,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
