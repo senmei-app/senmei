@@ -48,30 +48,34 @@ export default function ProjectScreen({
         <WindowControls />
       </header>
       <FfmpegIndicator />
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-3xl font-bold text-white shadow-lg shadow-indigo-500/30">
+
+      <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-10">
+        {/* Hero */}
+        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-2xl font-bold text-white shadow-lg shadow-indigo-500/30">
           鮮
         </div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Senmei</h1>
-        <p className="mt-1 text-xs text-slate-500">{t("project.subtitle")}</p>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Senmei</h1>
+        <p className="mt-0.5 text-[11px] text-slate-500">{t("project.subtitle")}</p>
 
-        <div className="mt-8 flex w-72 flex-col gap-2">
+        {/* Create project */}
+        <div className="mt-6 w-72">
           <label className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.new")}</label>
-          <div className="flex gap-2">
+          <div className="mt-1.5 flex gap-1.5">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && create()}
               placeholder={t("project.namePlaceholder")}
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             />
-            <Button onClick={create} disabled={!name.trim()}>{t("project.create")}</Button>
+            <Button onClick={create} disabled={!name.trim()} className="shrink-0">{t("project.create")}</Button>
           </div>
         </div>
 
-        <div className="mt-6 w-72">
+        {/* Existing projects */}
+        <div className="mt-5 w-72">
           <label className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{t("project.existing")}</label>
-          <div className="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
+          <div className="mt-1.5 flex max-h-48 flex-col gap-1 overflow-y-auto">
             {projects.length === 0 ? (
               <p className="text-xs text-slate-500">{t("project.none")}</p>
             ) : (
@@ -100,9 +104,11 @@ export default function ProjectScreen({
           </div>
         </div>
 
-        <Button onClick={onBrowse} variant="secondary" className="mt-6 w-72 py-2.5">
+        <Button onClick={onBrowse} variant="secondary" className="mt-5 w-72 py-2.5">
           {t("project.browse")}
         </Button>
+
+        <p className="mt-6 text-[10px] text-slate-400 dark:text-slate-600">{t("project.shortcutsHint")}</p>
       </div>
 
       <span

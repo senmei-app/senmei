@@ -126,6 +126,19 @@ export default function MenuBar({
     navRef.current?.scrollIntoView({ block: "nearest" });
   }, [focusIdx, open]);
 
+  // Simulate a keyboard event so Monitor's hotkey listener picks it up.
+  const dispatchHotkey = (combo: string) => {
+    const parts = combo.split("+");
+    const key = parts.pop()!;
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: key === "Space" ? " " : key.toLowerCase(),
+      ctrlKey: parts.includes("Ctrl"),
+      shiftKey: parts.includes("Shift"),
+      altKey: parts.includes("Alt"),
+      bubbles: true,
+    }));
+  };
+
   const menus: Menu[] = useMemo(() => [
     {
       key: "file",
@@ -159,7 +172,16 @@ export default function MenuBar({
     {
       key: "view",
       label: t("menu.view"),
-      items: [{ key: "full-video", label: t("menu.fullVideo"), shortcut: hotkeys.toggleFullscreen, action: onToggleFullscreen }],
+      items: [
+        { key: "view-original", label: t("menu.viewOriginal"), shortcut: hotkeys.modeSource, action: () => dispatchHotkey(hotkeys.modeSource) },
+        { key: "view-result", label: t("menu.viewResult"), shortcut: hotkeys.modeResult, action: () => dispatchHotkey(hotkeys.modeResult) },
+        { key: "view-compare", label: t("menu.viewCompare"), shortcut: hotkeys.modeCompare, action: () => dispatchHotkey(hotkeys.modeCompare) },
+        { key: "view-ab", label: t("menu.viewAB"), shortcut: hotkeys.modeAB, action: () => dispatchHotkey(hotkeys.modeAB) },
+        { key: "sep-view", separator: true },
+        { key: "toggle-meta", label: t("menu.toggleMeta"), shortcut: hotkeys.toggleMeta, action: () => dispatchHotkey(hotkeys.toggleMeta) },
+        { key: "sep-view2", separator: true },
+        { key: "full-video", label: t("menu.fullVideo"), shortcut: hotkeys.toggleFullscreen, action: onToggleFullscreen },
+      ],
     },
     {
       key: "process",
