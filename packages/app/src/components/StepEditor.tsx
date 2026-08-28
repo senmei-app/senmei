@@ -4,6 +4,7 @@
 import type { ReactNode, RefObject } from "react";
 import { ChevronDown, FolderOpen } from "lucide-react";
 import type { ModelMetadata } from "@senmei/bridge";
+import { Select } from "@senmei/ui";
 import { useI18n } from "../i18n";
 import {
   QUALITY_PRESETS,
@@ -109,16 +110,18 @@ export default function StepEditor(props: StepEditorProps) {
     a.id.localeCompare(b.id);
 
   const modelSelect = (models: ModelMetadata[], value: string | null | undefined, onValue: (id: string) => void) => (
-    <select value={value ?? ""} onChange={(e) => onValue(e.target.value)} className={inputCls}>
-      <option value="">—</option>
-      {[...models].sort(sortModels).map((m) => (
-        <option key={m.id} value={m.id} disabled={!m.loadable}>
-          {m.family ? `${m.family} · ` : ""}
-          {m.id} {(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}
-          {!m.loadable ? ` (${t("up.notLoadable")})` : ""}
-        </option>
-      ))}
-    </select>
+    <Select
+      value={value ?? ""}
+      onChange={onValue}
+      options={[
+        { value: "", label: "—" },
+        ...[...models].sort(sortModels).map((m) => ({
+          value: m.id,
+          label: `${m.family ? `${m.family} · ` : ""}${m.id} ${(m.scale ?? 1) > 1 ? `x${m.scale}` : ""}${!m.loadable ? ` (${t("up.notLoadable")})` : ""}`,
+          disabled: !m.loadable,
+        })),
+      ]}
+    />
   );
 
   const segButtons = (options: number[], value: number | null | undefined, onValue: (v: number | null) => void) => (
@@ -202,17 +205,11 @@ export default function StepEditor(props: StepEditorProps) {
           {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
           {field(
             t("denoise.radius"),
-            <select
-              value={s.params?.radius ?? 1}
-              onChange={(e) => updateParams(s.id, { radius: Number(e.target.value) })}
-              className={inputCls}
-            >
-              {[1, 2, 3, 4].map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>,
+            <Select
+              value={String(s.params?.radius ?? 1)}
+              onChange={(v) => updateParams(s.id, { radius: Number(v) })}
+              options={[1, 2, 3, 4].map((r) => ({ value: String(r), label: String(r) }))}
+            />,
           )}
         </>
       );
@@ -345,15 +342,11 @@ export default function StepEditor(props: StepEditorProps) {
           )}
           {field(
             t("output.format"),
-            <select
+            <Select
               value={s.params?.container ?? "mkv"}
-              onChange={(e) => updateParams(s.id, { container: e.target.value })}
-              className={inputCls}
-            >
-              {["mp4", "mkv", "webm", "mov"].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>,
+              onChange={(v) => updateParams(s.id, { container: v })}
+              options={["mp4", "mkv", "webm", "mov"].map((c) => ({ value: c, label: c }))}
+            />,
           )}
           {field(
             t("output.folder"),
@@ -433,61 +426,50 @@ export default function StepEditor(props: StepEditorProps) {
           )}
           {field(
             t("output.quality"),
-            <select value={quality} onChange={(e) => applyQuality(e.target.value)} className={inputCls}>
-              {[...Object.keys(QUALITY_PRESETS), "Custom"].map((q) => (
-                <option key={q} value={q}>
-                  {q}
-                </option>
-              ))}
-            </select>,
+            <Select
+              value={quality}
+              onChange={applyQuality}
+              options={[...Object.keys(QUALITY_PRESETS), "Custom"].map((q) => ({ value: q, label: q }))}
+            />,
           )}
           {field(
             t("output.videoCodec"),
-            <select
+            <Select
               value={s.params?.videoCodec ?? "H.264"}
-              onChange={(e) => updateParams(s.id, { videoCodec: e.target.value })}
-              className={inputCls}
-            >
-              <option>H.264</option>
-              <option>H.265</option>
-              <option>AV1</option>
-              <option>VP9</option>
-            </select>,
+              onChange={(v) => updateParams(s.id, { videoCodec: v })}
+              options={["H.264", "H.265", "AV1", "VP9"].map((c) => ({ value: c, label: c }))}
+            />,
           )}
           {field(
             t("output.encoder"),
-            <select
+            <Select
               value={s.params?.encoderBackend ?? "auto"}
-              onChange={(e) => updateParams(s.id, { encoderBackend: e.target.value })}
-              className={inputCls}
-            >
-              <option value="auto">{t("output.encoderAuto")}</option>
-              <option value="hw">{t("output.encoderHw")}</option>
-              <option value="sw">{t("output.encoderSw")}</option>
-            </select>,
+              onChange={(v) => updateParams(s.id, { encoderBackend: v })}
+              options={[
+                { value: "auto", label: t("output.encoderAuto") },
+                { value: "hw", label: t("output.encoderHw") },
+                { value: "sw", label: t("output.encoderSw") },
+              ]}
+            />,
           )}
           {field(
             t("output.encodeGpu"),
-            <select
+            <Select
               value={s.params?.encodeDevice ?? "auto"}
-              onChange={(e) => updateParams(s.id, { encodeDevice: e.target.value })}
-              className={inputCls}
-            >
-              <option value="auto">{t("output.encodeGpuAuto")}</option>
-              <option value="igpu">{t("output.encodeGpuIgpu")}</option>
-            </select>,
+              onChange={(v) => updateParams(s.id, { encodeDevice: v })}
+              options={[
+                { value: "auto", label: t("output.encodeGpuAuto") },
+                { value: "igpu", label: t("output.encodeGpuIgpu") },
+              ]}
+            />,
           )}
           {field(
             t("output.preset"),
-            <select
+            <Select
               value={s.params?.preset ?? "medium"}
-              onChange={(e) => updateParams(s.id, { preset: e.target.value })}
-              className={inputCls}
-            >
-              {["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"].map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>,
+              onChange={(v) => updateParams(s.id, { preset: v })}
+              options={["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"].map((p) => ({ value: p, label: p }))}
+            />,
           )}
           {field(
             t("output.crf"),
@@ -502,28 +484,22 @@ export default function StepEditor(props: StepEditorProps) {
           )}
           {field(
             t("output.pixFmt"),
-            <select
+            <Select
               value={s.params?.pixFmt ?? "yuv420p"}
-              onChange={(e) => updateParams(s.id, { pixFmt: e.target.value })}
-              className={inputCls}
-            >
-              {["yuv420p", "yuv420p10le", "yuv444p", "yuv444p10le"].map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>,
+              onChange={(v) => updateParams(s.id, { pixFmt: v })}
+              options={["yuv420p", "yuv420p10le", "yuv444p", "yuv444p10le"].map((p) => ({ value: p, label: p }))}
+            />,
           )}
           {field(
             t("output.tune"),
-            <select
+            <Select
               value={s.params?.tune ?? ""}
-              onChange={(e) => updateParams(s.id, { tune: e.target.value })}
-              className={inputCls}
-            >
-              <option value="">—</option>
-              {["film", "animation", "grain", "fastdecode", "zerolatency"].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>,
+              onChange={(v) => updateParams(s.id, { tune: v })}
+              options={[
+                { value: "", label: "—" },
+                ...["film", "animation", "grain", "fastdecode", "zerolatency"].map((x) => ({ value: x, label: x })),
+              ]}
+            />,
           )}
           <div className="border-t border-slate-200 pt-2 dark:border-slate-700/60">
             <label className="mb-1 block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -531,81 +507,61 @@ export default function StepEditor(props: StepEditorProps) {
             </label>
             {field(
               t("output.colorPrimaries"),
-              <select
+              <Select
                 value={s.params?.colorPrimaries ?? ""}
-                onChange={(e) => updateParams(s.id, { colorPrimaries: e.target.value })}
-                className={inputCls}
-              >
-                <option value="">—</option>
-                {["bt709", "bt2020"].map((x) => (
-                  <option key={x} value={x}>{x}</option>
-                ))}
-              </select>,
+                onChange={(v) => updateParams(s.id, { colorPrimaries: v })}
+                options={[
+                  { value: "", label: "—" },
+                  ...["bt709", "bt2020"].map((x) => ({ value: x, label: x })),
+                ]}
+              />,
             )}
             {field(
               t("output.colorTransfer"),
-              <select
+              <Select
                 value={s.params?.colorTransfer ?? ""}
-                onChange={(e) => updateParams(s.id, { colorTransfer: e.target.value })}
-                className={inputCls}
-              >
-                <option value="">—</option>
-                {["bt709", "smpte2084", "arib-std-b67", "gamma22"].map((x) => (
-                  <option key={x} value={x}>{x}</option>
-                ))}
-              </select>,
+                onChange={(v) => updateParams(s.id, { colorTransfer: v })}
+                options={[
+                  { value: "", label: "—" },
+                  ...["bt709", "smpte2084", "arib-std-b67", "gamma22"].map((x) => ({ value: x, label: x })),
+                ]}
+              />,
             )}
             {field(
               t("output.colorMatrix"),
-              <select
+              <Select
                 value={s.params?.colorMatrix ?? ""}
-                onChange={(e) => updateParams(s.id, { colorMatrix: e.target.value })}
-                className={inputCls}
-              >
-                <option value="">—</option>
-                {["bt709", "bt2020nc", "bt2020c"].map((x) => (
-                  <option key={x} value={x}>{x}</option>
-                ))}
-              </select>,
+                onChange={(v) => updateParams(s.id, { colorMatrix: v })}
+                options={[
+                  { value: "", label: "—" },
+                  ...["bt709", "bt2020nc", "bt2020c"].map((x) => ({ value: x, label: x })),
+                ]}
+              />,
             )}
             {field(
               t("output.tonemap"),
-              <select
+              <Select
                 value={s.params?.tonemap ?? "auto"}
-                onChange={(e) => updateParams(s.id, { tonemap: e.target.value })}
-                className={inputCls}
-              >
-                {["auto", "always", "off"].map((x) => (
-                  <option key={x} value={x}>{x}</option>
-                ))}
-              </select>,
+                onChange={(v) => updateParams(s.id, { tonemap: v })}
+                options={["auto", "always", "off"].map((x) => ({ value: x, label: x }))}
+              />,
             )}
           </div>
           {field(
             t("output.audio"),
-            <select
+            <Select
               value={s.params?.audioCodec ?? "Passthrough"}
-              onChange={(e) => updateParams(s.id, { audioCodec: e.target.value })}
-              className={inputCls}
-            >
-              <option>Passthrough</option>
-              <option>AAC</option>
-              <option>Opus</option>
-              <option>FLAC</option>
-            </select>,
+              onChange={(v) => updateParams(s.id, { audioCodec: v })}
+              options={["Passthrough", "AAC", "Opus", "FLAC"].map((c) => ({ value: c, label: c }))}
+            />,
           )}
           {field(
             t("subtitle.mode"),
-            <select
+            <Select
               value={s.params?.subtitleMode ?? "None"}
-              onChange={(e) => updateParams(s.id, { subtitleMode: e.target.value })}
-              className={inputCls}
-            >
-              <option>None</option>
-              <option>Copy</option>
-              <option>HardSub</option>
-              <option>SoftSub</option>
-            </select>,
+              onChange={(v) => updateParams(s.id, { subtitleMode: v })}
+              options={["None", "Copy", "HardSub", "SoftSub"].map((m) => ({ value: m, label: m }))}
+            />,
           )}
           {field(
             t("output.ffmpeg"),

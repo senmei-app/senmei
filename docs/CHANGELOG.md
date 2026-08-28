@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **ui: replace native selects with custom React dropdown (2026-08-28)** — all
+  20 `<select>` elements in SettingsPage and StepEditor now use a custom
+  `<Select>` component from `@senmei/ui`, eliminating GTK theme-dependent
+  native styling in webkit2gtk and ensuring identical appearance across Tauri
+  and HTTP. Also fixed GPU dropdown width mismatch, removed number-input
+  spinner arrows (`.no-spin` class), and added keyboard navigation (arrow
+  keys, Enter, Escape) to dropdowns.
+
 - **refactor: UI review — unify hotkeys, extract components, add safety
   (2026-08-28)** — merged Monitor's 3 separate hotkey `useEffect` listeners
   into one unified handler; extracted `DownloadButton` component in StepEditor

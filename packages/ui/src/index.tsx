@@ -47,3 +47,6 @@ export function Chip({ label, active }: { label: string; active: boolean }) {
     </span>
   );
 }
+
+export { Select } from "./Select";
+export type { SelectOption, SelectProps } from "./Select";

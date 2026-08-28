@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@senmei/ui";
+import { Button, Select } from "@senmei/ui";
 import type { BackendInfo, EngineBackend, HardwareSnapshot, ModelFileInfo } from "@senmei/bridge";
 import { useI18n, type Lang } from "../i18n";
 import { useFfmpeg } from "../useFfmpeg";
@@ -208,34 +208,36 @@ export default function SettingsPage({
               {/* Language */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.language")}</span>
-                <select
+                <Select
                   value={language}
-                  onChange={(e) => onLanguageChange(e.target.value as Lang)}
-                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  <option value="en">English</option>
-                  <option value="de">Deutsch</option>
-                </select>
+                  onChange={(v) => onLanguageChange(v as Lang)}
+                  options={[
+                    { value: "en", label: "English" },
+                    { value: "de", label: "Deutsch" },
+                  ]}
+                  className="w-[140px]"
+                />
               </div>
 
               {/* Theme */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.theme")}</span>
-                <select
+                <Select
                   value={theme}
-                  onChange={(e) => onThemeChange(e.target.value as Theme)}
-                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  <option value="light">{t("theme.light")}</option>
-                  <option value="dark">{t("theme.dark")}</option>
-                  <option value="system">{t("theme.system")}</option>
-                </select>
+                  onChange={(v) => onThemeChange(v as Theme)}
+                  options={[
+                    { value: "light", label: t("theme.light") },
+                    { value: "dark", label: t("theme.dark") },
+                    { value: "system", label: t("theme.system") },
+                  ]}
+                  className="w-[140px]"
+                />
               </div>
 
               {/* Tile size */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.tileSize")}</span>
-                <div className="relative min-w-[120px]">
+                <div className="relative w-[140px]">
                   <input
                     type="number"
                     min={128}
@@ -247,7 +249,7 @@ export default function SettingsPage({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") e.currentTarget.blur();
                     }}
-                    className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-2.5 pr-7 text-left text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    className="no-spin w-full rounded-md border border-slate-200 bg-white py-1.5 pl-2.5 pr-7 text-left text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   />
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500">px</span>
                 </div>
@@ -256,34 +258,34 @@ export default function SettingsPage({
               {/* Backend */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.backend")}</span>
-                <select
+                <Select
                   value={backend}
-                  onChange={(e) => onBackendChange(e.target.value as EngineBackend)}
-                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  <option value="auto">Auto</option>
-                  <option value="vulkan" disabled={backendInfo ? !backendInfo.vulkanCompiled : false}>Vulkan</option>
-                  <option value="libTorch" disabled={backendInfo ? !(backendInfo.libtorchCompiled && backendInfo.cudaAvailable) : false}>LibTorch</option>
-                </select>
+                  onChange={(v) => onBackendChange(v as EngineBackend)}
+                  options={[
+                    { value: "auto", label: "Auto" },
+                    { value: "vulkan", label: "Vulkan", disabled: backendInfo ? !backendInfo.vulkanCompiled : false },
+                    { value: "libTorch", label: "LibTorch", disabled: backendInfo ? !(backendInfo.libtorchCompiled && backendInfo.cudaAvailable) : false },
+                  ]}
+                  className="w-[140px]"
+                />
               </div>
 
               {/* GPU index */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.gpu")}</span>
-                <select
-                  value={gpuIndex}
-                  onChange={(e) => onGpuIndexChange(Number(e.target.value))}
-                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  {hardware?.gpus.map((g) => (
-                    <option key={g.index} value={g.index}>
-                      {g.name}{g.vramTotalBytes ? ` (${Math.round(g.vramTotalBytes / 1024 / 1024 / 1024 * 10) / 10} GB)` : ""}
-                    </option>
-                  ))}
-                  {(!hardware?.gpus || hardware.gpus.length === 0) && (
-                    <option value={0}>GPU 0</option>
-                  )}
-                </select>
+                <Select
+                  value={String(gpuIndex)}
+                  onChange={(v) => onGpuIndexChange(Number(v))}
+                  options={
+                    (hardware?.gpus && hardware.gpus.length > 0)
+                      ? hardware.gpus.map((g) => ({
+                          value: String(g.index),
+                          label: `${g.name}${g.vramTotalBytes ? ` (${Math.round(g.vramTotalBytes / 1024 / 1024 / 1024 * 10) / 10} GB)` : ""}`,
+                        }))
+                      : [{ value: "0", label: "GPU 0" }]
+                  }
+                  className="w-[140px]"
+                />
               </div>
             </div>
           )}
