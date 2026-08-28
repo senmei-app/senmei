@@ -235,19 +235,22 @@ export default function SettingsPage({
               {/* Tile size */}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <span className="text-xs text-slate-700 dark:text-slate-300">{t("settings.tileSize")}</span>
-                <input
-                  type="number"
-                  min={128}
-                  max={2048}
-                  step={64}
-                  value={tileDraft}
-                  onChange={(e) => setTileDraft(e.target.value)}
-                  onBlur={commitTileSize}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                  }}
-                  className="min-w-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-right text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                />
+                <div className="relative min-w-[120px]">
+                  <input
+                    type="number"
+                    min={128}
+                    max={2048}
+                    step={64}
+                    value={tileDraft}
+                    onChange={(e) => setTileDraft(e.target.value)}
+                    onBlur={commitTileSize}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                    className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-2.5 pr-7 text-left text-xs text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500">px</span>
+                </div>
               </div>
 
               {/* Backend */}
