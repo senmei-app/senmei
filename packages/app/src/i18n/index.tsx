@@ -2,10 +2,12 @@ import { createContext, useContext, type ReactNode } from "react";
 
 import { de } from "./de";
 import { en } from "./en";
+import { ja } from "./ja";
+import { zh } from "./zh";
 
-export type Lang = "en" | "de";
+export type Lang = "en" | "de" | "zh" | "ja";
 
-const messages: Record<Lang, Record<string, string>> = { en, de };
+const messages: Record<Lang, Record<string, string>> = { en, de, zh, ja };
 
 interface I18nValue {
   lang: Lang;

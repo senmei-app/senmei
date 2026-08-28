@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **feat: add Chinese (zh) and Japanese (ja) translations (2026-08-28)** — full
+  i18n coverage for all ~190 keys; language selector updated with 中文 and
+  日本語 options.
+
 ## 0.2.3 (2026-08-28)
 
 - **ui: replace native selects with custom React dropdown (2026-08-28)** — all
