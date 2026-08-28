@@ -28,7 +28,7 @@ fn model() -> senmei_ml::ModelRef {
 }
 
 /// Resolve `BENCH_BACKEND`: `vulkan` (default, burn) or `tch`/`libtorch`
-/// (ROCm; enable via `--features tch`, and only exercises the non-fused path).
+/// (ROCm; enable via `--features tch`).
 fn backend() -> senmei_ml::EngineBackend {
     match std::env::var("BENCH_BACKEND").as_deref() {
         Ok("tch") | Ok("libtorch") | Ok("rocm") => senmei_ml::EngineBackend::LibTorch,
@@ -45,8 +45,20 @@ fn bench_scale() -> u32 {
         .unwrap_or(2)
 }
 
-/// Generate a 2s 1080p24 testsrc and decode it to frames.
+/// Resolve `BENCH_SIZE` ("WxH", default 1920x1080) — the generated input size.
+fn bench_size() -> (u32, u32) {
+    match std::env::var("BENCH_SIZE") {
+        Ok(s) => {
+            let (w, h) = s.split_once('x').expect("BENCH_SIZE as WxH");
+            (w.parse().unwrap(), h.parse().unwrap())
+        }
+        Err(_) => (1920, 1080),
+    }
+}
+
+/// Generate a 2s testsrc at `BENCH_SIZE` and decode it to frames.
 fn bench_frames() -> Vec<senmei_media::Frame> {
+    let (w, h) = bench_size();
     let dir = std::env::temp_dir().join("senmei-bench-1080p");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -57,7 +69,7 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
             "-f",
             "lavfi",
             "-i",
-            "testsrc=duration=2:size=1920x1080:rate=24",
+            &format!("testsrc=duration=2:size={w}x{h}:rate=24"),
             "-pix_fmt",
             "yuv420p",
             "-c:v",
@@ -86,18 +98,15 @@ fn bench_frames() -> Vec<senmei_media::Frame> {
     frames
 }
 
-/// Plain tiled `engine.infer` throughput (convert-in + infer + convert-out).
+/// Raw `engine.infer` throughput at 1080p (convert-in + infer + convert-out).
+/// ≤1080p inputs run as a single full-frame pass — no tiling — so this is the
+/// RVE-style whole-frame number (`infer_tiled` full-frame threshold).
 #[test]
 #[ignore = "benchmark: requires Vulkan + model bpk + ffmpeg"]
 fn bench_upscaler_1080p_fullframe() {
     let model_id = std::env::var("BENCH_MODEL").unwrap_or_else(|_| "real-cugan-x2".to_string());
     let mref = model();
-    let mut engine = senmei_ml::engine_for_model(
-        &mref,
-        senmei_ml::EngineBackend::default(),
-        &std::env::temp_dir(),
-    )
-    .unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
     engine.load(&mref).unwrap();
     let mut frames = bench_frames();
     let total = frames.len();

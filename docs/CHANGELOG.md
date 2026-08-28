@@ -8,12 +8,10 @@
 
 ## Unreleased
 
-- **docs: SPAN 48ch backend A/B — burn 0.9 / tch 2.2 / RVE ~44 FPS @1080p (2026-08-28)** —
-  `2x_ModernSpanimationV2` measured on the real app step (1080p→2160p, RX 9070):
-  burn/Vulkan 1155 ms (0.9 FPS), tch/ROCm 453 ms (2.2 FPS, 2.55×), RVE/ncnn
-  ~23 ms (~44 FPS reference). The gap to RVE is engine-inherent (ncnn-Winograd
-  vs cubecl im2col→GEMM; SPAN-48ch shapes are cubecl's worst case) — not
-  closable by a backend switch. Recorded in `benchmarks.md` + `models.md`.
+- **test: bench full-frame respects `BENCH_BACKEND`; add `BENCH_SIZE` (2026-08-28)** —
+  `bench_upscaler_1080p_fullframe` used the default backend (couldn't measure
+  tch); now honors `BENCH_BACKEND`. New `BENCH_SIZE` (WxH, default 1920x1080)
+  selects the generated input, so the small-res overhead split is measurable.
 
 ## 0.2.1 (2026-08-27)
 
