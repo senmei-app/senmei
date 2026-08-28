@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **fix: confine HTTP media access to opened folders (2026-08-28)** — the
+  localhost REST API served/processed any caller-supplied path (CodeQL
+  `rust/path-injection` #2/#3). Media paths now must canonicalize inside a
+  folder the user opened/scanned (registered via probe/thumbnail/scan_folder/
+  render); `..` traversal and symlink escapes are rejected. A `Sec-Fetch-Site`
+  gate blocks browser cross-site pages from registering roots, enumerating
+  folders, or starting renders; curl/agents and the Vite dev origins are
+  unaffected.
+
 ## 0.2.4 (2026-08-28)
 
 - **fix: volume hotkeys use stale volume (2026-08-28)** — the monitor's keydown

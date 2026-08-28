@@ -1,13 +1,16 @@
 //! HTTP adapter over the core service — serves the full web UI + REST API.
 //! Same license/confirm gates as MCP (they live in `core`).
 
-use std::sync::OnceLock;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::SystemTime;
 
 use axum::{
     body::Body,
-    extract::Query,
+    extract::{Query, State},
     http::{header, Method, Request, Response, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -51,6 +54,77 @@ fn not_found() -> Response<Body> {
         .status(StatusCode::NOT_FOUND)
         .body(Body::empty())
         .unwrap()
+}
+
+/// Dirs the local user has opened/scanned (canonicalized). The HTTP service
+/// only serves/processes media under one of these roots, so a random website
+/// can't reach arbitrary files — even via a `<video>` src (which bypasses CORS).
+#[derive(Clone, Default)]
+struct AppState {
+    roots: Arc<Mutex<HashSet<PathBuf>>>,
+}
+
+/// Vite dev origins — the only legit cross-site callers (UI on :1420, API on
+/// :8765). Mirrors the CORS allow-list below.
+const DEV_ORIGINS: [&str; 2] = ["http://localhost:1420", "http://127.0.0.1:1420"];
+
+/// Canonicalize a real path; reject obvious `..` traversal first.
+fn canonical(p: &Path) -> Option<PathBuf> {
+    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return None;
+    }
+    std::fs::canonicalize(p).ok()
+}
+
+/// Canonical path of `p` when it's inside a registered root (else None). The
+/// canonical path is what reaches the filesystem sinks — `..`, symlinks, and
+/// out-of-root paths are all resolved/rejected before any path use.
+fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
+    let c = canonical(p)?;
+    let roots = state.roots.lock().unwrap();
+    roots.iter().find(|r| c.starts_with(r)).map(|_| c)
+}
+
+fn is_allowed(state: &AppState, p: &Path) -> bool {
+    resolve_allowed(state, p).is_some()
+}
+
+fn register_root(state: &AppState, dir: &Path) {
+    if let Some(c) = canonical(dir) {
+        state.roots.lock().unwrap().insert(c);
+    }
+}
+
+/// Register the parent dir of a just-opened file (probe/thumbnail/render).
+fn register_parent(state: &AppState, p: &Path) {
+    if let Some(parent) = p.parent() {
+        register_root(state, parent);
+    }
+}
+
+/// Block browser cross-site requests to the path/side-effect routes, so a
+/// random website can't register roots, enumerate folders, or start renders.
+/// `/api/stream` + `/api/audio` are excluded — they're `<video>`/`<audio>`
+/// sources (no Origin header) and are already confined by the allowed-roots
+/// check. Non-browser clients (curl/agents) send no `Sec-Fetch-Site` → allowed.
+async fn require_local_client(req: Request<Body>, next: Next) -> Response<Body> {
+    let path = req.uri().path();
+    if path.starts_with("/api/stream") || path.starts_with("/api/audio") {
+        return next.run(req).await;
+    }
+    let Some(site) = req.headers().get("sec-fetch-site") else {
+        return next.run(req).await; // curl/agents/non-browser
+    };
+    let site = site.to_str().unwrap_or("");
+    if site == "same-origin" || site == "same-site" || site == "none" {
+        return next.run(req).await;
+    }
+    // cross-site: allow only the Vite dev origins.
+    let origin = req.headers().get(header::ORIGIN).and_then(|v| v.to_str().ok());
+    if origin.is_some_and(|o| DEV_ORIGINS.contains(&o)) {
+        return next.run(req).await;
+    }
+    (StatusCode::FORBIDDEN, "blocked cross-site request").into_response()
 }
 
 /// The localhost REST API serves caller-supplied paths (`stream`/`audio`/
@@ -183,12 +257,18 @@ async fn serve_file(path: std::path::PathBuf, req: Request<Body>) -> Response<Bo
     }
 }
 
-async fn stream(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
-    let path = std::path::Path::new(&p.path);
-    if !media_path(path) {
+async fn stream(
+    State(state): State<AppState>,
+    Query(p): Query<StreamParams>,
+    req: Request<Body>,
+) -> Response<Body> {
+    let Some(path) = resolve_allowed(&state, Path::new(&p.path)) else {
+        return not_found();
+    };
+    if !media_path(&path) {
         return not_found();
     }
-    serve_file(path.to_path_buf(), req).await
+    serve_file(path, req).await
 }
 
 fn audio_cache_dir() -> std::path::PathBuf {
@@ -242,8 +322,15 @@ fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
 }
 
 /// Serve the source audio as a playable Vorbis/Ogg track (Range support).
-async fn audio(Query(p): Query<StreamParams>, req: Request<Body>) -> Response<Body> {
-    let input = p.path;
+async fn audio(
+    State(state): State<AppState>,
+    Query(p): Query<StreamParams>,
+    req: Request<Body>,
+) -> Response<Body> {
+    let Some(input) = resolve_allowed(&state, Path::new(&p.path)) else {
+        return not_found();
+    };
+    let input = input.to_string_lossy().into_owned();
     let out = match tokio::task::spawn_blocking(move || transcode_audio(&input)).await {
         Ok(Ok(o)) => o,
         _ => {
@@ -263,22 +350,30 @@ async fn backend_info() -> ApiResult {
     json_ok(&senmei_ml::backend_info())
 }
 
-async fn probe(Json(p): Json<ProbeParams>) -> ApiResult {
-    if !media_path(std::path::Path::new(&p.input)) {
+async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> ApiResult {
+    let Some(input) = canonical(Path::new(&p.input)) else {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    };
+    if !media_path(&input) {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     }
-    match core::probe_video(&p.input) {
+    register_parent(&state, &input);
+    match core::probe_video(&input.to_string_lossy()) {
         Ok(info) => json_ok(&info),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }
 
 /// Small JPEG thumbnail as a `data:` URL (same payload as the Tauri IPC).
-async fn thumbnail(Json(p): Json<ThumbnailParams>) -> ApiResult {
-    if !media_path(std::path::Path::new(&p.input)) {
+async fn thumbnail(State(state): State<AppState>, Json(p): Json<ThumbnailParams>) -> ApiResult {
+    let Some(input) = canonical(Path::new(&p.input)) else {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    };
+    if !media_path(&input) {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     }
-    match core::thumbnail(&p.input, p.max_w.unwrap_or(160)) {
+    register_parent(&state, &input);
+    match core::thumbnail(&input.to_string_lossy(), p.max_w.unwrap_or(160)) {
         Ok((data_url, info)) => json_ok(&serde_json::json!({ "data": data_url, "info": info })),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
@@ -292,11 +387,14 @@ fn preview_worker() -> &'static senmei_media::PreviewWorker {
 
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
-async fn frame(Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
-    if !media_path(std::path::Path::new(&p.input)) {
-        return Err(json_err(StatusCode::BAD_REQUEST, "not a media file"));
+async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
+    let Some(input) = resolve_allowed(&state, Path::new(&p.input)) else {
+        return Err(json_err(StatusCode::BAD_REQUEST, "not an opened media file"));
+    };
+    if !media_path(&input) {
+        return Err(json_err(StatusCode::BAD_REQUEST, "not an opened media file"));
     }
-    match preview_worker().frame(&p.input, p.position_ms) {
+    match preview_worker().frame(&input.to_string_lossy(), p.position_ms) {
         Ok(f) => Ok(Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -308,14 +406,22 @@ async fn frame(Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> 
     }
 }
 
-async fn compare(Json(p): Json<CompareParams>) -> ApiResult {
+async fn compare(State(state): State<AppState>, Json(p): Json<CompareParams>) -> ApiResult {
+    if !is_allowed(&state, Path::new(&p.original)) || !is_allowed(&state, Path::new(&p.rendered)) {
+        return json_err(StatusCode::BAD_REQUEST, "not an opened media file");
+    }
     match core::compare_sample(&p.original, &p.rendered) {
         Ok(v) => json_ok(&v),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }
 
-async fn scan_folder(Json(p): Json<ScanParams>) -> ApiResult {
+async fn scan_folder(State(state): State<AppState>, Json(p): Json<ScanParams>) -> ApiResult {
+    let dir = Path::new(&p.dir);
+    if !dir.is_dir() {
+        return json_err(StatusCode::BAD_REQUEST, "not a directory");
+    }
+    register_root(&state, dir);
     match core::scan_folder(&p.dir) {
         Ok(files) => json_ok(&files),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
@@ -346,9 +452,13 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     }
 }
 
-async fn render_start(Json(cfg): Json<core::RenderConfig>) -> ApiResult {
+async fn render_start(State(state): State<AppState>, Json(cfg): Json<core::RenderConfig>) -> ApiResult {
     #[cfg(feature = "render")]
     {
+        if !is_allowed(&state, Path::new(&cfg.input)) {
+            return json_err(StatusCode::BAD_REQUEST, "input not opened");
+        }
+        register_parent(&state, Path::new(&cfg.output));
         // Mirror the desktop's config log so HTTP renders are auditable.
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
@@ -390,7 +500,12 @@ async fn render_cancel() -> ApiResult {
 }
 
 /// Build the HTTP router: REST API + optional static UI (ServeDir fallback).
-pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
+pub fn router(web_dir: Option<PathBuf>) -> Router {
+    router_with_state(web_dir, AppState::default())
+}
+
+/// Test seam: seed the allowed-roots state directly.
+fn router_with_state(web_dir: Option<PathBuf>, state: AppState) -> Router {
     let api = Router::new()
         .route("/api/health", get(|| async { "ok" }))
         .route("/api/models", get(models))
@@ -409,7 +524,9 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
         .route("/api/download-model", post(download_model))
         .route("/api/render", post(render_start))
         .route("/api/render/status", get(render_status))
-        .route("/api/render/cancel", post(render_cancel));
+        .route("/api/render/cancel", post(render_cancel))
+        .layer(middleware::from_fn(require_local_client))
+        .with_state(state);
 
     // The built UI is same-origin, so CORS is only needed for the Vite dev
     // server (localhost:1420 → :8765). Locking origins/methods keeps a random
@@ -440,10 +557,11 @@ pub fn router(web_dir: Option<std::path::PathBuf>) -> Router {
 
 #[cfg(all(test, feature = "http"))]
 mod tests {
-    use super::router;
+    use super::{is_allowed, register_root, router, router_with_state, AppState};
     use axum::body::Body;
     use axum::http::{Method, Request, StatusCode};
     use http_body_util::BodyExt;
+    use std::path::Path;
     use tower::ServiceExt;
 
     fn app() -> axum::Router {
@@ -594,5 +712,122 @@ mod tests {
     async fn get_on_post_endpoint_is_405() {
         let (status, _) = send(get("/api/probe")).await;
         assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    async fn send_with(app: axum::Router, req: Request<Body>) -> (StatusCode, Vec<u8>) {
+        let resp = app.oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec();
+        (status, bytes)
+    }
+
+    fn tmpdir(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("senmei-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn allowed_roots_cover_canonical_children_only() {
+        let root = tmpdir("roots");
+        let sub = root.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        let f = sub.join("a.mp4");
+        std::fs::write(&f, b"x").unwrap();
+
+        let state = AppState::default();
+        register_root(&state, &root);
+        assert!(is_allowed(&state, &f));
+        // Sibling outside the root stays blocked.
+        let outside = std::env::temp_dir().join(format!("senmei-outside-{}", std::process::id()));
+        std::fs::write(&outside, b"x").unwrap();
+        assert!(!is_allowed(&state, &outside));
+        // `..` traversal is rejected even under the root.
+        let trav = format!("{}/../sub/../a.mp4", root.display());
+        assert!(!is_allowed(&state, Path::new(&trav)));
+
+        std::fs::remove_dir_all(&root).ok();
+        std::fs::remove_file(&outside).ok();
+    }
+
+    #[test]
+    fn register_parent_covers_whole_directory() {
+        let root = tmpdir("parent");
+        let a = root.join("a.mp4");
+        let b = root.join("b.mp4");
+        std::fs::write(&a, b"x").unwrap();
+        std::fs::write(&b, b"x").unwrap();
+
+        let state = AppState::default();
+        register_root(&state, a.parent().unwrap());
+        assert!(is_allowed(&state, &a));
+        assert!(is_allowed(&state, &b));
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn cross_site_scan_folder_is_blocked() {
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/api/scan-folder")
+            .header("content-type", "application/json")
+            .header("sec-fetch-site", "cross-site")
+            .body(Body::from(r#"{"dir":"/tmp"}"#))
+            .unwrap();
+        let (status, _) = send(req).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn cross_site_with_dev_origin_is_allowed() {
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/api/scan-folder")
+            .header("content-type", "application/json")
+            .header("sec-fetch-site", "cross-site")
+            .header("origin", "http://localhost:1420")
+            .body(Body::from(r#"{"dir":"/nonexistent-xyz"}"#))
+            .unwrap();
+        // Gate passes (dev origin) → falls through to the not-a-directory 400.
+        let (status, _) = send(req).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn no_sec_fetch_site_is_not_gated() {
+        // curl/agents send no Sec-Fetch-Site → not blocked, falls to the 400.
+        let (status, _) = send(post_json(
+            "/api/scan-folder",
+            r#"{"dir":"/nonexistent-xyz"}"#,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn stream_rejects_unopened_and_serves_opened() {
+        let root = tmpdir("stream");
+        let f = root.join("clip.mp4");
+        std::fs::write(&f, b"data").unwrap();
+        let uri = format!("/api/stream?path={}", f.to_string_lossy());
+
+        // Not registered → blocked by the allowed-roots check.
+        let (status, _) = send(get(&uri)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // Parent registered (e.g. via probe/scan) → served.
+        let state = AppState::default();
+        register_root(&state, &root);
+        let (status, _) = send_with(router_with_state(None, state), get(&uri)).await;
+        assert_eq!(status, StatusCode::OK);
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }
