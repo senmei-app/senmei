@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **fix: bump @senmei/app version to 0.2.3 (2026-08-28)** — `packages/app/package.json`
+  was left at 0.2.2 during the release, so the version badge (built from
+  `pkg.version` + git HEAD hash in `vite.config.ts`) showed the wrong version.
+
 - **chore: re-point gpu-allocator patch to rebuilt fork (2026-08-28)** — the
   `senmei-app/gpu-allocator` fork was rebuilt with full upstream history (0.28.0
   + the `windows 0.62` pin as a real commit, tag `v0.28.0-windows-0.62`
