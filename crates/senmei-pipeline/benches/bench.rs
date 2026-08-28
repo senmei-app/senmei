@@ -194,7 +194,8 @@ fn bench_upscale_batch() {
     engine.load(&mref).unwrap();
     let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
     let mut fs = frames.clone();
-    step.process(&mut fs[0]).unwrap(); // warm-up
+    let mut warm = fs[0].clone(); // warm-up on a clone — process rewrites the frame to the upscaled size
+    step.process(&mut warm).unwrap();
     let t0 = Instant::now();
     for f in &mut fs {
         step.process(f).unwrap();
@@ -215,8 +216,9 @@ fn bench_upscale_batch() {
         let fb = frames.clone();
         let mut warm = fb[..batch.min(fb.len())].to_vec();
         step.process_batch(&mut warm).unwrap(); // warm-up
+
         // The deferred `process_batch` returns the readback of `depth` batches
-        // ago (empty until the queue fills), so accumulate resolved frames and
+        // ago (empty until the queue fills); accumulate the resolved frames and
         // flush the trailing deferred batches instead of copying back in place.
         let t0 = Instant::now();
         let mut out = Vec::new();
@@ -468,12 +470,7 @@ fn bench_pipeline_full_render() {
         .success();
     assert!(ok);
 
-    let mut engine = senmei_ml::engine_for_model(
-        &mref,
-        senmei_ml::EngineBackend::default(),
-        &std::env::temp_dir(),
-    )
-    .unwrap();
+    let mut engine = senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
     engine.load(&mref).unwrap();
     let steps: Vec<Box<dyn senmei_pipeline::Step>> =
         vec![Box::new(senmei_pipeline::Upscale::new(2, Some(engine)))];
