@@ -11,10 +11,10 @@ description = "Tauri application shell for Senmei: commands, state, and IPC."
 # would pull xz2 and conflict on the native `lzma` link).
 tar = "0.4"
 liblzma = "0.4"
-senmei-core = { path = "../senmei-core", version = "0.2.1" }
-senmei-media = { path = "../senmei-media", version = "0.2.1" }
-senmei-ml = { path = "../senmei-ml", version = "0.2.1" }
-senmei-pipeline = { path = "../senmei-pipeline", version = "0.2.1" }
+senmei-core = { path = "../senmei-core", version = "0.2.2" }
+senmei-media = { path = "../senmei-media", version = "0.2.2" }
+senmei-ml = { path = "../senmei-ml", version = "0.2.2" }
+senmei-pipeline = { path = "../senmei-pipeline", version = "0.2.2" }
 rodio = { version = "0.20", default-features = false, features = ["symphonia-aac"] }
 base64.workspace = true
 sysinfo = { version = "0.39", features = ["system"] }
