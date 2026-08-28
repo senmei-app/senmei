@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **docs: SPAN 48ch backend A/B — RVE-engine corrected (2026-08-28)** —
+  `2x_ModernSpanimationV2` @1080p (RX 9070): burn/Vulkan 1155 ms, tch/ROCm
+  453 ms fused / 384 ms full-frame. Retracts the earlier ncnn-Winograd claim:
+  RVE is **PyTorch** (torch/ROCm fp16, spandrel, full-frame, multi-stream). At
+  640×360 the fused app path is 59 ms vs 34 ms full-frame — the 44-vs-15 FPS
+  gap at 480p-class is fused-tile overhead + RVE's stream overlap, not
+  engine-inherent. `benchmarks.md` + `models.md` updated.
+
 - **test: bench full-frame respects `BENCH_BACKEND`; add `BENCH_SIZE` (2026-08-28)** —
   `bench_upscaler_1080p_fullframe` used the default backend (couldn't measure
   tch); now honors `BENCH_BACKEND`. New `BENCH_SIZE` (WxH, default 1920x1080)

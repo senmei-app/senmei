@@ -298,22 +298,25 @@ See `docs/PLAN.md` for the current engine/roadmap status.
 fallin-soft is **2.7× faster than real-cugan-x2** within the same catalog —
 model selection is the biggest free FPS lever (with tch/ROCm +1.5× → ~9 FPS).
 
-## SPAN 48ch — burn vs tch vs RVE (2026-08-28)
+## SPAN 48ch — burn vs tch vs RVE (2026-08-28, RVE=PyTorch corrected)
 
-`bench_upscale_step`, `2x_ModernSpanimationV2` (48ch, no_norm), 1080p→2160p, RX 9070:
+`bench_upscale_step` / `bench_upscaler_1080p_fullframe`, `2x_ModernSpanimationV2`
+(48ch, no_norm), RX 9070:
 
-| backend | ms/frame | FPS |
+| backend | 1080p ms/frame | FPS |
 |---|---|---|
 | burn/Vulkan (fused 640px) | 1155 | 0.9 |
-| tch/ROCm | 453 | 2.2 |
-| RVE (ncnn-Vulkan, reference) | ~23 | ~44 |
+| tch/ROCm (fused 640px) | 453 | 2.2 |
+| tch/ROCm (full-frame infer) | 384 | 2.6 |
 
-tch/ROCm is **2.55× over burn** on this model — MIOpen convs vs cubecl
-im2col→GEMM; the SPAN-48ch shapes (small channels × huge spatial N, K=96 1×1
-convs) are cubecl's worst case. RVE stays **~20× faster than even tch/ROCm** at
-1080p: ncnn-Vulkan (Winograd, hand-tuned fp16 shaders, small-tile streaming) is
-purpose-built for these SR models. The gap is engine-inherent — closing it needs
-an ncnn-style runtime or cubecl Winograd, not a backend switch.
+tch/ROCm is **3.0× over burn** — MIOpen convs vs cubecl im2col→GEMM (SPAN-48ch
+shapes are cubecl's worst case). RVE is **PyTorch** (torch/ROCm fp16, spandrel,
+full-frame, multi-stream) — the earlier ncnn-Winograd attribution was wrong.
+At small res the per-frame overhead dominates: 640×360 → fused app path 59 ms
+(16.8 FPS) vs full-frame infer 34 ms (29.4 FPS). RVE's ~44 FPS at 480p-class =
+full-frame + H2D/infer/D2H overlap on separate CUDA streams — overhead
+pipelining, not engine-inherent. Fix direction: full-frame fused RGB8 path for
+small inputs (+ stream overlap).
 
 ## tch/ROCm fused path — re-evaluated (2026-08-27)
 
