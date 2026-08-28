@@ -8,6 +8,27 @@
 
 ## Unreleased
 
+- **fix: review cleanups — benches, tch, thumbnail, undo/redo (2026-08-28)** —
+  - **Bench**: `BENCH_SIZE` parse errors use `expect` with a clear message
+    instead of an opaque panic; the batch benches document that `flush` (the
+    trailing readback) sits inside the timed window on purpose and that
+    warm-up runs on a clone so the measured frames stay pristine.
+  - **tch**: `SENMEI_TCH_TILED=1` now logs a warning (benchmark A/B, never
+    silent); `infer_rgb8_full_frame_batch` documents it resolves synchronously
+    (prefer `_prepare` for pipelining); the per-frame forward loop documents
+    it's serialized (no threadpool); the VRAM guard's 85% threshold becomes
+    `VRAM_THRESHOLD_PCT`; empty-batch `pop()` uses `expect`.
+  - **Thumbnail**: the command now rejects non-media paths (extension gate;
+    HTTP already had `media_path`) and returns the source probe alongside the
+    JPEG — one call covers the library tile's image + `WxH · codec` line (no
+    second `probeVideo`).
+  - **Undo/redo** rewritten on a pure `useReducer` history (was shared mutable
+    refs): rapid commits can't drop an undo step and the mutation lives in
+    React's render cycle.
+  - **MetaBar**: width capped (`max-w`) so it never overflows a narrow video
+    surface; clipboard failures surface as a visible error instead of a silent
+    `.catch(() => {})`.
+
 - **ui: UI overhaul — meta, hotkeys, settings, consistency (2026-08-28)** —
   - **Source→output meta**: `probe_video` reports `videoCodec`/`audioCodec`/
     `pixFmt`; the Monitor shows configured output meta beside the source's as

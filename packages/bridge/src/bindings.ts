@@ -36,7 +36,7 @@ export const commands = {
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
 	/**  Small JPEG thumbnail (data URL) for the media library tiles. */
-	thumbnail: (input: string, maxW: number | null) => __TAURI_INVOKE<string>("thumbnail", { input, maxW }),
+	thumbnail: (input: string, maxW: number | null) => __TAURI_INVOKE<ThumbnailResult>("thumbnail", { input, maxW }),
 	/**
 	 *  Probe content and suggest a default pipeline (content-aware defaults):
 	 *  anime vs live-action, input resolution, frame rate. Returns a JSON string
@@ -327,6 +327,15 @@ export type StepTimingInfo = {
 	frames: number,
 	msPerFrame: number | null,
 	fps: number | null,
+};
+
+/**
+ *  JPEG data-URL + source probe from the `thumbnail` command — one round trip
+ *  so the library tile doesn't need a second `probe_video` call.
+ */
+export type ThumbnailResult = {
+	data: string,
+	info: VideoInfo,
 };
 
 export type VideoInfo = {

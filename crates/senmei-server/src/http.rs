@@ -279,7 +279,7 @@ async fn thumbnail(Json(p): Json<ThumbnailParams>) -> ApiResult {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     }
     match core::thumbnail(&p.input, p.max_w.unwrap_or(160)) {
-        Ok(data_url) => json_ok(&serde_json::json!({ "data": data_url })),
+        Ok((data_url, info)) => json_ok(&serde_json::json!({ "data": data_url, "info": info })),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }

@@ -93,13 +93,10 @@ export default function MediaLibrary({
         await Promise.all(
           missing.map(async (f) => {
             try {
-              const [thumb, info] = await Promise.all([
-                be.thumbnail(f),
-                be.probeVideo(f).catch(() => null),
-              ]);
+              const t = await be.thumbnail(f);
               if (!on) return;
-              if (thumb) setThumbs((m) => ({ ...m, [f]: thumb }));
-              if (info) setMetas((m) => ({ ...m, [f]: tileMeta(info) }));
+              setThumbs((m) => ({ ...m, [f]: t.data }));
+              setMetas((m) => ({ ...m, [f]: tileMeta(t.info) }));
             } catch {
               // keep the placeholder tile
             }

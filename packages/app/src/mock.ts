@@ -221,7 +221,7 @@ export const mockBackend: Backend = {
   },
 
   async thumbnail() {
-    return DEMO_THUMB;
+    return { data: DEMO_THUMB, info: demoProbe() };
   },
 
   async readFrame() {

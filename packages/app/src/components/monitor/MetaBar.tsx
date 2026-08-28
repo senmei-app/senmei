@@ -109,6 +109,7 @@ export default function MetaBar({
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState<string | null>(null);
+  const [copyErr, setCopyErr] = useState(false);
   const out = computeOutputMeta(info, steps);
 
   const srcCodec = info?.videoCodec ?? null;
@@ -132,9 +133,19 @@ export default function MetaBar({
   ].join("\n");
 
   const copy = (id: string, value: string) => {
-    navigator.clipboard?.writeText(value).catch(() => {});
-    setCopied(id);
-    window.setTimeout(() => setCopied((c) => (c === id ? null : c)), 1200);
+    const done = () => {
+      setCopied(id);
+      window.setTimeout(() => setCopied((c) => (c === id ? null : c)), 1200);
+    };
+    const fail = () => {
+      setCopyErr(true);
+      window.setTimeout(() => setCopyErr(false), 1200);
+    };
+    if (!navigator.clipboard) {
+      fail();
+      return;
+    }
+    navigator.clipboard.writeText(value).then(done).catch(fail);
   };
 
   if (!open) return null;
@@ -142,7 +153,7 @@ export default function MetaBar({
   return (
     <div
       className={
-        "absolute right-3 z-30 w-[22rem] rounded-xl border border-white/10 bg-black/75 p-2 font-mono text-[11px] text-slate-300 shadow-2xl backdrop-blur" +
+        "absolute right-3 z-30 w-[22rem] max-w-[calc(100%-1.5rem)] rounded-xl border border-white/10 bg-black/75 p-2 font-mono text-[11px] text-slate-300 shadow-2xl backdrop-blur" +
         (fullVideo ? " bottom-24" : " bottom-3")
       }
     >
@@ -153,7 +164,7 @@ export default function MetaBar({
           aria-label={t("meta.copy")}
           className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] text-slate-300 hover:border-indigo-400/50 hover:text-white"
         >
-          {copied === "all" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copyErr ? <X className="h-3.5 w-3.5 text-rose-400" /> : copied === "all" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
         <button
           onClick={onClose}

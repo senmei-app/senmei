@@ -141,11 +141,11 @@ export const httpBackend: Backend = {
   },
 
   async thumbnail(input) {
-    const j = await api<{ data: string }>("/api/thumbnail", {
+    const j = await api<{ data: string; info: VideoInfo }>("/api/thumbnail", {
       method: "POST",
       body: JSON.stringify({ input, maxW: 160 }),
     });
-    return j.data;
+    return j;
   },
 
   async readFrame(input, positionMs): Promise<RawFrame> {

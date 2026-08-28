@@ -50,7 +50,10 @@ fn bench_size() -> (u32, u32) {
     match std::env::var("BENCH_SIZE") {
         Ok(s) => {
             let (w, h) = s.split_once('x').expect("BENCH_SIZE as WxH");
-            (w.parse().unwrap(), h.parse().unwrap())
+            (
+                w.parse().expect("BENCH_SIZE: W part not an integer"),
+                h.parse().expect("BENCH_SIZE: H part not an integer"),
+            )
         }
         Err(_) => (1920, 1080),
     }
@@ -214,12 +217,18 @@ fn bench_upscale_batch() {
         engine.load(&mref).unwrap();
         let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
         let fb = frames.clone();
+        // Warm-up on a clone — `process_batch` rewrites the frames in place to
+        // the upscaled size, so warming on `fb` directly would corrupt the
+        // frames the timed loop below measures.
         let mut warm = fb[..batch.min(fb.len())].to_vec();
         step.process_batch(&mut warm).unwrap(); // warm-up
 
         // The deferred `process_batch` returns the readback of `depth` batches
         // ago (empty until the queue fills); accumulate the resolved frames and
         // flush the trailing deferred batches instead of copying back in place.
+        // NOTE: `flush` (the trailing readback wait) sits INSIDE the timed
+        // window on purpose — in the app the last batch's readback is part of
+        // the render time too, so excluding it would flatter the batch numbers.
         let t0 = Instant::now();
         let mut out = Vec::new();
         for chunk in fb.chunks(batch) {

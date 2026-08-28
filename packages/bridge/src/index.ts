@@ -23,6 +23,7 @@ export type {
   ModelFileInfo,
   StepTimingInfo,
   VideoInfo,
+  ThumbnailResult,
   FfmpegInfo as FfmpegStatus,
   RenderConfig,
   FilterParams,

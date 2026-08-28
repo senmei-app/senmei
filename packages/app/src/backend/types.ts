@@ -21,6 +21,7 @@ import type {
   RenderConfig,
   RenderProgress,
   Settings,
+  ThumbnailResult,
   VideoInfo,
 } from "@senmei/bridge";
 
@@ -36,6 +37,7 @@ export type {
   RenderConfig,
   RenderProgress,
   Settings,
+  ThumbnailResult,
   VideoInfo,
 } from "@senmei/bridge";
 
@@ -73,9 +75,9 @@ export interface Backend {
 
   // Media
   probeVideo(input: string): Promise<VideoInfo>;
-  /// Small JPEG thumbnail of a file as a data URL (transport-agnostic; also
-  /// carries the tile's size/codec line via `probeVideo`).
-  thumbnail(input: string): Promise<string>;
+  /// Small JPEG thumbnail of a file (data URL) + its probe — one call, so the
+  /// library tile's size/codec line needs no separate `probeVideo`.
+  thumbnail(input: string): Promise<ThumbnailResult>;
   /// Decode a preview frame at `positionMs` (raw RGB24 bytes).
   readFrame(input: string, positionMs: number): Promise<RawFrame>;
   /// Native-playable URL for a video file; `null` when the transport can't

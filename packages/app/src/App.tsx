@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   BackendInfo,
@@ -45,40 +45,48 @@ export default function App() {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [mediaView, setMediaView] = useState<"library" | "queue">("library");
-  const [steps, setSteps] = useState<PipelineStep[]>(defaultSteps);
-  // Undo/redo history for the step stack — every structural edit commits.
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const stepsRef = useRef(steps);
-  const historyRef = useRef<{ past: PipelineStep[][]; future: PipelineStep[][] }>({ past: [], future: [] });
-  const resetHistory = () => {
-    historyRef.current = { past: [], future: [] };
-    setCanUndo(false);
-    setCanRedo(false);
+  // Undo/redo history for the step stack — every structural edit commits. A
+  // pure reducer keeps commit/undo/redo atomic (no shared mutable refs, so two
+  // rapid commits can't drop an undo step) and inside React's render cycle.
+  type HistoryState = { present: PipelineStep[]; past: PipelineStep[][]; future: PipelineStep[][] };
+  type HistoryAction =
+    | { type: "commit"; next: PipelineStep[] }
+    | { type: "reset"; next: PipelineStep[] }
+    | { type: "undo" }
+    | { type: "redo" };
+  const historyReducer = (s: HistoryState, a: HistoryAction): HistoryState => {
+    switch (a.type) {
+      case "commit":
+        return { present: a.next, past: [...s.past, s.present].slice(-100), future: [] };
+      case "reset":
+        return { present: a.next, past: [], future: [] };
+      case "undo": {
+        if (s.past.length === 0) return s;
+        const prev = s.past[s.past.length - 1];
+        return { present: prev, past: s.past.slice(0, -1), future: [s.present, ...s.future] };
+      }
+      case "redo": {
+        if (s.future.length === 0) return s;
+        const [next, ...rest] = s.future;
+        return { present: next, past: [...s.past, s.present], future: rest };
+      }
+    }
   };
-  const commitSteps = useCallback((next: PipelineStep[]) => {
-    historyRef.current.past.push(stepsRef.current);
-    if (historyRef.current.past.length > 100) historyRef.current.past.shift();
-    historyRef.current.future = [];
-    setSteps(next);
-  }, []);
-  const undo = useCallback(() => {
-    const prev = historyRef.current.past.pop();
-    if (!prev) return;
-    historyRef.current.future.push(stepsRef.current);
-    setSteps(prev);
-  }, []);
-  const redo = useCallback(() => {
-    const next = historyRef.current.future.pop();
-    if (!next) return;
-    historyRef.current.past.push(stepsRef.current);
-    setSteps(next);
-  }, []);
-  useEffect(() => {
-    stepsRef.current = steps;
-    setCanUndo(historyRef.current.past.length > 0);
-    setCanRedo(historyRef.current.future.length > 0);
-  }, [steps]);
+  const [history, dispatchHistory] = useReducer(historyReducer, {
+    present: defaultSteps(),
+    past: [],
+    future: [],
+  });
+  const steps = history.present;
+  const canUndo = history.past.length > 0;
+  const canRedo = history.future.length > 0;
+  const commitSteps = useCallback(
+    (next: PipelineStep[]) => dispatchHistory({ type: "commit", next }),
+    [],
+  );
+  const resetHistory = (next: PipelineStep[]) => dispatchHistory({ type: "reset", next });
+  const undo = useCallback(() => dispatchHistory({ type: "undo" }), []);
+  const redo = useCallback(() => dispatchHistory({ type: "redo" }), []);
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("senmei.onboarded") === "1");
   const [hydrated, setHydrated] = useState(false);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -185,8 +193,7 @@ export default function App() {
     getBackend()
       .then((b) => b.loadProjectSettings(projectDir))
       .then((s: ProjectSettings) => {
-        resetHistory();
-        if (s.steps && s.steps.length > 0) setSteps(normalizeSteps(s.steps));
+        resetHistory(s.steps && s.steps.length > 0 ? normalizeSteps(s.steps) : defaultSteps());
         if (s.files && s.files.length > 0) setFiles(s.files);
         if (s.outputDir) setOutputDir(s.outputDir);
         batch.setRenderedFile(null);
@@ -293,8 +300,7 @@ export default function App() {
         setHealth("suggest produced no steps");
         return;
       }
-      resetHistory();
-      setSteps(mapped);
+      resetHistory(mapped);
       setHealth(`Suggested pipeline: ${sug.anime ? "anime" : "live-action"} · ${mapped.length} steps`);
     } catch (e) {
       setHealth(`suggest failed: ${e}`);

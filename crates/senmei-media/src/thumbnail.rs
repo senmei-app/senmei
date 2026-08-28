@@ -5,25 +5,31 @@ use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::{Error, Result};
+use crate::{Error, Result, VideoInfo};
+
+/// JPEG bytes plus the source probe. The probe is needed anyway to pick the
+/// seek timestamp, so returning it lets the caller skip a second ffprobe
+/// spawn (the MediaLibrary tile renders `WxH · codec` from here).
+pub struct Thumbnail {
+    pub jpeg: Vec<u8>,
+    pub info: VideoInfo,
+}
 
 /// Best timestamp to thumbnail, in seconds: a quarter in (past any title
 /// card) but capped at 1s so the seek stays cheap on long files.
-fn at_seconds(ffmpeg: &Path, input: &Path) -> f64 {
-    let dur = crate::probe(&crate::ffprobe_next_to(ffmpeg), input)
-        .map(|i| i.duration)
-        .unwrap_or(0.0);
-    if dur <= 0.0 {
+fn at_seconds(duration: f64) -> f64 {
+    if duration <= 0.0 {
         0.0
     } else {
-        (dur * 0.25).min(1.0)
+        (duration * 0.25).min(1.0)
     }
 }
 
 /// Extract a JPEG thumbnail of `input`. `max_w` caps the width; the height
 /// follows the source aspect (even value keeps the scale filter happy).
-pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Vec<u8>> {
-    let at = at_seconds(ffmpeg, input);
+pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Thumbnail> {
+    let info = crate::probe(&crate::ffprobe_next_to(ffmpeg), input)?;
+    let at = at_seconds(info.duration);
     let mut child = Command::new(ffmpeg)
         .args(["-hide_banner", "-loglevel", "error", "-ss", &format!("{at:.3}"), "-i"])
         .arg(input)
@@ -63,7 +69,7 @@ pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Vec<u8>> {
     if buf.is_empty() {
         return Err(Error::Command("ffmpeg produced no thumbnail".into()));
     }
-    Ok(buf)
+    Ok(Thumbnail { jpeg: buf, info })
 }
 
 #[cfg(test)]
@@ -94,9 +100,10 @@ mod tests {
             .args(["-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=320x180:rate=24", "-t", "1", "-pix_fmt", "yuv420p"])
             .arg(&clip)
             .status();
-        let jpg = thumbnail(&ff, &clip, 160).expect("thumbnail extract");
-        assert!(jpg.len() > 100, "non-trivial JPEG");
-        assert_eq!(&jpg[..2], &[0xff, 0xd8], "JPEG magic");
+        let thumb = thumbnail(&ff, &clip, 160).expect("thumbnail extract");
+        assert!(thumb.jpeg.len() > 100, "non-trivial JPEG");
+        assert_eq!(&thumb.jpeg[..2], &[0xff, 0xd8], "JPEG magic");
+        assert!(thumb.info.width > 0, "probe returned by thumbnail");
         let _ = std::fs::remove_file(&clip);
     }
 }

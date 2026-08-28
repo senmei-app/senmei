@@ -323,7 +323,7 @@ where
         scale,
         device,
     )?;
-    Some(batch.map(|mut v| v.pop().unwrap()))
+    Some(batch.map(|mut v| v.pop().expect("batch is non-empty")))
 }
 
 /// Fused multi-frame RGB8 path: `n` same-shaped NCHW inputs, each handed back
@@ -376,11 +376,14 @@ where
         scale,
         device,
     )?;
-    Some(batch.map(|mut v| v.pop().unwrap()))
+    Some(batch.map(|mut v| v.pop().expect("batch is non-empty")))
 }
 
 /// Synchronous full-frame batch (tch engine): resolves the deferred readback
-/// immediately.
+/// immediately (blocking). The app's batch path should prefer
+/// [`infer_rgb8_full_frame_batch_prepare`] to keep readback pipelining —
+/// calling this per batch serializes forward + readback and leaves the GPU
+/// idle while the host waits on `resolve`.
 #[cfg(feature = "tch")]
 pub fn infer_rgb8_full_frame_batch<B: Backend>(
     model: &Model<B>,
@@ -449,7 +452,7 @@ where
         return None;
     }
     if let Some(free) = crate::vram_available_bytes() {
-        if expected > free.saturating_mul(85) / 100 {
+        if expected > free.saturating_mul(VRAM_THRESHOLD_PCT) / 100 {
             return None;
         }
     }
@@ -463,7 +466,10 @@ where
     // Per-frame forwards, not one batched forward: a batched full-frame conv
     // blows up MIOpen's workspace (~13.35 GiB at n=8×1080p) and is slower than
     // per-frame anyway. The readback is still deferred via `BurnRgb8Batch`, so
-    // the caller's readback pipelining is preserved.
+    // the caller's readback pipelining is preserved. Limitation: the forwards
+    // are serialized (one at a time, no Rayon/threadpool) — parallelizing the
+    // batch dim across threads is future work once MIOpen's per-stream
+    // workspace allows it.
     let mut accs = Vec::with_capacity(n);
     for f in &gpu_frames {
         let out = match model.forward(f.clone()) {
@@ -561,7 +567,7 @@ where
         ))));
     }
     if let Some(free) = crate::vram_available_bytes() {
-        if expected > free.saturating_mul(85) / 100 {
+        if expected > free.saturating_mul(VRAM_THRESHOLD_PCT) / 100 {
             return Some(Err(Error::new(format!(
                 "fused RGB8 path needs ~{} MB VRAM ({} MB free) — close GPU apps or \
                  lower scale/resolution",
@@ -723,6 +729,11 @@ fn fused_peak_limit(total_vram: Option<u64>) -> u64 {
         None => FUSED_PEAK_CEILING,
     }
 }
+
+/// Fused-path VRAM guard: reject when the estimate exceeds this fraction of
+/// the currently free VRAM (DRM sysfs).
+#[cfg(any(feature = "burn", feature = "tch"))]
+const VRAM_THRESHOLD_PCT: u64 = 85;
 
 /// Fused RGB8 path peak-allocation estimate (bytes), used by the VRAM guard.
 /// Canvas + readback, ×4 for ops/COW/autotune overhead — a ~3.2 GB single

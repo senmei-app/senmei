@@ -25,9 +25,18 @@ pub const LIBTORCH_VERSION: &str = "2.12.0";
 
 /// A/B switch: `SENMEI_TCH_TILED=1` skips the full-frame fused RGB8 path and
 /// always uses the 640px-tiled one (re-measures the pre-full-frame behavior).
+/// Honored in all builds — the pipeline benches drive it through a dependency,
+/// so a `#[cfg(test)]` gate would dead-code it here; the `warn!` keeps it from
+/// being silently active in production.
 static TCH_TILED: OnceLock<bool> = OnceLock::new();
 fn tch_tiled() -> bool {
-    *TCH_TILED.get_or_init(|| std::env::var("SENMEI_TCH_TILED").as_deref() == Ok("1"))
+    *TCH_TILED.get_or_init(|| {
+        let on = std::env::var("SENMEI_TCH_TILED").as_deref() == Ok("1");
+        if on {
+            log::warn!("SENMEI_TCH_TILED=1: forcing the tiled path (benchmark A/B)");
+        }
+        on
+    })
 }
 
 /// Device for the libtorch backend. CPU is intentionally absent — the
