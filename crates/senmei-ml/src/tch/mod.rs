@@ -234,13 +234,20 @@ impl InferenceEngine for TchEngine {
         self.scale
     }
 
-    /// Fused RGB8 (GPU re-sample when the requested scale ≠ model scale — the
-    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`).
+    /// Fused RGB8 (GPU re-sample when the requested scale ≠ model scale).
+    /// Runs full-frame first — the 640px tile grid is pure overhead on tch
+    /// (59 vs 34 ms @640×360, 453 vs 384 @1080p) — and falls back to the
+    /// shared tiled fused path only when the full-frame VRAM guard rejects
+    /// (8K/oversize).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let model = self.model.as_ref()?;
+        if let Some(Ok(v)) = core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
+        {
+            return Some(Ok(v));
+        }
+        // Fused rejection (full-frame guard or a forward error): fall back to
+        // the tiled fused path, whose own rejection lands on `infer_tiled`.
         match core::infer_rgb8(model, input, self.scale, scale, &self.device) {
-            // tch has a GPU tiled fallback, so a fused rejection (e.g. the
-            // VRAM guard at very large outputs) falls back instead of erroring.
             Some(Err(_)) => None,
             other => other,
         }
@@ -254,6 +261,12 @@ impl InferenceEngine for TchEngine {
         scale: u32,
     ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let model = self.model.as_ref()?;
+        if let Some(Ok(b)) =
+            core::infer_rgb8_full_frame_batch_prepare(model, inputs, self.scale, scale, &self.device)
+        {
+            return Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>));
+        }
+        // Full-frame guard/error: fall back to the tiled fused path.
         match core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device) {
             Some(Ok(b)) => Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>)),
             // Fused path can't handle this input (VRAM guard): fall back to
@@ -357,6 +370,80 @@ mod tests {
         eprintln!("[tch_test] inferred {:?}", out.shape);
         assert_eq!(out.shape, vec![1, 3, 256, 256]);
         assert!(out.data.iter().all(|v| v.is_finite()));
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// The tch engine's full-frame fused RGB8 path must match the plain
+    /// full-frame `infer` output (both run the model once over the whole
+    /// frame). `infer_rgb8` rounds on GPU f16, `infer`+convert on CPU f32, so
+    /// allow ±1 LSB. `#[ignore]` like the roundtrip test (resolves libtorch
+    /// on first use).
+    #[test]
+    #[ignore]
+    fn tch_full_frame_rgb8_matches_infer() {
+        if !crate::runtime::detect().supports_gpu() {
+            eprintln!("no CUDA/ROCm device, skipping");
+            return;
+        }
+        let data_dir = std::env::temp_dir().join("senmei_tch_test_data");
+        let mut engine = TchEngine::runtime(&data_dir).unwrap();
+        let tmp = std::env::temp_dir().join("senmei_tch_fframe.bpk");
+        let _ = std::fs::remove_file(&tmp);
+
+        let device = LibTorchDevice::Cuda(0);
+        let m = UpCunet2xFast::<B>::new(&device);
+        let mut save = BurnpackStore::from_file(&tmp);
+        m.save_into(&mut save).unwrap();
+        let mref = ModelRef {
+            id: "concept".into(),
+            arch: "fallin-cugan".into(),
+            scale: 2,
+            num_block: 4,
+            num_conv: 16,
+            feature_channels: 48,
+            no_norm: false,
+            layer_norm: false,
+            dysample: true,
+            shuffle: 1,
+            path: tmp.clone(),
+        };
+        engine.load(&mref).unwrap();
+
+        let (h, w) = (128u32, 128u32);
+        let input = Tensor::new(
+            vec![1, 3, h as usize, w as usize],
+            vec![0.5f32; 3 * 128 * 128],
+        );
+        let (bytes, oh, ow) = engine
+            .infer_rgb8(&input, 2)
+            .expect("full-frame fused")
+            .expect("infer_rgb8");
+        assert_eq!((oh, ow), (h * 2, w * 2));
+        let out = engine
+            .infer(&input, &InferOptions { tile_size: None })
+            .unwrap();
+        assert_eq!(out.shape, vec![1, 3, (h * 2) as usize, (w * 2) as usize]);
+
+        // `infer_rgb8` returns packed HWC bytes; `infer` an f32 NCHW tensor.
+        let oho = out.shape[2] as usize;
+        let owo = out.shape[3] as usize;
+        let hw = oho * owo;
+        let mut max_diff = 0i64;
+        for y in 0..oho {
+            for x in 0..owo {
+                for ch in 0..3usize {
+                    let v = out.data[ch * hw + y * owo + x];
+                    let expect = ((v * 255.0 + 0.5).floor().clamp(0.0, 255.0)) as i64;
+                    let got = bytes[(y * owo + x) * 3 + ch] as i64;
+                    max_diff = max_diff.max((got - expect).abs());
+                }
+            }
+        }
+        assert!(
+            max_diff <= 1,
+            "full-frame RGB8 diverged from infer by {max_diff} LSB"
+        );
 
         let _ = std::fs::remove_file(&tmp);
     }

@@ -8,10 +8,26 @@
 
 ## Unreleased
 
+- **feat: tch full-frame fused RGB8 — drop the 640px-tile overhead (2026-08-28)** —
+  `TchEngine::infer_rgb8*` now run the shared fused RGB8 path over the whole
+  frame (one forward, GPU RGB8 pack, single readback) instead of the 640px
+  tile grid, which was pure overhead on libtorch. The VRAM guard falls back to
+  the tiled fused path on 8K/oversize. `2x_ModernSpanimationV2`: 640×360
+  59→31 ms (16.8→32.3 FPS), 1080p 453→354 ms (2.2→2.8 FPS). Burn/Vulkan keeps
+  640px tiling (im2col-OOM guard). Verified: full-frame fused ≡ `infer` (≤1 LSB).
+
 - **test: fix `bench_upscale_batch` deferred-API usage (2026-08-28)** — the
   bench copied `process_batch`'s output back into the chunk, but the deferred
   path returns empty batches until the pipeline queue fills (depth=2) → panic.
   Now accumulates resolved frames and flushes the trailing deferred batches.
+
+- **docs: SPAN 48ch backend A/B — RVE-engine corrected (2026-08-28)** —
+  `2x_ModernSpanimationV2` @1080p (RX 9070): burn/Vulkan 1155 ms, tch/ROCm
+  453 ms fused / 384 ms full-frame. Retracts the earlier ncnn-Winograd claim:
+  RVE is **PyTorch** (torch/ROCm fp16, spandrel, full-frame, multi-stream). At
+  640×360 the fused app path is 59 ms vs 34 ms full-frame — the 44-vs-15 FPS
+  gap at 480p-class is fused-tile overhead + RVE's stream overlap, not
+  engine-inherent. `benchmarks.md` + `models.md` updated.
 
 - **test: bench full-frame respects `BENCH_BACKEND`; add `BENCH_SIZE` (2026-08-28)** —
   `bench_upscaler_1080p_fullframe` used the default backend (couldn't measure

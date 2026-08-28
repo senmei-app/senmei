@@ -300,23 +300,22 @@ model selection is the biggest free FPS lever (with tch/ROCm +1.5× → ~9 FPS).
 
 ## SPAN 48ch — burn vs tch vs RVE (2026-08-28, RVE=PyTorch corrected)
 
-`bench_upscale_step` / `bench_upscaler_1080p_fullframe`, `2x_ModernSpanimationV2`
-(48ch, no_norm), RX 9070:
+`bench_upscale_step`, `2x_ModernSpanimationV2` (48ch, no_norm), RX 9070:
 
-| backend | 1080p ms/frame | FPS |
-|---|---|---|
-| burn/Vulkan (fused 640px) | 1155 | 0.9 |
-| tch/ROCm (fused 640px) | 453 | 2.2 |
-| tch/ROCm (full-frame infer) | 384 | 2.6 |
+| backend | 1080p ms/frame | FPS | 640×360 ms/frame | FPS |
+|---|---|---|---|---|
+| burn/Vulkan (fused 640px) | 1155 | 0.9 | — | — |
+| tch/ROCm (fused 640px, before) | 453 | 2.2 | 59.4 | 16.8 |
+| tch/ROCm (full-frame fused, app path) | 354 | 2.8 | 30.9 | 32.3 |
 
-tch/ROCm is **3.0× over burn** — MIOpen convs vs cubecl im2col→GEMM (SPAN-48ch
-shapes are cubecl's worst case). RVE is **PyTorch** (torch/ROCm fp16, spandrel,
+tch/ROCm is **~3× over burn** — MIOpen convs vs cubecl im2col→GEMM (SPAN-48ch
+shapes are cubecl's worst case); burn keeps the 640px tiles (im2col-OOM guard,
+`upstream-issues.md` §2). RVE is **PyTorch** (torch/ROCm fp16, spandrel,
 full-frame, multi-stream) — the earlier ncnn-Winograd attribution was wrong.
-At small res the per-frame overhead dominates: 640×360 → fused app path 59 ms
-(16.8 FPS) vs full-frame infer 34 ms (29.4 FPS). RVE's ~44 FPS at 480p-class =
-full-frame + H2D/infer/D2H overlap on separate CUDA streams — overhead
-pipelining, not engine-inherent. Fix direction: full-frame fused RGB8 path for
-small inputs (+ stream overlap).
+The 44-vs-15 FPS gap at 480p-class was the fused 640px-tile overhead (1.9× at
+640×360) + RVE's stream overlap. The tch engine now runs the fused RGB8 path
+**full-frame** (no 640px tiles; VRAM guard → tiled fallback for 8K/oversize):
+16.8 → 32.3 FPS @640×360, 2.2 → 2.8 FPS @1080p. Remaining lever: stream overlap.
 
 ## tch/ROCm fused path — re-evaluated (2026-08-27)
 

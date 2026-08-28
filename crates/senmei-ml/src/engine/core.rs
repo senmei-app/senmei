@@ -352,6 +352,142 @@ where
     Some(Box::new(batch).resolve())
 }
 
+/// Fused RGB8 full-frame path (tch engine): one forward over the whole frame
+/// (even-padded), GPU RGB8 pack, single readback — no 640px tile grid. The
+/// tile machinery was pure overhead on tch (59 vs 34 ms @640×360, 453 vs 384
+/// @1080p), so tch runs full-frame first and falls back to the shared tiled
+/// fused path only when the VRAM guard rejects (8K/oversize). Output is the
+/// exact full-frame result (no seam blending).
+#[cfg(feature = "tch")]
+pub fn infer_rgb8_full_frame<B: Backend>(
+    model: &Model<B>,
+    input: &Tensor,
+    native_scale: u32,
+    scale: u32,
+    device: &B::Device,
+) -> Option<Result<(Vec<u8>, u32, u32)>>
+where
+    B::FloatElem: Rgb8Elem,
+{
+    let batch = infer_rgb8_full_frame_batch(
+        model,
+        std::slice::from_ref(input),
+        native_scale,
+        scale,
+        device,
+    )?;
+    Some(batch.map(|mut v| v.pop().unwrap()))
+}
+
+/// Synchronous full-frame batch (tch engine): resolves the deferred readback
+/// immediately.
+#[cfg(feature = "tch")]
+pub fn infer_rgb8_full_frame_batch<B: Backend>(
+    model: &Model<B>,
+    inputs: &[Tensor],
+    native_scale: u32,
+    scale: u32,
+    device: &B::Device,
+) -> Option<Result<Rgb8Frames>>
+where
+    B::FloatElem: Rgb8Elem,
+{
+    let batch =
+        match infer_rgb8_full_frame_batch_prepare(model, inputs, native_scale, scale, device) {
+            Some(Ok(b)) => b,
+            Some(Err(e)) => return Some(Err(e)),
+            None => return None,
+        };
+    Some(Box::new(batch).resolve())
+}
+
+/// Full-frame forward + GPU RGB8 prep for one batch; the readback is deferred
+/// to [`BurnRgb8Batch::resolve`] like the tiled path. The VRAM guard returns
+/// `None` (not an error) so the caller falls back to the tiled fused path.
+#[cfg(feature = "tch")]
+pub fn infer_rgb8_full_frame_batch_prepare<B: Backend>(
+    model: &Model<B>,
+    inputs: &[Tensor],
+    native_scale: u32,
+    scale: u32,
+    device: &B::Device,
+) -> Option<Result<BurnRgb8Batch<B>>>
+where
+    B::FloatElem: Rgb8Elem,
+{
+    if inputs.is_empty() {
+        return Some(Err(Error::new("empty batch")));
+    }
+    let n = inputs.len();
+    let [_, c, h, w] = [
+        inputs[0].shape[0],
+        inputs[0].shape[1],
+        inputs[0].shape[2],
+        inputs[0].shape[3],
+    ];
+    if inputs[0].shape.len() != 4 {
+        return Some(Err(Error::new("expected NCHW input")));
+    }
+    for inp in inputs {
+        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
+            return Some(Err(Error::new("batch inputs must share NCHW dims")));
+        }
+    }
+    // Even-pad only (pixel-shuffle ×2 needs even H/W; the tiled path padded to
+    // 640, which is always even). The resolve crops the extra row/col back.
+    let ph = h + (h & 1);
+    let pw = w + (w & 1);
+    let scale_f = scale as f32;
+    let out_h = (ph as f32 * scale_f).round() as usize;
+    let out_w = (pw as f32 * scale_f).round() as usize;
+    let resample = scale != native_scale;
+    // Same VRAM guard as the tiled path, but reject with `None` so the tch
+    // engine falls back to tiled fused instead of erroring.
+    let expected = fused_peak_allocation(n, out_h, out_w, c);
+    let limit = fused_peak_limit(crate::vram_total_bytes());
+    if expected > limit {
+        return None;
+    }
+    if let Some(free) = crate::vram_available_bytes() {
+        if expected > free.saturating_mul(85) / 100 {
+            return None;
+        }
+    }
+    let mut gpu_frames = Vec::with_capacity(n);
+    for inp in inputs {
+        match pad_to_burn::<B>(inp, ph, pw, device) {
+            Ok(t) => gpu_frames.push(t),
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    let batch = if n == 1 {
+        gpu_frames[0].clone()
+    } else {
+        BurnTensor::cat(gpu_frames, 0)
+    };
+    let out = match model.forward(batch) {
+        Ok(o) => o,
+        Err(e) => return Some(Err(e)),
+    };
+    // Clamp before the u8 cast (out-of-range hard edges would wrap).
+    let out = out.clamp(0.0, 1.0);
+    let out = if resample {
+        let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
+        interpolate(out, [out_h, out_w], opts)
+    } else {
+        out
+    };
+    let [_, _, oh, ow] = out.dims();
+    let accs = (0..n)
+        .map(|i| out.clone().slice([i..i + 1, 0..c, 0..oh, 0..ow]))
+        .collect();
+    Some(Ok(BurnRgb8Batch {
+        accs,
+        out_w_t: (w as f32 * scale_f).round() as usize,
+        out_h_t: (h as f32 * scale_f).round() as usize,
+    }))
+}
+
 /// Forward + GPU canvas accumulation for one batch; the readback is deferred
 /// to [`BurnRgb8Batch::resolve`] so the caller can queue the next forward
 /// before blocking on this one (readback pipelining).
