@@ -212,15 +212,20 @@ fn bench_upscale_batch() {
             senmei_ml::engine_for_model(&mref, backend(), &std::env::temp_dir()).unwrap();
         engine.load(&mref).unwrap();
         let mut step = senmei_pipeline::Upscale::new(scale, Some(engine));
-        let mut fb = frames.clone();
+        let fb = frames.clone();
         let mut warm = fb[..batch.min(fb.len())].to_vec();
         step.process_batch(&mut warm).unwrap(); // warm-up
+        // The deferred `process_batch` returns the readback of `depth` batches
+        // ago (empty until the queue fills), so accumulate resolved frames and
+        // flush the trailing deferred batches instead of copying back in place.
         let t0 = Instant::now();
-        for chunk in fb.chunks_mut(batch) {
+        let mut out = Vec::new();
+        for chunk in fb.chunks(batch) {
             let mut v = chunk.to_vec();
             step.process_batch(&mut v).unwrap();
-            chunk.clone_from_slice(&v);
+            out.extend(v);
         }
+        step.flush(&mut out).unwrap();
         let ms = t0.elapsed().as_secs_f64() * 1000.0 / total as f64;
         println!(
             "batch {batch}: {ms:.1} ms/frame ({:.1} FPS) | vs per-frame {:.0}%",
