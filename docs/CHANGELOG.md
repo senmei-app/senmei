@@ -8,6 +8,25 @@
 
 ## Unreleased
 
+- **docs: complete tch/ROCm benchmark suite (2026-08-28)** — all benches on
+  `2x_ModernSpanimationV2` (1080p, RX 9070, tch full-frame, one at a time) +
+  the 36-model real-frame sweep @576×432 (DIS 112.9, fallin-soft 93.6, SPAN-V2
+  29.4 FPS). Batch ≈ per-frame on tch; `benchmarks.md` has the tables.
+
+- **fix: full-frame batch — per-frame forwards, not one batched conv
+  (2026-08-28)** — a batched full-frame forward blows up MIOpen's conv
+  workspace (~13.35 GiB at n=8×1080p, CUDA OOM). `infer_rgb8_full_frame_
+  batch_prepare` now forwards one frame at a time and defers the readback via
+  `BurnRgb8Batch`, so the pipeline's readback pipelining survives without the
+  giant batched GEMM.
+
+- **test: bench — warm-up clone + `bench_pipeline_full_render` honors
+  `BENCH_BACKEND` (2026-08-28)** — `bench_upscale_batch`'s warm-up rewrote
+  `fs[0]` to the upscaled size, so the loop re-upscaled a 2160p frame
+  (full-frame → 13.35 GiB OOM at 1080p; tiled had masked it). `bench_pipeline_
+  full_render` used `EngineBackend::default()`, so tch was never measurable
+  end-to-end.
+
 - **feat: tch full-frame fused RGB8 — drop the 640px-tile overhead (2026-08-28)** —
   `TchEngine::infer_rgb8*` now run the shared fused RGB8 path over the whole
   frame (one forward, GPU RGB8 pack, single readback) instead of the 640px

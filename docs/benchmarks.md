@@ -317,6 +317,50 @@ The 44-vs-15 FPS gap at 480p-class was the fused 640px-tile overhead (1.9× at
 **full-frame** (no 640px tiles; VRAM guard → tiled fallback for 8K/oversize):
 16.8 → 32.3 FPS @640×360, 2.2 → 2.8 FPS @1080p. Remaining lever: stream overlap.
 
+## tch/ROCm complete suite — full benchmark (2026-08-28)
+
+All benches, `2x_ModernSpanimationV2`, RX 9070, tch/ROCm full-frame,
+`--test-threads=1` (one bench at a time; 1080p unless noted):
+
+| bench | result |
+|---|---|
+| `bench_upscaler_1080p_fullframe` (raw infer) | 385 ms · 2.6 FPS |
+| `bench_upscale_step` (app path) | 371 ms · 2.7 FPS |
+| `bench_upscale_batch` per-frame / b2 / b4 / b8 | 358 / 378 / 373 / 388 ms (2.8-2.6 FPS) |
+| `bench_upscale_batch_dvd` 576×432 s4 per-frame / b1 / b2 / b4 / b8 | 38.6 / 37.8 / 38.8 / 38.8 / 45.8 ms (25.9-21.9 FPS) |
+| `bench_upscale_pipelined` depth 1 / 2 / 3 | 356 / 355 / 355 ms (2.8 FPS) |
+| `bench_fused_requested_scale` (fused s4 2304×1728) | 37.4 ms · 26.7 FPS |
+| `bench_pipeline_full_render` (end-to-end 1080p→2160p + x264) | 2.7 FPS (48 f / 17.8 s) |
+| `bench_upscaler_requested_scale_png` (s4 2304×1728) | 90.9 ms · 11.0 FPS |
+| aux interpolation: RIFE v4.6 / IFRNet-vimeo / IFRNet-gopro | 27.8 / 56.7 / 55.8 FPS |
+| aux denoise: DRUNet / DnCNN / FFDNet | 59.8 / 107.5 / 182.7 FPS |
+
+Batch ≈ per-frame on tch (batched full-frame convs are not faster on MIOpen);
+the full-frame batch path runs per-frame forwards with deferred readback.
+
+Real-frame sweep @576×432 (native scale, whole `Upscale` step, 2 vlcsnap
+frames, 36 loadable models):
+
+| model | scale | ms/frame | FPS |
+|---|---|---|---|
+| dis-fast / dis-balanced | 2 | 8.9 / 9.9 | 112.9 / 100.5 |
+| fallin-soft / fallin-strong | 2 | 10.7 / 11.1 | 93.6 / 89.9 |
+| realesrgan-animevideo-x2 / -x4 / v3 | 2/4/4 | 13.4 / 18.8 / 18.4 | 74.8 / 53.2 / 54.4 |
+| realesrgan-general-x4v3 | 4 | 26.1 | 38.3 |
+| real-cugan-{x2, hfa2k, pro-no-denoise, pro-conservative, pro-denoise3x} | 2 | 26.8-27.3 | 36.7-37.4 |
+| paragonsr-nano-x2 | 2 | 17.9 | 55.9 |
+| span-2x-{nomosuni-ldl, multijpg, hfa2k, hfa2k-ludvae, bhi-small, modern-v2} | 2 | 33.6-34.0 | 29.4-29.8 |
+| span-2x-modern-spanimation-v1 / v1.5 | 2 | 38.7 / 38.0 | 25.9 / 26.3 |
+| realesrgan-x2plus | 2 | 69.5 | 14.4 |
+| safmn-real-x2 / x4 | 2/4 | 140.4 / 144.1 | 7.1 / 6.9 |
+| real-plksr-2x-public / nomoswebphoto | 2/4 | 142.9 / 142.3 | 7.0 |
+| 4x-{alchemy, nomos2, nature, hfa2k, mssim, bhi-real, bhi-otf}-realplksr | 4 | 190.8-192.9 | 5.2 |
+| bsrgan | 4 | 251.8 | 4.0 |
+
+`2x_ModernSpanimationV2` @576×432 = 34 ms (29.4 FPS) — the 480p-class number:
+15 → 29 FPS vs the old fused 640px-tile path; RVE's 44 FPS still needs its
+stream overlap. DIS + fallin are the fast real-time picks (100+ FPS).
+
 ## tch/ROCm fused path — re-evaluated (2026-08-27)
 
 The shared fused RGB8 path (fused f16 pad+cast+upload, dropped coverage
