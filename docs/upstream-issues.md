@@ -348,12 +348,54 @@ kernel bug in the f16 implicit-GEMM conv, independent of data:
 - Same `H·W = 76800` but `K ∈ {48, 64, 80, 97, 112, 128}` → correct.
 
 So the trigger is the specific combination **K=96 (in channels) AND N ≥ 32768
-(spatial positions)** — consistent with a tile-index/vectorization overflow in
-the f16 conv kernel, not a precision choice (the matmul `Acc` is already
+(spatial positions)**, not a precision choice (the matmul `Acc` is already
 `(f16, f32)` on Linux). In SPAN this hits every `conv2` (96→48) at full frame
 240×320 = 76800, and the error compounds ~2× per block. Workaround: run SPAN in
 f32, or use only 64ch / no_norm checkpoints (their 1×1 convs never hit K=96 at
 this N).
+
+**Root cause (2026-08-28):** Virtual-vs-physical padding mismatch in the
+cubek-convolution async-copy path. Not a kernel logic bug, but a missing memory
+barrier between logical padding and physical allocation:
+
+1. `adjust_problem` (`kernels/forward/args.rs:51-67`) computes
+   `padded_channels = 96.next_multiple_of(channel_align) = 128` and sets
+   `problem.k = 128`. The `Im2colLayout` and `WeightLayout` use this padded
+   K for tiling.
+2. `into_contiguous_pitched` (`routines/base.rs:44-55`) converts NCHW→NHWC
+   but **does not zero-pad the buffer** — the weight tensor stays
+   `[48, 1, 1, 96]` in memory, not `[48, 1, 1, 128]`.
+3. `WeightLayout::is_in_bounds` (`components/global/layout/weight.rs:102-107`)
+   checks `k < self.rows` where `rows = problem.k = 128` (padded), not
+   `shape_channel = 96` (actual tensor dim). The `Chain<NhwcLayout,
+   WeightLayout>` composition ANDs both bounds checks, but the
+   `async_copy_from` path (`cubek-matmul:global/read/strategy/async_copy.rs`)
+   uses `view.shape()` which is set to the **padded** dimensions
+   `(M, K) = (H·W, 128)`, so the copy never clips the read length.
+4. Result: the async copy reads channels 96–127 from a 96-channel buffer →
+   OOB garbage fed into the GEMM. The garbage values are non-zero (GPU
+   allocator doesn't zero pages), corrupting the accumulation.
+
+**Why only K=96 × N≥32768:**
+- K=96 is the only value where `channel_align=64` produces `padded=128 = 2×K`.
+  Other K values (80, 97, 112) also pad to 128, but the ratio `padded/K`
+  differs; the tiling heuristic (`find_stage_size_m_n`) picks a different
+  stage-K for those, splitting the K dimension across multiple load passes.
+  At K=96 the full K fits in one stage-K pass, so every OOB position is
+  guaranteed to be hit. At N≥32768 the M-dimension tiling produces enough
+  work-groups that the async copy pipeline is saturated, preventing the
+  sporadic page-zero fallback that sometimes masks the bug at smaller N.
+
+**Fix paths (upstream):**
+- **(A) Physical padding**: zero-pad input/weight to `padded_channels` in
+  `correct_layout` before launching the kernel. Cleanest fix, ~1–2 days.
+- **(B) Bounds-check fix**: make `WeightLayout::is_in_bounds` check against
+  `shape_channel` (= actual tensor dim) instead of `self.rows` (= padded).
+  ~1 day, but `async_copy_from` also needs updating to clip against the real
+  shape.
+- **(C) Checked async copy**: force `config.gmem_config.check_row_bounds =
+  true` for the K dimension in the convolution path. ~0.5 days, may slow down
+  all convos.
 
 Repro artifacts kept in-repo: self-contained Rust test `conv1x1_repro` in
 `crates/senmei-ml/src/burn/span.rs` (deterministic LCG data + f32 CPU
