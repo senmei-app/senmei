@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../i18n";
 
 interface MenuItem {
@@ -66,23 +66,67 @@ export default function MenuBar({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0);
+  const menuKeys = ["file", "edit", "view", "process", "help"];
+  const navRef = useRef<HTMLDivElement>(null);
 
-  // Alt+letter opens the matching menu (Alt+F File, Alt+E Edit, …).
+  const menuKeysRef = useRef(menuKeys);
+  menuKeysRef.current = menuKeys;
+  const openRef = useRef(open);
+  openRef.current = open;
+  const focusIdxRef = useRef(focusIdx);
+  focusIdxRef.current = focusIdx;
+
+  // Alt+letter opens menus; Escape closes; arrow keys navigate.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey) return;
-      const map: Record<string, string> = { f: "file", e: "edit", v: "view", p: "process", h: "help" };
-      const key = map[e.key.toLowerCase()];
-      if (key) {
+      if (e.key === "Escape" && openRef.current) {
         e.preventDefault();
-        setOpen((o) => (o === key ? null : key));
+        setOpen(null);
+        return;
+      }
+      if (!openRef.current) {
+        if (!e.altKey || e.ctrlKey || e.metaKey) return;
+        const map: Record<string, string> = { f: "file", e: "edit", v: "view", p: "process", h: "help" };
+        const key = map[e.key.toLowerCase()];
+        if (key) {
+          e.preventDefault();
+          setOpen(key);
+          setFocusIdx(0);
+        }
+        return;
+      }
+      // Menu is open — handle arrow navigation + Enter
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusIdx((i) => i + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusIdx((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const idx = menuKeysRef.current.indexOf(openRef.current);
+        const next = menuKeysRef.current[(idx + 1) % menuKeysRef.current.length];
+        setOpen(next);
+        setFocusIdx(0);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const idx = menuKeysRef.current.indexOf(openRef.current);
+        const prev = menuKeysRef.current[(idx - 1 + menuKeysRef.current.length) % menuKeysRef.current.length];
+        setOpen(prev);
+        setFocusIdx(0);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const menus: Menu[] = [
+  // Scroll focused item into view when navigating with arrows.
+  useEffect(() => {
+    navRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focusIdx, open]);
+
+  const menus: Menu[] = useMemo(() => [
     {
       key: "file",
       label: t("menu.file"),
@@ -137,7 +181,7 @@ export default function MenuBar({
         { key: "about", label: t("menu.about"), action: onAbout },
       ],
     },
-  ];
+  ], [t, hotkeys, onImportFile, onCloseProject, onExportProject, onUndo, onRedo, canUndo, canRedo, onSelectAll, onDeleteSelected, hasFiles, hasSelection, onToggleFullscreen, onAddAllToQueue, onAddSelectedToQueue, onBatchFolder, onProcessSelected, onProcessAll, onGithub, onAbout, onSettings]);
 
   const itemCls = (disabled?: boolean) =>
     "flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-[11px] " +
@@ -212,7 +256,19 @@ export default function MenuBar({
 
           {open === menu.key && (
             <div className="absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-              {menu.items.map(renderItem)}
+              {menu.items.map((item, idx) => {
+                const btn = renderItem(item);
+                if (item.separator) return btn;
+                // Clone to attach ref for auto-scroll on keyboard nav.
+                if (idx === focusIdx && btn && typeof btn === "object" && "props" in btn) {
+                  return (
+                    <div key={item.key} ref={navRef}>
+                      {btn}
+                    </div>
+                  );
+                }
+                return btn;
+              })}
             </div>
           )}
         </div>

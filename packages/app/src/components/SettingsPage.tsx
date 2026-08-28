@@ -85,6 +85,7 @@ export default function SettingsPage({
   }, []);
 
   const removeModel = async (id: string) => {
+    if (!window.confirm(t("settings.models.deleteConfirm"))) return;
     const be = await getBackend();
     await be.deleteModelFile(id);
     setModelFiles(await be.modelFiles());

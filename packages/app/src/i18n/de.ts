@@ -104,6 +104,7 @@ export const de: Record<string, string> = {
     "settings.section.models": "Modelle",
     "settings.models.empty": "Keine Modell-Gewichte installiert.",
     "settings.models.delete": "Löschen",
+    "settings.models.deleteConfirm": "Dieses Modell-Gewicht wirklich löschen?",
     "theme.light": "Hell",
     "theme.dark": "Dunkel",
     "theme.system": "System",

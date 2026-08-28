@@ -266,114 +266,82 @@ export default function Monitor({
     });
   };
 
-  // togglePlayHotkey (default Space) toggles play/pause (ignored while typing
-  // or on a focused button).
+  // All monitor hotkeys in a single listener — play/pause, volume, seek,
+  // metadata toggle, and view-mode (1-4). Shared input/button guard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
+      const el = e.target as HTMLElement | null;
       if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.tagName === "BUTTON" ||
-          t.isContentEditable)
-      ) {
-        return;
-      }
-      if (comboFromEvent(e) !== togglePlayHotkey) return;
-      e.preventDefault();
-      togglePlay();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, nativeSrc, inMs, outMs, togglePlayHotkey]);
-
-  // Mute / volume / seek hotkeys (M, arrows) — same input/button guard as
-  // play/pause. Seek step: 5 s per press (clamped to the clip).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.tagName === "BUTTON" ||
-          t.isContentEditable)
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.tagName === "BUTTON" ||
+          el.isContentEditable)
       ) {
         return;
       }
       const combo = comboFromEvent(e);
+      // Play/pause
+      if (combo === togglePlayHotkey) {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+      // Volume / mute
       if (combo === muteHotkey) {
         e.preventDefault();
         setMuted((m) => !m);
-      } else if (combo === volumeUpHotkey) {
+        return;
+      }
+      if (combo === volumeUpHotkey) {
         e.preventDefault();
         nudgeVolume(0.1);
-      } else if (combo === volumeDownHotkey) {
+        return;
+      }
+      if (combo === volumeDownHotkey) {
         e.preventDefault();
         nudgeVolume(-0.1);
-      } else if (combo === seekBackHotkey || combo === seekForwardHotkey) {
+        return;
+      }
+      // Seek (5 s per press)
+      if (combo === seekBackHotkey || combo === seekForwardHotkey) {
         e.preventDefault();
         const delta = combo === seekForwardHotkey ? 5000 : -5000;
         const max = (info?.duration ?? 0) * 1000;
-        onScrub(Math.min(max, Math.max(0, posRef.current + delta)));
-      } else if (combo === toggleMetaHotkey) {
+        onScrubRef.current(Math.min(max, Math.max(0, posRef.current + delta)));
+        return;
+      }
+      // Metadata panel
+      if (combo === toggleMetaHotkey) {
         e.preventDefault();
         setMetaOpen((o) => !o);
+        return;
+      }
+      // View-mode (1-4)
+      if (combo === modeSourceHotkey) {
+        e.preventDefault();
+        setMode("source");
+      } else if (combo === modeResultHotkey && effRendered) {
+        e.preventDefault();
+        setMode("result");
+      } else if (combo === modeCompareHotkey && effRendered) {
+        e.preventDefault();
+        setMode("compare");
+      } else if (combo === modeABHotkey && effRendered && prevRenderedFile) {
+        e.preventDefault();
+        setMode("ab");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volume, info, nativeSrc, inMs, outMs, muteHotkey, volumeUpHotkey, volumeDownHotkey, seekBackHotkey, seekForwardHotkey, toggleMetaHotkey]);
-
-  // View-mode hotkeys (1-4): Original / Result / Compare / A-B. Same guard as
-  // the playback hotkeys; honor the ModeTabs' enablement.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.tagName === "BUTTON" ||
-          t.isContentEditable)
-      ) {
-        return;
-      }
-      const combo = comboFromEvent(e);
-      switch (combo) {
-        case modeSourceHotkey:
-          e.preventDefault();
-          setMode("source");
-          break;
-        case modeResultHotkey:
-          if (effRendered) {
-            e.preventDefault();
-            setMode("result");
-          }
-          break;
-        case modeCompareHotkey:
-          if (effRendered) {
-            e.preventDefault();
-            setMode("compare");
-          }
-          break;
-        case modeABHotkey:
-          if (effRendered && prevRenderedFile) {
-            e.preventDefault();
-            setMode("ab");
-          }
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [modeSourceHotkey, modeResultHotkey, modeCompareHotkey, modeABHotkey, effRendered, prevRenderedFile]);
+  }, [
+    info, nativeSrc, inMs, outMs, effRendered, prevRenderedFile,
+    togglePlayHotkey, muteHotkey, volumeUpHotkey, volumeDownHotkey,
+    seekBackHotkey, seekForwardHotkey, toggleMetaHotkey,
+    modeSourceHotkey, modeResultHotkey, modeCompareHotkey, modeABHotkey,
+  ]);
 
   const loadFrame = (ms: number): Promise<void> => {
     // In compare both sides show the same source moment: the original is
@@ -523,6 +491,8 @@ export default function Monitor({
     if (debounce.current) window.clearTimeout(debounce.current);
     debounce.current = window.setTimeout(() => loadFrame(ms), 120);
   };
+  const onScrubRef = useRef(onScrub);
+  onScrubRef.current = onScrub;
 
   // Playback advances the time indicator 1:1 with wall clock. At most one
   // decode is in flight: frames load on source-frame boundaries (no fixed

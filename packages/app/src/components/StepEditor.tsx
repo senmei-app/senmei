@@ -41,6 +41,36 @@ export interface StepEditorProps {
   downloadWeights: (modelId: string) => void;
 }
 
+const DownloadButton = ({
+  model,
+  downloading,
+  dlPct,
+  dlError,
+  onDownload,
+  t,
+}: {
+  model: ModelMetadata;
+  downloading: string | null;
+  dlPct: number;
+  dlError: string | null;
+  onDownload: (id: string) => void;
+  t: (key: string) => string;
+}) => {
+  if (!model.loadable || model.downloaded || !model.download_url) return null;
+  return (
+    <>
+      <button
+        onClick={() => onDownload(model.id)}
+        disabled={!!downloading}
+        className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
+      >
+        {downloading === model.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
+      </button>
+      {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+    </>
+  );
+};
+
 export default function StepEditor(props: StepEditorProps) {
   const { t } = useI18n();
   const {
@@ -114,16 +144,7 @@ export default function StepEditor(props: StepEditorProps) {
               if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
             }),
           )}
-          {m?.loadable && !m.downloaded && m.download_url && (
-            <button
-              onClick={() => downloadWeights(m.id)}
-              disabled={!!downloading}
-              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-            >
-              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-            </button>
-          )}
-          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+          {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
           {field(
             t("fi.fps"),
             segButtons([2, 3, 4], s.params?.fpsMultiplier, (v) => updateParams(s.id, { fpsMultiplier: v })),
@@ -146,16 +167,7 @@ export default function StepEditor(props: StepEditorProps) {
               if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
             }),
           )}
-          {m?.loadable && !m.downloaded && m.download_url && (
-            <button
-              onClick={() => downloadWeights(m.id)}
-              disabled={!!downloading}
-              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-            >
-              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-            </button>
-          )}
-          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+          {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
           {field(
             t("up.scale"),
             segButtons([2, 3, 4], s.params?.scale, (v) => updateParams(s.id, { scale: v ?? 2 })),
@@ -187,16 +199,7 @@ export default function StepEditor(props: StepEditorProps) {
               if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
             }),
           )}
-          {m?.loadable && !m.downloaded && m.download_url && (
-            <button
-              onClick={() => downloadWeights(m.id)}
-              disabled={!!downloading}
-              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-            >
-              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-            </button>
-          )}
-          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+          {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
           {field(
             t("denoise.radius"),
             <select
@@ -226,16 +229,7 @@ export default function StepEditor(props: StepEditorProps) {
               if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
             }),
           )}
-          {m?.loadable && !m.downloaded && m.download_url && (
-            <button
-              onClick={() => downloadWeights(m.id)}
-              disabled={!!downloading}
-              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-            >
-              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-            </button>
-          )}
-          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+          {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
         </>
       );
     }
@@ -251,16 +245,7 @@ export default function StepEditor(props: StepEditorProps) {
               if (sel && sel.loadable && !sel.downloaded && sel.download_url) downloadWeights(id);
             }),
           )}
-          {m?.loadable && !m.downloaded && m.download_url && (
-            <button
-              onClick={() => downloadWeights(m.id)}
-              disabled={!!downloading}
-              className="w-full rounded-md border border-indigo-500/40 bg-indigo-600/20 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-600/30 disabled:opacity-40 dark:text-indigo-300"
-            >
-              {downloading === m.id ? `${t("up.download")} … ${dlPct}%` : t("up.download")}
-            </button>
-          )}
-          {dlError && <p className="text-[11px] text-rose-500">{dlError}</p>}
+          {m && <DownloadButton model={m} downloading={downloading} dlPct={dlPct} dlError={dlError} onDownload={downloadWeights} t={t} />}
           {field(
             t("deblur.amount"),
             <input

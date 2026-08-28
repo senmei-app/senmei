@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   BackendInfo,
@@ -93,6 +93,7 @@ export default function App() {
   const [sampleRange, setSampleRange] = useState<{ inMs: number; outMs: number } | null>(null);
   const [fullVideo, setFullVideo] = useState(false);
   const [hotkeyOverrides, setHotkeyOverrides] = useState<Record<string, string>>({});
+  const resolvedHotkeys = useMemo(() => resolveHotkeys(hotkeyOverrides), [hotkeyOverrides]);
 
   const [currentFile, setCurrentFile] = useState<string | null>(null);
   // Keep the preview on a valid file: drop removed/cleared paths, default to the
@@ -443,60 +444,59 @@ export default function App() {
   // Hotkeys (configurable in Settings). Ctrl/Cmd are interchangeable.
   useEffect(() => {
     if (!projectDir) return;
-    const hotkeys = resolveHotkeys(hotkeyOverrides);
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       const combo = comboFromEvent(e);
       if (!combo) return;
       switch (combo) {
-        case hotkeys.selectAll:
+        case resolvedHotkeys.selectAll:
           e.preventDefault();
           selectAll();
           break;
-        case hotkeys.deleteSelected:
+        case resolvedHotkeys.deleteSelected:
           if (target?.tagName !== "BUTTON") {
             e.preventDefault();
             deleteSelected();
           }
           break;
-        case hotkeys.render:
+        case resolvedHotkeys.render:
           e.preventDefault();
           void batch.startBatch();
           break;
-        case hotkeys.openFile:
+        case resolvedHotkeys.openFile:
           e.preventDefault();
           void openFiles();
           break;
-        case hotkeys.exportProject:
+        case resolvedHotkeys.exportProject:
           e.preventDefault();
           void handleExportProject();
           break;
-        case hotkeys.toggleFullscreen:
+        case resolvedHotkeys.toggleFullscreen:
           e.preventDefault();
           toggleFullVideo();
           break;
-        case hotkeys.renderSample:
+        case resolvedHotkeys.renderSample:
           e.preventDefault();
           renderSample();
           break;
-        case hotkeys.toggleMultiSelect:
+        case resolvedHotkeys.toggleMultiSelect:
           e.preventDefault();
           setMultiSelect((v) => !v);
           break;
-        case hotkeys.undo:
+        case resolvedHotkeys.undo:
           e.preventDefault();
           undo();
           break;
-        case hotkeys.redo:
+        case resolvedHotkeys.redo:
           e.preventDefault();
           redo();
           break;
-        case hotkeys.viewLibrary:
+        case resolvedHotkeys.viewLibrary:
           e.preventDefault();
           setMediaView("library");
           break;
-        case hotkeys.viewQueue:
+        case resolvedHotkeys.viewQueue:
           e.preventDefault();
           setMediaView("queue");
           break;
@@ -507,7 +507,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selected, projectDir, hotkeyOverrides, renderSample, undo, redo]);
 
-  const monitorEl = (
+  const monitorEl = useMemo(() => (
     <Monitor
       file={currentFile ?? undefined}
       renderedFile={batch.renderedFile}
@@ -522,20 +522,20 @@ export default function App() {
       onRenderSample={renderSample}
       fullVideo={fullVideo}
       onToggleFullVideo={toggleFullVideo}
-      toggleMetaHotkey={resolveHotkeys(hotkeyOverrides).toggleMeta}
-      renderSampleHotkey={resolveHotkeys(hotkeyOverrides).renderSample}
-      togglePlayHotkey={resolveHotkeys(hotkeyOverrides).togglePlay}
-      muteHotkey={resolveHotkeys(hotkeyOverrides).mute}
-      volumeUpHotkey={resolveHotkeys(hotkeyOverrides).volumeUp}
-      volumeDownHotkey={resolveHotkeys(hotkeyOverrides).volumeDown}
-      seekBackHotkey={resolveHotkeys(hotkeyOverrides).seekBack}
-      seekForwardHotkey={resolveHotkeys(hotkeyOverrides).seekForward}
-      modeSourceHotkey={resolveHotkeys(hotkeyOverrides).modeSource}
-      modeResultHotkey={resolveHotkeys(hotkeyOverrides).modeResult}
-      modeCompareHotkey={resolveHotkeys(hotkeyOverrides).modeCompare}
-      modeABHotkey={resolveHotkeys(hotkeyOverrides).modeAB}
+      toggleMetaHotkey={resolvedHotkeys.toggleMeta}
+      renderSampleHotkey={resolvedHotkeys.renderSample}
+      togglePlayHotkey={resolvedHotkeys.togglePlay}
+      muteHotkey={resolvedHotkeys.mute}
+      volumeUpHotkey={resolvedHotkeys.volumeUp}
+      volumeDownHotkey={resolvedHotkeys.volumeDown}
+      seekBackHotkey={resolvedHotkeys.seekBack}
+      seekForwardHotkey={resolvedHotkeys.seekForward}
+      modeSourceHotkey={resolvedHotkeys.modeSource}
+      modeResultHotkey={resolvedHotkeys.modeResult}
+      modeCompareHotkey={resolvedHotkeys.modeCompare}
+      modeABHotkey={resolvedHotkeys.modeAB}
     />
-  );
+  ), [currentFile, batch.renderedFile, batch.prevRenderedFile, batch.rendering, batch.progress, batch.timings, steps, sampleRange, renderSample, fullVideo, toggleFullVideo, resolvedHotkeys]);
 
   return (
     <I18nProvider lang={lang} setLang={changeLang}>
@@ -556,7 +556,7 @@ export default function App() {
             backend={backend}
             backendInfo={backendInfoState}
             hardware={hardware}
-            hotkeys={resolveHotkeys(hotkeyOverrides)}
+            hotkeys={resolvedHotkeys}
             onLanguageChange={changeLang}
             onThemeChange={changeTheme}
             onTileSizeChange={changeTileSize}
@@ -580,7 +580,7 @@ export default function App() {
             <TopBar
               file={currentFile ?? undefined}
               projectName={projectDir ? basename(projectDir) : undefined}
-              hotkeys={resolveHotkeys(hotkeyOverrides)}
+              hotkeys={resolvedHotkeys}
               onImportFile={openFiles}
               onImportFolder={importFolderFiles}
               onBatchFolder={processFolderFiles}
@@ -610,7 +610,7 @@ export default function App() {
               <Panel defaultSize={20} minSize={14}>
                 <MediaLibrary
                   files={files}
-                  hotkeys={resolveHotkeys(hotkeyOverrides)}
+                  hotkeys={resolvedHotkeys}
                   onOpen={openFiles}
                   onRemoveFile={removeFile}
                   outputDir={outputDir}
