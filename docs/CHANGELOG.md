@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **test: `SENMEI_TCH_TILED=1` A/B switch (2026-08-28)** — forces the tch
+  engine onto the old 640px-tiled fused path, so the full-frame win is
+  measurable per model. Sweep @576×432: full-frame is ~1.4-1.9× faster on
+  every model (SPAN-family 1.75-1.95×, conv-bound 4× ~1.8×, DIS 1.5×);
+  `benchmarks.md` has the A/B table.
+
 - **docs: complete tch/ROCm benchmark suite (2026-08-28)** — all benches on
   `2x_ModernSpanimationV2` (1080p, RX 9070, tch full-frame, one at a time) +
   the 36-model real-frame sweep @576×432 (DIS 112.9, fallin-soft 93.6, SPAN-V2

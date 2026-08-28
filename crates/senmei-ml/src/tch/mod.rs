@@ -23,6 +23,13 @@ type B = LibTorch<f16>;
 /// build the wrapper).
 pub const LIBTORCH_VERSION: &str = "2.12.0";
 
+/// A/B switch: `SENMEI_TCH_TILED=1` skips the full-frame fused RGB8 path and
+/// always uses the 640px-tiled one (re-measures the pre-full-frame behavior).
+static TCH_TILED: OnceLock<bool> = OnceLock::new();
+fn tch_tiled() -> bool {
+    *TCH_TILED.get_or_init(|| std::env::var("SENMEI_TCH_TILED").as_deref() == Ok("1"))
+}
+
 /// Device for the libtorch backend. CPU is intentionally absent — the
 /// burn-Vulkan engine owns the CPU path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -241,10 +248,12 @@ impl InferenceEngine for TchEngine {
     /// (8K/oversize).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let model = self.model.as_ref()?;
-        if let Some(Ok(v)) =
-            core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
-        {
-            return Some(Ok(v));
+        if !tch_tiled() {
+            if let Some(Ok(v)) =
+                core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
+            {
+                return Some(Ok(v));
+            }
         }
         // Fused rejection (full-frame guard or a forward error): fall back to
         // the tiled fused path, whose own rejection lands on `infer_tiled`.
@@ -262,14 +271,16 @@ impl InferenceEngine for TchEngine {
         scale: u32,
     ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let model = self.model.as_ref()?;
-        if let Some(Ok(b)) = core::infer_rgb8_full_frame_batch_prepare(
-            model,
-            inputs,
-            self.scale,
-            scale,
-            &self.device,
-        ) {
-            return Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>));
+        if !tch_tiled() {
+            if let Some(Ok(b)) = core::infer_rgb8_full_frame_batch_prepare(
+                model,
+                inputs,
+                self.scale,
+                scale,
+                &self.device,
+            ) {
+                return Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>));
+            }
         }
         // Full-frame guard/error: fall back to the tiled fused path.
         match core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device) {

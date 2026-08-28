@@ -361,6 +361,28 @@ frames, 36 loadable models):
 15 → 29 FPS vs the old fused 640px-tile path; RVE's 44 FPS still needs its
 stream overlap. DIS + fallin are the fast real-time picks (100+ FPS).
 
+### tch full-frame vs tiled @576×432 — A/B (2026-08-28)
+
+Same sweep with `SENMEI_TCH_TILED=1` (pre-full-frame behavior). The full-frame
+path is ~1.4-1.9× faster on **every** model at small res (the 640px-tile
+machinery overhead is roughly fixed per frame):
+
+| model | tiled FPS | full-frame FPS | speedup |
+|---|---|---|---|
+| fallin-soft / fallin-strong | 63.5 / 64.1 | 93.6 / 89.9 | 1.4× |
+| real-cugan-x2 / -hfa2k / -pro | 23.3-24.0 | 36.7-37.4 | 1.6× |
+| realesrgan-animevideo-x2 / x4 / v3 | 46.0 / 35.2 / 34.9 | 74.8 / 53.2 / 54.4 | 1.5-1.6× |
+| paragonsr-nano-x2 | 38.5 | 55.9 | 1.45× |
+| dis-fast / dis-balanced | 73.5 / 68.9 | 112.9 / 100.5 | 1.5× |
+| span-2x-* (all 8) | 13.5-16.8 | 25.9-29.8 | 1.75-1.95× |
+| realesrgan-x2plus | 9.4 | 14.4 | 1.5× |
+| 4x-* realplksr (7) / alchemy / bsrgan | 2.4-4.1 | 4.0-7.0 | 1.7-1.8× |
+| safmn-real-x2 / x4 | 4.2 / 4.1 | 7.1 / 6.9 | 1.7× |
+
+At 1080p the win narrows (~1.3×, SPAN-V2 453→354 ms) — the fixed tile
+machinery is a smaller fraction of a larger forward. SPAN-family benefits most
+(1.75-1.95×); the conv-bound 4× models ~1.8×.
+
 ## tch/ROCm fused path — re-evaluated (2026-08-27)
 
 The shared fused RGB8 path (fused f16 pad+cast+upload, dropped coverage
