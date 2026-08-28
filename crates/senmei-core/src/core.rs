@@ -56,8 +56,8 @@ pub fn probe_video(input: &str) -> Result<senmei_media::VideoInfo, String> {
 /// Media extensions the thumbnail command will serve (defense-in-depth: the
 /// IPC/HTTP surface must not read arbitrary files off disk).
 const THUMBNAIL_EXTS: &[&str] = &[
-    "mp4", "mkv", "mov", "webm", "avi", "m4v", "mpg", "mpeg", "ts", "flv", "wmv", "m2ts",
-    "jpg", "jpeg", "png", "webp",
+    "mp4", "mkv", "mov", "webm", "avi", "m4v", "mpg", "mpeg", "ts", "flv", "wmv", "m2ts", "jpg",
+    "jpeg", "png", "webp",
 ];
 
 /// Small JPEG thumbnail of `input` as a `data:image/jpeg;base64,…` URL plus

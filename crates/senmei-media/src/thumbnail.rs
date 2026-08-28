@@ -31,7 +31,14 @@ pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Thumbnail> {
     let info = crate::probe(&crate::ffprobe_next_to(ffmpeg), input)?;
     let at = at_seconds(info.duration);
     let mut child = Command::new(ffmpeg)
-        .args(["-hide_banner", "-loglevel", "error", "-ss", &format!("{at:.3}"), "-i"])
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            &format!("{at:.3}"),
+            "-i",
+        ])
         .arg(input)
         .args([
             "-frames:v",
@@ -56,7 +63,10 @@ pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Thumbnail> {
         .and_then(|mut o| o.read_to_end(&mut buf).ok())
         .ok_or_else(|| Error::Command("ffmpeg thumbnail read failed".into()))?;
     let mut err = Vec::new();
-    child.stderr.take().and_then(|mut o| o.read_to_end(&mut err).ok());
+    child
+        .stderr
+        .take()
+        .and_then(|mut o| o.read_to_end(&mut err).ok());
     let status = child
         .wait()
         .map_err(|e| Error::Command(format!("ffmpeg wait failed: {e}")))?;
@@ -97,7 +107,17 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let clip = dir.join("clip.mp4");
         let _ = Command::new(&ff)
-            .args(["-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=320x180:rate=24", "-t", "1", "-pix_fmt", "yuv420p"])
+            .args([
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=1:size=320x180:rate=24",
+                "-t",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+            ])
             .arg(&clip)
             .status();
         let thumb = thumbnail(&ff, &clip, 160).expect("thumbnail extract");

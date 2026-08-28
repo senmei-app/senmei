@@ -253,7 +253,9 @@ impl SenmeiServer {
         json_err("render not compiled in (build with --features render)".to_string())
     }
 
-    #[tool(description = "Download a model's weights and convert to burnpack (render feature required)")]
+    #[tool(
+        description = "Download a model's weights and convert to burnpack (render feature required)"
+    )]
     async fn download_model(
         &self,
         Parameters(args): Parameters<DownloadModelParams>,
@@ -277,7 +279,9 @@ impl SenmeiServer {
         }
     }
 
-    #[tool(description = "GPU/backend info: Vulkan compiled, libtorch compiled, CUDA available, device count")]
+    #[tool(
+        description = "GPU/backend info: Vulkan compiled, libtorch compiled, CUDA available, device count"
+    )]
     async fn backend_info(&self) -> Result<CallToolResult, McpError> {
         json_ok(&senmei_ml::backend_info())
     }
@@ -299,9 +303,7 @@ impl SenmeiServer {
         Parameters(args): Parameters<ThumbnailParams>,
     ) -> Result<CallToolResult, McpError> {
         match core::thumbnail(&args.input, args.max_w.unwrap_or(160)) {
-            Ok((data_url, info)) => {
-                json_ok(&serde_json::json!({ "data": data_url, "info": info }))
-            }
+            Ok((data_url, info)) => json_ok(&serde_json::json!({ "data": data_url, "info": info })),
             Err(e) => json_err(e),
         }
     }
