@@ -241,7 +241,8 @@ impl InferenceEngine for TchEngine {
     /// (8K/oversize).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let model = self.model.as_ref()?;
-        if let Some(Ok(v)) = core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
+        if let Some(Ok(v)) =
+            core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
         {
             return Some(Ok(v));
         }
@@ -261,9 +262,13 @@ impl InferenceEngine for TchEngine {
         scale: u32,
     ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let model = self.model.as_ref()?;
-        if let Some(Ok(b)) =
-            core::infer_rgb8_full_frame_batch_prepare(model, inputs, self.scale, scale, &self.device)
-        {
+        if let Some(Ok(b)) = core::infer_rgb8_full_frame_batch_prepare(
+            model,
+            inputs,
+            self.scale,
+            scale,
+            &self.device,
+        ) {
             return Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>));
         }
         // Full-frame guard/error: fall back to the tiled fused path.

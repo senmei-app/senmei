@@ -460,27 +460,26 @@ where
             Err(e) => return Some(Err(e)),
         }
     }
-    let batch = if n == 1 {
-        gpu_frames[0].clone()
-    } else {
-        BurnTensor::cat(gpu_frames, 0)
-    };
-    let out = match model.forward(batch) {
-        Ok(o) => o,
-        Err(e) => return Some(Err(e)),
-    };
-    // Clamp before the u8 cast (out-of-range hard edges would wrap).
-    let out = out.clamp(0.0, 1.0);
-    let out = if resample {
-        let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
-        interpolate(out, [out_h, out_w], opts)
-    } else {
-        out
-    };
-    let [_, _, oh, ow] = out.dims();
-    let accs = (0..n)
-        .map(|i| out.clone().slice([i..i + 1, 0..c, 0..oh, 0..ow]))
-        .collect();
+    // Per-frame forwards, not one batched forward: a batched full-frame conv
+    // blows up MIOpen's workspace (~13.35 GiB at n=8×1080p) and is slower than
+    // per-frame anyway. The readback is still deferred via `BurnRgb8Batch`, so
+    // the caller's readback pipelining is preserved.
+    let mut accs = Vec::with_capacity(n);
+    for f in &gpu_frames {
+        let out = match model.forward(f.clone()) {
+            Ok(o) => o,
+            Err(e) => return Some(Err(e)),
+        };
+        // Clamp before the u8 cast (out-of-range hard edges would wrap).
+        let out = out.clamp(0.0, 1.0);
+        let out = if resample {
+            let opts = InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false);
+            interpolate(out, [out_h, out_w], opts)
+        } else {
+            out
+        };
+        accs.push(out);
+    }
     Some(Ok(BurnRgb8Batch {
         accs,
         out_w_t: (w as f32 * scale_f).round() as usize,
