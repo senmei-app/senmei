@@ -6,7 +6,7 @@
 - Documentation / user guide
 
 ## Findings
-- libtorch on ROCm 7.14 / nightly
+- libtorch on ROCm 10.0 / stable
 ## Product / roadmap (2026-08-21)
 - [ ] Auto-update via `tauri-plugin-updater` (signed bundles)
 

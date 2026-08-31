@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   BackendInfo,
@@ -410,8 +410,10 @@ export default function App() {
   // fullscreen keeps the <video> in the DOM (smooth) instead of webkit2gtk's
   // native media fullscreen (separate layer, uncontrolled dblclick). The toggle
   // is pure; the sync effect below applies it to the OS window.
+  const batchRef = useRef(batch);
+  batchRef.current = batch;
   const renderSample = useCallback(() => {
-    if (currentFile) void batch.startBatch(false, sampleRange, [currentFile]);
+    if (currentFile) void batchRef.current.startBatch(false, sampleRange, [currentFile]);
   }, [currentFile, sampleRange]);
 
   const toggleFullVideo = () => {
@@ -462,7 +464,7 @@ export default function App() {
           break;
         case resolvedHotkeys.render:
           e.preventDefault();
-          void batch.startBatch();
+          void batchRef.current.startBatch();
           break;
         case resolvedHotkeys.openFile:
           e.preventDefault();

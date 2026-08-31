@@ -18,7 +18,7 @@ use std::sync::OnceLock;
 
 type B = LibTorch<f16>;
 
-/// libtorch release with ROCm-7 builds that the runtime downloads. Must stay
+/// libtorch release with ROCm-10 builds that the runtime downloads. Must stay
 /// in sync with `crate::runtime::torch` (and the torch-sys headers used to
 /// build the wrapper).
 pub const LIBTORCH_VERSION: &str = "2.12.0";

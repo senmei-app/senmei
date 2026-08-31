@@ -2,7 +2,7 @@
 //! libtorch runtime is downloaded on demand into the app data dir and cached.
 //! CUDA comes from the pytorch.org zips; ROCm from the AMD wheel index
 //! (pytorch.org stopped publishing ROCm libtorch builds that match the AMD
-//! ROCm SDK). The AMD wheels pin torch 2.12.0 to ROCm 7.14.0 — the same pair
+//! ROCm SDK). The AMD wheels pin torch 2.12.0 to ROCm 10.0.0 — the same pair
 //! Koharu ships — so the downloaded `.so` dlopen against the pinned SDK and
 //! stay ABI-compatible with the wrapper.
 
@@ -23,7 +23,7 @@ const ROCM_TORCH_VERSION: &str = "2.12.0";
 const INSTALL_DIR: &str = "libtorch";
 
 /// AMD wheel index hosting the ROCm torch + SDK packages.
-const ROCM_INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
+const ROCM_INDEX: &str = "https://stable.repo.amd.com/rocm/pytorch/whl-next";
 
 /// Per-GPU `.kpack`/aotriton kernels live in per-GPU + per-family device
 /// wheels; the family wheel covers the whole arch family (e.g. `gfx12_0`).
@@ -31,7 +31,7 @@ fn torch_family(target: &str) -> Option<&'static str> {
     if target.starts_with("gfx11") {
         Some("gfx11")
     } else if target.starts_with("gfx12") {
-        Some("gfx12_0")
+        Some("gfx12-0")
     } else {
         None
     }
@@ -42,7 +42,7 @@ fn torch_family(target: &str) -> Option<&'static str> {
 pub enum TorchVariant {
     /// NVIDIA CUDA build (e.g. `cu128`).
     Cuda(&'static str),
-    /// AMD ROCm build (e.g. `rocm7.14`).
+    /// AMD ROCm build (e.g. `rocm10.0`).
     Rocm(&'static str),
 }
 
@@ -68,7 +68,7 @@ impl TorchVariant {
             ),
             // Same URL shape as Koharu's ROCm torch wheel.
             TorchVariant::Rocm(_) => format!(
-                "{ROCM_INDEX}/torch-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+                "{ROCM_INDEX}/torch/torch-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
                 rocm::ROCM_VERSION,
                 rocm::wheel_platform()
             ),
@@ -78,13 +78,16 @@ impl TorchVariant {
     /// Additional ROCm wheels: per-GPU `.kpack` + per-family aotriton kernels.
     fn rocm_device_urls(&self, target: &str) -> Vec<String> {
         let mut urls = vec![format!(
-            "{ROCM_INDEX}/amd_torch_device_{target}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+            "{ROCM_INDEX}/amd-torch-device-{target}/amd_torch_device_{target}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
             rocm::ROCM_VERSION,
             rocm::wheel_platform()
         )];
         if let Some(family) = torch_family(target) {
+            // Directory uses hyphens (amd-torch-device-gfx12-0), wheel filename
+            // uses underscores (amd_torch_device_gfx12_0-…).
+            let whl_family = family.replace('-', "_");
             urls.push(format!(
-                "{ROCM_INDEX}/amd_torch_device_{family}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
+                "{ROCM_INDEX}/amd-torch-device-{family}/amd_torch_device_{whl_family}-{ROCM_TORCH_VERSION}%2Brocm{}-cp312-cp312-{}.whl",
                 rocm::ROCM_VERSION,
                 rocm::wheel_platform()
             ));
@@ -106,7 +109,7 @@ impl TorchVariant {
             TorchVariant::Rocm(_) => &[
                 "libc10.so",
                 "libc10_hip.so",
-                "libaotriton_v2.so.0.11.2",
+                "libaotriton_v2.so.0.13.50",
                 "libcaffe2_nvrtc.so",
                 "libshm.so",
                 "libtorch_global_deps.so",
@@ -132,7 +135,7 @@ pub fn pick_variant(hardware: &Hardware) -> Option<TorchVariant> {
     if hardware.supports_cuda() {
         Some(TorchVariant::Cuda("cu128"))
     } else if hardware.supports_rocm() {
-        Some(TorchVariant::Rocm("rocm7.14"))
+        Some(TorchVariant::Rocm("rocm10.0"))
     } else {
         None
     }
@@ -154,7 +157,7 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
             let lib = PathBuf::from(&dir).join("lib");
             if lib.join("libtorch.so").is_file() {
                 let variant = if lib.join("libtorch_hip.so").is_file() {
-                    Some(TorchVariant::Rocm("rocm7.14"))
+                    Some(TorchVariant::Rocm("rocm10.0"))
                 } else if lib.join("libtorch_cuda.so").is_file() {
                     Some(TorchVariant::Cuda("cu128"))
                 } else {

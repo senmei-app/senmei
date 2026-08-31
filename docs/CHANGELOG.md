@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: ROCm 10.0 runtime (2026-08-31)** — upgraded ROCm SDK from 7.14.0 to
+  10.0.0; wheel indexes split: SDK at `stable.repo.amd.com/rocm/core/whl-next`,
+  PyTorch at `stable.repo.amd.com/rocm/pytorch/whl-next`. Windows hiprtc
+  builtins bumped 0714→0715; aotriton 0.11.2→0.13.50. Linux SONAMEs unchanged
+  (`libamdhip64.so.7`, `libMIOpen.so.1`).
+
 - **fix: confine HTTP media access to opened folders (2026-08-28)** — the
   localhost REST API served/processed any caller-supplied path (CodeQL
   `rust/path-injection` #2/#3). Media paths now must canonicalize inside a

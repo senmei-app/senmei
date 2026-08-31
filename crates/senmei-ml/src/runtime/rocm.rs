@@ -10,10 +10,10 @@
 use std::path::{Path, PathBuf};
 
 /// ROCm SDK release published on the AMD wheel index; must match the pinned
-/// libtorch (`rocm7.14`) — mirrors Koharu's runtime.
-pub const ROCM_VERSION: &str = "7.14.0";
+/// libtorch (`rocm10.0`) — mirrors Koharu's runtime.
+pub const ROCM_VERSION: &str = "10.0.0";
 #[cfg(feature = "tch")]
-pub(crate) const INDEX: &str = "https://repo.amd.com/rocm/whl-multi-arch";
+pub(crate) const INDEX: &str = "https://stable.repo.amd.com/rocm/core/whl-next";
 
 pub(crate) fn wheel_platform() -> &'static str {
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
@@ -56,21 +56,24 @@ pub fn download(data_dir: &Path, target: &str) -> Result<PathBuf, String> {
     let stage = data_dir.join("rocm").join("stage");
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
-    for (whl, prefix) in [
+    for (dir, whl, prefix) in [
         (
+            "rocm-sdk-core".to_string(),
             format!("rocm_sdk_core-{ROCM_VERSION}-py3-none-{platform}.whl"),
             "_rocm_sdk_core",
         ),
         (
+            "rocm-sdk-libraries".to_string(),
             format!("rocm_sdk_libraries-{ROCM_VERSION}-py3-none-{platform}.whl"),
             "_rocm_sdk_libraries",
         ),
         (
+            format!("rocm-sdk-device-{target}"),
             format!("rocm_sdk_device_{target}-{ROCM_VERSION}-py3-none-{platform}.whl"),
             "_rocm_sdk_libraries",
         ),
     ] {
-        let url = format!("{INDEX}/{whl}");
+        let url = format!("{INDEX}/{dir}/{whl}");
         let archive = stage.join(&whl);
         log::info!("rocm sdk: downloading {url}");
         senmei_media::fetch(&url, &archive, &mut |_, _| {})
@@ -97,8 +100,8 @@ pub fn preload_libs() -> &'static [&'static str] {
             "_rocm_sdk_core/bin/rocm_kpack.dll",
             "_rocm_sdk_core/bin/rocm-openblas.dll",
             "_rocm_sdk_core/bin/amdhip64_7.dll",
-            "_rocm_sdk_core/bin/hiprtc-builtins0714.dll",
-            "_rocm_sdk_core/bin/hiprtc0714.dll",
+            "_rocm_sdk_core/bin/hiprtc-builtins0715.dll",
+            "_rocm_sdk_core/bin/hiprtc0715.dll",
             "_rocm_sdk_libraries/bin/rocrand.dll",
             "_rocm_sdk_libraries/bin/hiprand.dll",
             "_rocm_sdk_libraries/bin/rocblas.dll",
