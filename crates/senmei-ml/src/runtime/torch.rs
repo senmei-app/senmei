@@ -409,7 +409,10 @@ mod tests {
         let a = resolve(&data_dir, &hw).unwrap().expect("variant resolves");
         let b = resolve(&data_dir, &hw).unwrap().expect("variant resolves");
         assert_eq!(a.lib_dir, b.lib_dir, "second resolve must hit the cache");
-        assert!(a.lib_dir.join("libtorch.so").is_file());
+        assert!(
+            variant.expected_libs().iter().all(|n| a.lib_dir.join(n).is_file()),
+            "resolved install must contain the expected libs"
+        );
         assert_eq!(a.variant, variant);
         let _ = std::fs::remove_dir_all(&data_dir);
         if let Some(dir) = had_libtorch {

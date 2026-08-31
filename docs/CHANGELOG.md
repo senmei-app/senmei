@@ -10,6 +10,11 @@
 
 ## 0.2.5 (2026-08-31)
 
+- **test: portable libtorch completeness test (2026-08-31)** — the
+  `resolve_reuses_complete_install` assertion hardcoded `libtorch.so`, so the
+  Windows CI run failed once `expected_libs` became platform-aware (`.dll`).
+  It now asserts the platform-aware expected libs instead.
+
 - **ui: logs level filter as dropdown (2026-08-31)** — replaced the
   ALL/ERROR/WARN/INFO chip buttons with a compact `Select` dropdown; new
   `size="sm"` variant in the shared ui kit (11px, dense header), default `md`
