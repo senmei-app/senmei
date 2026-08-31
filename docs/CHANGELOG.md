@@ -8,6 +8,16 @@
 
 ## Unreleased
 
+- **ui: logs level filter as dropdown (2026-08-31)** — replaced the
+  ALL/ERROR/WARN/INFO chip buttons with a compact `Select` dropdown; new
+  `size="sm"` variant in the shared ui kit (11px, dense header), default `md`
+  unchanged. Select and search input sized so Copy/Clear fit without overflow.
+
+- **fix: model selection stuck on stale batch closure (2026-08-31)** —
+  `renderSample` and the render hotkey captured the `batch` object from their
+  creation render cycle, so changing the model in the step editor had no
+  effect on the next render. A `batchRef` updated every render fixes it.
+
 - **fix: Windows libtorch completeness check (2026-08-31)** — `expected_libs`
   was Linux-only (`.so` names), so the runtime-libtorch download always failed
   "incomplete" on Windows and fell back to burn-Vulkan. Now platform-aware
