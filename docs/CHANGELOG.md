@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: Windows libtorch completeness check (2026-08-31)** — `expected_libs`
+  was Linux-only (`.so` names), so the runtime-libtorch download always failed
+  "incomplete" on Windows and fell back to burn-Vulkan. Now platform-aware
+  (`.dll` names, matching the torch_sys loader's `LIBTORCH_DLLS`) like Koharu's
+  `Torch::library_names`; the `LIBTORCH` env probe also checks Windows names.
+  Ported completeness test runs on both platforms.
+
 - **fix: gfx11 family wheel mapping on ROCm 10 (2026-08-31)** — the new wheel
   index split the old single `gfx11` family wheel into `gfx110x`
   (gfx1100–1103) and `gfx115x` (gfx1150–1153); RDNA3 users previously got a

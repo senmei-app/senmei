@@ -98,7 +98,18 @@ impl TorchVariant {
     }
 
     fn expected_libs(&self) -> &'static [&'static str] {
+        // Platform-specific names: Windows wheels ship `.dll` files (matching
+        // the torch_sys loader's LIBTORCH_DLLS), Unix ships `.so` — like
+        // Koharu's `Torch::library_names`.
         match self {
+            TorchVariant::Cuda(_) if cfg!(target_os = "windows") => &[
+                "c10.dll",
+                "torch.dll",
+                "torch_cpu.dll",
+                "torch_cuda.dll",
+                "c10_cuda.dll",
+                "caffe2_nvrtc.dll",
+            ],
             TorchVariant::Cuda(_) => &[
                 "libc10.so",
                 "libtorch.so",
@@ -108,6 +119,17 @@ impl TorchVariant {
                 "libcaffe2_nvrtc.so",
             ],
             // Same list as Koharu's ROCm `Torch::library_names`.
+            TorchVariant::Rocm(_) if cfg!(target_os = "windows") => &[
+                "c10.dll",
+                "c10_hip.dll",
+                "aotriton_v2.dll",
+                "caffe2_nvrtc.dll",
+                "shm.dll",
+                "torch_global_deps.dll",
+                "torch_cpu.dll",
+                "torch_hip.dll",
+                "torch.dll",
+            ],
             TorchVariant::Rocm(_) => &[
                 "libc10.so",
                 "libc10_hip.so",
@@ -157,10 +179,16 @@ pub fn resolve(data_dir: &Path, hardware: &Hardware) -> Result<Option<TorchInsta
     if std::env::var_os("SENMEI_LIBTORCH_ENV").is_some() {
         if let Some(dir) = std::env::var_os("LIBTORCH") {
             let lib = PathBuf::from(&dir).join("lib");
-            if lib.join("libtorch.so").is_file() {
-                let variant = if lib.join("libtorch_hip.so").is_file() {
+            // Windows ships `.dll` names (see `expected_libs`).
+            let (hip, cuda) = if cfg!(target_os = "windows") {
+                ("torch_hip.dll", "torch_cuda.dll")
+            } else {
+                ("libtorch_hip.so", "libtorch_cuda.so")
+            };
+            if lib.join("libtorch.so").is_file() || lib.join("torch.dll").is_file() {
+                let variant = if lib.join(hip).is_file() {
                     Some(TorchVariant::Rocm("rocm10.0"))
-                } else if lib.join("libtorch_cuda.so").is_file() {
+                } else if lib.join(cuda).is_file() {
                     Some(TorchVariant::Cuda("cu128"))
                 } else {
                     None
@@ -437,5 +465,31 @@ mod tests {
         // gfx9/gfx10 have no family wheel: only the per-GPU URL.
         assert_eq!(v.rocm_device_urls("gfx942").len(), 1);
         assert_eq!(v.rocm_device_urls("gfx1010").len(), 1);
+    }
+
+    /// A seeded ROCm install with the (platform-aware) expected libs plus the
+    /// per-GPU `.kpack` and family `aotriton.images` must count as complete —
+    /// and fail when aotriton is missing on a family arch. Runs on both
+    /// Windows (`.dll`) and Unix (`.so`) via `expected_libs()`.
+    #[test]
+    fn rocm_install_complete_with_expected_libs() {
+        let data_dir =
+            std::env::temp_dir().join(format!("senmei_rocm_cache_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&data_dir);
+        let variant = TorchVariant::Rocm("rocm10.0");
+        let install = install_dir(&data_dir, &variant);
+        let lib = install.join("lib");
+        std::fs::create_dir_all(&lib).unwrap();
+        for name in variant.expected_libs() {
+            std::fs::write(lib.join(name), b"").unwrap();
+        }
+        std::fs::create_dir_all(install.join(".kpack")).unwrap();
+        std::fs::write(install.join(".kpack").join("torch_gfx1201.kpack"), b"").unwrap();
+        std::fs::create_dir_all(lib.join("aotriton.images")).unwrap();
+        assert!(is_complete(&install, &variant, Some("gfx1201")));
+        // Family arch without aotriton images must fail the completeness gate.
+        std::fs::remove_dir_all(lib.join("aotriton.images")).unwrap();
+        assert!(!is_complete(&install, &variant, Some("gfx1201")));
+        let _ = std::fs::remove_dir_all(&data_dir);
     }
 }
