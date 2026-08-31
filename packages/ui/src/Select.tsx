@@ -11,6 +11,8 @@ export interface SelectProps {
   onChange: (value: string) => void;
   options: SelectOption[];
   className?: string;
+  /** Compact sizing for dense toolbars/headers. */
+  size?: "sm" | "md";
 }
 
 const Chevron = ({ open }: { open: boolean }) => (
@@ -23,7 +25,7 @@ const Chevron = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-export function Select({ value, onChange, options, className = "" }: SelectProps) {
+export function Select({ value, onChange, options, className = "", size = "md" }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(() => options.findIndex((o) => o.value === value));
   const ref = useRef<HTMLDivElement>(null);
@@ -104,7 +106,9 @@ export function Select({ value, onChange, options, className = "" }: SelectProps
         ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-1 rounded-lg border border-slate-300 bg-white p-1.5 text-left text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+        className={`flex w-full items-center justify-between gap-1 rounded-lg border border-slate-300 bg-white text-left text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 ${
+          size === "sm" ? "px-2 py-0.5 text-[11px]" : "p-1.5"
+        }`}
       >
         <span className="truncate">{selectedLabel}</span>
         <Chevron open={open} />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LogEntry } from "@senmei/bridge";
+import { Select } from "@senmei/ui";
 import { backend } from "../backend";
 import { useI18n } from "../i18n";
 
@@ -108,27 +109,23 @@ export default function LogsPanel() {
   };
 
   const levels = ["ALL", "ERROR", "WARN", "INFO"] as const;
-  const chipCls = (active: boolean) =>
-    active
-      ? "rounded-md bg-indigo-600 px-2 py-0.5 text-[11px] font-medium text-white"
-      : "rounded-md bg-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-2 dark:border-slate-800/80">
-        <div className="flex gap-1">
-          {levels.map((l) => (
-            <button key={l} onClick={() => setMinLevel(l)} className={chipCls(minLevel === l)}>
-              {l}
-            </button>
-          ))}
-        </div>
+        <Select
+          value={minLevel}
+          options={levels.map((l) => ({ value: l, label: l }))}
+          onChange={(v) => setMinLevel(v)}
+          size="sm"
+          className="w-16 shrink-0"
+        />
         <div className="flex items-center gap-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("logs.search")}
-            className="w-40 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            className="w-32 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           />
           <button
             onClick={copyAll}
