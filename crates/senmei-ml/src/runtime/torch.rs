@@ -26,10 +26,12 @@ const INSTALL_DIR: &str = "libtorch";
 const ROCM_INDEX: &str = "https://stable.repo.amd.com/rocm/pytorch/whl-next";
 
 /// Per-GPU `.kpack`/aotriton kernels live in per-GPU + per-family device
-/// wheels; the family wheel covers the whole arch family (e.g. `gfx12_0`).
+/// wheels; the family wheel covers the whole arch family (e.g. `gfx12-0`).
 fn torch_family(target: &str) -> Option<&'static str> {
-    if target.starts_with("gfx11") {
-        Some("gfx11")
+    if target.starts_with("gfx110") {
+        Some("gfx110x")
+    } else if target.starts_with("gfx115") {
+        Some("gfx115x")
     } else if target.starts_with("gfx12") {
         Some("gfx12-0")
     } else {
@@ -404,5 +406,36 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(pick_device(&hw).name, "dgpu");
+    }
+
+    /// Family mapping must match the AMD wheel index directory layout:
+    /// gfx110x/gfx115x split the old `gfx11` family, gfx12-0 uses a hyphen
+    /// in the directory but an underscore in the wheel filename.
+    #[test]
+    fn torch_family_matches_new_index_layout() {
+        assert_eq!(torch_family("gfx1101"), Some("gfx110x"));
+        assert_eq!(torch_family("gfx1100"), Some("gfx110x"));
+        assert_eq!(torch_family("gfx1150"), Some("gfx115x"));
+        assert_eq!(torch_family("gfx1153"), Some("gfx115x"));
+        assert_eq!(torch_family("gfx1201"), Some("gfx12-0"));
+        assert_eq!(torch_family("gfx1010"), None);
+        assert_eq!(torch_family("gfx942"), None);
+    }
+
+    /// Device URLs must put the wheel under its package directory and keep
+    /// the hyphenated dir / underscored filename split of the new index.
+    #[test]
+    fn rocm_device_urls_match_index_layout() {
+        let v = TorchVariant::Rocm("rocm10.0");
+        let urls = v.rocm_device_urls("gfx1101");
+        assert_eq!(urls.len(), 2);
+        assert!(urls[0].contains("/amd-torch-device-gfx1101/amd_torch_device_gfx1101-"));
+        assert!(urls[1].contains("/amd-torch-device-gfx110x/amd_torch_device_gfx110x-"));
+        let urls12 = v.rocm_device_urls("gfx1201");
+        assert_eq!(urls12.len(), 2);
+        assert!(urls12[1].contains("/amd-torch-device-gfx12-0/amd_torch_device_gfx12_0-"));
+        // gfx9/gfx10 have no family wheel: only the per-GPU URL.
+        assert_eq!(v.rocm_device_urls("gfx942").len(), 1);
+        assert_eq!(v.rocm_device_urls("gfx1010").len(), 1);
     }
 }

@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: gfx11 family wheel mapping on ROCm 10 (2026-08-31)** — the new wheel
+  index split the old single `gfx11` family wheel into `gfx110x`
+  (gfx1100–1103) and `gfx115x` (gfx1150–1153); RDNA3 users previously got a
+  404 on the device-wheel download. Unit tests cover the mapping and the
+  hyphen/underscore dir-vs-filename split.
+
 - **feat: ROCm 10.0 runtime (2026-08-31)** — upgraded ROCm SDK from 7.14.0 to
   10.0.0; wheel indexes split: SDK at `stable.repo.amd.com/rocm/core/whl-next`,
   PyTorch at `stable.repo.amd.com/rocm/pytorch/whl-next`. Windows hiprtc
