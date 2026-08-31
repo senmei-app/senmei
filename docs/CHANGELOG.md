@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.2.5 (2026-08-31)
+
 - **ui: logs level filter as dropdown (2026-08-31)** — replaced the
   ALL/ERROR/WARN/INFO chip buttons with a compact `Select` dropdown; new
   `size="sm"` variant in the shared ui kit (11px, dense header), default `md`
