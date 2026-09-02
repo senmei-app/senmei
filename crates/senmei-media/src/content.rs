@@ -12,6 +12,8 @@ use std::process::Stdio;
 const FLAT_VAR: f64 = 2000.0;
 /// Laplacian energy below this counts as "clean" (no film grain/noise).
 const CLEAN_EDGE: f64 = 2000.0;
+/// Laplacian energy below this counts as "blurry" for live-action.
+const BLURRY_EDGE: f64 = 1000.0;
 
 /// Rough anime/live classification. `true` = likely anime.
 pub fn is_anime(ffmpeg: &Path, input: &Path, duration_ms: u64) -> bool {
@@ -30,6 +32,21 @@ pub fn is_anime(ffmpeg: &Path, input: &Path, duration_ms: u64) -> bool {
         }
     }
     n > 0 && flat == n && clean == n
+}
+
+/// Rough blurry classification. `true` = likely blurry (very low edge energy).
+pub fn is_blurry(ffmpeg: &Path, input: &Path, duration_ms: u64) -> bool {
+    let mut blurry = 0;
+    let mut n = 0;
+    for frac in [0.3, 0.7] {
+        if let Some((_gv, lv)) = frame_stats(ffmpeg, input, duration_ms as f64 * frac) {
+            if lv < BLURRY_EDGE {
+                blurry += 1;
+            }
+            n += 1;
+        }
+    }
+    n > 0 && blurry == n
 }
 
 /// Downscale one frame to grayscale; returns (luma variance, Laplacian energy)
@@ -146,7 +163,25 @@ mod tests {
             "flat color should look like anime"
         );
         assert!(!is_anime(ff, &live, 1000), "noisy testsrc should look live");
+        
+        // Test blurry
+        let blurry_live = dir.join("blurry_live.mp4");
+        clip(
+            ff,
+            &blurry_live,
+            "testsrc=duration=1:size=320x180:rate=24,gblur=sigma=10",
+        );
+        assert!(
+            is_blurry(ff, &blurry_live, 1000),
+            "blurred testsrc should look blurry"
+        );
+        assert!(
+            !is_blurry(ff, &live, 1000),
+            "noisy testsrc should not look blurry"
+        );
+
         let _ = std::fs::remove_file(&anime);
         let _ = std::fs::remove_file(&live);
+        let _ = std::fs::remove_file(&blurry_live);
     }
 }

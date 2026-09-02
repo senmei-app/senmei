@@ -87,19 +87,16 @@
 
 ## Refactor (2026-08-23)
 - [ ] Dedup feather ramp — shared `feather_ramp()` in tiling.rs for the fused
-      (engine/core.rs) + CPU (tiling.rs) stitch — deferred (kein Tiling-
-      Experimentieren gerade)
+      (engine/core.rs) + CPU (tiling.rs) stitch — deferred (no tiling
+      experimentation right now)
 
 ## Refactor / file size (2026-09-02)
-> Mechanical splits committed on `suggest-and-tests` (tests out of
-> burn/encoder/commands/steps; core.rs God-file → core/{config,compare,
-> download,render}). Still open:
-- [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
-      hot inference path: dedicated pass + before/after benchmark
 - [ ] `http/mod.rs` (~530) — further media/stream extraction would help but is
       blocked: axum `Handler` breaks for the whole-request handlers
       (`stream`/`audio`) once catalog/media move into submodules (tested
       2026-09-02, reverted). Done: render.rs + tests.rs already extracted.
+- [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
+      hot inference path: dedicated pass + before/after benchmark
 - [ ] `senmei-ml/src/convert.rs` (~767) — split converters per format
 - [ ] `core/render.rs` (589) — sub-split (run/lifecycle) below 400
 - [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — code splits after the
