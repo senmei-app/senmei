@@ -144,11 +144,17 @@ const AUDIO_EXTS: &[&str] = &[
 /// `frame`/`probe`). Restrict to real media files so a cross-origin page can't
 /// read arbitrary local files (CORS is locked down too — see `router`).
 fn media_path(p: &std::path::Path) -> bool {
-    p.is_file()
-        && p
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| VIDEO_EXTS.contains(&e) || AUDIO_EXTS.contains(&e))
+    if !p.is_file() {
+        return false;
+    }
+    p.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| {
+            VIDEO_EXTS
+                .iter()
+                .chain(AUDIO_EXTS)
+                .any(|&m| m.eq_ignore_ascii_case(ext))
+        })
 }
 
 /// Canonicalize + media-check + register parent in one call. Returns `None`
