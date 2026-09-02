@@ -3,6 +3,7 @@
 use super::*;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct DownloadParams {
     pub(super) model_id: String,
 }

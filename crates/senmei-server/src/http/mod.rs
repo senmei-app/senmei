@@ -409,7 +409,7 @@ fn preview_worker() -> &'static senmei_media::PreviewWorker {
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
 async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Response<Body> {
-    let Some(input) = resolve_media_input(&state, &p.input) else {
+    let Some(input) = resolve_allowed_media(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not an opened media file").into_response();
     };
     match preview_worker().frame(&input.to_string_lossy(), p.position_ms) {
