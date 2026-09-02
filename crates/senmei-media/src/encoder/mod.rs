@@ -38,6 +38,31 @@ pub struct EncodeOptions<'a> {
     pub duration_ms: Option<u64>,
 }
 
+/// Parse senmei-specific sentinels from extra_args and remove them.
+/// Returns `(encoder_pref, vaapi_10bit, cleaned_args)`.
+fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool) {
+    let mut pref = EncoderPref::Auto;
+    if let Some(pos) = args.iter().position(|a| a == "-senmei_encoder") {
+        if let Some(v) = args.get(pos + 1) {
+            pref = match v.as_str() {
+                "hw" => EncoderPref::Hardware,
+                "sw" => EncoderPref::Software,
+                _ => EncoderPref::Auto,
+            };
+        }
+        args.drain(pos..pos + 2);
+    }
+    if let Some(pos) = args.iter().position(|a| a == "-senmei_vaapi") {
+        let igpu = args.get(pos + 1).map(|v| v == "igpu").unwrap_or(false);
+        set_vaapi_prefer_igpu(igpu);
+        args.drain(pos..pos + 2);
+    }
+    let vaapi_10bit = args
+        .windows(2)
+        .any(|w| w[0] == "-pix_fmt" && w[1].starts_with("yuv4") && w[1].contains("10le"));
+    (pref, vaapi_10bit)
+}
+
 impl Encoder {
     pub fn open(cfg: &EncodeOptions, extra_args: &[String]) -> Result<Self> {
         let EncodeOptions {
@@ -53,28 +78,7 @@ impl Encoder {
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let verify = hw_verifier(ffmpeg);
         let mut extra_args = extra_args.to_vec();
-        let mut pref = EncoderPref::Auto;
-        if let Some(pos) = extra_args.iter().position(|a| a == "-senmei_encoder") {
-            if let Some(v) = extra_args.get(pos + 1) {
-                pref = match v.as_str() {
-                    "hw" => EncoderPref::Hardware,
-                    "sw" => EncoderPref::Software,
-                    _ => EncoderPref::Auto,
-                };
-            }
-            extra_args.drain(pos..pos + 2);
-        }
-        if let Some(pos) = extra_args.iter().position(|a| a == "-senmei_vaapi") {
-            let igpu = extra_args
-                .get(pos + 1)
-                .map(|v| v == "igpu")
-                .unwrap_or(false);
-            set_vaapi_prefer_igpu(igpu);
-            extra_args.drain(pos..pos + 2);
-        }
-        let vaapi_10bit = extra_args
-            .windows(2)
-            .any(|w| w[0] == "-pix_fmt" && w[1].starts_with("yuv4") && w[1].contains("10le"));
+        let (pref, vaapi_10bit) = parse_sentinels(&mut extra_args);
         let verify_full = |codec: &str| select::test_encode(ffmpeg, codec, width, height);
         let (mut video_codec, mut codec_args) =
             pick_from_caps(&caps, width, height, pref, &verify, &verify_full);
@@ -82,8 +86,8 @@ impl Encoder {
             let codec = extra_args[pos + 1].clone();
             extra_args.drain(pos..pos + 2);
             if caps.contains(&codec) {
-                video_codec = codec.clone();
                 codec_args = override_codec_args(&codec, &extra_args, width, height);
+                video_codec = codec;
             } else {
                 log::warn!("encoder `{codec}` unavailable; falling back to `{video_codec}`");
             }
