@@ -1,40 +1,24 @@
 //! Render execution: step assembly, lifecycle status, confirm gate (`render` feature).
 
+mod lifecycle;
+
 use super::config::RenderConfig;
 use super::{data_dir, ffmpeg, load_registry};
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "render")]
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(feature = "render")]
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
-#[cfg(feature = "render")]
+pub use lifecycle::{cancel_render, confirm_render, propose_render, render_status, RenderStatus};
 pub use senmei_pipeline::Progress as RenderProgress;
 
-/// Hard cancel flag for the active render (checked between frames).
-#[cfg(feature = "render")]
-static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-
-/// Pending (proposed) render — starts only after an explicit confirm.
-#[cfg(feature = "render")]
-static PENDING_RENDER: OnceLock<Mutex<Option<RenderConfig>>> = OnceLock::new();
-
-/// Shared status of the active render, updated from the worker thread.
-#[cfg(feature = "render")]
-static RENDER_STATUS: OnceLock<Arc<Mutex<RenderStatus>>> = OnceLock::new();
-
-/// Serializes renders across transports (GUI command, MCP, HTTP): a new render
-/// is rejected while one is still running — including its cleanup, so cancel +
-/// immediate re-render never overlap two GPU engines.
-#[cfg(feature = "render")]
+/// Serializes renders across transports: a new render is rejected while one is
+/// still running — including its cleanup.
 static RENDER_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// RAII guard that frees [`RENDER_ACTIVE`] on drop, including early `?` returns.
-#[cfg(feature = "render")]
+/// RAII guard that frees [`RENDER_ACTIVE`] on drop.
 struct RenderGate;
 
-#[cfg(feature = "render")]
 impl RenderGate {
     fn acquire() -> Result<Self, String> {
         if RENDER_ACTIVE.swap(true, Ordering::SeqCst) {
@@ -44,18 +28,13 @@ impl RenderGate {
     }
 }
 
-#[cfg(feature = "render")]
 impl Drop for RenderGate {
     fn drop(&mut self) {
         RENDER_ACTIVE.store(false, Ordering::SeqCst);
     }
 }
 
-/// Extra knobs the caller may pass into [`render`]: the fused-RGB8 tile size
-/// (0 = engine default 640) and the caller's own cancel/pause flags. When
-/// `cancel`/`pause` are `None`, the shared core flags (used by
-/// `confirm_render`/`cancel_render`) are used.
-#[cfg(feature = "render")]
+/// Extra knobs the caller may pass into [`render`].
 #[derive(Default)]
 pub struct RenderOpts {
     pub tile_size: u32,
@@ -68,10 +47,17 @@ pub struct RenderOpts {
     pub pause: Option<Arc<AtomicBool>>,
 }
 
-/// Load a model engine, enforcing the license gate (hard). Missing weights or
-/// an unloadable arch are errors here — build steps may still fall back to the
-/// reference filter when a model is unavailable (like the GUI).
-#[cfg(feature = "render")]
+/// One pipeline step's timing (FPS benchmark; ms/frame + fps).
+#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StepTimingInfo {
+    pub name: String,
+    pub frames: u64,
+    pub ms_per_frame: f64,
+    pub fps: f64,
+}
+
+/// Load a model engine, enforcing the license gate (hard).
 pub fn engine_for_model(
     model_id: &str,
     backend: senmei_ml::EngineBackend,
@@ -107,10 +93,8 @@ pub fn engine_for_model(
     Ok(engine)
 }
 
-/// Validate a render config: required paths, sane ranges (mirrors the settings
-/// schema), and every referenced model must exist with a permissive license
-/// (never a blocked one).
-#[cfg(feature = "render")]
+/// Validate a render config: required paths, sane ranges, and every referenced
+/// model must exist with a permissive license.
 pub fn validate(config: &RenderConfig) -> Result<(), String> {
     if config.input.is_empty() || config.output.is_empty() {
         return Err("input and output are required".into());
@@ -182,7 +166,6 @@ pub fn validate(config: &RenderConfig) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(feature = "render")]
 fn build_steps(
     config: &RenderConfig,
     backend: senmei_ml::EngineBackend,
@@ -192,8 +175,6 @@ fn build_steps(
     if let Some(f) = config.resize {
         steps.push(Box::new(senmei_pipeline::Resize::new(f)));
     }
-    // Optional aux models keep their reference fallback, but a load failure
-    // is logged — never silent.
     let optional = |id: &str| match engine_for_model(id, backend) {
         Ok(e) => Some(e),
         Err(e) => {
@@ -201,8 +182,6 @@ fn build_steps(
             None
         }
     };
-    // Decompress pass runs first: scale-1 de-artifact (RealPLKSR 1×) ahead of
-    // interpolation/upscaling. Skipped when the model can't be loaded.
     if let Some(id) = config.decompress_model_id.as_deref() {
         if !id.is_empty() {
             let engine = optional(id);
@@ -211,8 +190,6 @@ fn build_steps(
     }
     if let Some(s) = config.scale {
         if s > 1 {
-            // The main upscale model is mandatory: a missing/unloadable model
-            // is a hard error, not a silent resize.
             let engine = match config.model_id.as_deref() {
                 Some(id) if !id.is_empty() => Some(engine_for_model(id, backend)?),
                 _ => None,
@@ -256,11 +233,7 @@ fn build_steps(
     Ok(steps)
 }
 
-/// Run a render (blocking; call from spawn_blocking). Mirrors the GUI's
-/// pipeline assembly, without Tauri. A backend panic (missing/broken Vulkan,
-/// driver bug) surfaces as a failed render with the panic message — never a
-/// crash of the caller or a stuck "running" state.
-#[cfg(feature = "render")]
+/// Run a render (blocking; call from spawn_blocking).
 pub fn render(
     config: &RenderConfig,
     opts: &RenderOpts,
@@ -270,8 +243,6 @@ pub fn render(
         render_inner(config, opts, on_progress)
     }))
     .unwrap_or_else(|p| {
-        // A panic mid-render can leave a partial output file — clean it the
-        // way the error path does.
         if !config.output.is_empty() {
             let _ = std::fs::remove_file(&config.output);
         }
@@ -279,8 +250,6 @@ pub fn render(
     })
 }
 
-/// Extract the panic payload as text (a `&str` or `String`), else a fallback.
-#[cfg(feature = "render")]
 fn panic_message(p: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = p.downcast_ref::<&str>() {
         (*s).to_string()
@@ -291,7 +260,6 @@ fn panic_message(p: &Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-#[cfg(feature = "render")]
 fn render_inner(
     config: &RenderConfig,
     opts: &RenderOpts,
@@ -303,12 +271,10 @@ fn render_inner(
     senmei_pipeline::set_pipeline_depth(opts.pipeline_depth);
     let cancel = match &opts.cancel {
         Some(c) => c.clone(),
-        None => CANCEL_RENDER
+        None => lifecycle::CANCEL_RENDER
             .get_or_init(|| Arc::new(AtomicBool::new(false)))
             .clone(),
     };
-    // Clear before the (potentially slow) model load below, so a cancel
-    // issued while models are loading isn't overwritten to false afterwards.
     cancel.store(false, Ordering::Relaxed);
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
@@ -375,7 +341,6 @@ fn render_inner(
 }
 
 /// Extract one frame as PNG (fast seek) — best effort.
-#[cfg(feature = "render")]
 fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<(), String> {
     let status = senmei_media::process::hidden(ff)
         .args([
@@ -400,24 +365,14 @@ fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<
     }
 }
 
-/// Render a short sample range synchronously — no confirm gate (samples are
-/// cheap). Returns the output path plus best-effort before/after PNG frames at
-/// the range midpoint. Rejects while another render is running.
-///
-/// Samples are quality-check only, so audio is dropped (`-an`): the copied
-/// audio input is exactly what needs `-ss`/`-t`/`-copyts`/`-shortest` mux
-/// surgery on ranged renders (and has hung at 100% before). A single
-/// rawvideo-pipe stream has no mux-sync hazard.
-#[cfg(feature = "render")]
+/// Render a short sample range synchronously — no confirm gate.
 pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> {
-    // The RenderGate inside render() serializes; no pre-check needed here.
     validate(&config)?;
     let (start, end) = match (config.start_ms, config.end_ms) {
         (Some(s), Some(e)) if e > s => (s, e),
         _ => return Err("render_sample requires start_ms < end_ms".into()),
     };
     let mut config = config;
-    // Strip any caller audio codec (e.g. `-c:a copy`) then force `-an`.
     let args = config.ffmpeg_args.get_or_insert_with(Vec::new);
     args.retain(|a| a != "-an");
     if let Some(pos) = args.windows(2).position(|w| w[0] == "-c:a") {
@@ -439,118 +394,6 @@ pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> 
         "beforeFrame": before_ok.then_some(before),
         "afterFrame": after_ok.then_some(after),
     }))
-}
-
-/// Propose a render: validates and parks it. Does NOT start — the confirm
-/// gate requires `confirm_render` first.
-#[cfg(feature = "render")]
-pub fn propose_render(config: RenderConfig) -> Result<String, String> {
-    validate(&config)?;
-    let slot = PENDING_RENDER.get_or_init(|| Mutex::new(None));
-    *slot.lock().unwrap() = Some(config);
-    Ok("render proposed — call confirm_render to start".into())
-}
-
-/// Run the previously proposed render (confirmation gate).
-/// Starts it on a worker thread and returns immediately — poll
-/// [`render_status`] for progress; [`cancel_render`] aborts it.
-#[cfg(feature = "render")]
-pub fn confirm_render() -> Result<String, String> {
-    let slot = PENDING_RENDER.get_or_init(|| Mutex::new(None));
-    let config = slot
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or_else(|| "no pending render; propose_render first".to_string())?;
-    let status = RENDER_STATUS
-        .get_or_init(|| Arc::new(Mutex::new(RenderStatus::default())))
-        .clone();
-    {
-        let mut s = status.lock().unwrap();
-        if s.state == "running" {
-            return Err("a render is already running".into());
-        }
-        *s = RenderStatus {
-            state: "running".into(),
-            ..Default::default()
-        };
-    }
-    std::thread::spawn(move || {
-        let progress_status = status.clone();
-        let result = render(&config, &RenderOpts::default(), move |p| {
-            let mut s = progress_status.lock().unwrap();
-            s.frames_processed = p.frames_processed;
-            s.total_frames = p.total_frames;
-        });
-        let mut s = status.lock().unwrap();
-        match result {
-            Ok(steps) => {
-                s.state = "done".into();
-                s.steps = steps;
-            }
-            Err(e) => {
-                s.state = "failed".into();
-                s.error = Some(e);
-            }
-        }
-    });
-    Ok("render started — poll render_status".into())
-}
-
-/// One pipeline step's timing (FPS benchmark; ms/frame + fps).
-#[cfg(feature = "render")]
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct StepTimingInfo {
-    pub name: String,
-    pub frames: u64,
-    pub ms_per_frame: f64,
-    pub fps: f64,
-}
-
-/// Render lifecycle status (polled over MCP; no push notifications yet).
-#[cfg(feature = "render")]
-#[derive(Debug, Clone, serde::Serialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RenderStatus {
-    /// idle | running | done | failed
-    pub state: String,
-    pub frames_processed: u64,
-    pub total_frames: u64,
-    pub error: Option<String>,
-    /// Per-step timing once the render finishes (FPS benchmark).
-    pub steps: Vec<StepTimingInfo>,
-}
-
-#[cfg(feature = "render")]
-impl Default for RenderStatus {
-    fn default() -> Self {
-        Self {
-            state: "idle".into(),
-            frames_processed: 0,
-            total_frames: 0,
-            error: None,
-            steps: Vec::new(),
-        }
-    }
-}
-
-/// Current render status (idle when nothing has run yet).
-#[cfg(feature = "render")]
-pub fn render_status() -> RenderStatus {
-    RENDER_STATUS
-        .get()
-        .map(|s| s.lock().unwrap().clone())
-        .unwrap_or_default()
-}
-
-/// Abort the active render (pipeline checks the flag between frames).
-#[cfg(feature = "render")]
-pub fn cancel_render() {
-    if let Some(c) = CANCEL_RENDER.get() {
-        c.store(true, Ordering::Relaxed);
-        log::info!("render cancelled (flag set)");
-    }
 }
 
 #[cfg(test)]
