@@ -169,6 +169,12 @@ pub fn thumbnail(input: String, max_w: Option<u32>) -> Result<ThumbnailResult, S
     Ok(ThumbnailResult { data, info })
 }
 
+<<<<<<< HEAD
+=======
+/// Probe content and suggest a default pipeline (content-aware defaults).
+/// Lives in `senmei-core` so Tauri and HTTP share one implementation; returns
+/// a JSON string (`{ anime, steps: [...] }`) for specta's TS export.
+>>>>>>> origin/main
 #[tauri::command]
 #[specta::specta]
 pub fn suggest_pipeline(input: String) -> Result<String, String> {

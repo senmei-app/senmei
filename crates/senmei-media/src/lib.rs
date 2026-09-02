@@ -12,7 +12,7 @@ pub mod process;
 mod thumbnail;
 mod videos;
 
-pub use content::is_anime;
+pub use content::{is_anime, is_blurry};
 pub use decoder::{Decoder, Tonemap};
 pub use downloader::download_to_temp;
 pub use downloader::{
