@@ -189,13 +189,48 @@ export const httpBackend: Backend = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  async downloadModel(modelId, _onProgress) {
-    const res = await api<{ bpk?: string }>("/api/download-model", {
+  async downloadModel(modelId, onProgress) {
+    const res = await fetch(`${base()}/api/download-model`, {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ modelId }),
     });
-    if (!res.bpk) throw new Error("download failed");
-    return res.bpk;
+    if (!res.ok || !res.body) throw new Error("Download request failed");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEvent = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      // Keep incomplete last line in buffer (TCP chunk mid-SSE-frame).
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("event: ")) {
+          currentEvent = trimmed.slice(7).trim();
+        } else if (trimmed.startsWith("data: ")) {
+          const rawData = trimmed.slice(6).trim();
+          if (!rawData) continue;
+          const data = JSON.parse(rawData);
+          if (currentEvent === "progress") {
+            onProgress({ downloaded: data.downloaded, total: data.total });
+          } else if (currentEvent === "done") {
+            return data.bpk as string;
+          } else if (currentEvent === "error") {
+            throw new Error(data.error);
+          }
+          currentEvent = "";
+        }
+      }
+    }
+    throw new Error("Download stream ended without result");
   },
 
   async listProjects(): Promise<ProjectEntry[]> {

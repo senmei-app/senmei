@@ -1,6 +1,8 @@
 //! Render/queue HTTP handlers (download, start, status, cancel).
 
 use super::*;
+use futures_core::Stream;
+use tokio_stream::StreamExt;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -8,28 +10,66 @@ pub(super) struct DownloadParams {
     pub(super) model_id: String,
 }
 
-pub(super) async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
-    #[cfg(feature = "render")]
-    {
-        match tokio::task::spawn_blocking(move || core::download_model(&p.model_id, |_, _| {}))
-            .await
-        {
-            Ok(Ok(path)) => json_ok(&serde_json::json!({ "bpk": path })),
-            Ok(Err(e)) => json_err(StatusCode::BAD_REQUEST, e),
-            Err(e) => json_err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("join failed: {e}"),
-            ),
+enum DownloadMsg {
+    Progress { downloaded: u64, total: u64 },
+    Done { bpk: String },
+    Error { error: String },
+}
+
+/// SSE download: streams progress events, then a final `done` or `error` event.
+#[cfg(feature = "render")]
+pub(super) async fn download_model(
+    Json(p): Json<DownloadParams>,
+) -> axum::response::sse::Sse<
+    impl Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>,
+> {
+    use axum::response::sse::{Event, KeepAlive};
+    use tokio::sync::mpsc;
+    use tokio_stream::wrappers::ReceiverStream;
+
+    let (tx, rx) = mpsc::channel::<DownloadMsg>(32);
+
+    tokio::task::spawn_blocking(move || {
+        let result = core::download_model(&p.model_id, |downloaded, total| {
+            // Err means the client disconnected — the task will end naturally
+            // when the next send fails or the download completes.
+            let _ = tx.blocking_send(DownloadMsg::Progress { downloaded, total });
+        });
+        match result {
+            Ok(path) => {
+                let _ = tx.blocking_send(DownloadMsg::Done { bpk: path });
+            }
+            Err(e) => {
+                let _ = tx.blocking_send(DownloadMsg::Error { error: e });
+            }
         }
-    }
-    #[cfg(not(feature = "render"))]
-    {
-        let _ = p.model_id;
-        json_err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "render not compiled in (build with --features render,http)",
-        )
-    }
+    });
+
+    let stream = ReceiverStream::new(rx).map(|msg| {
+        let event = match msg {
+            DownloadMsg::Progress { downloaded, total } => Event::default()
+                .event("progress")
+                .json_data(serde_json::json!({ "downloaded": downloaded, "total": total })),
+            DownloadMsg::Done { bpk } => Event::default()
+                .event("done")
+                .json_data(serde_json::json!({ "bpk": bpk })),
+            DownloadMsg::Error { error } => Event::default()
+                .event("error")
+                .json_data(serde_json::json!({ "error": error })),
+        };
+        Ok(event.unwrap_or_else(|_| Event::default().event("error").data("Serialization error")))
+    });
+
+    axum::response::sse::Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+#[cfg(not(feature = "render"))]
+pub(super) async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
+    let _ = p.model_id;
+    json_err(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "render not compiled in (build with --features render,http)",
+    )
 }
 
 pub(super) async fn render_start(
@@ -42,7 +82,6 @@ pub(super) async fn render_start(
             return json_err(StatusCode::BAD_REQUEST, "input not opened");
         }
         register_parent(&state, Path::new(&cfg.output));
-        // Mirror the desktop's config log so HTTP renders are auditable.
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
             cfg.input,
@@ -55,7 +94,7 @@ pub(super) async fn render_start(
     }
     #[cfg(not(feature = "render"))]
     {
-        let _ = cfg;
+        let _ = (cfg, state);
         json_err(
             StatusCode::SERVICE_UNAVAILABLE,
             "render not compiled in (build with --features render,http)",
