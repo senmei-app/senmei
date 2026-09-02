@@ -93,3 +93,23 @@
 - [ ] Dedup feather ramp — shared `feather_ramp()` in tiling.rs for the fused
       (engine/core.rs) + CPU (tiling.rs) stitch — deferred (kein Tiling-
       Experimentieren gerade)
+
+## Refactor / file size (2026-09-02)
+> Mechanische Splits auf `suggest-and-tests` committed (Tests aus
+> burn/encoder/commands/steps; core.rs-God-File → core/{config,compare,
+> download,render}). Noch offen:
+- [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
+      heißer Inferenz-Pfad: eigener Pass + Benchmark vorher/nachher
+- [ ] `senmei-server/src/http.rs` (~850) — Routen/Handler trennen
+- [ ] `senmei-ml/src/convert.rs` (~767) — Konverter je Format splitten
+- [ ] `core/render.rs` (589) — Subsplit (run/lifecycle) auf <400
+- [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — Code-Splits nach
+      Test-Auslagerung
+- [ ] Frontend `Monitor.tsx` (996) → Hooks (playback/hotkeys/scrub) +
+      Overlays; Ziel ~300, tsc-Verify
+- [ ] Frontend `App.tsx` (665), `StepEditor` (588), `SettingsPage` (542),
+      `Inspector` (486) — Ziel ~300
+- [ ] Suggest-Logik aus Tauri-Command nach senmei-core + `POST /api/suggest`
+      (Headless-Parität) — geplant auf `suggest-and-tests`
+- [ ] Test-Lücken (`pipeline`/`projects`/`mcp`/`audio`/`resources` 0 Tests) —
+      siehe „Test coverage (2026-08-26)", Teil des `suggest-and-tests`-Branches
