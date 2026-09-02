@@ -72,7 +72,12 @@ impl PreviewCache {
         if need_seek {
             self.streams.insert(
                 key.clone(),
-                Self::open(&crate::resolve(&self.data_dir), input, position_ms, self.max_dim)?,
+                Self::open(
+                    &crate::resolve(&self.data_dir),
+                    input,
+                    position_ms,
+                    self.max_dim,
+                )?,
             );
         }
         self.order.retain(|k| k != &key);
@@ -105,7 +110,12 @@ impl PreviewCache {
         // position instead of hard-erroring.
         if s.finished {
             let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
-            *s = Self::open(&crate::resolve(&self.data_dir), input, clamped, self.max_dim)?;
+            *s = Self::open(
+                &crate::resolve(&self.data_dir),
+                input,
+                clamped,
+                self.max_dim,
+            )?;
             match s.decoder.next_frame() {
                 Ok(Some(f)) => {
                     s.next_frame_ms += s.frame_ms;
