@@ -29,6 +29,7 @@ clap = { version = "4", features = ["derive", "env"] }
 env_logger = "0.11"
 schemars = "1"
 base64 = "0.22"
+dirs = "6"
 
 # Patched upstream crates under the senmei-app org (never vendored in-repo).
 [patch.crates-io]

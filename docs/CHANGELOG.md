@@ -8,6 +8,20 @@
 
 ## Unreleased
 
+- **fix: data dir on Windows (2026-09-02)** — `data_dir()` used the XDG/`HOME`
+  path on every OS, but Windows has no `HOME`, so the app resolved its data
+  dir relative to the working directory (portable FFmpeg, models, logs).
+  Now resolved via `dirs::data_local_dir()`: `%LOCALAPPDATA%\senmei` Windows,
+  `~/Library/Application Support/senmei` macOS, `~/.local/share/senmei` Linux;
+  `XDG_DATA_HOME` still overrides for hermetic tests. `senmei-app::store::
+  data_dir()` delegates to the single `senmei_core::core::data_dir()`.
+
+- **fix: FFmpeg portable download 404 (2026-09-02)** — the pinned BtbN LGPL
+  build (autobuild-2026-08-17-13-05, N-126188) was purged from the release
+  tags, so the portable FFmpeg download failed with 404. Bumped the pin to
+  autobuild-2026-09-01-13-13 (N-126386) with fresh per-platform SHA-256
+  (linux/win64). BtbN purges autobuild tags after ~2 weeks.
+
 ## 0.2.5 (2026-08-31)
 
 - **test: portable libtorch completeness test (2026-08-31)** — the

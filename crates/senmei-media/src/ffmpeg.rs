@@ -9,15 +9,15 @@ use crate::{Error, Result};
 
 const ENV_PATH: &str = "SENMEI_FFMPEG";
 const ARCHIVE_DIR: &str = "temp";
-// Pinned BtbN LGPL builds (autobuild 2026-08-17, N-126188) — LGPL-only per the
+// Pinned BtbN LGPL builds (autobuild 2026-09-01, N-126386) — LGPL-only per the
 // license policy (no GPL components, so no libx264; the encoder picks
 // libopenh264 instead). Pinned to a dated tag so the SHA is stable; bump URL
-// and SHA together.
-const LINUX_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-linux64-lgpl.tar.xz";
-const LINUX_LGPL_SHA256: &str = "0afc3d4d9728587ae1a4af1062c80f11dfdf82833b003b0f4fdf8027e9bf5c53";
-const WINDOWS_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-17-13-05/ffmpeg-N-126188-g426841da9d-win64-lgpl.zip";
+// and SHA together — BtbN purges old autobuild tags (~2 weeks).
+const LINUX_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-01-13-13/ffmpeg-N-126386-gc27482a18d-linux64-lgpl.tar.xz";
+const LINUX_LGPL_SHA256: &str = "8fee5342057184e7ec32a40beed9b069fef6af1ec9c82c18725a2f040fd02abb";
+const WINDOWS_LGPL_URL: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-01-13-13/ffmpeg-N-126386-gc27482a18d-win64-lgpl.zip";
 const WINDOWS_LGPL_SHA256: &str =
-    "fdf4fcb4797762e8b4cc3eccdedfedad1e4a345fe9bd8f6a44a20ebf57718c7a";
+    "b14a959412a27e2404019d72179b75f9a4dee1656aba0d042f4febb5ccb8e392";
 
 pub const fn ffmpeg_bin_name() -> &'static str {
     if cfg!(windows) {

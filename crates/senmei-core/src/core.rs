@@ -5,16 +5,16 @@
 
 use std::path::{Path, PathBuf};
 
-/// App data dir (`$XDG_DATA_HOME/senmei`), same convention as the GUI.
+/// App data dir (`dirs::data_local_dir`): `~/.local/share/senmei` Linux,
+/// `%LOCALAPPDATA%\senmei` Windows, `~/Library/Application Support/senmei` macOS.
+/// `XDG_DATA_HOME` overrides so tests stay hermetic on any OS.
 pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("share")
-        });
-    base.join("senmei")
+    if let Some(p) = std::env::var_os("XDG_DATA_HOME") {
+        return PathBuf::from(p).join("senmei");
+    }
+    dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("senmei")
 }
 
 /// Resolve the models dir: dev repo checkout first, then the data dir
