@@ -2,6 +2,11 @@
 
 use super::*;
 
+#[derive(Deserialize)]
+pub(super) struct DownloadParams {
+    pub(super) model_id: String,
+}
+
 pub(super) async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     #[cfg(feature = "render")]
     {

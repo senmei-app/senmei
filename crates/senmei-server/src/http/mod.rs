@@ -147,18 +147,16 @@ fn media_path(p: &std::path::Path) -> bool {
     if !p.is_file() {
         return false;
     }
-    p.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|ext| {
-            VIDEO_EXTS
-                .iter()
-                .chain(AUDIO_EXTS)
-                .any(|&m| m.eq_ignore_ascii_case(ext))
-        })
+    p.extension().and_then(|e| e.to_str()).is_some_and(|ext| {
+        VIDEO_EXTS
+            .iter()
+            .chain(AUDIO_EXTS)
+            .any(|&m| m.eq_ignore_ascii_case(ext))
+    })
 }
 
 /// Canonicalize + media-check + register parent in one call. Returns `None`
-/// (and sends an error response) when the path is invalid or not a media file.
+/// when the path is invalid or not a media file.
 fn resolve_media_input(state: &AppState, input: &str) -> Option<PathBuf> {
     let path = canonical(Path::new(input))?;
     if !media_path(&path) {
@@ -168,8 +166,18 @@ fn resolve_media_input(state: &AppState, input: &str) -> Option<PathBuf> {
     Some(path)
 }
 
+/// Like `resolve_media_input` but also enforces the allowed-roots check
+/// (for `stream`/`audio` which serve file content directly).
+fn resolve_allowed_media(state: &AppState, input: &str) -> Option<PathBuf> {
+    let path = resolve_allowed(state, Path::new(input))?;
+    if !media_path(&path) {
+        return None;
+    }
+    Some(path)
+}
+
 #[derive(Deserialize)]
-struct ProbeParams {
+struct InputParams {
     input: String,
 }
 
@@ -188,12 +196,6 @@ struct FrameParams {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DownloadParams {
-    model_id: String,
-}
-
-#[derive(Deserialize)]
 struct ScanParams {
     dir: String,
 }
@@ -202,12 +204,6 @@ struct ScanParams {
 struct CompareParams {
     original: String,
     rendered: String,
-}
-
-#[derive(Deserialize)]
-struct SuggestParams {
-    /// Path to a video file to suggest a pipeline for.
-    input: String,
 }
 
 type ApiResult = (StatusCode, Json<serde_json::Value>);
@@ -269,20 +265,19 @@ async fn stream(
     Query(p): Query<StreamParams>,
     req: Request<Body>,
 ) -> Response<Body> {
-    let Some(path) = resolve_allowed(&state, Path::new(&p.path)) else {
+    let Some(path) = resolve_allowed_media(&state, &p.path) else {
         return not_found();
     };
-    if !media_path(&path) {
-        return not_found();
-    }
     serve_file(path, req).await
 }
+
+const AUDIO_CACHE_KEEP: usize = 20;
 
 fn audio_cache_dir() -> std::path::PathBuf {
     crate::core::data_dir().join("audio-cache")
 }
 
-/// Keep the newest ~20 cached tracks so the cache can't grow unbounded.
+/// Keep the newest cached tracks so the cache can't grow unbounded.
 fn prune_audio_cache(dir: &std::path::Path) {
     let mut files: Vec<_> = std::fs::read_dir(dir)
         .into_iter()
@@ -296,7 +291,10 @@ fn prune_audio_cache(dir: &std::path::Path) {
             .and_then(|m| m.modified())
             .unwrap_or(SystemTime::UNIX_EPOCH)
     });
-    for p in files.iter().take(files.len().saturating_sub(20)) {
+    for p in files
+        .iter()
+        .take(files.len().saturating_sub(AUDIO_CACHE_KEEP))
+    {
         let _ = std::fs::remove_file(p);
     }
 }
@@ -334,7 +332,7 @@ async fn audio(
     Query(p): Query<StreamParams>,
     req: Request<Body>,
 ) -> Response<Body> {
-    let Some(input) = resolve_allowed(&state, Path::new(&p.path)) else {
+    let Some(input) = resolve_allowed_media(&state, &p.path) else {
         return not_found();
     };
     let input = input.to_string_lossy().into_owned();
@@ -357,7 +355,7 @@ async fn backend_info() -> ApiResult {
     json_ok(&senmei_ml::backend_info())
 }
 
-async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> ApiResult {
+async fn probe(State(state): State<AppState>, Json(p): Json<InputParams>) -> ApiResult {
     let Some(input) = resolve_media_input(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     };
@@ -369,7 +367,7 @@ async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> Api
 
 /// Content-aware default pipeline suggestion — same payload as the Tauri
 /// command (returns the `{ anime, steps }` object as JSON).
-async fn suggest(State(state): State<AppState>, Json(p): Json<SuggestParams>) -> ApiResult {
+async fn suggest(State(state): State<AppState>, Json(p): Json<InputParams>) -> ApiResult {
     let Some(input) = resolve_media_input(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     };
@@ -410,25 +408,19 @@ fn preview_worker() -> &'static senmei_media::PreviewWorker {
 
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
-async fn frame(
-    State(state): State<AppState>,
-    Json(p): Json<FrameParams>,
-) -> Result<Response<Body>, ApiResult> {
+async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Response<Body> {
     let Some(input) = resolve_media_input(&state, &p.input) else {
-        return Err(json_err(
-            StatusCode::BAD_REQUEST,
-            "not an opened media file",
-        ));
+        return json_err(StatusCode::BAD_REQUEST, "not an opened media file").into_response();
     };
     match preview_worker().frame(&input.to_string_lossy(), p.position_ms) {
-        Ok(f) => Ok(Response::builder()
+        Ok(f) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header("x-frame-width", f.width.to_string())
             .header("x-frame-height", f.height.to_string())
             .body(Body::from(f.data))
-            .expect("frame response")),
-        Err(e) => Err(json_err(StatusCode::BAD_REQUEST, e)),
+            .expect("frame response"),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, e).into_response(),
     }
 }
 
