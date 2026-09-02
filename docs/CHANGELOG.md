@@ -8,6 +8,18 @@
 
 ## Unreleased
 
+- **refactor: modularize large source files & optimize http adapter (2026-09-03)**
+  — Split 5 monolithic files into focused submodules:
+  `engine/core.rs` (1073 → 230+125+552),
+  `convert.rs` (767 → 245+274+137+49),
+  `encoder/mod.rs` (671 → 248+335),
+  `render.rs` (632 → 475+110),
+  `commands/mod.rs` (574 → 476+60).
+  HTTP adapter: case-insensitive extension check, `resolve_media_input`/`resolve_allowed_media`
+  helpers, param dedup (`InputParams`), `frame` handler return type simplified,
+  `DEV_ORIGINS` CORS dedup, `AUDIO_CACHE_KEEP` constant. 28 lines of verbose
+  comments removed across 8 files.
+
 - **fix: macOS `ensure_within_data_dir` behind a symlinked root (2026-09-02)**
   — the containment guard canonicalized the data dir but compared a raw child
   path when the child's parent didn't exist yet, failing on macOS where temp
