@@ -1,6 +1,6 @@
 use std::io::{BufReader, Read};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -45,7 +45,7 @@ impl Decoder {
         let info = crate::probe::probe(&crate::ffprobe_next_to(ffmpeg), path)?;
         let fps = info.fps;
 
-        let mut cmd = Command::new(ffmpeg);
+        let mut cmd = crate::process::hidden(ffmpeg);
         if start_ms > 0 {
             cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
         }

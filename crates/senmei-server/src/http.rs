@@ -70,7 +70,9 @@ const DEV_ORIGINS: [&str; 2] = ["http://localhost:1420", "http://127.0.0.1:1420"
 
 /// Canonicalize a real path; reject obvious `..` traversal first.
 fn canonical(p: &Path) -> Option<PathBuf> {
-    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    if p.components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return None;
     }
     std::fs::canonicalize(p).ok()
@@ -120,7 +122,10 @@ async fn require_local_client(req: Request<Body>, next: Next) -> Response<Body> 
         return next.run(req).await;
     }
     // cross-site: allow only the Vite dev origins.
-    let origin = req.headers().get(header::ORIGIN).and_then(|v| v.to_str().ok());
+    let origin = req
+        .headers()
+        .get(header::ORIGIN)
+        .and_then(|v| v.to_str().ok());
     if origin.is_some_and(|o| DEV_ORIGINS.contains(&o)) {
         return next.run(req).await;
     }
@@ -307,7 +312,7 @@ fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
         return Ok(out);
     }
     let ff = crate::core::ffmpeg();
-    let status = std::process::Command::new(ff)
+    let status = senmei_media::process::hidden(ff)
         .args(["-y", "-loglevel", "error", "-i"])
         .arg(input)
         .args(["-vn", "-c:a", "libvorbis", "-b:a", "96k", "-f", "ogg"])
@@ -382,17 +387,26 @@ async fn thumbnail(State(state): State<AppState>, Json(p): Json<ThumbnailParams>
 // Same worker as Tauri — scrubbing doesn't respawn ffmpeg per frame.
 fn preview_worker() -> &'static senmei_media::PreviewWorker {
     static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
-    W.get_or_init(|| senmei_media::PreviewWorker::new(core::ffmpeg()))
+    W.get_or_init(|| senmei_media::PreviewWorker::new(crate::core::data_dir()))
 }
 
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
-async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Result<Response<Body>, ApiResult> {
+async fn frame(
+    State(state): State<AppState>,
+    Json(p): Json<FrameParams>,
+) -> Result<Response<Body>, ApiResult> {
     let Some(input) = resolve_allowed(&state, Path::new(&p.input)) else {
-        return Err(json_err(StatusCode::BAD_REQUEST, "not an opened media file"));
+        return Err(json_err(
+            StatusCode::BAD_REQUEST,
+            "not an opened media file",
+        ));
     };
     if !media_path(&input) {
-        return Err(json_err(StatusCode::BAD_REQUEST, "not an opened media file"));
+        return Err(json_err(
+            StatusCode::BAD_REQUEST,
+            "not an opened media file",
+        ));
     }
     match preview_worker().frame(&input.to_string_lossy(), p.position_ms) {
         Ok(f) => Ok(Response::builder()
@@ -452,7 +466,10 @@ async fn download_model(Json(p): Json<DownloadParams>) -> ApiResult {
     }
 }
 
-async fn render_start(State(state): State<AppState>, Json(cfg): Json<core::RenderConfig>) -> ApiResult {
+async fn render_start(
+    State(state): State<AppState>,
+    Json(cfg): Json<core::RenderConfig>,
+) -> ApiResult {
     #[cfg(feature = "render")]
     {
         if !is_allowed(&state, Path::new(&cfg.input)) {

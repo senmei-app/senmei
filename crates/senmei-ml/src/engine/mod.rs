@@ -289,7 +289,7 @@ pub fn engine_for_model(
             #[cfg(feature = "burn")]
             {
                 log::info!("engine: burn-Vulkan ({})", model.id);
-                Ok(Box::new(crate::burn::BurnEngine::new()))
+                Ok(Box::new(crate::burn::BurnEngine::new_checked()?))
             }
             #[cfg(not(feature = "burn"))]
             {
@@ -326,7 +326,7 @@ pub fn engine_for_model(
             #[cfg(feature = "burn")]
             {
                 log::info!("engine: auto -> burn-Vulkan ({})", model.id);
-                Ok(Box::new(crate::burn::BurnEngine::new()))
+                Ok(Box::new(crate::burn::BurnEngine::new_checked()?))
             }
             #[cfg(not(feature = "burn"))]
             {

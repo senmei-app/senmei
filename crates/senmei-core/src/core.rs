@@ -5,16 +5,16 @@
 
 use std::path::{Path, PathBuf};
 
-/// App data dir (`$XDG_DATA_HOME/senmei`), same convention as the GUI.
+/// App data dir (`dirs::data_local_dir`): `~/.local/share/senmei` Linux,
+/// `%LOCALAPPDATA%\senmei` Windows, `~/Library/Application Support/senmei` macOS.
+/// `XDG_DATA_HOME` overrides so tests stay hermetic on any OS.
 pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("share")
-        });
-    base.join("senmei")
+    if let Some(p) = std::env::var_os("XDG_DATA_HOME") {
+        return PathBuf::from(p).join("senmei");
+    }
+    dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("senmei")
 }
 
 /// Resolve the models dir: dev repo checkout first, then the data dir
@@ -465,7 +465,7 @@ fn run_metric(
     key: &str,
 ) -> Result<Option<f64>, String> {
     let lavfi = format!("[0:v]{scale}format=yuv420p[s];[1:v]format=yuv420p[r];[s][r]{filter}");
-    let out = std::process::Command::new(ff)
+    let out = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-i",
@@ -706,9 +706,42 @@ fn build_steps(
 }
 
 /// Run a render (blocking; call from spawn_blocking). Mirrors the GUI's
-/// pipeline assembly, without Tauri.
+/// pipeline assembly, without Tauri. A backend panic (missing/broken Vulkan,
+/// driver bug) surfaces as a failed render with the panic message — never a
+/// crash of the caller or a stuck "running" state.
 #[cfg(feature = "render")]
 pub fn render(
+    config: &RenderConfig,
+    opts: &RenderOpts,
+    on_progress: impl FnMut(RenderProgress) + Send + 'static,
+) -> Result<Vec<StepTimingInfo>, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        render_inner(config, opts, on_progress)
+    }))
+    .unwrap_or_else(|p| {
+        // A panic mid-render can leave a partial output file — clean it the
+        // way the error path does.
+        if !config.output.is_empty() {
+            let _ = std::fs::remove_file(&config.output);
+        }
+        Err(format!("render panicked: {}", panic_message(&p)))
+    })
+}
+
+/// Extract the panic payload as text (a `&str` or `String`), else a fallback.
+#[cfg(feature = "render")]
+fn panic_message(p: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = p.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = p.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".into()
+    }
+}
+
+#[cfg(feature = "render")]
+fn render_inner(
     config: &RenderConfig,
     opts: &RenderOpts,
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
@@ -793,7 +826,7 @@ pub fn render(
 /// Extract one frame as PNG (fast seek) — best effort.
 #[cfg(feature = "render")]
 fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<(), String> {
-    let status = std::process::Command::new(ff)
+    let status = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-ss",
@@ -983,6 +1016,17 @@ mod tests {
         );
         drop(gate);
         assert!(RenderGate::acquire().is_ok(), "gate must free on drop");
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn panic_message_extracts_str_and_string() {
+        let s: Box<dyn std::any::Any + Send> = Box::new("boom");
+        assert_eq!(panic_message(&s), "boom");
+        let owned: Box<dyn std::any::Any + Send> = Box::new("bang".to_string());
+        assert_eq!(panic_message(&owned), "bang");
+        let other: Box<dyn std::any::Any + Send> = Box::new(7);
+        assert_eq!(panic_message(&other), "unknown panic");
     }
 
     #[test]

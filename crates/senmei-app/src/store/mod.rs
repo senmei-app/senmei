@@ -12,16 +12,9 @@ pub use settings::{load_settings, save_settings, Settings};
 
 use std::path::PathBuf;
 
-/// App data dir (`$XDG_DATA_HOME/senmei`), same convention as the server core.
+/// App data dir — single source of truth is `senmei_core::core::data_dir()`.
 pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local")
-                .join("share")
-        });
-    base.join("senmei")
+    senmei_core::core::data_dir()
 }
 
 #[cfg(test)]

@@ -32,7 +32,9 @@ struct PreviewStream {
 
 /// Warm decode streams keyed by input file.
 pub struct PreviewCache {
-    ffmpeg: PathBuf,
+    /// Data dir — ffmpeg is re-resolved per open (a freshly downloaded
+    /// portable FFmpeg is picked up without restarting the app).
+    data_dir: PathBuf,
     /// Preview decode budget: longest edge after downscale (None = full res).
     max_dim: Option<u32>,
     streams: HashMap<PathBuf, PreviewStream>,
@@ -41,9 +43,9 @@ pub struct PreviewCache {
 }
 
 impl PreviewCache {
-    pub fn new(ffmpeg: PathBuf, max_dim: Option<u32>) -> Self {
+    pub fn new(data_dir: PathBuf, max_dim: Option<u32>) -> Self {
         Self {
-            ffmpeg,
+            data_dir,
             max_dim,
             streams: HashMap::new(),
             order: VecDeque::new(),
@@ -70,7 +72,12 @@ impl PreviewCache {
         if need_seek {
             self.streams.insert(
                 key.clone(),
-                Self::open(&self.ffmpeg, input, position_ms, self.max_dim)?,
+                Self::open(
+                    &crate::resolve(&self.data_dir),
+                    input,
+                    position_ms,
+                    self.max_dim,
+                )?,
             );
         }
         self.order.retain(|k| k != &key);
@@ -103,7 +110,12 @@ impl PreviewCache {
         // position instead of hard-erroring.
         if s.finished {
             let clamped = (position_ms.min(s.end_ms - s.frame_ms)).max(0.0);
-            *s = Self::open(&self.ffmpeg, input, clamped, self.max_dim)?;
+            *s = Self::open(
+                &crate::resolve(&self.data_dir),
+                input,
+                clamped,
+                self.max_dim,
+            )?;
             match s.decoder.next_frame() {
                 Ok(Some(f)) => {
                     s.next_frame_ms += s.frame_ms;
@@ -168,7 +180,7 @@ mod tests {
         if !Path::new(&f).exists() {
             return;
         }
-        let mut cache = PreviewCache::new("ffmpeg".into(), None);
+        let mut cache = PreviewCache::new(std::env::temp_dir(), None);
         let frame = cache
             .frame(&f, 100_000.0)
             .expect("frame at out-of-range pos");
@@ -208,7 +220,7 @@ mod tests {
                 return; // no ffmpeg — skip
             }
         }
-        let mut cache = PreviewCache::new("ffmpeg".into(), None);
+        let mut cache = PreviewCache::new(std::env::temp_dir(), None);
         // Requests advance ~1/5 of a frame per call (a 60Hz timer on 24fps
         // video); the decode used to run far ahead and oscillate.
         let mut last_avg = -1.0;

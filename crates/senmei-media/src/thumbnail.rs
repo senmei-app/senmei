@@ -3,7 +3,7 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::{Error, Result, VideoInfo};
 
@@ -30,7 +30,7 @@ fn at_seconds(duration: f64) -> f64 {
 pub fn thumbnail(ffmpeg: &Path, input: &Path, max_w: u32) -> Result<Thumbnail> {
     let info = crate::probe(&crate::ffprobe_next_to(ffmpeg), input)?;
     let at = at_seconds(info.duration);
-    let mut child = Command::new(ffmpeg)
+    let mut child = crate::process::hidden(ffmpeg)
         .args([
             "-hide_banner",
             "-loglevel",
