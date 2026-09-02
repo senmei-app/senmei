@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: content-aware pipeline suggestion is transport-agnostic (2026-09-02)**
+  — `suggest_pipeline` moved out of the Tauri command into `senmei-core`
+  (`core/suggest.rs`); the GUI command is now a thin wrapper and the HTTP
+  adapter gained `POST /api/suggest` (same `{ anime, steps }` payload), so
+  headless clients get the same content-aware defaults as the GUI.
+
 - **test: close the zero-test gaps (2026-09-02)** — added unit tests to
   `store/projects.rs` (settings roundtrip, `unique_dir` suffixing, data-dir
   allowlist), `resources.rs` (sysfs number/hex parsers) and `audio.rs`

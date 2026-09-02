@@ -121,6 +121,7 @@ pub mod config;
 pub mod download;
 #[cfg(feature = "render")]
 pub mod render;
+pub mod suggest;
 
 pub use compare::compare_sample;
 pub use config::{settings_schema, FilterConfig, RenderConfig};
@@ -131,3 +132,4 @@ pub use render::{
     cancel_render, confirm_render, engine_for_model, propose_render, render, render_sample,
     render_status, RenderOpts, RenderProgress, RenderStatus, StepTimingInfo,
 };
+pub use suggest::suggest_pipeline;

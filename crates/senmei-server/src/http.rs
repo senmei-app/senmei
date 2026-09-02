@@ -208,6 +208,12 @@ struct CompareParams {
     rendered: String,
 }
 
+#[derive(Deserialize)]
+struct SuggestParams {
+    /// Path to a video file to suggest a pipeline for.
+    input: String,
+}
+
 type ApiResult = (StatusCode, Json<serde_json::Value>);
 
 fn json_ok<T: Serialize>(v: &T) -> ApiResult {
@@ -365,6 +371,28 @@ async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> Api
     register_parent(&state, &input);
     match core::probe_video(&input.to_string_lossy()) {
         Ok(info) => json_ok(&info),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+    }
+}
+
+/// Content-aware default pipeline suggestion — same payload as the Tauri
+/// command (returns the `{ anime, steps }` object as JSON).
+async fn suggest(State(state): State<AppState>, Json(p): Json<SuggestParams>) -> ApiResult {
+    let Some(input) = canonical(Path::new(&p.input)) else {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    };
+    if !media_path(&input) {
+        return json_err(StatusCode::BAD_REQUEST, "not a media file");
+    }
+    register_parent(&state, &input);
+    match core::suggest_pipeline(&input.to_string_lossy()) {
+        Ok(json) => match serde_json::from_str::<serde_json::Value>(&json) {
+            Ok(v) => json_ok(&v),
+            Err(e) => json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("suggest produced invalid JSON: {e}"),
+            ),
+        },
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
 }
@@ -534,6 +562,7 @@ fn router_with_state(web_dir: Option<PathBuf>, state: AppState) -> Router {
         .route("/api/stream", get(stream))
         .route("/api/audio", get(audio))
         .route("/api/probe", post(probe))
+        .route("/api/suggest", post(suggest))
         .route("/api/thumbnail", post(thumbnail))
         .route("/api/frame", post(frame))
         .route("/api/compare", post(compare))
@@ -659,6 +688,20 @@ mod tests {
     async fn probe_missing_file_returns_400() {
         let (status, body) = send(post_json(
             "/api/probe",
+            r#"{"input":"/nonexistent/video.mkv"}"#,
+        ))
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(serde_json::from_slice::<serde_json::Value>(&body)
+            .unwrap()
+            .get("error")
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn suggest_missing_file_returns_400() {
+        let (status, body) = send(post_json(
+            "/api/suggest",
             r#"{"input":"/nonexistent/video.mkv"}"#,
         ))
         .await;

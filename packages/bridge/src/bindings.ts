@@ -38,10 +38,9 @@ export const commands = {
 	/**  Small JPEG thumbnail (data URL) for the media library tiles. */
 	thumbnail: (input: string, maxW: number | null) => __TAURI_INVOKE<ThumbnailResult>("thumbnail", { input, maxW }),
 	/**
-	 *  Probe content and suggest a default pipeline (content-aware defaults):
-	 *  anime vs live-action, input resolution, frame rate. Returns a JSON string
-	 *  (`{ anime, steps: [{ stepType, params }] }`); a `serde_json::Value` return
-	 *  makes specta's TS export recurse forever.
+	 *  Probe content and suggest a default pipeline (content-aware defaults).
+	 *  Lives in `senmei-core` so Tauri and HTTP share one implementation; returns
+	 *  a JSON string (`{ anime, steps: [...] }`) for specta's TS export.
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
 	readFrame: (input: string, positionMs: number | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, onMeta, onFrame }),

@@ -105,5 +105,3 @@
       Overlays; Ziel ~300, tsc-Verify
 - [ ] Frontend `App.tsx` (665), `StepEditor` (588), `SettingsPage` (542),
       `Inspector` (486) — Ziel ~300
-- [ ] Suggest-Logik aus Tauri-Command nach senmei-core + `POST /api/suggest`
-      (Headless-Parität) — geplant auf `suggest-and-tests`
