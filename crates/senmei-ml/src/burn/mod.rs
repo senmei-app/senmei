@@ -14,12 +14,17 @@ use burn::tensor::f16;
 use burn_store::BurnpackStore;
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
+use std::sync::Mutex;
 
 pub struct BurnEngine {
     model: Option<Model<BurnBackend<f16>>>,
     device: WgpuDevice,
     scale: u32,
 }
+
+/// Serializes the temporary panic-hook swap in `new_checked` — the hook is
+/// process-wide, so concurrent probes must not interleave take/set/restore.
+static PROBE_HOOK_LOCK: Mutex<()> = Mutex::new(());
 
 impl Default for BurnEngine {
     fn default() -> Self {
@@ -43,8 +48,8 @@ impl BurnEngine {
     /// No CPU/software fallback — if this fails the backend simply isn't there.
     pub fn new_checked() -> Result<Self> {
         let device = WgpuDevice::DiscreteGpu(gpu_index() as usize);
-        // A failing probe would still print its panic via the default hook;
-        // silence it so only the mapped error below reaches the user.
+        // Silence the default hook so a failed probe prints no backtrace.
+        let _guard = PROBE_HOOK_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let prev_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));
         let probe = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -55,6 +60,7 @@ impl BurnEngine {
             let _ = (x.clone() + x).into_data();
         }));
         std::panic::set_hook(prev_hook);
+        drop(_guard);
         probe.map_err(|p| {
             let text = if let Some(s) = p.downcast_ref::<&str>() {
                 (*s).to_string()

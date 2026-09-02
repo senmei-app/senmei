@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: harden the review findings, round 2 (2026-09-02)** — the Vulkan
+  probe serializes its temporary panic-hook swap behind a mutex (the hook is
+  process-wide); a panicked render now also removes the partial output file;
+  `dev-clean` invokes PowerShell via `-Command` on Windows and drops the
+  GNU-only `xargs -r` for macOS.
+
 - **fix: harden the Windows/Vulkan review findings (2026-09-02)** — the
   tauri-cli postinstall no longer short-circuits on an installed 1.x (only a
   2.x version is accepted as matching); the Vulkan probe silences the panic

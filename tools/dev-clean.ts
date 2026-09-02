@@ -1,6 +1,6 @@
 // Dev-clean: kill the Vite dev server (1420) + running Senmei, then clear the
 // stale webview cache. Cross-platform (Linux/macOS/Windows incl. Wine).
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -9,7 +9,18 @@ const win = process.platform === "win32";
 
 function quiet(cmd: string) {
   try {
-    execSync(cmd, { stdio: "ignore", shell: win ? "powershell.exe" : "/bin/sh" });
+    execSync(cmd, { stdio: "ignore" });
+  } catch {
+    // nothing running / tool missing — fine
+  }
+}
+
+// PowerShell pipelines need an explicit -Command, not the cmd-style default.
+function quietPwsh(script: string) {
+  try {
+    spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      stdio: "ignore",
+    });
   } catch {
     // nothing running / tool missing — fine
   }
@@ -17,11 +28,11 @@ function quiet(cmd: string) {
 
 // Kill the Vite dev server on 1420.
 if (win) {
-  quiet(
+  quietPwsh(
     "Get-NetTCPConnection -LocalPort 1420 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }",
   );
 } else {
-  quiet("lsof -ti:1420 | xargs -r kill -9");
+  quiet("lsof -ti:1420 | xargs kill -9");
 }
 
 // Kill the running app (best effort; not running is fine).

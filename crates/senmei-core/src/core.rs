@@ -718,7 +718,14 @@ pub fn render(
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         render_inner(config, opts, on_progress)
     }))
-    .unwrap_or_else(|p| Err(format!("render panicked: {}", panic_message(&p))))
+    .unwrap_or_else(|p| {
+        // A panic mid-render can leave a partial output file — clean it the
+        // way the error path does.
+        if !config.output.is_empty() {
+            let _ = std::fs::remove_file(&config.output);
+        }
+        Err(format!("render panicked: {}", panic_message(&p)))
+    })
 }
 
 /// Extract the panic payload as text (a `&str` or `String`), else a fallback.
