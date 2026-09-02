@@ -341,3 +341,42 @@ fn render_sample_result(v: serde_json::Value) -> Result<CallToolResult, McpError
     }
     Ok(CallToolResult::success(blocks))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(input: &str, output: &str) -> RenderSampleParams {
+        RenderSampleParams {
+            input: input.into(),
+            output: output.into(),
+            model_id: Some("fallin-soft".into()),
+            scale: Some(2),
+            start_ms: Some(1000),
+            end_ms: Some(2000),
+            fps_multiplier: None,
+            interp_model: None,
+            denoise_model_id: Some("drunet-color".into()),
+            deblur_model_id: None,
+        }
+    }
+
+    #[test]
+    fn render_sample_params_map_onto_render_config() {
+        let cfg = params("a.mp4", "b.mkv").into_render_config();
+        assert_eq!(cfg.input, "a.mp4");
+        assert_eq!(cfg.output, "b.mkv");
+        assert_eq!(cfg.model_id.as_deref(), Some("fallin-soft"));
+        assert_eq!(cfg.scale, Some(2));
+        assert_eq!((cfg.start_ms, cfg.end_ms), (Some(1000), Some(2000)));
+        let f = cfg.filter.expect("denoise model id sets a filter");
+        assert_eq!(f.denoise_model_id.as_deref(), Some("drunet-color"));
+        assert_eq!(f.deblur_model_id, None);
+    }
+
+    #[test]
+    fn no_filters_leave_filter_none() {
+        let mut p = params("a.mp4", "b.mkv");
+        p.denoise_model_id = None;
+        assert!(p.into_render_config().filter.is_none());
+    }
+}

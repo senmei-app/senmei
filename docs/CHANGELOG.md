@@ -8,6 +8,40 @@
 
 ## Unreleased
 
+- **fix: macOS `ensure_within_data_dir` behind a symlinked root (2026-09-02)**
+  — the containment guard canonicalized the data dir but compared a raw child
+  path when the child's parent didn't exist yet, failing on macOS where temp
+  dirs sit behind `/var` -> `/private/var`. Both sides now canonicalize as far
+  as they exist (`canonical_prefix`), with a regression test that reproduces
+  the symlinked-root case.
+
+- **fix: review findings on the suggest/test split (2026-09-02)** —
+  `PcmSource` keeps an odd trailing byte across reads (a sample split over two
+  pipe chunks decodes correctly instead of dropping a byte); a pre-start pause
+  now gates before the first batch reaches the encoder (zero frames processed,
+  asserted in `cancel.rs`); the split `core` submodules are private (facade
+  re-exports only); `/api/suggest` runs in `spawn_blocking`; the HTTP backend
+  implements `suggestPipeline` (the browser UI can now use suggest).
+
+- **refactor: split http.rs into http/ (2026-09-02)** — the single 893-line
+  HTTP adapter now lives in `http/`: render/queue handlers moved to
+  `http/render.rs`, the router tests to `http/tests.rs` (no behavior change;
+  media handlers + stream serving still in `http/mod.rs` ~530, further split
+  pending).
+
+- **feat: content-aware pipeline suggestion is transport-agnostic (2026-09-02)**
+  — `suggest_pipeline` moved out of the Tauri command into `senmei-core`
+  (`core/suggest.rs`); the GUI command is now a thin wrapper and the HTTP
+  adapter gained `POST /api/suggest` (same `{ anime, steps }` payload), so
+  headless clients get the same content-aware defaults as the GUI.
+
+- **test: close the zero-test gaps (2026-09-02)** — added unit tests to
+  `store/projects.rs` (settings roundtrip, `unique_dir` suffixing, data-dir
+  allowlist), `resources.rs` (sysfs number/hex parsers) and `audio.rs`
+  (`PcmSource` LE-i16 decode, chunk spanning, EOF), plus MCP
+  `RenderSampleParams` → `RenderConfig` mapping; added a `pause_stalls_then_resumes`
+  integration test for `pipeline.rs::run()` (cancel was already covered).
+
 - **fix: harden the review findings, round 2 (2026-09-02)** — the Vulkan
   probe serializes its temporary panic-hook swap behind a mutex (the hook is
   process-wide); a panicked render now also removes the partial output file;

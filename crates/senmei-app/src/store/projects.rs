@@ -184,20 +184,32 @@ pub fn remember_project(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Canonicalize `path` as far as it exists, re-appending the missing suffix.
+/// Keeps both sides of a containment check consistent across symlinked roots
+/// (macOS `/var` -> `/private/var`).
+fn canonical_prefix(path: &Path) -> PathBuf {
+    let mut tail = PathBuf::new();
+    let mut cur = path;
+    loop {
+        match cur.canonicalize() {
+            Ok(c) => return c.join(tail),
+            Err(_) => match (cur.parent(), cur.file_name()) {
+                (Some(parent), Some(name)) => {
+                    tail = PathBuf::from(name).join(tail);
+                    cur = parent;
+                }
+                _ => return cur.join(tail),
+            },
+        }
+    }
+}
+
 /// Allowlist guard for IPC file ops: refuse paths outside the app data dir
 /// (same pattern as `delete_project`). Canonicalizes so relative paths or
 /// symlinks cannot escape the managed dir.
 pub fn ensure_within_data_dir(path: &Path) -> Result<(), String> {
-    // Canonicalize the data dir too: on macOS /var -> /private/var, so a
-    // canonicalized child would not start_with the raw base.
-    let base = data_dir().canonicalize().unwrap_or_else(|_| data_dir());
-    let resolved = match path.parent() {
-        Some(parent) => match parent.canonicalize() {
-            Ok(parent_c) => parent_c.join(path.file_name().unwrap_or_default()),
-            Err(_) => path.to_path_buf(),
-        },
-        None => path.to_path_buf(),
-    };
+    let base = canonical_prefix(&data_dir());
+    let resolved = canonical_prefix(path);
     if resolved.starts_with(&base) {
         Ok(())
     } else {
@@ -342,4 +354,86 @@ pub fn delete_project(path: &str) -> Result<(), String> {
         std::fs::remove_dir_all(&target).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_temp_data(name: &str, f: impl FnOnce(&Path)) {
+        let _guard = super::super::TEST_ENV_LOCK.lock().unwrap();
+        let base =
+            std::env::temp_dir().join(format!("senmei-projects-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        std::env::set_var("XDG_DATA_HOME", &base);
+        f(&base);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn settings_roundtrip_and_default_on_missing() {
+        let dir = std::env::temp_dir().join(format!("senmei-proj-set-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let empty = load_project_settings(&dir);
+        assert!(empty.steps.is_empty() && empty.files.is_empty() && empty.output_dir.is_none());
+        let s = ProjectSettings {
+            steps: Vec::new(),
+            files: vec!["a.mp4".into()],
+            output_dir: Some("out".into()),
+        };
+        save_project_settings(&dir, &s).unwrap();
+        let loaded = load_project_settings(&dir);
+        assert_eq!(loaded.files, vec!["a.mp4".to_string()]);
+        assert_eq!(loaded.output_dir.as_deref(), Some("out"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unique_dir_appends_numbered_suffix() {
+        let base = std::env::temp_dir().join(format!("senmei-uniq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let two = unique_dir(&base);
+        assert_eq!(two, PathBuf::from(format!("{} 2", base.display())));
+        std::fs::create_dir_all(&two).unwrap();
+        assert_eq!(
+            unique_dir(&base),
+            PathBuf::from(format!("{} 3", base.display()))
+        );
+        let missing = base.with_extension("gone");
+        assert_eq!(unique_dir(&missing), missing);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn ensure_within_data_dir_allows_inside_rejects_outside() {
+        with_temp_data("within", |base| {
+            let data = base.join("senmei");
+            std::fs::create_dir_all(&data).unwrap();
+            assert!(ensure_within_data_dir(&data.join("projects/x.json")).is_ok());
+            let outside = base.parent().unwrap().join("outside.txt");
+            assert!(ensure_within_data_dir(&outside).is_err());
+        });
+    }
+
+    /// macOS temp dirs live behind `/var` -> `/private/var`; a not-yet-existing
+    /// child used to be compared raw against the canonicalized base and fail.
+    #[cfg(unix)]
+    #[test]
+    fn ensure_within_data_dir_survives_a_symlinked_root() {
+        let _guard = super::super::TEST_ENV_LOCK.lock().unwrap();
+        let root = std::env::temp_dir().join(format!("senmei-proj-sym-{}", std::process::id()));
+        let real = root.join("real");
+        let link = root.join("link");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&real.join("senmei")).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        std::env::set_var("XDG_DATA_HOME", &link);
+        // `projects/` does not exist yet, so only the existing ancestor can be
+        // canonicalized — the child must still count as inside the data dir.
+        assert!(ensure_within_data_dir(&link.join("senmei/projects/x.json")).is_ok());
+        assert!(ensure_within_data_dir(&real.join("senmei/projects/x.json")).is_ok());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

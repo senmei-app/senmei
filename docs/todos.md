@@ -17,10 +17,6 @@
 - [ ] Adopt Real-CUGAN up2x conservative (`cugan_up2x-latest-conservative.pth`) — same UpCunet2x arch as real-cugan-x2; balanced preset for real film (Pro-conservative already adopted as real-cugan-pro-conservative-x2)
 
 
-## Test coverage (2026-08-26)
-- [ ] `pipeline.rs`/`projects.rs`/`mcp.rs`/`audio.rs`/`resources.rs` have 0 `#[test]`s — add cancel/pause-path coverage in `pipeline.rs::run()`.
-
-
 # Not yet
 - [ ] Project website
 - [ ] Flatpak: bundle target + Flathub publishing (FFmpeg via `org.freedesktop.Platform.ffmpeg-full`)
@@ -91,5 +87,21 @@
 
 ## Refactor (2026-08-23)
 - [ ] Dedup feather ramp — shared `feather_ramp()` in tiling.rs for the fused
-      (engine/core.rs) + CPU (tiling.rs) stitch — deferred (kein Tiling-
-      Experimentieren gerade)
+      (engine/core.rs) + CPU (tiling.rs) stitch — deferred (no tiling
+      experimentation right now)
+
+## Refactor / file size (2026-09-02)
+- [ ] `http/mod.rs` (~530) — further media/stream extraction would help but is
+      blocked: axum `Handler` breaks for the whole-request handlers
+      (`stream`/`audio`) once catalog/media move into submodules (tested
+      2026-09-02, reverted). Done: render.rs + tests.rs already extracted.
+- [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
+      hot inference path: dedicated pass + before/after benchmark
+- [ ] `senmei-ml/src/convert.rs` (~767) — split converters per format
+- [ ] `core/render.rs` (589) — sub-split (run/lifecycle) below 400
+- [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — code splits after the
+      test extraction
+- [ ] Frontend `Monitor.tsx` (996) → hooks (playback/hotkeys/scrub) +
+      overlays; target ~300, tsc-verified
+- [ ] Frontend `App.tsx` (665), `StepEditor` (588), `SettingsPage` (542),
+      `Inspector` (486) — target ~300

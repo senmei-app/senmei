@@ -186,6 +186,14 @@ impl Pipeline {
         let mut proc_n = 0u64;
         let mut proc_acc = std::time::Duration::ZERO;
         let mut pending: Vec<senmei_media::Frame> = Vec::with_capacity(BATCH_SIZE);
+        // Gate before the first batch reaches the encoder: a pre-start pause
+        // must stall with zero frames processed, not emit the first frame.
+        while self.pause.load(Ordering::Relaxed) && !self.cancel.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        if self.cancel.load(Ordering::Relaxed) {
+            main_err = Some(Error::cancelled());
+        }
         for frame in first_batch {
             if out_tx.send(frame).is_err() {
                 main_err = Some(Error::new("encode channel closed"));
