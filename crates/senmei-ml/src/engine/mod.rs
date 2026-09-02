@@ -1,5 +1,9 @@
 #[cfg(any(feature = "burn", feature = "tch"))]
 pub mod core;
+#[cfg(any(feature = "burn", feature = "tch"))]
+pub mod load;
+#[cfg(any(feature = "burn", feature = "tch"))]
+pub mod rgb8;
 
 use crate::model::ModelRef;
 use crate::tensor::Tensor;

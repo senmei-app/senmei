@@ -5,7 +5,9 @@
 //! burnpacks (`.bpk`); RIFE loads the raw ncnn `flownet.bin`.
 
 use crate::arch::RifeNet;
-use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch};
+use crate::engine::{
+    core, load, rgb8, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch,
+};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::BurnBackend;
@@ -97,7 +99,7 @@ impl InferenceEngine for BurnEngine {
             "rife425" | "rife46" => self.load_rife(&model.path)?,
             _ => {
                 let mut store = BurnpackStore::from_file(&model.path);
-                core::load_arch(model, &mut store, &self.device)?
+                load::load_arch(model, &mut store, &self.device)?
             }
         });
         self.scale = model.scale;
@@ -138,10 +140,10 @@ impl InferenceEngine for BurnEngine {
     }
 
     /// Fused RGB8 (GPU re-sample when the requested scale ≠ model scale — the
-    /// tiling/overlap/readback lives in `engine::core::infer_rgb8`).
+    /// tiling/overlap/readback lives in `engine::rgb8::infer_rgb8`).
     fn infer_rgb8(&mut self, input: &Tensor, scale: u32) -> Option<Result<(Vec<u8>, u32, u32)>> {
         let model = self.model.as_ref()?;
-        core::infer_rgb8(model, input, self.scale, scale, &self.device)
+        rgb8::infer_rgb8(model, input, self.scale, scale, &self.device)
     }
 
     /// Fused multi-frame RGB8 with a deferred readback, so the caller can
@@ -152,7 +154,7 @@ impl InferenceEngine for BurnEngine {
         scale: u32,
     ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let model = self.model.as_ref()?;
-        core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device)
+        rgb8::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device)
             .map(|r| r.map(|b| Box::new(b) as Box<dyn Rgb8Batch>))
     }
 
