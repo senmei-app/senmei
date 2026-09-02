@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: clear GPU error instead of a panic when Vulkan is missing (2026-09-02)**
+  — engine creation now runs a tiny compute probe on the configured device; a
+  missing/broken Vulkan driver returns a clear error ("Vulkan unavailable at
+  GPU index N … no CPU fallback") instead of a wgpu panic mid-load. A
+  `catch_unwind` guard around `render` turns any backend panic into a failed
+  render with the panic message (never a crash or a stuck "running" state).
+  GPU-only by design — no CPU/software fallback.
+
 - **dev: cross-platform `dev:clean` + tauri-cli postinstall (2026-09-02)** — the
   old `dev:clean` was a Linux-only shell one-liner and failed under Windows/
   Wine. Replaced by `tools/dev-clean.ts` (kills Vite 1420 + Senmei, clears the

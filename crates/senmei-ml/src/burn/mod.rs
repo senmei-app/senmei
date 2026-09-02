@@ -37,6 +37,36 @@ impl BurnEngine {
         }
     }
 
+    /// GPU-only init check before the heavy model loads: run one tiny compute
+    /// on the configured device. A missing/broken Vulkan driver used to
+    /// surface as a wgpu panic mid-load; this returns a clear error instead.
+    /// No CPU/software fallback — if this fails the backend simply isn't there.
+    pub fn new_checked() -> Result<Self> {
+        let device = WgpuDevice::DiscreteGpu(gpu_index() as usize);
+        let probe = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let x = burn::tensor::Tensor::<BurnBackend<f16>, 2>::from_data(
+                burn::tensor::TensorData::new(vec![1.0f32, 2.0f32], [1, 2]).convert::<f16>(),
+                &device,
+            );
+            let _ = (x.clone() + x).into_data();
+        }));
+        probe.map_err(|p| {
+            let text = if let Some(s) = p.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = p.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown error".to_string()
+            };
+            Error::new(format!(
+                "Vulkan unavailable at GPU index {} ({text}); install/update the Vulkan \
+                 driver or choose another GPU index — no CPU fallback",
+                gpu_index()
+            ))
+        })?;
+        Ok(Self::new())
+    }
+
     /// RIFE loads from the raw ncnn `flownet.bin` (fp16 weights), not a burnpack.
     fn load_rife(&self, path: &Path) -> Result<Model<BurnBackend<f16>>> {
         let bytes = std::fs::read(path).map_err(|e| Error::new(e.to_string()))?;
