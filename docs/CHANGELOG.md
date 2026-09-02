@@ -10,6 +10,12 @@
 
 ## 0.3.0 (2026-09-03)
 
+- **refactor: code simplification — error mapping, dedup, guard clauses (2026-09-03)**
+  — `ResultExt` trait replaces ~50 `.map_err` boilerplate calls. Extracted
+  `validate_batch` in `rgb8.rs`, `RENDER_UNAVAILABLE` in `mcp.rs`,
+  `bitrate_kbps` in `encoder/select.rs`, `parse_sentinels` in `encoder/mod.rs`.
+  `.to_string()` → `.to_owned()` on string literals.
+
 - **refactor: modularize source files, SSE download, HTTP security (2026-09-03)**
   — Split 5 monolithic files into submodules (`engine/core.rs`, `convert.rs`,
   `encoder/mod.rs`, `render.rs`, `commands/mod.rs`). HTTP adapter:
