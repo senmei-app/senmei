@@ -3,7 +3,7 @@
 use super::ToF16;
 use crate::arch::{RrdbNet, UpCunet2x, UpCunet2xFast};
 use crate::BurnBackend;
-use crate::{Error, Result};
+use crate::{Error, Result, ResultExt};
 use burn::module::ParamId;
 use burn::tensor::backend::Backend;
 use burn::tensor::{f16, TensorData};
@@ -40,7 +40,7 @@ pub fn convert_onnx_to_bpk(
         (r"\.conv\.0\.", ".conv."),
         (r"\.conv\.2\.", ".conv2."),
     ])
-    .map_err(|e| Error::new(e.to_string()))?;
+    .map_err_str()?;
     let (snapshots, _) = remapper.remap(snapshots);
 
     let device = WgpuDevice::DiscreteGpu(0);
@@ -81,7 +81,7 @@ where
     if !result.missing.is_empty() {
         return Err(Error::new(format!("missing tensors:\n{result}")));
     }
-    m.save_into(save).map_err(|e| Error::new(e.to_string()))?;
+    m.save_into(save).map_err_str()?;
     Ok(())
 }
 
