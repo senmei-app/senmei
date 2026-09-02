@@ -217,9 +217,7 @@ pub(super) enum EncoderPref {
     Software,
 }
 
-/// Pick the best video encoder available in `ffmpeg`. Verified hardware
-/// encoders come first (HEVC before H.264); otherwise the software chain:
-/// libkvazaar → libx265 → libopenh264 → libx264 → native fallback.
+/// HW first (verified), then sw chain. HEVC preferred over H.264.
 pub(super) fn pick_from_caps(
     caps: &[String],
     width: u32,
@@ -274,7 +272,6 @@ pub(super) fn pick_from_caps(
     ("h264".into(), vec![])
 }
 
-/// Default extra args when the caller overrides `-c:v`.
 pub(super) fn override_codec_args(
     codec: &str,
     extra_args: &[String],

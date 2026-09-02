@@ -48,9 +48,7 @@ pub fn propose_render(config: RenderConfig) -> Result<String, String> {
     Ok("render proposed — call confirm_render to start".into())
 }
 
-/// Run the previously proposed render (confirmation gate).
-/// Starts it on a worker thread and returns immediately — poll
-/// [`render_status`] for progress; [`cancel_render`] aborts it.
+/// Starts on a worker thread; poll [`render_status`], abort via [`cancel_render`].
 pub fn confirm_render() -> Result<String, String> {
     let slot = PENDING_RENDER.get_or_init(|| Mutex::new(None));
     let config = slot
@@ -93,7 +91,6 @@ pub fn confirm_render() -> Result<String, String> {
     Ok("render started — poll render_status".into())
 }
 
-/// Current render status (idle when nothing has run yet).
 pub fn render_status() -> RenderStatus {
     RENDER_STATUS
         .get()
@@ -101,7 +98,7 @@ pub fn render_status() -> RenderStatus {
         .unwrap_or_default()
 }
 
-/// Abort the active render (pipeline checks the flag between frames).
+/// Sets a flag checked between frames (not instant).
 pub fn cancel_render() {
     if let Some(c) = CANCEL_RENDER.get() {
         c.store(true, Ordering::Relaxed);

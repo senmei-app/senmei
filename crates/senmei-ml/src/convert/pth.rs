@@ -10,9 +10,7 @@ use crate::{Error, Result};
 use burn_store::{BurnpackStore, ModuleSnapshot, PytorchStore};
 use burn_wgpu::WgpuDevice;
 
-/// One-time `.pth` → f16 `.bpk` conversion for an arch (maintainer step).
-/// Loads the f32 state dict on the Vulkan backend (upcunet key remap), then
-/// saves through [`ToF16`] so `BurnEngine` can load it as f16.
+/// Maintainer step: f32 `.pth` → f16 `.bpk` via [`ToF16`].
 pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
     let ConvertOptions {
         arch,

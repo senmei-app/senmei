@@ -74,7 +74,6 @@ impl<B: Backend> Model<B> {
     }
 }
 
-/// Copy an f32 `Tensor` (NCHW) onto the backend, cast to `B::FloatElem`.
 fn to_burn<B: Backend>(input: &Tensor, device: &B::Device) -> Result<BurnTensor<B, 4>> {
     if input.shape.len() != 4 {
         return Err(Error::new("expected NCHW input"));
@@ -91,7 +90,6 @@ fn to_burn<B: Backend>(input: &Tensor, device: &B::Device) -> Result<BurnTensor<
     ))
 }
 
-/// Read a backend tensor back as an f32 `Tensor` (NCHW).
 fn to_tensor<B: Backend>(out: BurnTensor<B, 4>, shape: [usize; 4]) -> Result<Tensor> {
     let data = out
         .into_data()
@@ -167,10 +165,8 @@ pub fn infer_interp<B: Backend>(
     Some(to_tensor(out, [n, c, h, w]))
 }
 
-/// DRUNet denoise: appends a constant noise-level map (sigma in [0,1]) to
-/// the 3-channel input, pads the spatial dims to multiples of 8, runs the
-/// model, and crops back. FFDNet gets σ directly, DnCNN/SCUNet are blind.
-/// Other models return `None`.
+/// Denoise dispatch: DRUNet needs 4ch (3+sigma) + 8-aligned padding,
+/// FFDNet takes sigma internally, DnCNN/SCUNet are blind. `None` = no denoise.
 pub fn infer_denoise<B: Backend>(
     model: &Model<B>,
     input: &Tensor,

@@ -10,9 +10,8 @@ use crate::{Error, Result};
 use burn::tensor::backend::Backend;
 use burn_store::{BurnpackStore, ModuleSnapshot};
 
-/// Build the arch on `device` from a burnpack `store` (f16 weights). The
-/// 13-branch dispatch is identical for both engines; only the store's
-/// from-adapter differs (tch converts f16→f32 at load).
+/// Shared by both engines — only the store's from-adapter differs
+/// (tch converts f16→f32 at load).
 pub fn load_arch<B: Backend>(
     model: &ModelRef,
     store: &mut BurnpackStore,

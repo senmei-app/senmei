@@ -11,12 +11,7 @@ use burn_store::{BurnpackStore, KeyRemapper, ModuleSnapshot, TensorSnapshot};
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
 
-/// One-time ONNX → f16 `.bpk` conversion (maintainer + `download_model`).
-///
-/// Reads only the `initializer` tensors via the built-in protobuf reader (no
-/// ONNX Runtime); the names already match the module state dict apart from the
-/// torch `.conv.0` / `.conv.2` quirk, which is remapped here. Weights are
-/// decoded to f32 and saved through [`ToF16`] like the `.pth` path.
+/// Built-in protobuf reader (no ONNX Runtime). Remaps torch `.conv.0`/`.conv.2`.
 pub fn convert_onnx_to_bpk(
     arch: &str,
     onnx_path: &Path,

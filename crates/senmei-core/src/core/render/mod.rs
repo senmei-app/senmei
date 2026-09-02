@@ -233,7 +233,7 @@ fn build_steps(
     Ok(steps)
 }
 
-/// Run a render (blocking; call from spawn_blocking).
+/// Blocking — call from `spawn_blocking`.
 pub fn render(
     config: &RenderConfig,
     opts: &RenderOpts,
@@ -340,7 +340,6 @@ fn render_inner(
     run.map(|_| steps).map_err(|e| e.to_string())
 }
 
-/// Extract one frame as PNG (fast seek) — best effort.
 fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<(), String> {
     let status = senmei_media::process::hidden(ff)
         .args([
@@ -365,7 +364,7 @@ fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<
     }
 }
 
-/// Render a short sample range synchronously — no confirm gate.
+/// No confirm gate (samples are cheap).
 pub fn render_sample(config: RenderConfig) -> Result<serde_json::Value, String> {
     validate(&config)?;
     let (start, end) = match (config.start_ms, config.end_ms) {

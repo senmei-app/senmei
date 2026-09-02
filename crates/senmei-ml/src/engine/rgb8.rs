@@ -88,7 +88,6 @@ where
     data
 }
 
-/// `pad_to_f16` + device upload in one call.
 pub(super) fn pad_to_burn<B: Backend>(
     input: &Tensor,
     ph: usize,
@@ -192,10 +191,7 @@ where
 // Tiled fused RGB8 path (burn + tch)
 // ---------------------------------------------------------------------------
 
-/// Fused multi-frame RGB8 path: `n` same-shaped NCHW inputs, each handed back
-/// as packed rgb24 bytes. Tiles run one position at a time; each forward
-/// carries all `n` frames' tile in the batch dim. Output is bit-identical to
-/// `n` separate `infer_rgb8` calls.
+/// Bit-identical to `n` separate `infer_rgb8` calls (batch dim is independent).
 pub fn infer_rgb8_batch<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
@@ -214,7 +210,6 @@ where
     Some(Box::new(batch).resolve())
 }
 
-/// Fused single-frame RGB8 path.
 pub fn infer_rgb8<B: Backend>(
     model: &Model<B>,
     input: &Tensor,
@@ -235,9 +230,8 @@ where
     Some(batch.map(|mut v| v.pop().expect("batch is non-empty")))
 }
 
-/// Forward + GPU canvas accumulation for one batch; the readback is deferred
-/// to [`BurnRgb8Batch::resolve`] so the caller can queue the next forward
-/// before blocking on this one (readback pipelining).
+/// Deferred readback — caller can queue the next forward before blocking
+/// on this one (readback pipelining).
 pub fn infer_rgb8_batch_prepare<B: Backend>(
     model: &Model<B>,
     inputs: &[Tensor],
@@ -303,8 +297,7 @@ where
             ))));
         }
     }
-    // Pad each frame once (CPU, edge-replicate) and upload it once as f16;
-    // tile regions are then sliced on the device per forward.
+    // Single pad+upload per frame — tile regions are sliced on-device.
     let mut gpu_frames = Vec::with_capacity(inputs.len());
     for inp in inputs {
         match pad_to_burn::<B>(inp, ph, pw, device) {
@@ -463,9 +456,7 @@ where
     Some(Box::new(batch).resolve())
 }
 
-/// Full-frame forward + GPU RGB8 prep for one batch; the readback is deferred
-/// to [`BurnRgb8Batch::resolve`]. The VRAM guard returns `None` (not an error)
-/// so the caller falls back to the tiled fused path.
+/// VRAM guard returns `None` (not an error) so the caller falls back to tiled.
 #[cfg(feature = "tch")]
 pub fn infer_rgb8_full_frame_batch_prepare<B: Backend>(
     model: &Model<B>,
