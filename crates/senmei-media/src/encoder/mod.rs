@@ -138,7 +138,7 @@ impl Encoder {
             .args(["-map", "0:v:0", "-map", "1:a:0?"])
             .args(["-shortest"])
             .args(if temp_audio.is_some() {
-                vec!["-c:a".to_string(), "copy".to_string()]
+                vec!["-c:a".to_owned(), "copy".to_owned()]
             } else {
                 Vec::new()
             })
@@ -148,7 +148,7 @@ impl Encoder {
                 let fmt = if vaapi_10bit { "p010" } else { "nv12" };
                 ["-vf".to_string(), format!("format={fmt},hwupload")]
             } else {
-                ["-pix_fmt".to_string(), "yuv420p".to_string()]
+                ["-pix_fmt".to_owned(), "yuv420p".to_owned()]
             })
             .args(&extra_args)
             .arg(path)
