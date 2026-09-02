@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: preview picks up a fresh FFmpeg without restart (2026-09-02)** — the
+  preview worker resolved the FFmpeg path once at startup and cached it, so a
+  portable FFmpeg downloaded after launch was ignored until the app restarted
+  ("program not found" on every preview decode). The worker now resolves
+  FFmpeg lazily per decode (from the data dir), so a freshly downloaded
+  portable FFmpeg is used immediately.
+
 - **fix: no console flash from FFmpeg subprocesses on Windows (2026-09-02)** —
   every `ffmpeg`/`ffprobe` spawn (probe, decoder, encoder, thumbnail, preview,
   compare, frame extract) popped a console window that appeared and vanished.

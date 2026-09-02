@@ -43,13 +43,14 @@ pub struct PreviewWorker {
 }
 
 impl PreviewWorker {
-    /// Spawn the worker; `ffmpeg` is the resolved binary (system/portable).
-    pub fn new(ffmpeg: PathBuf) -> Self {
+    /// Spawn the worker; ffmpeg is resolved lazily per decode from `data_dir`
+    /// (so a freshly downloaded portable FFmpeg is picked up without restart).
+    pub fn new(data_dir: PathBuf) -> Self {
         let (tx, rx) = mpsc::channel::<PreviewRequest>();
         std::thread::Builder::new()
             .name("preview-decode".into())
             .spawn(move || {
-                let mut cache = PreviewCache::new(ffmpeg, Some(crate::PREVIEW_MAX_DIM));
+                let mut cache = PreviewCache::new(data_dir, Some(crate::PREVIEW_MAX_DIM));
                 while let Ok(req) = rx.recv() {
                     let (latest, stale) = coalesce(req, &rx);
                     for r in &latest {

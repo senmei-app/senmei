@@ -382,7 +382,7 @@ async fn thumbnail(State(state): State<AppState>, Json(p): Json<ThumbnailParams>
 // Same worker as Tauri — scrubbing doesn't respawn ffmpeg per frame.
 fn preview_worker() -> &'static senmei_media::PreviewWorker {
     static W: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
-    W.get_or_init(|| senmei_media::PreviewWorker::new(core::ffmpeg()))
+    W.get_or_init(|| senmei_media::PreviewWorker::new(crate::core::data_dir()))
 }
 
 /// One raw RGB24 frame as the response body; width/height ride in headers so
