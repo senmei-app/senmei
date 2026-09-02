@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: no console flash from the ffmpeg filter step on Windows (2026-09-02)**
+  — the frame filter step (`ffmpeg_filter`/tonemap, one short-lived ffmpeg per
+  frame) still spawned with a raw `Command`, so it flashed a console window
+  under Windows/Wine. It now goes through `process::hidden` like every other
+  ffmpeg spawn.
+
 - **fix: preview picks up a fresh FFmpeg without restart (2026-09-02)** — the
   preview worker resolved the FFmpeg path once at startup and cached it, so a
   portable FFmpeg downloaded after launch was ignored until the app restarted

@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use senmei_media::Frame;
 
@@ -33,7 +33,7 @@ impl Step for Filter {
     fn process(&mut self, frame: &mut Frame) -> crate::Result<bool> {
         let (w, h) = (frame.width, frame.height);
         let size = format!("{w}x{h}");
-        let mut child = Command::new(&self.ffmpeg)
+        let mut child = senmei_media::process::hidden(&self.ffmpeg)
             .args([
                 "-hide_banner",
                 "-loglevel",
