@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **feat: SSE download progress for HTTP adapter (2026-09-03)**
+  — Model downloads via `/api/download-model` now stream progress events
+  using Server-Sent Events (native `event: progress/done/error` types,
+  KeepAlive, client-disconnect detection). Frontend HTTP adapter consumes
+  the SSE stream with proper buffer retention and calls `onProgress`.
+
 - **refactor: modularize large source files & optimize http adapter (2026-09-03)**
   — Split 5 monolithic files into focused submodules:
   `engine/core.rs` (1073 → 230+125+552),
