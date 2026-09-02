@@ -115,13 +115,13 @@ pub fn scan_folder(dir: &str) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
-pub mod compare;
-pub mod config;
+mod compare;
+mod config;
 #[cfg(feature = "render")]
-pub mod download;
+mod download;
 #[cfg(feature = "render")]
-pub mod render;
-pub mod suggest;
+mod render;
+mod suggest;
 
 pub use compare::compare_sample;
 pub use config::{settings_schema, FilterConfig, RenderConfig};

@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: review findings on the suggest/test split (2026-09-02)** —
+  `PcmSource` keeps an odd trailing byte across reads (a sample split over two
+  pipe chunks decodes correctly instead of dropping a byte); a pre-start pause
+  now gates before the first batch reaches the encoder (zero frames processed,
+  asserted in `cancel.rs`); the split `core` submodules are private (facade
+  re-exports only); `/api/suggest` runs in `spawn_blocking`; the HTTP backend
+  implements `suggestPipeline` (the browser UI can now use suggest).
+
 - **refactor: split http.rs into http/ (2026-09-02)** — the single 893-line
   HTTP adapter now lives in `http/`: render/queue handlers moved to
   `http/render.rs`, the router tests to `http/tests.rs` (no behavior change;

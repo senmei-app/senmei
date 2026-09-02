@@ -249,8 +249,14 @@ export const httpBackend: Backend = {
     });
   },
 
-  async suggestPipeline(_input) {
-    throw new Error("suggest pipeline is not available over HTTP yet");
+  async suggestPipeline(input) {
+    // Endpoint returns the `{ anime, steps }` object; the backend contract is a
+    // JSON string (same shape the Tauri command returns).
+    const sug = await api<{ anime: boolean; steps: unknown[] }>("/api/suggest", {
+      method: "POST",
+      body: JSON.stringify({ input }),
+    });
+    return JSON.stringify(sug);
   },
 
   async saveBatchQueue() {}, // best-effort: queue resume is a desktop feature

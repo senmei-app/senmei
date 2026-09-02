@@ -385,15 +385,23 @@ async fn suggest(State(state): State<AppState>, Json(p): Json<SuggestParams>) ->
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     }
     register_parent(&state, &input);
-    match core::suggest_pipeline(&input.to_string_lossy()) {
-        Ok(json) => match serde_json::from_str::<serde_json::Value>(&json) {
+    // Probe + two FFmpeg frame reads are blocking — keep them off the Tokio
+    // worker (mirrors download_model).
+    let input = input.to_string_lossy().into_owned();
+    let out = tokio::task::spawn_blocking(move || core::suggest_pipeline(&input)).await;
+    match out {
+        Ok(Ok(json)) => match serde_json::from_str::<serde_json::Value>(&json) {
             Ok(v) => json_ok(&v),
             Err(e) => json_err(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("suggest produced invalid JSON: {e}"),
             ),
         },
-        Err(e) => json_err(StatusCode::BAD_REQUEST, e),
+        Ok(Err(e)) => json_err(StatusCode::BAD_REQUEST, e),
+        Err(e) => json_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("suggest task failed: {e}"),
+        ),
     }
 }
 

@@ -11,6 +11,7 @@ use rodio::Source;
 struct PcmSource {
     rx: mpsc::Receiver<Vec<u8>>,
     buf: std::vec::IntoIter<i16>,
+    pending: Option<u8>, // odd trailing byte of the previous chunk
     sample_rate: u32,
     channels: u16,
 }
@@ -22,16 +23,23 @@ impl Iterator for PcmSource {
             if let Some(v) = self.buf.next() {
                 return Some(v as f32 / 32768.0);
             }
-            match self.rx.recv() {
-                Ok(chunk) => {
-                    let samples: Vec<i16> = chunk
-                        .chunks_exact(2)
-                        .map(|c| i16::from_le_bytes([c[0], c[1]]))
-                        .collect();
-                    self.buf = samples.into_iter();
-                }
+            let mut bytes: Vec<u8> = match self.rx.recv() {
+                Ok(chunk) => chunk,
                 Err(_) => return None, // pipe closed = end of stream
+            };
+            // Pipe reads are arbitrary lengths: keep an odd trailing byte and
+            // prepend it to the next chunk so samples never misalign.
+            if let Some(b) = self.pending.take() {
+                bytes.insert(0, b);
             }
+            if bytes.len() % 2 == 1 {
+                self.pending = bytes.pop();
+            }
+            self.buf = bytes
+                .chunks_exact(2)
+                .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                .collect::<Vec<i16>>()
+                .into_iter();
         }
     }
 }
@@ -114,6 +122,7 @@ fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result
     let source = PcmSource {
         rx,
         buf: preroll.into_iter(),
+        pending: None,
         sample_rate: 48_000,
         channels: 2,
     };
@@ -205,6 +214,7 @@ mod tests {
         PcmSource {
             rx,
             buf: Vec::new().into_iter(),
+            pending: None,
             sample_rate: 48_000,
             channels: 2,
         }
@@ -222,11 +232,13 @@ mod tests {
     }
 
     #[test]
-    fn pcm_source_spans_chunks_and_drops_trailing_odd_byte() {
+    fn pcm_source_keeps_an_odd_pending_byte_across_chunks() {
         let (tx, rx) = mpsc::channel::<Vec<u8>>();
         let mut s = source(tx.clone(), rx);
-        tx.send(vec![0x01, 0x00]).unwrap();
-        tx.send(vec![0x02, 0x00, 0x99]).unwrap();
+        // A sample split across two reads (odd first read): the high byte is
+        // kept and combined with the next chunk instead of being dropped.
+        tx.send(vec![0x01]).unwrap();
+        tx.send(vec![0x00, 0x02, 0x00]).unwrap();
         drop(tx);
         assert_eq!(s.next(), Some(1.0 / 32768.0));
         assert_eq!(s.next(), Some(2.0 / 32768.0));

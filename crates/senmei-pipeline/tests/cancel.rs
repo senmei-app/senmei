@@ -97,22 +97,28 @@ fn pause_stalls_then_resumes() {
     pipeline.set_pause(pause.clone());
     let ffmpeg = senmei_media::resolve(&dir);
 
-    // The pause flag is polled between frames on the run thread; clear it from
-    // a helper thread so the run can finish.
-    let unpause = pause.clone();
-    let clearer = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
-        unpause.store(false, Ordering::Relaxed);
-    });
-
     let frames = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     let counter = frames.clone();
-    pipeline
-        .run(&ffmpeg, &input, &output, move |p| {
-            counter.store(p.frames_processed, Ordering::Relaxed);
-        })
-        .unwrap();
-    clearer.join().unwrap();
+    let input_run = input.clone();
+    let output_run = output.clone();
+    let run = std::thread::spawn(move || {
+        pipeline
+            .run(&ffmpeg, &input_run, &output_run, move |p| {
+                counter.store(p.frames_processed, Ordering::Relaxed);
+            })
+            .expect("paused run must resume and finish")
+    });
+
+    // A pre-start pause must gate before any frame reaches the encoder.
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(
+        frames.load(Ordering::Relaxed),
+        0,
+        "paused run must not process frames before unpause"
+    );
+
+    pause.store(false, Ordering::Relaxed);
+    run.join().expect("run thread panicked");
 
     assert!(
         frames.load(Ordering::Relaxed) > 0,
