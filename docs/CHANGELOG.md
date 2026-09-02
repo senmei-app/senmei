@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: harden the Windows/Vulkan review findings (2026-09-02)** — the
+  tauri-cli postinstall no longer short-circuits on an installed 1.x (only a
+  2.x version is accepted as matching); the Vulkan probe silences the panic
+  hook so a missing driver surfaces as the clear error only, without a
+  backtrace on stderr.
+
 - **fix: clear GPU error instead of a panic when Vulkan is missing (2026-09-02)**
   — engine creation now runs a tiny compute probe on the configured device; a
   missing/broken Vulkan driver returns a clear error ("Vulkan unavailable at

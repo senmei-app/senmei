@@ -43,6 +43,10 @@ impl BurnEngine {
     /// No CPU/software fallback — if this fails the backend simply isn't there.
     pub fn new_checked() -> Result<Self> {
         let device = WgpuDevice::DiscreteGpu(gpu_index() as usize);
+        // A failing probe would still print its panic via the default hook;
+        // silence it so only the mapped error below reaches the user.
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
         let probe = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let x = burn::tensor::Tensor::<BurnBackend<f16>, 2>::from_data(
                 burn::tensor::TensorData::new(vec![1.0f32, 2.0f32], [1, 2]).convert::<f16>(),
@@ -50,6 +54,7 @@ impl BurnEngine {
             );
             let _ = (x.clone() + x).into_data();
         }));
+        std::panic::set_hook(prev_hook);
         probe.map_err(|p| {
             let text = if let Some(s) = p.downcast_ref::<&str>() {
                 (*s).to_string()
