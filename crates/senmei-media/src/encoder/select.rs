@@ -219,7 +219,7 @@ pub(super) enum EncoderPref {
 
 /// Resolution-based bitrate for ABR-only encoders (libopenh264).
 fn bitrate_kbps(width: u32, height: u32) -> String {
-    bitrate_kbps(width, height)
+    format!("{}k", width as u64 * height as u64 / 144)
 }
 
 /// HW first (verified), then sw chain. HEVC preferred over H.264.

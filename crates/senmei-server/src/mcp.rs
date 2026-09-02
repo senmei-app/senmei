@@ -11,6 +11,7 @@ use base64::Engine as _;
 
 use crate::core;
 
+#[cfg(not(feature = "render"))]
 const RENDER_UNAVAILABLE: &str = "render not compiled in (build with --features render)";
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
