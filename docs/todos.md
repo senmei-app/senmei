@@ -96,7 +96,8 @@
 > download,render}). Noch offen:
 - [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
       heißer Inferenz-Pfad: eigener Pass + Benchmark vorher/nachher
-- [ ] `senmei-server/src/http.rs` (~850) — Routen/Handler trennen
+- [ ] `http/mod.rs` (~530) — Media-/Stream-Handler raus (probe/thumbnail/
+      frame/… + stream/audio); render.rs + tests.rs sind schon ausgelagert
 - [ ] `senmei-ml/src/convert.rs` (~767) — Konverter je Format splitten
 - [ ] `core/render.rs` (589) — Subsplit (run/lifecycle) auf <400
 - [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — Code-Splits nach

@@ -14,3 +14,6 @@ models/*.bpk
 models/*.onnx
 models.bat/*
 __pycache__/
+
+# test artifacts
+.local/

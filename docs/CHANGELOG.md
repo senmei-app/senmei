@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **refactor: split http.rs into http/ (2026-09-02)** — the single 893-line
+  HTTP adapter now lives in `http/`: render/queue handlers moved to
+  `http/render.rs`, the router tests to `http/tests.rs` (no behavior change;
+  media handlers + stream serving still in `http/mod.rs` ~530, further split
+  pending).
+
 - **feat: content-aware pipeline suggestion is transport-agnostic (2026-09-02)**
   — `suggest_pipeline` moved out of the Tauri command into `senmei-core`
   (`core/suggest.rs`); the GUI command is now a thin wrapper and the HTTP
