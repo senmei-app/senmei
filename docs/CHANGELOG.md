@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: macOS `ensure_within_data_dir` behind a symlinked root (2026-09-02)**
+  — the containment guard canonicalized the data dir but compared a raw child
+  path when the child's parent didn't exist yet, failing on macOS where temp
+  dirs sit behind `/var` -> `/private/var`. Both sides now canonicalize as far
+  as they exist (`canonical_prefix`), with a regression test that reproduces
+  the symlinked-root case.
+
 - **fix: review findings on the suggest/test split (2026-09-02)** —
   `PcmSource` keeps an odd trailing byte across reads (a sample split over two
   pipe chunks decodes correctly instead of dropping a byte); a pre-start pause
