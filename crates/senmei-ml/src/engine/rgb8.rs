@@ -15,6 +15,29 @@ use burn::tensor::{
 };
 use std::collections::HashMap;
 
+/// Validate batch inputs: non-empty, NCHW, all same dims. Returns `(n, c, h, w)`.
+fn validate_batch(inputs: &[Tensor]) -> Result<(usize, usize, usize, usize)> {
+    if inputs.is_empty() {
+        return Err(Error::new("empty batch"));
+    }
+    let n = inputs.len();
+    let [_, c, h, w] = [
+        inputs[0].shape[0],
+        inputs[0].shape[1],
+        inputs[0].shape[2],
+        inputs[0].shape[3],
+    ];
+    if inputs[0].shape.len() != 4 {
+        return Err(Error::new("expected NCHW input"));
+    }
+    for inp in inputs {
+        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
+            return Err(Error::new("batch inputs must share NCHW dims"));
+        }
+    }
+    Ok((n, c, h, w))
+}
+
 // ---------------------------------------------------------------------------
 // Element conversion traits
 // ---------------------------------------------------------------------------
@@ -242,24 +265,10 @@ pub fn infer_rgb8_batch_prepare<B: Backend>(
 where
     B::FloatElem: Rgb8Elem,
 {
-    if inputs.is_empty() {
-        return Some(Err(Error::new("empty batch")));
-    }
-    let n = inputs.len();
-    let [_, c, h, w] = [
-        inputs[0].shape[0],
-        inputs[0].shape[1],
-        inputs[0].shape[2],
-        inputs[0].shape[3],
-    ];
-    if inputs[0].shape.len() != 4 {
-        return Some(Err(Error::new("expected NCHW input")));
-    }
-    for inp in inputs {
-        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
-            return Some(Err(Error::new("batch inputs must share NCHW dims")));
-        }
-    }
+    let (n, c, h, w) = match validate_batch(inputs) {
+        Ok(v) => v,
+        Err(e) => return Some(Err(e)),
+    };
     let tile = crate::current_tile_size();
     let overlap = tile / 4;
     let step = tile - overlap;
@@ -468,24 +477,10 @@ pub fn infer_rgb8_full_frame_batch_prepare<B: Backend>(
 where
     B::FloatElem: Rgb8Elem,
 {
-    if inputs.is_empty() {
-        return Some(Err(Error::new("empty batch")));
-    }
-    let n = inputs.len();
-    let [_, c, h, w] = [
-        inputs[0].shape[0],
-        inputs[0].shape[1],
-        inputs[0].shape[2],
-        inputs[0].shape[3],
-    ];
-    if inputs[0].shape.len() != 4 {
-        return Some(Err(Error::new("expected NCHW input")));
-    }
-    for inp in inputs {
-        if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
-            return Some(Err(Error::new("batch inputs must share NCHW dims")));
-        }
-    }
+    let (n, c, h, w) = match validate_batch(inputs) {
+        Ok(v) => v,
+        Err(e) => return Some(Err(e)),
+    };
     // Even-pad only (pixel-shuffle ×2 needs even H/W).
     let ph = h + (h & 1);
     let pw = w + (w & 1);
