@@ -5,6 +5,9 @@
 ## Docs
 - Documentation / user guide
 
+## Tooling (2026-09-03)
+- [ ] Pre-commit hook: warn if `.rs` files changed but `docs/CHANGELOG.md` not staged (AI agents forget this regularly)
+
 ## Findings
 - libtorch on ROCm 10.0 / stable
 ## Product / roadmap (2026-08-21)
