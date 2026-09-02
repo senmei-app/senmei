@@ -9,10 +9,7 @@ use crate::store;
 /// Single decode worker owns the `PreviewCache`: serialized decodes, no lock.
 fn worker() -> &'static senmei_media::PreviewWorker {
     static PREVIEW_WORKER: OnceLock<senmei_media::PreviewWorker> = OnceLock::new();
-    PREVIEW_WORKER.get_or_init(|| {
-        let ffmpeg = senmei_media::resolve(&store::data_dir());
-        senmei_media::PreviewWorker::new(ffmpeg)
-    })
+    PREVIEW_WORKER.get_or_init(|| senmei_media::PreviewWorker::new(store::data_dir()))
 }
 
 /// Width/height of a decoded preview frame, delivered as JSON on the meta

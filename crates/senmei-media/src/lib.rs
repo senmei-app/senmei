@@ -8,7 +8,7 @@ mod preview;
 mod preview_stream;
 mod preview_worker;
 mod probe;
-mod process;
+pub mod process;
 mod thumbnail;
 mod videos;
 

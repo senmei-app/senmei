@@ -257,9 +257,42 @@ fn build_steps(
 }
 
 /// Run a render (blocking; call from spawn_blocking). Mirrors the GUI's
-/// pipeline assembly, without Tauri.
+/// pipeline assembly, without Tauri. A backend panic (missing/broken Vulkan,
+/// driver bug) surfaces as a failed render with the panic message — never a
+/// crash of the caller or a stuck "running" state.
 #[cfg(feature = "render")]
 pub fn render(
+    config: &RenderConfig,
+    opts: &RenderOpts,
+    on_progress: impl FnMut(RenderProgress) + Send + 'static,
+) -> Result<Vec<StepTimingInfo>, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        render_inner(config, opts, on_progress)
+    }))
+    .unwrap_or_else(|p| {
+        // A panic mid-render can leave a partial output file — clean it the
+        // way the error path does.
+        if !config.output.is_empty() {
+            let _ = std::fs::remove_file(&config.output);
+        }
+        Err(format!("render panicked: {}", panic_message(&p)))
+    })
+}
+
+/// Extract the panic payload as text (a `&str` or `String`), else a fallback.
+#[cfg(feature = "render")]
+fn panic_message(p: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = p.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = p.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".into()
+    }
+}
+
+#[cfg(feature = "render")]
+fn render_inner(
     config: &RenderConfig,
     opts: &RenderOpts,
     on_progress: impl FnMut(RenderProgress) + Send + 'static,
@@ -344,7 +377,7 @@ pub fn render(
 /// Extract one frame as PNG (fast seek) — best effort.
 #[cfg(feature = "render")]
 fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<(), String> {
-    let status = std::process::Command::new(ff)
+    let status = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-ss",
@@ -534,6 +567,16 @@ mod tests {
         );
         drop(gate);
         assert!(RenderGate::acquire().is_ok(), "gate must free on drop");
+    }
+
+    #[test]
+    fn panic_message_extracts_str_and_string() {
+        let s: Box<dyn std::any::Any + Send> = Box::new("boom");
+        assert_eq!(panic_message(&s), "boom");
+        let owned: Box<dyn std::any::Any + Send> = Box::new("bang".to_string());
+        assert_eq!(panic_message(&owned), "bang");
+        let other: Box<dyn std::any::Any + Send> = Box::new(7);
+        assert_eq!(panic_message(&other), "unknown panic");
     }
 
     #[test]

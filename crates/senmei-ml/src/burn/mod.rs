@@ -14,12 +14,17 @@ use burn::tensor::f16;
 use burn_store::BurnpackStore;
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
+use std::sync::Mutex;
 
 pub struct BurnEngine {
     model: Option<Model<BurnBackend<f16>>>,
     device: WgpuDevice,
     scale: u32,
 }
+
+/// Serializes the temporary panic-hook swap in `new_checked` — the hook is
+/// process-wide, so concurrent probes must not interleave take/set/restore.
+static PROBE_HOOK_LOCK: Mutex<()> = Mutex::new(());
 
 impl Default for BurnEngine {
     fn default() -> Self {
@@ -35,6 +40,42 @@ impl BurnEngine {
             device: WgpuDevice::DiscreteGpu(gpu_index() as usize),
             scale: 1,
         }
+    }
+
+    /// GPU-only init check before the heavy model loads: run one tiny compute
+    /// on the configured device. A missing/broken Vulkan driver used to
+    /// surface as a wgpu panic mid-load; this returns a clear error instead.
+    /// No CPU/software fallback — if this fails the backend simply isn't there.
+    pub fn new_checked() -> Result<Self> {
+        let device = WgpuDevice::DiscreteGpu(gpu_index() as usize);
+        // Silence the default hook so a failed probe prints no backtrace.
+        let _guard = PROBE_HOOK_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let probe = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let x = burn::tensor::Tensor::<BurnBackend<f16>, 2>::from_data(
+                burn::tensor::TensorData::new(vec![1.0f32, 2.0f32], [1, 2]).convert::<f16>(),
+                &device,
+            );
+            let _ = (x.clone() + x).into_data();
+        }));
+        std::panic::set_hook(prev_hook);
+        drop(_guard);
+        probe.map_err(|p| {
+            let text = if let Some(s) = p.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = p.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown error".to_string()
+            };
+            Error::new(format!(
+                "Vulkan unavailable at GPU index {} ({text}); install/update the Vulkan \
+                 driver or choose another GPU index — no CPU fallback",
+                gpu_index()
+            ))
+        })?;
+        Ok(Self::new())
     }
 
     /// RIFE loads from the raw ncnn `flownet.bin` (fp16 weights), not a burnpack.

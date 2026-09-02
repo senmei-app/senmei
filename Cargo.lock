@@ -7942,6 +7942,7 @@ name = "senmei-core"
 version = "0.2.5"
 dependencies = [
  "base64 0.22.1",
+ "dirs",
  "log",
  "schemars 1.2.2",
  "senmei-media",

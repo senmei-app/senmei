@@ -42,6 +42,65 @@
   `RenderSampleParams` → `RenderConfig` mapping; added a `pause_stalls_then_resumes`
   integration test for `pipeline.rs::run()` (cancel was already covered).
 
+- **fix: harden the review findings, round 2 (2026-09-02)** — the Vulkan
+  probe serializes its temporary panic-hook swap behind a mutex (the hook is
+  process-wide); a panicked render now also removes the partial output file;
+  `dev-clean` invokes PowerShell via `-Command` on Windows and drops the
+  GNU-only `xargs -r` for macOS.
+
+- **fix: harden the Windows/Vulkan review findings (2026-09-02)** — the
+  tauri-cli postinstall no longer short-circuits on an installed 1.x (only a
+  2.x version is accepted as matching); the Vulkan probe silences the panic
+  hook so a missing driver surfaces as the clear error only, without a
+  backtrace on stderr.
+
+- **fix: clear GPU error instead of a panic when Vulkan is missing (2026-09-02)**
+  — engine creation now runs a tiny compute probe on the configured device; a
+  missing/broken Vulkan driver returns a clear error ("Vulkan unavailable at
+  GPU index N … no CPU fallback") instead of a wgpu panic mid-load. A
+  `catch_unwind` guard around `render` turns any backend panic into a failed
+  render with the panic message (never a crash or a stuck "running" state).
+  GPU-only by design — no CPU/software fallback.
+
+- **dev: cross-platform `dev:clean` + tauri-cli postinstall (2026-09-02)** — the
+  old `dev:clean` was a Linux-only shell one-liner and failed under Windows/
+  Wine. Replaced by `tools/dev-clean.ts` (kills Vite 1420 + Senmei, clears the
+  platform webview cache incl. `%LOCALAPPDATA%`); `postinstall` runs
+  `tools/ensure-tauri-cli.ts` so `bun install` also ensures the Tauri 2 CLI.
+
+- **fix: no console flash from the ffmpeg filter step on Windows (2026-09-02)**
+  — the frame filter step (`ffmpeg_filter`/tonemap, one short-lived ffmpeg per
+  frame) still spawned with a raw `Command`, so it flashed a console window
+  under Windows/Wine. It now goes through `process::hidden` like every other
+  ffmpeg spawn.
+
+- **fix: preview picks up a fresh FFmpeg without restart (2026-09-02)** — the
+  preview worker resolved the FFmpeg path once at startup and cached it, so a
+  portable FFmpeg downloaded after launch was ignored until the app restarted
+  ("program not found" on every preview decode). The worker now resolves
+  FFmpeg lazily per decode (from the data dir), so a freshly downloaded
+  portable FFmpeg is used immediately.
+
+- **fix: no console flash from FFmpeg subprocesses on Windows (2026-09-02)** —
+  every `ffmpeg`/`ffprobe` spawn (probe, decoder, encoder, thumbnail, preview,
+  compare, frame extract) popped a console window that appeared and vanished.
+  All production spawns now go through `senmei_media::process::hidden()`,
+  which sets `CREATE_NO_WINDOW` on Windows (no-op elsewhere).
+
+- **fix: data dir on Windows (2026-09-02)** — `data_dir()` used the XDG/`HOME`
+  path on every OS, but Windows has no `HOME`, so the app resolved its data
+  dir relative to the working directory (portable FFmpeg, models, logs).
+  Now resolved via `dirs::data_local_dir()`: `%LOCALAPPDATA%\senmei` Windows,
+  `~/Library/Application Support/senmei` macOS, `~/.local/share/senmei` Linux;
+  `XDG_DATA_HOME` still overrides for hermetic tests. `senmei-app::store::
+  data_dir()` delegates to the single `senmei_core::core::data_dir()`.
+
+- **fix: FFmpeg portable download 404 (2026-09-02)** — the pinned BtbN LGPL
+  build (autobuild-2026-08-17-13-05, N-126188) was purged from the release
+  tags, so the portable FFmpeg download failed with 404. Bumped the pin to
+  autobuild-2026-09-01-13-13 (N-126386) with fresh per-platform SHA-256
+  (linux/win64). BtbN purges autobuild tags after ~2 weeks.
+
 ## 0.2.5 (2026-08-31)
 
 - **test: portable libtorch completeness test (2026-08-31)** — the

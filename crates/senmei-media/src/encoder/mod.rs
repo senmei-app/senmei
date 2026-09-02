@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::JoinHandle;
@@ -156,7 +156,7 @@ fn vaapi_device() -> Option<std::path::PathBuf> {
 /// One-frame test encode at `w × h`; an encoder only counts as available when
 /// it actually produces output (VA-API gets an explicit device + hwupload).
 fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
-    let mut cmd = Command::new(ffmpeg);
+    let mut cmd = crate::process::hidden(ffmpeg);
     cmd.arg("-hide_banner").arg("-loglevel").arg("error");
     if codec.ends_with("_vaapi") {
         let Some(dev) = vaapi_device() else {
@@ -352,7 +352,7 @@ fn extract_audio_range(
             .ok()?
             .as_nanos()
     ));
-    let mut cmd = Command::new(ffmpeg);
+    let mut cmd = crate::process::hidden(ffmpeg);
     cmd.arg("-y").arg("-loglevel").arg("error");
     if start_ms > 0 {
         cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
@@ -501,7 +501,7 @@ impl Encoder {
                 .map(|d| d.display().to_string())
                 .unwrap_or_else(|| "cpu".into())
         );
-        let mut cmd = Command::new(ffmpeg);
+        let mut cmd = crate::process::hidden(ffmpeg);
         cmd.arg("-y");
         if let Some(dev) = &vaapi {
             cmd.args(["-init_hw_device", &format!("vaapi=va:{}", dev.display())]);

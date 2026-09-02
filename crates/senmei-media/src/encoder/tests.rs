@@ -1,6 +1,7 @@
 //! Encoder tests.
 
 use super::*;
+use std::process::Command;
 
 #[test]
 fn kvazaar_strips_tune() {

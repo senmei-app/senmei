@@ -27,7 +27,7 @@ fn run_metric(
     key: &str,
 ) -> Result<Option<f64>, String> {
     let lavfi = format!("[0:v]{scale}format=yuv420p[s];[1:v]format=yuv420p[r];[s][r]{filter}");
-    let out = std::process::Command::new(ff)
+    let out = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-i",
