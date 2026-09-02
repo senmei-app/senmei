@@ -172,3 +172,24 @@ fn read_hex(path: impl AsRef<Path>) -> Option<u32> {
     let value = std::fs::read_to_string(path).ok()?;
     u32::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok()
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_number_and_hex_parse_sysfs_style_files() {
+        let dir = std::env::temp_dir().join(format!("senmei-res-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let num = dir.join("mem");
+        std::fs::write(&num, "  123456\n").unwrap();
+        assert_eq!(read_number(&num), Some(123456));
+        assert_eq!(read_number(dir.join("missing")), None);
+        let hex = dir.join("hex");
+        std::fs::write(&hex, "0x1F40\n").unwrap();
+        assert_eq!(read_hex(&hex), Some(8000));
+        assert_eq!(read_hex(dir.join("missing")), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

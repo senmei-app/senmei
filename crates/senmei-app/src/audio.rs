@@ -196,3 +196,40 @@ pub fn audio_set_volume(volume: f64) -> Result<(), String> {
         Ok(())
     })
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    fn source(tx: mpsc::Sender<Vec<u8>>, rx: mpsc::Receiver<Vec<u8>>) -> PcmSource {
+        PcmSource {
+            rx,
+            buf: Vec::new().into_iter(),
+            sample_rate: 48_000,
+            channels: 2,
+        }
+    }
+
+    #[test]
+    fn pcm_source_decodes_le_i16_and_ends_when_pipe_closes() {
+        let (tx, rx) = mpsc::channel::<Vec<u8>>();
+        let mut s = source(tx.clone(), rx);
+        tx.send(vec![0x00, 0x80, 0xFF, 0x7F]).unwrap(); // i16::MIN, i16::MAX (LE)
+        drop(tx);
+        assert_eq!(s.next(), Some(-1.0));
+        assert_eq!(s.next(), Some(32767.0 / 32768.0));
+        assert_eq!(s.next(), None);
+    }
+
+    #[test]
+    fn pcm_source_spans_chunks_and_drops_trailing_odd_byte() {
+        let (tx, rx) = mpsc::channel::<Vec<u8>>();
+        let mut s = source(tx.clone(), rx);
+        tx.send(vec![0x01, 0x00]).unwrap();
+        tx.send(vec![0x02, 0x00, 0x99]).unwrap();
+        drop(tx);
+        assert_eq!(s.next(), Some(1.0 / 32768.0));
+        assert_eq!(s.next(), Some(2.0 / 32768.0));
+        assert_eq!(s.next(), None);
+    }
+}

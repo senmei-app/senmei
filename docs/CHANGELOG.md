@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **test: close the zero-test gaps (2026-09-02)** — added unit tests to
+  `store/projects.rs` (settings roundtrip, `unique_dir` suffixing, data-dir
+  allowlist), `resources.rs` (sysfs number/hex parsers) and `audio.rs`
+  (`PcmSource` LE-i16 decode, chunk spanning, EOF), plus MCP
+  `RenderSampleParams` → `RenderConfig` mapping; added a `pause_stalls_then_resumes`
+  integration test for `pipeline.rs::run()` (cancel was already covered).
+
 ## 0.2.5 (2026-08-31)
 
 - **test: portable libtorch completeness test (2026-08-31)** — the

@@ -343,3 +343,65 @@ pub fn delete_project(path: &str) -> Result<(), String> {
     }
     Ok(())
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_temp_data(name: &str, f: impl FnOnce(&Path)) {
+        let _guard = super::super::TEST_ENV_LOCK.lock().unwrap();
+        let base =
+            std::env::temp_dir().join(format!("senmei-projects-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        std::env::set_var("XDG_DATA_HOME", &base);
+        f(&base);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn settings_roundtrip_and_default_on_missing() {
+        let dir = std::env::temp_dir().join(format!("senmei-proj-set-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let empty = load_project_settings(&dir);
+        assert!(empty.steps.is_empty() && empty.files.is_empty() && empty.output_dir.is_none());
+        let s = ProjectSettings {
+            steps: Vec::new(),
+            files: vec!["a.mp4".into()],
+            output_dir: Some("out".into()),
+        };
+        save_project_settings(&dir, &s).unwrap();
+        let loaded = load_project_settings(&dir);
+        assert_eq!(loaded.files, vec!["a.mp4".to_string()]);
+        assert_eq!(loaded.output_dir.as_deref(), Some("out"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unique_dir_appends_numbered_suffix() {
+        let base = std::env::temp_dir().join(format!("senmei-uniq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let two = unique_dir(&base);
+        assert_eq!(two, PathBuf::from(format!("{} 2", base.display())));
+        std::fs::create_dir_all(&two).unwrap();
+        assert_eq!(
+            unique_dir(&base),
+            PathBuf::from(format!("{} 3", base.display()))
+        );
+        let missing = base.with_extension("gone");
+        assert_eq!(unique_dir(&missing), missing);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn ensure_within_data_dir_allows_inside_rejects_outside() {
+        with_temp_data("within", |base| {
+            let data = base.join("senmei");
+            std::fs::create_dir_all(&data).unwrap();
+            assert!(ensure_within_data_dir(&data.join("projects/x.json")).is_ok());
+            let outside = base.parent().unwrap().join("outside.txt");
+            assert!(ensure_within_data_dir(&outside).is_err());
+        });
+    }
+}
