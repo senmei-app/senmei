@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: no console flash from FFmpeg subprocesses on Windows (2026-09-02)** —
+  every `ffmpeg`/`ffprobe` spawn (probe, decoder, encoder, thumbnail, preview,
+  compare, frame extract) popped a console window that appeared and vanished.
+  All production spawns now go through `senmei_media::process::hidden()`,
+  which sets `CREATE_NO_WINDOW` on Windows (no-op elsewhere).
+
 - **fix: data dir on Windows (2026-09-02)** — `data_dir()` used the XDG/`HOME`
   path on every OS, but Windows has no `HOME`, so the app resolved its data
   dir relative to the working directory (portable FFmpeg, models, logs).

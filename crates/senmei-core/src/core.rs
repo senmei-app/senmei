@@ -465,7 +465,7 @@ fn run_metric(
     key: &str,
 ) -> Result<Option<f64>, String> {
     let lavfi = format!("[0:v]{scale}format=yuv420p[s];[1:v]format=yuv420p[r];[s][r]{filter}");
-    let out = std::process::Command::new(ff)
+    let out = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-i",
@@ -793,7 +793,7 @@ pub fn render(
 /// Extract one frame as PNG (fast seek) — best effort.
 #[cfg(feature = "render")]
 fn extract_frame(ff: &Path, input: &str, at_secs: f64, out_png: &str) -> Result<(), String> {
-    let status = std::process::Command::new(ff)
+    let status = senmei_media::process::hidden(ff)
         .args([
             "-hide_banner",
             "-ss",

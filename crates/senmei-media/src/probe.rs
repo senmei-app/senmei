@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -113,7 +112,7 @@ fn stream_rotation(stream: &Stream) -> u32 {
 }
 
 pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
-    let output = Command::new(ffprobe)
+    let output = crate::process::hidden(ffprobe)
         .args([
             "-v",
             "error",

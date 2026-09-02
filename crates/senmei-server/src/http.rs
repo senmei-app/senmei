@@ -307,7 +307,7 @@ fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
         return Ok(out);
     }
     let ff = crate::core::ffmpeg();
-    let status = std::process::Command::new(ff)
+    let status = senmei_media::process::hidden(ff)
         .args(["-y", "-loglevel", "error", "-i"])
         .arg(input)
         .args(["-vn", "-c:a", "libvorbis", "-b:a", "96k", "-f", "ogg"])

@@ -6,7 +6,7 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 /// Luma variance below this counts as "flat" (anime cel shading).
 const FLAT_VAR: f64 = 2000.0;
@@ -35,7 +35,7 @@ pub fn is_anime(ffmpeg: &Path, input: &Path, duration_ms: u64) -> bool {
 /// Downscale one frame to grayscale; returns (luma variance, Laplacian energy)
 /// over the 64×N sample.
 fn frame_stats(ffmpeg: &Path, input: &Path, at_ms: f64) -> Option<(f64, f64)> {
-    let mut child = Command::new(ffmpeg)
+    let mut child = crate::process::hidden(ffmpeg)
         .args([
             "-hide_banner",
             "-loglevel",

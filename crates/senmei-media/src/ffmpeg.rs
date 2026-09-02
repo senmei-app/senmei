@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::Serialize;
 
@@ -44,7 +43,7 @@ pub fn ffprobe_next_to(ffmpeg: &Path) -> PathBuf {
 }
 
 fn system_ffmpeg_works() -> bool {
-    Command::new(ffmpeg_bin_name())
+    process::hidden(ffmpeg_bin_name())
         .arg("-version")
         .output()
         .map(|o| o.status.success())
