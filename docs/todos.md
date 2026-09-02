@@ -91,20 +91,20 @@
       Experimentieren gerade)
 
 ## Refactor / file size (2026-09-02)
-> Mechanische Splits auf `suggest-and-tests` committed (Tests aus
-> burn/encoder/commands/steps; core.rs-God-File → core/{config,compare,
-> download,render}). Noch offen:
+> Mechanical splits committed on `suggest-and-tests` (tests out of
+> burn/encoder/commands/steps; core.rs God-file → core/{config,compare,
+> download,render}). Still open:
 - [ ] `engine/core.rs` (1073) → `engine/core/` (model/tensor/infer/rgb8) —
-      heißer Inferenz-Pfad: eigener Pass + Benchmark vorher/nachher
-- [ ] `http/mod.rs` (~530) — Media-/Stream-Handler raus wäre nett, aber
-      blockiert: axum `Handler` bricht für die Whole-Request-Handler
-      (`stream`/`audio`) sobald Katalog/Media in Submodule wandern (2026-09-02
-      getestet, zurückgerollt). Erledigt: render.rs + tests.rs sind raus.
-- [ ] `senmei-ml/src/convert.rs` (~767) — Konverter je Format splitten
-- [ ] `core/render.rs` (589) — Subsplit (run/lifecycle) auf <400
-- [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — Code-Splits nach
-      Test-Auslagerung
-- [ ] Frontend `Monitor.tsx` (996) → Hooks (playback/hotkeys/scrub) +
-      Overlays; Ziel ~300, tsc-Verify
+      hot inference path: dedicated pass + before/after benchmark
+- [ ] `http/mod.rs` (~530) — further media/stream extraction would help but is
+      blocked: axum `Handler` breaks for the whole-request handlers
+      (`stream`/`audio`) once catalog/media move into submodules (tested
+      2026-09-02, reverted). Done: render.rs + tests.rs already extracted.
+- [ ] `senmei-ml/src/convert.rs` (~767) — split converters per format
+- [ ] `core/render.rs` (589) — sub-split (run/lifecycle) below 400
+- [ ] `encoder/mod.rs` (669) + `commands/mod.rs` (641) — code splits after the
+      test extraction
+- [ ] Frontend `Monitor.tsx` (996) → hooks (playback/hotkeys/scrub) +
+      overlays; target ~300, tsc-verified
 - [ ] Frontend `App.tsx` (665), `StepEditor` (588), `SettingsPage` (542),
-      `Inspector` (486) — Ziel ~300
+      `Inspector` (486) — target ~300
