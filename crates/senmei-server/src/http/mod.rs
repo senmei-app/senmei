@@ -435,12 +435,14 @@ async fn compare(State(state): State<AppState>, Json(p): Json<CompareParams>) ->
 }
 
 async fn scan_folder(State(state): State<AppState>, Json(p): Json<ScanParams>) -> ApiResult {
-    let dir = Path::new(&p.dir);
+    let Some(dir) = canonical(Path::new(&p.dir)) else {
+        return json_err(StatusCode::BAD_REQUEST, "invalid path");
+    };
     if !dir.is_dir() {
         return json_err(StatusCode::BAD_REQUEST, "not a directory");
     }
-    register_root(&state, dir);
-    match core::scan_folder(&p.dir) {
+    register_root(&state, &dir);
+    match core::scan_folder(&dir.to_string_lossy()) {
         Ok(files) => json_ok(&files),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
