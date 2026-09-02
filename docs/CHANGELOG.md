@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **dev: cross-platform `dev:clean` + tauri-cli postinstall (2026-09-02)** — the
+  old `dev:clean` was a Linux-only shell one-liner and failed under Windows/
+  Wine. Replaced by `tools/dev-clean.ts` (kills Vite 1420 + Senmei, clears the
+  platform webview cache incl. `%LOCALAPPDATA%`); `postinstall` runs
+  `tools/ensure-tauri-cli.ts` so `bun install` also ensures the Tauri 2 CLI.
+
 - **fix: no console flash from the ffmpeg filter step on Windows (2026-09-02)**
   — the frame filter step (`ffmpeg_filter`/tonemap, one short-lived ffmpeg per
   frame) still spawned with a raw `Command`, so it flashed a console window
