@@ -11,6 +11,8 @@ use base64::Engine as _;
 
 use crate::core;
 
+const RENDER_UNAVAILABLE: &str = "render not compiled in (build with --features render)";
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ProbeParams {
     /// Path to a video file.
@@ -180,7 +182,7 @@ impl SenmeiServer {
         #[cfg(not(feature = "render"))]
         {
             let _ = args;
-            json_err("render not compiled in (build with --features render)".to_string())
+            json_err(RENDER_UNAVAILABLE.to_owned())
         }
     }
 
@@ -215,7 +217,7 @@ impl SenmeiServer {
         #[cfg(not(feature = "render"))]
         {
             let _ = args;
-            json_err("render not compiled in (build with --features render)".to_string())
+            json_err(RENDER_UNAVAILABLE.to_owned())
         }
     }
 
@@ -229,7 +231,7 @@ impl SenmeiServer {
             };
         }
         #[cfg(not(feature = "render"))]
-        json_err("render not compiled in (build with --features render)".to_string())
+        json_err(RENDER_UNAVAILABLE.to_owned())
     }
 
     #[tool(description = "Cancel the active render")]
@@ -240,7 +242,7 @@ impl SenmeiServer {
             return json_ok(&"ok");
         }
         #[cfg(not(feature = "render"))]
-        json_err("render not compiled in (build with --features render)".to_string())
+        json_err(RENDER_UNAVAILABLE.to_owned())
     }
 
     #[tool(description = "Poll render status (idle/running/done/failed + frame counts)")]
@@ -250,7 +252,7 @@ impl SenmeiServer {
             return json_ok(&core::render_status());
         }
         #[cfg(not(feature = "render"))]
-        json_err("render not compiled in (build with --features render)".to_string())
+        json_err(RENDER_UNAVAILABLE.to_owned())
     }
 
     #[tool(
@@ -275,7 +277,7 @@ impl SenmeiServer {
         #[cfg(not(feature = "render"))]
         {
             let _ = args;
-            json_err("render not compiled in (build with --features render)".to_string())
+            json_err(RENDER_UNAVAILABLE.to_owned())
         }
     }
 
