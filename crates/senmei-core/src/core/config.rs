@@ -107,7 +107,6 @@ pub fn settings_schema() -> serde_json::Value {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

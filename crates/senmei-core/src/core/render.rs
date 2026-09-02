@@ -1,8 +1,8 @@
 //! Render execution: step assembly, lifecycle status, confirm gate (`render` feature).
 
-use std::path::{Path, PathBuf};
-use super::{data_dir, ffmpeg, load_registry};
 use super::config::RenderConfig;
+use super::{data_dir, ffmpeg, load_registry};
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "render")]
 use std::sync::atomic::{AtomicBool, Ordering};

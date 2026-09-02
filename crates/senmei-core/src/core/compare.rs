@@ -1,7 +1,7 @@
 //! Render quality metrics: PSNR/SSIM comparison against the source.
 
-use std::path::Path;
 use super::ffmpeg;
+use std::path::Path;
 
 /// Parse the last occurrence of `key` in ffmpeg's stderr summary lines
 /// (PSNR `average:`, SSIM `All:`).

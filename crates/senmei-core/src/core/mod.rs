@@ -115,7 +115,6 @@ pub fn scan_folder(dir: &str) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
-
 pub mod compare;
 pub mod config;
 #[cfg(feature = "render")]
