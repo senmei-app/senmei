@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": ["$DATA/**"]
@@ -38,5 +38,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJEMTA3MDc1Q0IzMzcyQzUKUldURmNqUExkWEFRTGFreitkRGcyUjRiYnJnU3RsaU9mcGVBempDdVlJd2ZjNEhjV2lGeUN0eDEK",
+      "endpoints": [],
+      "github": {
+        "owner": "senmei-app",
+        "repo": "senmei"
+      }
+    }
   }
 }

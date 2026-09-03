@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 log.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 senmei-app = { path = "../senmei-app", version = "0.3.0" }
 senmei-server = { path = "../senmei-server", version = "0.3.0", features = ["http"] }
@@ -21,6 +22,8 @@ specta-typescript = "0.0.12"
 tauri = { version = "2", features = ["protocol-asset", "custom-protocol"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
 
 [features]
 default = ["burn"]

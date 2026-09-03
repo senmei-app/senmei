@@ -23,7 +23,9 @@ import StatusBar from "./components/StatusBar";
 import ProjectScreen from "./components/ProjectScreen";
 import SettingsPage from "./components/SettingsPage";
 import AboutDialog from "./components/AboutDialog";
+import UpdateDialog from "./components/UpdateDialog";
 import PathDialog from "./components/PathDialog";
+import { checkForUpdates, type UpdateInfo } from "./updater";
 
 const VIDEO_EXTS = ["mp4", "mkv", "mov", "webm", "avi", "m4v"];
 
@@ -42,6 +44,7 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [mediaView, setMediaView] = useState<"library" | "queue">("library");
@@ -139,6 +142,11 @@ export default function App() {
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Check for app updates once on startup.
+  useEffect(() => {
+    checkForUpdates().then((u) => { if (u) setUpdateInfo(u); });
   }, []);
 
   // Poll hardware usage (GPU/CPU/RAM) once per second.
@@ -658,6 +666,7 @@ export default function App() {
           </div>
         )}
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} onGithub={openGithub} />}
+        {updateInfo && <UpdateDialog update={updateInfo} onClose={() => setUpdateInfo(null)} />}
         <PathDialog />
       </div>
     </I18nProvider>

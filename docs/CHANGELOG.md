@@ -8,6 +8,17 @@
 
 ## Unreleased
 
+- **feat: tauri-plugin-updater for signed auto-updates (2026-09-03)**
+  — Added `tauri-plugin-updater` + `tauri-plugin-process` to the Tauri shell.
+  Configured `plugins.updater` in `tauri.conf.json` with pubkey and GitHub
+  Releases (`owner: senmei-app, repo: senmei`). Added `updater:default` and
+  `process:default` capabilities. Frontend: `packages/app/src/updater.ts`
+  exposes `checkForUpdates()` and `downloadAndRelaunch()`. CSP updated to
+  allow `https://api.github.com`. CI: `bundle` job references `TAURI_SIGNING`
+  environment for signing secrets; `.sig` files uploaded to GitHub Release.
+  UI: `UpdateDialog` shown on startup when a new version is available,
+  with download + relaunch. i18n: en/de/zh/ja.
+
 - **fix: parse_sentinels drain safety + validate_batch rank check (2026-09-03)**
   — `parse_sentinels`: drain moved inside `if let` to avoid out-of-bounds
   read when sentinel has no value; doc comment corrected.
