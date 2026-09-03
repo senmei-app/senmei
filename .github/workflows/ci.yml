@@ -284,7 +284,8 @@ jobs:
             bundles/**/*.deb
             bundles/**/*.rpm
             bundles/**/*.dmg
-            bundles/**/*.dmg.sig
+            bundles/**/*.app.tar.gz
+            bundles/**/*.app.tar.gz.sig
             bundles/**/*.exe
             bundles/**/*.exe.sig
             bundles/**/*.msi

@@ -29,10 +29,10 @@ export async function checkForUpdates(): Promise<UpdateInfo | null> {
   }
 }
 
-/** Download, install, and relaunch. Throws on failure. */
+/** Download, install, and relaunch. Throws if the update is no longer available. */
 export async function downloadAndRelaunch(): Promise<void> {
   const update = await check();
-  if (!update) return;
+  if (!update) throw new Error("Update is no longer available");
   await update.downloadAndInstall();
   await relaunch();
 }

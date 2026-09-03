@@ -623,4 +623,43 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn validate_batch_empty() {
+        let r = super::validate_batch(&[]);
+        assert!(r.is_err(), "empty batch should fail");
+    }
+
+    #[test]
+    fn validate_batch_too_few_dims() {
+        use crate::tensor::Tensor;
+        let t = Tensor::new(vec![1, 3, 64], vec![0.0; 192]);
+        let r = super::validate_batch(&[t]);
+        assert!(r.is_err(), "3D input should fail with NCHW error");
+    }
+
+    #[test]
+    fn validate_batch_1d_input() {
+        use crate::tensor::Tensor;
+        let t = Tensor::new(vec![10], vec![0.0; 10]);
+        let r = super::validate_batch(&[t]);
+        assert!(r.is_err(), "1D input should fail");
+    }
+
+    #[test]
+    fn validate_batch_valid_nchw() {
+        use crate::tensor::Tensor;
+        let t = Tensor::new(vec![1, 3, 8, 8], vec![0.0; 192]);
+        let (n, c, h, w) = super::validate_batch(&[t]).unwrap();
+        assert_eq!((n, c, h, w), (1, 3, 8, 8));
+    }
+
+    #[test]
+    fn validate_batch_mismatched_dims() {
+        use crate::tensor::Tensor;
+        let t1 = Tensor::new(vec![1, 3, 8, 8], vec![0.0; 192]);
+        let t2 = Tensor::new(vec![1, 3, 16, 16], vec![0.0; 768]);
+        let r = super::validate_batch(&[t1, t2]);
+        assert!(r.is_err(), "mismatched spatial dims should fail");
+    }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { UpdateInfo } from "../updater";
 import { downloadAndRelaunch } from "../updater";
@@ -13,6 +13,27 @@ export default function UpdateDialog({
   const { t } = useI18n();
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+
+  // Focus trap: move focus into dialog on open, restore on close.
+  useEffect(() => {
+    previousFocus.current = document.activeElement as HTMLElement;
+    dialogRef.current?.focus();
+    return () => previousFocus.current?.focus();
+  }, []);
+
+  // Escape closes the dialog (unless installing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !installing) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [installing, onClose]);
 
   const handleInstall = async () => {
     setInstalling(true);
@@ -29,10 +50,15 @@ export default function UpdateDialog({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("update.title")}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-80 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        className="w-80 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl outline-none dark:border-slate-700 dark:bg-slate-900"
       >
         <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
           {t("update.title")}
