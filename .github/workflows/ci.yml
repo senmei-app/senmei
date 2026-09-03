@@ -163,6 +163,7 @@ jobs:
     # Separate job so check+test and the release bundle never share a runner
     # disk (the combined build exceeds the hosted runner's capacity).
     needs: build
+    environment: TAURI_SIGNING
     strategy:
       fail-fast: false
       matrix:
@@ -228,6 +229,9 @@ jobs:
           echo "LIBTORCH_BYPASS_VERSION_CHECK=1" >> "$GITHUB_ENV"
       - name: Build app bundle
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           TCH_ARGS=""
           if [ "$RUNNER_OS" != "macOS" ]; then TCH_ARGS="--features tch"; fi
@@ -276,9 +280,14 @@ jobs:
         with:
           files: |
             bundles/**/*.AppImage
+            bundles/**/*.AppImage.sig
             bundles/**/*.deb
             bundles/**/*.rpm
             bundles/**/*.dmg
+            bundles/**/*.app.tar.gz
+            bundles/**/*.app.tar.gz.sig
             bundles/**/*.exe
+            bundles/**/*.exe.sig
             bundles/**/*.msi
+            bundles/**/*.msi.sig
           body_path: release-notes.md

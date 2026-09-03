@@ -55,7 +55,7 @@ pub fn confirm_render() -> Result<String, String> {
         .lock()
         .unwrap()
         .take()
-        .ok_or_else(|| "no pending render; propose_render first".to_string())?;
+        .ok_or_else(|| "no pending render; propose_render first".to_owned())?;
     let status = RENDER_STATUS
         .get_or_init(|| Arc::new(Mutex::new(RenderStatus::default())))
         .clone();

@@ -3,7 +3,7 @@
 use super::ToF16;
 use crate::arch::{DisNet, ParagonSrNet};
 use crate::BurnBackend;
-use crate::{Error, Result};
+use crate::{Error, Result, ResultExt};
 use burn_store::{BurnpackStore, KeyRemapper, ModuleSnapshot, SafetensorsStore};
 use burn_wgpu::WgpuDevice;
 use std::path::Path;
@@ -25,23 +25,23 @@ pub fn convert_safetensors_to_bpk(
     match arch {
         "paragonsr" => {
             let remapper = KeyRemapper::from_patterns(vec![(r"^upsampler\.0\.", "upsampler.")])
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
             let mut m = ParagonSrNet::<BurnBackend>::new(scale as usize, 24, 3, 2, 1.5, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "dis" => {
             let remapper = KeyRemapper::from_patterns(super::pth::dis_remap_patterns())
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
             let mut m = DisNet::<BurnBackend>::new(32, num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }

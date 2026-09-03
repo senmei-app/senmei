@@ -8,6 +8,31 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-09-03)
+
+- **feat: tauri-plugin-updater for signed auto-updates (2026-09-03)**
+  — Added `tauri-plugin-updater` + `tauri-plugin-process` to the Tauri shell.
+  Configured `plugins.updater` in `tauri.conf.json` with pubkey and GitHub
+  Releases (`owner: senmei-app, repo: senmei`). Added `updater:default` and
+  `process:default` capabilities. Frontend: `packages/app/src/updater.ts`
+  exposes `checkForUpdates()` and `downloadAndRelaunch()`. CSP updated to
+  allow `https://api.github.com`. CI: `bundle` job references `TAURI_SIGNING`
+  environment for signing secrets; `.sig` files uploaded to GitHub Release.
+  UI: `UpdateDialog` shown on startup when a new version is available,
+  with download + relaunch. i18n: en/de/zh/ja.
+
+- **fix: parse_sentinels drain safety + validate_batch rank check (2026-09-03)**
+  — `parse_sentinels`: drain moved inside `if let` to avoid out-of-bounds
+  read when sentinel has no value; doc comment corrected.
+  `validate_batch`: rank check moved before shape destructuring to prevent
+  panic on tensors with fewer than 4 dimensions.
+
+- **refactor: code simplification — error mapping, dedup, guard clauses (2026-09-03)**
+  — `ResultExt` trait replaces ~50 `.map_err` boilerplate calls. Extracted
+  `validate_batch` in `rgb8.rs`, `RENDER_UNAVAILABLE` in `mcp.rs`,
+  `bitrate_kbps` in `encoder/select.rs`, `parse_sentinels` in `encoder/mod.rs`.
+  `.to_string()` → `.to_owned()` on string literals.
+
 ## 0.3.0 (2026-09-03)
 
 - **refactor: modularize source files, SSE download, HTTP security (2026-09-03)**

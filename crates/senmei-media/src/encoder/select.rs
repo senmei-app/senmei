@@ -217,6 +217,11 @@ pub(super) enum EncoderPref {
     Software,
 }
 
+/// Resolution-based bitrate for ABR-only encoders (libopenh264).
+fn bitrate_kbps(width: u32, height: u32) -> String {
+    format!("{}k", width as u64 * height as u64 / 144)
+}
+
 /// HW first (verified), then sw chain. HEVC preferred over H.264.
 pub(super) fn pick_from_caps(
     caps: &[String],
@@ -261,7 +266,7 @@ pub(super) fn pick_from_caps(
                     codec.into(),
                     vec![
                         "-b:v".into(),
-                        format!("{}k", width as u64 * height as u64 / 144),
+                        bitrate_kbps(width, height),
                     ],
                 ),
                 "libx264" => (codec.into(), vec!["-preset".into(), x264_preset().into()]),
@@ -281,7 +286,7 @@ pub(super) fn override_codec_args(
     if codec == "libopenh264" && !extra_args.iter().any(|a| a == "-b:v") {
         vec![
             "-b:v".into(),
-            format!("{}k", width as u64 * height as u64 / 144),
+            bitrate_kbps(width, height),
         ]
     } else {
         Vec::new()
