@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-09-03)
+
 - **feat: tauri-plugin-updater for signed auto-updates (2026-09-03)**
   — Added `tauri-plugin-updater` + `tauri-plugin-process` to the Tauri shell.
   Configured `plugins.updater` in `tauri.conf.json` with pubkey and GitHub
