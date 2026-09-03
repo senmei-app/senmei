@@ -42,7 +42,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJEMTA3MDc1Q0IzMzcyQzUKUldURmNqUExkWEFRTGFreitkRGcyUjRiYnJnU3RsaU9mcGVBempDdVlJd2ZjNEhjV2lGeUN0eDEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI2RkEzRDI2QjExREI2Q0MKUldUTXRoMnhKajM2dHNBQ1FvOXFDWXlwdCtNTWNkendxSVNsRmF1Zk9BZ1RQMVI0U2JmM0V6YlAK",
       "endpoints": [],
       "github": {
         "owner": "senmei-app",
