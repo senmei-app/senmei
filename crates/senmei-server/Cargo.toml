@@ -21,6 +21,8 @@ base64.workspace = true
 clap.workspace = true
 schemars.workspace = true
 tokio.workspace = true
+tokio-stream = { version = "0.1", optional = true }
+futures-core = { version = "0.3", optional = true }
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true
@@ -39,4 +41,4 @@ render = ["senmei-ml/burn", "senmei-core/render"]
 # into the data dir; Auto then prefers LibTorch when a GPU is present.
 tch = ["senmei-ml/tch", "senmei-core/tch"]
 # Full web UI + REST API (axum); embeds packages/app/dist via rust-embed.
-http = ["dep:axum", "dep:tower-http", "dep:rust-embed"]
+http = ["dep:axum", "dep:tower-http", "dep:rust-embed", "dep:tokio-stream", "dep:futures-core"]

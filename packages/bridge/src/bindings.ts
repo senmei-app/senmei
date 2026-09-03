@@ -7,7 +7,6 @@ export const commands = {
 	healthCheck: () => __TAURI_INVOKE<string>("health_check"),
 	render: (input: string, output: string, config: RenderConfig, onProgress: Channel<RenderProgress>) => __TAURI_INVOKE<string>("render", { input, output, config, onProgress }),
 	importFolder: (dir: string) => __TAURI_INVOKE<string[]>("import_folder", { dir }),
-	/**  Recursively collect all videos under `dir` (batch folder processing). */
 	scanFolder: (dir: string) => __TAURI_INVOKE<string[]>("scan_folder", { dir }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => __TAURI_INVOKE<null>("save_settings", { settings }),
@@ -17,7 +16,6 @@ export const commands = {
 	createProject: (name: string) => __TAURI_INVOKE<string>("create_project", { name }),
 	deleteProject: (path: string) => __TAURI_INVOKE<null>("delete_project", { path }),
 	exportProject: (src: string, dest: string) => __TAURI_INVOKE<null>("export_project", { src, dest }),
-	/**  Package logs + system info into a `.tar.xz` (diagnose export). */
 	exportDiagnostics: (dest: string) => __TAURI_INVOKE<null>("export_diagnostics", { dest }),
 	openProject: (file: string) => __TAURI_INVOKE<string>("open_project", { file }),
 	loadProjectSettings: (path: string) => __TAURI_INVOKE<ProjectSettings>("load_project_settings", { path }),
@@ -25,17 +23,10 @@ export const commands = {
 	getFfmpegStatus: () => __TAURI_INVOKE<FfmpegInfo>("get_ffmpeg_status"),
 	downloadFfmpeg: (onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_ffmpeg", { onProgress }),
 	listModels: () => __TAURI_INVOKE<ModelMetadata[]>("list_models"),
-	/**  List installed weight files with size + sha256 verification. */
 	modelFiles: () => __TAURI_INVOKE<ModelFileInfo[]>("model_files"),
-	/**  Delete a model's weight files to free disk space. */
 	deleteModelFile: (id: string) => __TAURI_INVOKE<null>("delete_model_file", { id }),
-	/**
-	 *  Download a model's weights (`.pth`, sha256-verified when pinned) and
-	 *  convert them to the app's f16 `.bpk` burnpack.
-	 */
 	downloadModel: (modelId: string, onProgress: Channel<DownloadProgress>) => __TAURI_INVOKE<string>("download_model", { modelId, onProgress }),
 	probeVideo: (input: string) => __TAURI_INVOKE<VideoInfo>("probe_video", { input }),
-	/**  Small JPEG thumbnail (data URL) for the media library tiles. */
 	thumbnail: (input: string, maxW: number | null) => __TAURI_INVOKE<ThumbnailResult>("thumbnail", { input, maxW }),
 	/**
 	 *  Probe content and suggest a default pipeline (content-aware defaults).
@@ -51,25 +42,12 @@ export const commands = {
 	/**  Seek = restart the pipe at position (keeps play state). */
 	audioSeek: (positionMs: number | null) => __TAURI_INVOKE<null>("audio_seek", { positionMs }),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<null>("audio_set_volume", { volume }),
-	/**  Abort the active render (the pipeline checks the flag between frames). */
 	cancelRender: () => __TAURI_INVOKE<void>("cancel_render"),
-	/**  Pause/resume the active render (the pipeline waits between frames). */
 	pauseRender: (paused: boolean) => __TAURI_INVOKE<void>("pause_render", { paused }),
-	/**
-	 *  Keep only the `keep` newest sample render files in `dir` (deletes older
-	 *  video files so the sample folder never grows unbounded).
-	 */
 	pruneSamples: (dir: string, keep: number) => __TAURI_INVOKE<null>("prune_samples", { dir, keep }),
-	/**
-	 *  Return `path` if free, else `{stem}_2.{ext}`, `{stem}_3.{ext}`, … first
-	 *  free name, so batch renders never overwrite an existing file.
-	 */
 	uniquePath: (path: string) => __TAURI_INVOKE<string>("unique_path", { path }),
-	/**  Persist the batch queue state (JSON) so a crash doesn't lose it. */
 	saveBatchQueue: (state: string) => __TAURI_INVOKE<null>("save_batch_queue", { state }),
-	/**  Load the persisted batch queue state, if any. */
 	loadBatchQueue: () => __TAURI_INVOKE<string | null>("load_batch_queue"),
-	/**  Drop the persisted batch queue state. */
 	clearBatchQueue: () => __TAURI_INVOKE<null>("clear_batch_queue"),
 	/**  Buffered entries for the Logs panel when it opens. */
 	getLogs: () => __TAURI_INVOKE<LogEntry[]>("get_logs"),
@@ -107,25 +85,12 @@ export type FfmpegInfo = {
 	decoders: string[],
 };
 
-/**  Optional reference filter steps (denoise/deblur/dedup) for a render. */
 export type FilterParams = {
 	denoiseRadius?: number | null,
-	/**
-	 *  Optional ML denoiser model (DRUNet); when set the denoise step runs the
-	 *  model instead of the CPU box blur.
-	 */
 	denoiseModelId?: string | null,
 	deblurAmount?: number | null,
-	/**
-	 *  Optional ML deblur model (NAFNet); when set the deblur step runs the
-	 *  model instead of the CPU unsharp mask.
-	 */
 	deblurModelId?: string | null,
 	dedupThreshold?: number | null,
-	/**
-	 *  Free-form FFmpeg `-vf` filter graph applied per frame (frame-preserving
-	 *  1:1 only; runs after the reference/ML filters).
-	 */
 	ffmpegFilter?: string | null,
 };
 
@@ -171,7 +136,6 @@ export type LogEntry = {
 	timestamp: number,
 };
 
-/**  One model's on-disk weight info (size + sha256 check). */
 export type ModelFileInfo = {
 	id: string,
 	file: string,
@@ -222,25 +186,17 @@ export type ProjectSettings = {
 	outputDir?: string | null,
 };
 
-/**  All render knobs in one struct (specta caps command arity at 10 args). */
 export type RenderConfig = {
 	scale?: number | null,
 	modelId?: string | null,
 	resize?: number | null,
 	filter?: FilterParams | null,
-	/**
-	 *  Optional ML decompress model (RealPLKSR 1×); runs a scale-1 pass
-	 *  (de-artifact/de-JPEG/de-H.264) ahead of the step chain.
-	 */
 	decompressModelId?: string | null,
 	outputResize?: number | null,
 	fpsMultiplier?: number | null,
 	interpModel?: string | null,
-	/**  Pre-split ffmpeg args (the frontend parses the custom field). */
 	ffmpegArgs?: string[] | null,
-	/**  HDR→SDR tonemapping: "auto" | "always" | "off" (default auto). */
 	tonemap?: string | null,
-	/**  Render only a time range (start ms, end ms; None end = to the end). */
 	startMs?: number | null,
 	endMs?: number | null,
 };
@@ -248,10 +204,6 @@ export type RenderConfig = {
 export type RenderProgress = {
 	framesProcessed: number,
 	totalFrames: number,
-	/**
-	 *  Per-step ms/frame + fps; empty during the run, populated on the final
-	 *  event once the render finishes (the FPS benchmark report).
-	 */
 	steps: StepTimingInfo[],
 };
 
@@ -328,7 +280,6 @@ export type StepParams = {
 	outputFolder?: string | null,
 };
 
-/**  One pipeline step's timing (FPS benchmark). */
 export type StepTimingInfo = {
 	name: string,
 	frames: number,
@@ -336,10 +287,6 @@ export type StepTimingInfo = {
 	fps: number | null,
 };
 
-/**
- *  JPEG data-URL + source probe from the `thumbnail` command — one round trip
- *  so the library tile doesn't need a second `probe_video` call.
- */
 export type ThumbnailResult = {
 	data: string,
 	info: VideoInfo,

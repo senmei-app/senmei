@@ -132,48 +132,52 @@ async fn require_local_client(req: Request<Body>, next: Next) -> Response<Body> 
     (StatusCode::FORBIDDEN, "blocked cross-site request").into_response()
 }
 
+const VIDEO_EXTS: &[&str] = &[
+    "mp4", "m4v", "mkv", "webm", "mov", "avi", "ts", "m2ts", "mts", "flv", "wmv", "mpg", "mpeg",
+    "vob", "3gp", "f4v", "ogv",
+];
+const AUDIO_EXTS: &[&str] = &[
+    "mp3", "flac", "ogg", "oga", "opus", "wav", "aac", "m4a", "wma", "ac3", "ape",
+];
+
 /// The localhost REST API serves caller-supplied paths (`stream`/`audio`/
 /// `frame`/`probe`). Restrict to real media files so a cross-origin page can't
 /// read arbitrary local files (CORS is locked down too — see `router`).
 fn media_path(p: &std::path::Path) -> bool {
-    p.is_file()
-        && p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
-            matches!(
-                e,
-                "mp4"
-                    | "m4v"
-                    | "mkv"
-                    | "webm"
-                    | "mov"
-                    | "avi"
-                    | "ts"
-                    | "m2ts"
-                    | "mts"
-                    | "flv"
-                    | "wmv"
-                    | "mpg"
-                    | "mpeg"
-                    | "vob"
-                    | "3gp"
-                    | "f4v"
-                    | "ogv"
-                    | "mp3"
-                    | "flac"
-                    | "ogg"
-                    | "oga"
-                    | "opus"
-                    | "wav"
-                    | "aac"
-                    | "m4a"
-                    | "wma"
-                    | "ac3"
-                    | "ape"
-            )
-        })
+    if !p.is_file() {
+        return false;
+    }
+    p.extension().and_then(|e| e.to_str()).is_some_and(|ext| {
+        VIDEO_EXTS
+            .iter()
+            .chain(AUDIO_EXTS)
+            .any(|&m| m.eq_ignore_ascii_case(ext))
+    })
+}
+
+/// Canonicalize + media-check + register parent in one call. Returns `None`
+/// when the path is invalid or not a media file.
+fn resolve_media_input(state: &AppState, input: &str) -> Option<PathBuf> {
+    let path = canonical(Path::new(input))?;
+    if !media_path(&path) {
+        return None;
+    }
+    register_parent(state, &path);
+    Some(path)
+}
+
+/// Like `resolve_media_input` but also enforces the allowed-roots check
+/// (for `stream`/`audio` which serve file content directly).
+fn resolve_allowed_media(state: &AppState, input: &str) -> Option<PathBuf> {
+    let path = resolve_allowed(state, Path::new(input))?;
+    if !media_path(&path) {
+        return None;
+    }
+    Some(path)
 }
 
 #[derive(Deserialize)]
-struct ProbeParams {
+struct InputParams {
     input: String,
 }
 
@@ -192,12 +196,6 @@ struct FrameParams {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DownloadParams {
-    model_id: String,
-}
-
-#[derive(Deserialize)]
 struct ScanParams {
     dir: String,
 }
@@ -206,12 +204,6 @@ struct ScanParams {
 struct CompareParams {
     original: String,
     rendered: String,
-}
-
-#[derive(Deserialize)]
-struct SuggestParams {
-    /// Path to a video file to suggest a pipeline for.
-    input: String,
 }
 
 type ApiResult = (StatusCode, Json<serde_json::Value>);
@@ -273,20 +265,19 @@ async fn stream(
     Query(p): Query<StreamParams>,
     req: Request<Body>,
 ) -> Response<Body> {
-    let Some(path) = resolve_allowed(&state, Path::new(&p.path)) else {
+    let Some(path) = resolve_allowed_media(&state, &p.path) else {
         return not_found();
     };
-    if !media_path(&path) {
-        return not_found();
-    }
     serve_file(path, req).await
 }
+
+const AUDIO_CACHE_KEEP: usize = 20;
 
 fn audio_cache_dir() -> std::path::PathBuf {
     crate::core::data_dir().join("audio-cache")
 }
 
-/// Keep the newest ~20 cached tracks so the cache can't grow unbounded.
+/// Keep the newest cached tracks so the cache can't grow unbounded.
 fn prune_audio_cache(dir: &std::path::Path) {
     let mut files: Vec<_> = std::fs::read_dir(dir)
         .into_iter()
@@ -300,7 +291,10 @@ fn prune_audio_cache(dir: &std::path::Path) {
             .and_then(|m| m.modified())
             .unwrap_or(SystemTime::UNIX_EPOCH)
     });
-    for p in files.iter().take(files.len().saturating_sub(20)) {
+    for p in files
+        .iter()
+        .take(files.len().saturating_sub(AUDIO_CACHE_KEEP))
+    {
         let _ = std::fs::remove_file(p);
     }
 }
@@ -338,7 +332,7 @@ async fn audio(
     Query(p): Query<StreamParams>,
     req: Request<Body>,
 ) -> Response<Body> {
-    let Some(input) = resolve_allowed(&state, Path::new(&p.path)) else {
+    let Some(input) = resolve_allowed_media(&state, &p.path) else {
         return not_found();
     };
     let input = input.to_string_lossy().into_owned();
@@ -361,14 +355,10 @@ async fn backend_info() -> ApiResult {
     json_ok(&senmei_ml::backend_info())
 }
 
-async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> ApiResult {
-    let Some(input) = canonical(Path::new(&p.input)) else {
+async fn probe(State(state): State<AppState>, Json(p): Json<InputParams>) -> ApiResult {
+    let Some(input) = resolve_media_input(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     };
-    if !media_path(&input) {
-        return json_err(StatusCode::BAD_REQUEST, "not a media file");
-    }
-    register_parent(&state, &input);
     match core::probe_video(&input.to_string_lossy()) {
         Ok(info) => json_ok(&info),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
@@ -377,16 +367,10 @@ async fn probe(State(state): State<AppState>, Json(p): Json<ProbeParams>) -> Api
 
 /// Content-aware default pipeline suggestion — same payload as the Tauri
 /// command (returns the `{ anime, steps }` object as JSON).
-async fn suggest(State(state): State<AppState>, Json(p): Json<SuggestParams>) -> ApiResult {
-    let Some(input) = canonical(Path::new(&p.input)) else {
+async fn suggest(State(state): State<AppState>, Json(p): Json<InputParams>) -> ApiResult {
+    let Some(input) = resolve_media_input(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     };
-    if !media_path(&input) {
-        return json_err(StatusCode::BAD_REQUEST, "not a media file");
-    }
-    register_parent(&state, &input);
-    // Probe + two FFmpeg frame reads are blocking — keep them off the Tokio
-    // worker (mirrors download_model).
     let input = input.to_string_lossy().into_owned();
     let out = tokio::task::spawn_blocking(move || core::suggest_pipeline(&input)).await;
     match out {
@@ -407,13 +391,9 @@ async fn suggest(State(state): State<AppState>, Json(p): Json<SuggestParams>) ->
 
 /// Small JPEG thumbnail as a `data:` URL (same payload as the Tauri IPC).
 async fn thumbnail(State(state): State<AppState>, Json(p): Json<ThumbnailParams>) -> ApiResult {
-    let Some(input) = canonical(Path::new(&p.input)) else {
+    let Some(input) = resolve_media_input(&state, &p.input) else {
         return json_err(StatusCode::BAD_REQUEST, "not a media file");
     };
-    if !media_path(&input) {
-        return json_err(StatusCode::BAD_REQUEST, "not a media file");
-    }
-    register_parent(&state, &input);
     match core::thumbnail(&input.to_string_lossy(), p.max_w.unwrap_or(160)) {
         Ok((data_url, info)) => json_ok(&serde_json::json!({ "data": data_url, "info": info })),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
@@ -428,31 +408,19 @@ fn preview_worker() -> &'static senmei_media::PreviewWorker {
 
 /// One raw RGB24 frame as the response body; width/height ride in headers so
 /// the payload stays binary (ArrayBuffer on the JS side, like the Tauri path).
-async fn frame(
-    State(state): State<AppState>,
-    Json(p): Json<FrameParams>,
-) -> Result<Response<Body>, ApiResult> {
-    let Some(input) = resolve_allowed(&state, Path::new(&p.input)) else {
-        return Err(json_err(
-            StatusCode::BAD_REQUEST,
-            "not an opened media file",
-        ));
+async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Response<Body> {
+    let Some(input) = resolve_allowed_media(&state, &p.input) else {
+        return json_err(StatusCode::BAD_REQUEST, "not an opened media file").into_response();
     };
-    if !media_path(&input) {
-        return Err(json_err(
-            StatusCode::BAD_REQUEST,
-            "not an opened media file",
-        ));
-    }
     match preview_worker().frame(&input.to_string_lossy(), p.position_ms) {
-        Ok(f) => Ok(Response::builder()
+        Ok(f) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header("x-frame-width", f.width.to_string())
             .header("x-frame-height", f.height.to_string())
             .body(Body::from(f.data))
-            .expect("frame response")),
-        Err(e) => Err(json_err(StatusCode::BAD_REQUEST, e)),
+            .expect("frame response"),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, e).into_response(),
     }
 }
 
@@ -467,12 +435,14 @@ async fn compare(State(state): State<AppState>, Json(p): Json<CompareParams>) ->
 }
 
 async fn scan_folder(State(state): State<AppState>, Json(p): Json<ScanParams>) -> ApiResult {
-    let dir = Path::new(&p.dir);
+    let Some(dir) = canonical(Path::new(&p.dir)) else {
+        return json_err(StatusCode::BAD_REQUEST, "invalid path");
+    };
     if !dir.is_dir() {
         return json_err(StatusCode::BAD_REQUEST, "not a directory");
     }
-    register_root(&state, dir);
-    match core::scan_folder(&p.dir) {
+    register_root(&state, &dir);
+    match core::scan_folder(&dir.to_string_lossy()) {
         Ok(files) => json_ok(&files),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
@@ -512,10 +482,12 @@ fn router_with_state(web_dir: Option<PathBuf>, state: AppState) -> Router {
     // server (localhost:1420 → :8765). Locking origins/methods keeps a random
     // website from reading localhost responses (arbitrary file access).
     let cors = tower_http::cors::CorsLayer::new()
-        .allow_origin([
-            "http://localhost:1420".parse().unwrap(),
-            "http://127.0.0.1:1420".parse().unwrap(),
-        ])
+        .allow_origin(
+            DEV_ORIGINS
+                .iter()
+                .map(|o| o.parse().unwrap())
+                .collect::<Vec<_>>(),
+        )
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([header::CONTENT_TYPE])
         .expose_headers([

@@ -1,9 +1,11 @@
+mod render;
+
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::Manager;
 
@@ -12,9 +14,11 @@ use crate::preview::{read_frame_inner, FrameMeta, FramePixels};
 use crate::store;
 use senmei_core::core;
 
-/// Shared cancellation flag for the active render (set by `cancel_render`).
+use render::{filter_to_core, RenderConfig, RenderProgress, StepTimingInfo};
+
+/// Shared cancellation flag for the active render.
 static CANCEL_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-/// Shared pause flag for the active render (set by `pause_render`).
+/// Shared pause flag for the active render.
 static PAUSE_RENDER: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 #[tauri::command]
@@ -58,7 +62,6 @@ pub fn list_models() -> Vec<senmei_ml::ModelMetadata> {
     core::list_models()
 }
 
-/// One model's on-disk weight info (size + sha256 check).
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelFileInfo {
@@ -68,7 +71,6 @@ pub struct ModelFileInfo {
     pub verified: bool,
 }
 
-/// List installed weight files with size + sha256 verification.
 #[tauri::command]
 #[specta::specta]
 pub fn model_files() -> Vec<ModelFileInfo> {
@@ -103,7 +105,6 @@ pub fn model_files() -> Vec<ModelFileInfo> {
         .collect()
 }
 
-/// Delete a model's weight files to free disk space.
 #[tauri::command]
 #[specta::specta]
 pub fn delete_model_file(id: String) -> Result<(), String> {
@@ -121,8 +122,6 @@ pub fn delete_model_file(id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Download a model's weights (`.pth`, sha256-verified when pinned) and
-/// convert them to the app's f16 `.bpk` burnpack.
 #[tauri::command]
 #[specta::specta]
 pub async fn download_model(
@@ -149,15 +148,12 @@ pub fn probe_video(
     app: tauri::AppHandle,
 ) -> Result<senmei_media::VideoInfo, String> {
     log::info!("probe_video: {input}");
-    // Let the webview load this file via the asset protocol (native <video>).
     let _ = app
         .state::<tauri::scope::Scopes>()
         .allow_file(std::path::Path::new(&input));
     core::probe_video(&input)
 }
 
-/// JPEG data-URL + source probe from the `thumbnail` command — one round trip
-/// so the library tile doesn't need a second `probe_video` call.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ThumbnailResult {
@@ -165,7 +161,6 @@ pub struct ThumbnailResult {
     pub info: senmei_media::VideoInfo,
 }
 
-/// Small JPEG thumbnail (data URL) for the media library tiles.
 #[tauri::command]
 #[specta::specta]
 pub fn thumbnail(input: String, max_w: Option<u32>) -> Result<ThumbnailResult, String> {
@@ -192,12 +187,9 @@ pub async fn read_frame(
     on_frame: Channel<FramePixels>,
 ) -> Result<(), String> {
     log::info!("read_frame: {input} @ {position_ms:.0}ms");
-    // Decode off the main thread so the UI never freezes per frame.
     let frame = tauri::async_runtime::spawn_blocking(move || read_frame_inner(&input, position_ms))
         .await
         .map_err(|e| e.to_string())??;
-    // Meta (JSON) first, then the raw RGB24 bytes (ArrayBuffer on the JS side)
-    // — no base64 over the IPC.
     on_meta
         .send(FrameMeta {
             width: frame.width,
@@ -210,8 +202,6 @@ pub async fn read_frame(
     Ok(())
 }
 
-/// Keep only the `keep` newest sample render files in `dir` (deletes older
-/// video files so the sample folder never grows unbounded).
 #[tauri::command]
 #[specta::specta]
 pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
@@ -232,8 +222,6 @@ pub fn prune_samples(dir: String, keep: usize) -> Result<(), String> {
                 .unwrap_or(false)
         })
         .collect();
-    // Oldest first by modification time, so `keep` always retains the newest
-    // files regardless of filename (range-tagged names don't sort chronologically).
     files.sort_by_key(|p| {
         std::fs::metadata(p)
             .and_then(|m| m.modified())
@@ -256,7 +244,6 @@ pub fn import_folder(dir: String) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Recursively collect all videos under `dir` (batch folder processing).
 #[tauri::command]
 #[specta::specta]
 pub fn scan_folder(dir: String) -> Result<Vec<String>, String> {
@@ -312,7 +299,6 @@ pub fn export_project(src: String, dest: String) -> Result<(), String> {
     store::export_project(&src, &dest)
 }
 
-/// Package logs + system info into a `.tar.xz` (diagnose export).
 #[tauri::command]
 #[specta::specta]
 pub fn export_diagnostics(dest: String) -> Result<(), String> {
@@ -335,67 +321,6 @@ pub fn load_project_settings(path: String) -> store::ProjectSettings {
 #[specta::specta]
 pub fn save_project_settings(path: String, settings: store::ProjectSettings) -> Result<(), String> {
     store::save_project_settings(&PathBuf::from(path), &settings)
-}
-
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RenderProgress {
-    pub frames_processed: u64,
-    pub total_frames: u64,
-    /// Per-step ms/frame + fps; empty during the run, populated on the final
-    /// event once the render finishes (the FPS benchmark report).
-    pub steps: Vec<StepTimingInfo>,
-}
-
-/// One pipeline step's timing (FPS benchmark).
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct StepTimingInfo {
-    pub name: String,
-    pub frames: u64,
-    pub ms_per_frame: f64,
-    pub fps: f64,
-}
-
-/// Optional reference filter steps (denoise/deblur/dedup) for a render.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase", default)]
-pub struct FilterParams {
-    pub denoise_radius: Option<u32>,
-    /// Optional ML denoiser model (DRUNet); when set the denoise step runs the
-    /// model instead of the CPU box blur.
-    pub denoise_model_id: Option<String>,
-    pub deblur_amount: Option<f32>,
-    /// Optional ML deblur model (NAFNet); when set the deblur step runs the
-    /// model instead of the CPU unsharp mask.
-    pub deblur_model_id: Option<String>,
-    pub dedup_threshold: Option<f32>,
-    /// Free-form FFmpeg `-vf` filter graph applied per frame (frame-preserving
-    /// 1:1 only; runs after the reference/ML filters).
-    pub ffmpeg_filter: Option<String>,
-}
-
-/// All render knobs in one struct (specta caps command arity at 10 args).
-#[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase", default)]
-pub struct RenderConfig {
-    pub scale: Option<u32>,
-    pub model_id: Option<String>,
-    pub resize: Option<f32>,
-    pub filter: Option<FilterParams>,
-    /// Optional ML decompress model (RealPLKSR 1×); runs a scale-1 pass
-    /// (de-artifact/de-JPEG/de-H.264) ahead of the step chain.
-    pub decompress_model_id: Option<String>,
-    pub output_resize: Option<f32>,
-    pub fps_multiplier: Option<u32>,
-    pub interp_model: Option<String>,
-    /// Pre-split ffmpeg args (the frontend parses the custom field).
-    pub ffmpeg_args: Option<Vec<String>>,
-    /// HDR→SDR tonemapping: "auto" | "always" | "off" (default auto).
-    pub tonemap: Option<String>,
-    /// Render only a time range (start ms, end ms; None end = to the end).
-    pub start_ms: Option<u64>,
-    pub end_ms: Option<u64>,
 }
 
 #[tauri::command]
@@ -453,7 +378,6 @@ pub async fn render(
                 steps: Vec::new(),
             });
         })?;
-        // Final event carries the per-step benchmark (only steps that ran).
         let steps: Vec<StepTimingInfo> = steps
             .into_iter()
             .map(|t| StepTimingInfo {
@@ -474,19 +398,6 @@ pub async fn render(
     .map_err(|e| e.to_string())?
 }
 
-/// Map the IPC filter params onto the shared core filter config (same fields).
-fn filter_to_core(f: FilterParams) -> core::FilterConfig {
-    core::FilterConfig {
-        denoise_radius: f.denoise_radius,
-        denoise_model_id: f.denoise_model_id,
-        deblur_amount: f.deblur_amount,
-        deblur_model_id: f.deblur_model_id,
-        dedup_threshold: f.dedup_threshold,
-        ffmpeg_filter: f.ffmpeg_filter,
-    }
-}
-
-/// Abort the active render (the pipeline checks the flag between frames).
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_render() {
@@ -496,7 +407,6 @@ pub fn cancel_render() {
     }
 }
 
-/// Pause/resume the active render (the pipeline waits between frames).
 #[tauri::command]
 #[specta::specta]
 pub fn pause_render(paused: bool) {
@@ -505,8 +415,6 @@ pub fn pause_render(paused: bool) {
     }
 }
 
-/// Return `path` if free, else `{stem}_2.{ext}`, `{stem}_3.{ext}`, … first
-/// free name, so batch renders never overwrite an existing file.
 #[tauri::command]
 #[specta::specta]
 pub fn unique_path(path: String) -> Result<String, String> {
@@ -537,7 +445,6 @@ pub fn unique_path(path: String) -> Result<String, String> {
     Err("no free output name found".into())
 }
 
-/// Persist the batch queue state (JSON) so a crash doesn't lose it.
 #[tauri::command]
 #[specta::specta]
 pub fn save_batch_queue(state: String) -> Result<(), String> {
@@ -546,7 +453,6 @@ pub fn save_batch_queue(state: String) -> Result<(), String> {
     std::fs::write(&path, state).map_err(|e| e.to_string())
 }
 
-/// Load the persisted batch queue state, if any.
 #[tauri::command]
 #[specta::specta]
 pub fn load_batch_queue() -> Result<Option<String>, String> {
@@ -558,7 +464,6 @@ pub fn load_batch_queue() -> Result<Option<String>, String> {
     }
 }
 
-/// Drop the persisted batch queue state.
 #[tauri::command]
 #[specta::specta]
 pub fn clear_batch_queue() -> Result<(), String> {

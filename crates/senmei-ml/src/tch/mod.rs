@@ -6,7 +6,9 @@
 //! CPU stays on the burn-Vulkan engine.
 
 use crate::arch::RifeNet;
-use crate::engine::{core, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch};
+use crate::engine::{
+    core, load, rgb8, EngineCaps, InferOptions, InferenceEngine, Model, Rgb8Batch,
+};
 use crate::model::ModelRef;
 use crate::tensor::Tensor;
 use crate::{Error, Result};
@@ -231,7 +233,7 @@ impl InferenceEngine for TchEngine {
                 // f16 backend: the f16 .bpk weights load as-is, no f16→f32
                 // adapter (burn's Vulkan path does the same).
                 let mut store = BurnpackStore::from_file(&model.path);
-                core::load_arch(model, &mut store, &self.device)?
+                load::load_arch(model, &mut store, &self.device)?
             }
         });
         self.scale = model.scale;
@@ -259,14 +261,14 @@ impl InferenceEngine for TchEngine {
         let model = self.model.as_ref()?;
         if !tch_tiled() {
             if let Some(Ok(v)) =
-                core::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
+                rgb8::infer_rgb8_full_frame(model, input, self.scale, scale, &self.device)
             {
                 return Some(Ok(v));
             }
         }
         // Fused rejection (full-frame guard or a forward error): fall back to
         // the tiled fused path, whose own rejection lands on `infer_tiled`.
-        match core::infer_rgb8(model, input, self.scale, scale, &self.device) {
+        match rgb8::infer_rgb8(model, input, self.scale, scale, &self.device) {
             Some(Err(_)) => None,
             other => other,
         }
@@ -281,7 +283,7 @@ impl InferenceEngine for TchEngine {
     ) -> Option<Result<Box<dyn Rgb8Batch>>> {
         let model = self.model.as_ref()?;
         if !tch_tiled() {
-            if let Some(Ok(b)) = core::infer_rgb8_full_frame_batch_prepare(
+            if let Some(Ok(b)) = rgb8::infer_rgb8_full_frame_batch_prepare(
                 model,
                 inputs,
                 self.scale,
@@ -292,7 +294,7 @@ impl InferenceEngine for TchEngine {
             }
         }
         // Full-frame guard/error: fall back to the tiled fused path.
-        match core::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device) {
+        match rgb8::infer_rgb8_batch_prepare(model, inputs, self.scale, scale, &self.device) {
             Some(Ok(b)) => Some(Ok(Box::new(b) as Box<dyn Rgb8Batch>)),
             // Fused path can't handle this input (VRAM guard): fall back to
             // the tiled path rather than surfacing a hard error.

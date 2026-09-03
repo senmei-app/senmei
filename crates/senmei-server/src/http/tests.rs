@@ -288,3 +288,21 @@ async fn stream_rejects_unopened_and_serves_opened() {
 
     std::fs::remove_dir_all(&root).ok();
 }
+
+#[test]
+fn media_path_case_insensitive() {
+    let dir = tmpdir("media_case");
+    // Create real files so is_file() passes.
+    for name in &["a.mp4", "b.MP4", "c.Mp4", "d.FLAC", "e.Flac", "f.txt", "g.PNG", "h.sh"] {
+        std::fs::write(dir.join(name), b"x").unwrap();
+    }
+    assert!(media_path(&dir.join("a.mp4")));
+    assert!(media_path(&dir.join("b.MP4")));
+    assert!(media_path(&dir.join("c.Mp4")));
+    assert!(media_path(&dir.join("d.FLAC")));
+    assert!(media_path(&dir.join("e.Flac")));
+    assert!(!media_path(&dir.join("f.txt")));
+    assert!(!media_path(&dir.join("g.PNG"))); // PNG not in list
+    assert!(!media_path(&dir.join("h.sh")));
+    std::fs::remove_dir_all(&dir).ok();
+}

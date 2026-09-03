@@ -8,6 +8,15 @@
 
 ## Unreleased
 
+- **refactor: modularize source files, SSE download, HTTP security (2026-09-03)**
+  — Split 5 monolithic files into submodules (`engine/core.rs`, `convert.rs`,
+  `encoder/mod.rs`, `render.rs`, `commands/mod.rs`). HTTP adapter:
+  case-insensitive extensions, `resolve_media_input`/`resolve_allowed_media`
+  helpers, param dedup, CORS dedup. SSE download progress via
+  `/api/download-model` (native events, KeepAlive, client-disconnect).
+  Security: `/api/frame` root check, `DownloadParams` camelCase,
+  `scan_folder` path canonicalization (CodeQL #5).
+
 - **fix: macOS `ensure_within_data_dir` behind a symlinked root (2026-09-02)**
   — the containment guard canonicalized the data dir but compared a raw child
   path when the child's parent didn't exist yet, failing on macOS where temp
