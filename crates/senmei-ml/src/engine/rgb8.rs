@@ -21,15 +21,15 @@ fn validate_batch(inputs: &[Tensor]) -> Result<(usize, usize, usize, usize)> {
         return Err(Error::new("empty batch"));
     }
     let n = inputs.len();
+    if inputs[0].shape.len() != 4 {
+        return Err(Error::new("expected NCHW input"));
+    }
     let [_, c, h, w] = [
         inputs[0].shape[0],
         inputs[0].shape[1],
         inputs[0].shape[2],
         inputs[0].shape[3],
     ];
-    if inputs[0].shape.len() != 4 {
-        return Err(Error::new("expected NCHW input"));
-    }
     for inp in inputs {
         if inp.shape.len() != 4 || inp.shape[1] != c || inp.shape[2] != h || inp.shape[3] != w {
             return Err(Error::new("batch inputs must share NCHW dims"));

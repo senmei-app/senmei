@@ -39,23 +39,28 @@ pub struct EncodeOptions<'a> {
 }
 
 /// Parse senmei-specific sentinels from extra_args and remove them.
-/// Returns `(encoder_pref, vaapi_10bit, cleaned_args)`.
+/// Returns `(encoder_pref, vaapi_10bit)`.
 fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool) {
     let mut pref = EncoderPref::Auto;
     if let Some(pos) = args.iter().position(|a| a == "-senmei_encoder") {
-        if let Some(v) = args.get(pos + 1) {
+        if let Some(v) = args.get(pos + 1).cloned() {
             pref = match v.as_str() {
                 "hw" => EncoderPref::Hardware,
                 "sw" => EncoderPref::Software,
                 _ => EncoderPref::Auto,
             };
+            args.drain(pos..pos + 2);
+        } else {
+            args.remove(pos);
         }
-        args.drain(pos..pos + 2);
     }
     if let Some(pos) = args.iter().position(|a| a == "-senmei_vaapi") {
-        let igpu = args.get(pos + 1).map(|v| v == "igpu").unwrap_or(false);
-        set_vaapi_prefer_igpu(igpu);
-        args.drain(pos..pos + 2);
+        if let Some(v) = args.get(pos + 1).cloned() {
+            set_vaapi_prefer_igpu(v == "igpu");
+            args.drain(pos..pos + 2);
+        } else {
+            args.remove(pos);
+        }
     }
     let vaapi_10bit = args
         .windows(2)

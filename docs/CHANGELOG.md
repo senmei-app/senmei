@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: parse_sentinels drain safety + validate_batch rank check (2026-09-03)**
+  — `parse_sentinels`: drain moved inside `if let` to avoid out-of-bounds
+  read when sentinel has no value; doc comment corrected.
+  `validate_batch`: rank check moved before shape destructuring to prevent
+  panic on tensors with fewer than 4 dimensions.
+
 - **refactor: code simplification — error mapping, dedup, guard clauses (2026-09-03)**
   — `ResultExt` trait replaces ~50 `.map_err` boilerplate calls. Extracted
   `validate_batch` in `rgb8.rs`, `RENDER_UNAVAILABLE` in `mcp.rs`,
