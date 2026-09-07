@@ -105,3 +105,15 @@ impl Error {
         Self::Message(msg.into())
     }
 }
+
+/// Extension trait: `.map_err_str()?` replaces the repeated
+/// `.map_err(|e| Error::new(e.to_string()))?` boilerplate.
+pub(crate) trait ResultExt<T> {
+    fn map_err_str(self) -> Result<T>;
+}
+
+impl<T, E: std::fmt::Display> ResultExt<T> for std::result::Result<T, E> {
+    fn map_err_str(self) -> Result<T> {
+        self.map_err(|e| Error::new(e.to_string()))
+    }
+}

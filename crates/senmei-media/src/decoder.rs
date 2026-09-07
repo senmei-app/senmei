@@ -60,7 +60,7 @@ impl Decoder {
         // decoded frames always match `probe`'s display dimensions.
         let mut filters: Vec<String> = Vec::new();
         if tonemap == Tonemap::Always || (tonemap == Tonemap::Auto && info.is_hdr()) {
-            filters.push(TONEMAP_VF.to_string());
+            filters.push(TONEMAP_VF.to_owned());
         }
         if info.rotation != 0 {
             let vf = match info.rotation {
@@ -73,7 +73,7 @@ impl Decoder {
                     )));
                 }
             };
-            filters.push(vf.to_string());
+            filters.push(vf.to_owned());
         }
         // Preview decode budget: downscale only (never upscale) so preview
         // frames match the display instead of the full source resolution.

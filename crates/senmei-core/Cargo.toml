@@ -7,9 +7,9 @@ repository.workspace = true
 description = "Transport-agnostic Senmei core: probe/render/models/queue + license/confirm gates."
 
 [dependencies]
-senmei-media = { path = "../senmei-media", version = "0.3.0" }
-senmei-ml = { path = "../senmei-ml", version = "0.3.0" }
-senmei-pipeline = { path = "../senmei-pipeline", version = "0.3.0", optional = true }
+senmei-media = { path = "../senmei-media", version = "0.3.1" }
+senmei-ml = { path = "../senmei-ml", version = "0.3.1" }
+senmei-pipeline = { path = "../senmei-pipeline", version = "0.3.1", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

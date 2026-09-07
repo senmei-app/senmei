@@ -288,4 +288,9 @@ export const ja: Record<string, string> = {
     "status.files": "ファイル",
     "status.rendering": "レンダリング中",
     "topbar.noFile": "ファイルなし",
+    "update.title": "アップデートがあります",
+    "update.available": "新しいバージョンが利用可能です：",
+    "update.install": "ダウンロードして再起動",
+    "update.installing": "インストール中…",
+    "update.later": "後で",
 };

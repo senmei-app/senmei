@@ -6,7 +6,7 @@ use crate::arch::{
     UpCunet2x, UpCunet2xFast,
 };
 use crate::BurnBackend;
-use crate::{Error, Result};
+use crate::{Error, Result, ResultExt};
 use burn_store::{BurnpackStore, ModuleSnapshot, PytorchStore};
 use burn_wgpu::WgpuDevice;
 
@@ -34,16 +34,16 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 "upcunet2x" => {
                     let mut m = UpCunet2x::<BurnBackend>::new(&device);
                     m.load_from(&mut store)
-                        .map_err(|e| Error::new(e.to_string()))?;
+                        .map_err_str()?;
                     m.save_into(&mut save)
-                        .map_err(|e| Error::new(e.to_string()))?;
+                        .map_err_str()?;
                 }
                 _ => {
                     let mut m = UpCunet2xFast::<BurnBackend>::new(&device);
                     m.load_from(&mut store)
-                        .map_err(|e| Error::new(e.to_string()))?;
+                        .map_err_str()?;
                     m.save_into(&mut save)
-                        .map_err(|e| Error::new(e.to_string()))?;
+                        .map_err_str()?;
                 }
             }
         }
@@ -55,9 +55,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
             let mut m =
                 SrvggNet::<BurnBackend>::new(64, num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "realesrgan" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -78,9 +78,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 &device,
             );
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "ifrnet" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -102,9 +102,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 .with_key_remapping(r"decoder(\d)\.convblock\.2\.", "decoder$1.cb2.");
             let mut m = IfrNet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "drunet" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -119,27 +119,27 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 .with_key_remapping(r"m_up(\d)\.0\.", "m_up$1.up.");
             let mut m = Drunet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "dncnn" => {
             let mut store =
                 PytorchStore::from_file(pth_path).with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Dncnn::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "ffdnet" => {
             let mut store =
                 PytorchStore::from_file(pth_path).with_key_remapping(r"^model\.(\d+)\.", "c$1.");
             let mut m = Ffdnet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "scunet" => {
             let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
@@ -157,9 +157,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 .with_key_remapping(r"\.ln([12])\.bias", ".ln$1.beta");
             let mut m = Scunet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "nafnet" => {
             let mut save = BurnpackStore::from_file(bpk_path).with_to_adapter(ToF16);
@@ -172,9 +172,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 .with_key_remapping(r"sca\.1\.", "sca_conv.");
             let mut m = NafNet::<BurnBackend>::new(&device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "real-plksr" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -194,9 +194,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
             let mut store = store;
             let mut m = RealPlk::<BurnBackend>::new(scale as usize, layer_norm, dysample, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "span" => {
             let mut store = PytorchStore::from_file(pth_path)
@@ -207,9 +207,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
                 .with_key_remapping(r"^upsampler\.0\.", "upsampler.");
             let mut m = Span::<BurnBackend>::new(num_block as usize, scale as usize, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         "safmn" => {
             let mut store = PytorchStore::from_file(pth_path);
@@ -219,9 +219,9 @@ pub fn convert_pth_to_bpk(opts: &ConvertOptions) -> Result<()> {
             let mut m =
                 SafmnNet::<BurnBackend>::new(128, num_block as usize, 2.0, scale as usize, &device);
             m.load_from(&mut store)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
             m.save_into(&mut save)
-                .map_err(|e| Error::new(e.to_string()))?;
+                .map_err_str()?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }

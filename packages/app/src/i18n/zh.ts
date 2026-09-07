@@ -288,4 +288,9 @@ export const zh: Record<string, string> = {
     "status.files": "文件",
     "status.rendering": "渲染中",
     "topbar.noFile": "无文件",
+    "update.title": "有可用更新",
+    "update.available": "新版本可用：",
+    "update.install": "下载并重启",
+    "update.installing": "安装中…",
+    "update.later": "稍后",
 };

@@ -319,3 +319,62 @@ fn finish_after_stderr_overflows() {
     let _ = std::fs::remove_file(&out);
     let _ = std::fs::remove_file(&input);
 }
+
+#[test]
+fn parse_sentinels_hw_value() {
+    let mut args = vec!["-senmei_encoder".into(), "hw".into(), "-c:v".into(), "copy".into()];
+    let (pref, _vaapi) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Hardware));
+    assert_eq!(args, vec!["-c:v", "copy"]);
+}
+
+#[test]
+fn parse_sentinels_sw_value() {
+    let mut args = vec!["-senmei_encoder".into(), "sw".into()];
+    let (pref, _) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Software));
+    assert!(args.is_empty());
+}
+
+#[test]
+fn parse_sentinels_unknown_value() {
+    let mut args = vec!["-senmei_encoder".into(), "bogus".into()];
+    let (pref, _) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Auto));
+    assert!(args.is_empty());
+}
+
+#[test]
+fn parse_sentinels_missing_value() {
+    let mut args = vec!["-senmei_encoder".into()];
+    let (pref, _) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Auto));
+    assert!(args.is_empty(), "trailing sentinel without value should be removed");
+}
+
+#[test]
+fn parse_sentinels_no_sentinels() {
+    let mut args = vec!["-c:v".into(), "copy".into()];
+    let (pref, _) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Auto));
+    assert_eq!(args, vec!["-c:v", "copy"]);
+}
+
+#[test]
+fn parse_sentinels_vaapi_10bit_detected() {
+    let mut args = vec!["-pix_fmt".into(), "yuv420p10le".into()];
+    let (_, vaapi_10bit) = parse_sentinels(&mut args);
+    assert!(vaapi_10bit);
+}
+
+#[test]
+fn parse_sentinels_both_sentinels_removed() {
+    let mut args = vec![
+        "-senmei_encoder".into(), "hw".into(),
+        "-senmei_vaapi".into(), "igpu".into(),
+        "-c:v".into(), "copy".into(),
+    ];
+    let (pref, _) = parse_sentinels(&mut args);
+    assert!(matches!(pref, EncoderPref::Hardware));
+    assert_eq!(args, vec!["-c:v", "copy"]);
+}

@@ -289,4 +289,9 @@ export const de: Record<string, string> = {
     "status.files": "Dateien",
     "status.rendering": "Rendere",
     "topbar.noFile": "Keine Datei",
+    "update.title": "Update verfügbar",
+    "update.available": "Eine neue Version ist verfügbar:",
+    "update.install": "Herunterladen & Neustarten",
+    "update.installing": "Installiere…",
+    "update.later": "Später",
 };

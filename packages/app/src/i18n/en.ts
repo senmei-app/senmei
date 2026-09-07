@@ -288,4 +288,9 @@ export const en: Record<string, string> = {
     "status.files": "files",
     "status.rendering": "Rendering",
     "topbar.noFile": "No file",
+    "update.title": "Update Available",
+    "update.available": "A new version is available:",
+    "update.install": "Download & Restart",
+    "update.installing": "Installing…",
+    "update.later": "Later",
 };
