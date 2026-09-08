@@ -130,7 +130,7 @@ export interface Backend {
   pickFile(filters: { name: string; extensions: string[] }[], title?: string): Promise<string | null>;
 
   // Audio (streamed PCM via rodio in Tauri; web: the `<video>` element plays sound)
-  audioLoad(input: string, positionMs: number): Promise<void>;
+  audioLoad(input: string, positionMs: number, trackIndex?: number | null): Promise<void>;
   audioPlay(): Promise<void>;
   audioPause(): Promise<void>;
   audioClear(): Promise<void>;

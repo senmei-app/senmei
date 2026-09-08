@@ -334,9 +334,11 @@ export const httpBackend: Backend = {
     return openPathDialog({ title: title ?? "Choose file", placeholder: "/path/to/file" });
   },
 
-  async audioLoad(input, positionMs): Promise<void> {
+  async audioLoad(input, positionMs, trackIndex): Promise<void> {
     const el = audioElement();
-    el.src = `${base()}/api/audio?path=${encodeURIComponent(input)}`;
+    let url = `${base()}/api/audio?path=${encodeURIComponent(input)}`;
+    if (trackIndex != null) url += `&track=${trackIndex}`;
+    el.src = url;
     el.load();
     // Seek once playable — a pre-metadata seek aborts the pending (slow) transcode.
     await new Promise<void>((resolve) => {

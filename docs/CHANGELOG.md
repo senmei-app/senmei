@@ -8,6 +8,28 @@
 
 ## Unreleased
 
+- **feat: audio track selection + all streams copy (2026-09-04)**
+  — Encoder: map all audio and subtitle streams (`-map 1:a? -map 1:s?`)
+  instead of only the first audio stream. Previously, multi-track MKVs
+  lost all but one audio stream and all subtitles on render. Temp audio
+  extraction also maps all audio tracks now. Probe: new `AudioTrack` and
+  `SubtitleTrack` structs with index, codec, language, title, channels;
+  `VideoInfo` exposes `audio_tracks` and `subtitle_tracks` vectors.
+  Monitor: compact `Select` (size sm, placement up) next to the volume
+  slider shows active audio track (3-letter language code + channel layout);
+  opens upward to avoid clipping at screen edge. Audio preview supports
+  track switching via `audioLoad(input, pos, trackIndex)` on both Tauri
+  (rodio PCM pipe with `-map 0:a:{idx}`) and HTTP (`/api/audio?track=N`).
+  Bridge types updated with `AudioTrack`, `SubtitleTrack`, and extended
+  `VideoInfo`. i18n: en/de/zh/ja.
+
+- **feat: PAL DVD auto-desqueeze + deinterlace at decode time (2026-09-04)**
+  — Decoder auto-detects PAR from ffprobe and applies `scale=W:H:bilinear`
+  in the FFmpeg filter chain when PAR ≠ 1:1 (e.g. PAL 720×576 → 1024×576
+  for 16:9). Interlaced sources (field_order tt/bb/tb/bt) automatically
+  get `yadif=0:-1:0`. Probe enhanced with `par`, `dar`, `field_order` fields.
+  MetaBar shows PAR/DAR/field order in source metadata. No manual step needed.
+
 ## 0.3.1 (2026-09-03)
 
 - **feat: tauri-plugin-updater for signed auto-updates (2026-09-03)**

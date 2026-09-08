@@ -35,7 +35,7 @@ export const commands = {
 	 */
 	suggestPipeline: (input: string) => __TAURI_INVOKE<string>("suggest_pipeline", { input }),
 	readFrame: (input: string, positionMs: number | null, onMeta: Channel<FrameMeta>, onFrame: Channel<FramePixels>) => __TAURI_INVOKE<null>("read_frame", { input, positionMs, onMeta, onFrame }),
-	audioLoad: (input: string, positionMs: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs }),
+	audioLoad: (input: string, positionMs: number | null, trackIndex: number | null) => __TAURI_INVOKE<null>("audio_load", { input, positionMs, trackIndex }),
 	audioPlay: () => __TAURI_INVOKE<null>("audio_play"),
 	audioPause: () => __TAURI_INVOKE<null>("audio_pause"),
 	audioClear: () => __TAURI_INVOKE<null>("audio_clear"),
@@ -56,6 +56,14 @@ export const commands = {
 };
 
 /* Types */
+export type AudioTrack = {
+	index: number,
+	codec: string,
+	language: string | null,
+	title: string | null,
+	channels: number,
+};
+
 /**  Runtime info about the compiled backends (settings UI). */
 export type BackendInfo = {
 	vulkanCompiled: boolean,
@@ -287,6 +295,13 @@ export type StepTimingInfo = {
 	fps: number | null,
 };
 
+export type SubtitleTrack = {
+	index: number,
+	codec: string,
+	language: string | null,
+	title: string | null,
+};
+
 export type ThumbnailResult = {
 	data: string,
 	info: VideoInfo,
@@ -311,5 +326,13 @@ export type VideoInfo = {
 	audioCodec: string | null,
 	/**  Video pixel format (e.g. "yuv420p"). */
 	pixFmt: string | null,
+	/**  Sample Aspect Ratio as a string ratio (e.g. "64:45", "12:11", "1:1"). */
+	par: string | null,
+	/**  Display Aspect Ratio as a string ratio (e.g. "16:9", "4:3"). */
+	dar: string | null,
+	/**  Field order from ffprobe (e.g. "tt", "bb", "progressive"). */
+	fieldOrder: string | null,
+	audioTracks: AudioTrack[],
+	subtitleTracks: SubtitleTrack[],
 };
 

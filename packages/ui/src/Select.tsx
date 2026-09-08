@@ -13,6 +13,8 @@ export interface SelectProps {
   className?: string;
   /** Compact sizing for dense toolbars/headers. */
   size?: "sm" | "md";
+  /** Dropdown opens upward instead of downward. */
+  placement?: "up" | "down";
 }
 
 const Chevron = ({ open }: { open: boolean }) => (
@@ -25,7 +27,7 @@ const Chevron = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-export function Select({ value, onChange, options, className = "", size = "md" }: SelectProps) {
+export function Select({ value, onChange, options, className = "", size = "md", placement = "down" }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(() => options.findIndex((o) => o.value === value));
   const ref = useRef<HTMLDivElement>(null);
@@ -115,7 +117,7 @@ export function Select({ value, onChange, options, className = "", size = "md" }
       </button>
 
       {open && (
-        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-950">
+        <ul className={`absolute z-50 max-h-60 w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-950 ${placement === "up" ? "bottom-full mb-1" : "mt-1"}`}>
           {options.map((opt, i) => (
             <li key={opt.value}>
               <button

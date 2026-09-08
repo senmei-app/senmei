@@ -35,19 +35,25 @@ impl PcmPipe {
 }
 
 /// Spawn the PCM pipe: returns the child (for kill) + a chunk channel.
+/// `track_index` selects a specific audio stream (None = default/first).
 pub fn stream_pcm(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,
     position_ms: f64,
     sample_rate: u32,
+    track_index: Option<u32>,
 ) -> Result<(PcmPipe, std::sync::mpsc::Receiver<Vec<u8>>)> {
-    let mut child = crate::process::hidden(ffmpeg)
-        .args([
-            "-ss",
-            &format!("{:.3}", position_ms.max(0.0) / 1000.0),
-            "-i",
-        ])
-        .arg(input)
+    let mut cmd = crate::process::hidden(ffmpeg);
+    cmd.args([
+        "-ss",
+        &format!("{:.3}", position_ms.max(0.0) / 1000.0),
+        "-i",
+    ])
+    .arg(input);
+    if let Some(idx) = track_index {
+        cmd.args(["-map", &format!("0:a:{idx}")]);
+    }
+    let mut child = cmd
         .args([
             "-vn",
             "-ac",
@@ -112,8 +118,8 @@ mod tests {
             .map(|s| s.success())
             .unwrap_or(false);
         assert!(ok, "failed to generate source audio");
-        let (mut pipe, rx) =
-            stream_pcm(std::path::Path::new(&ffmpeg), &src, 0.0, 48_000).expect("spawn stream");
+        let (mut pipe, rx) = stream_pcm(std::path::Path::new(&ffmpeg), &src, 0.0, 48_000, None)
+            .expect("spawn stream");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let mut got = 0usize;
         while got == 0 && std::time::Instant::now() < deadline {

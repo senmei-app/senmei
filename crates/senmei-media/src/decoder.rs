@@ -62,6 +62,19 @@ impl Decoder {
         if tonemap == Tonemap::Always || (tonemap == Tonemap::Auto && info.is_hdr()) {
             filters.push(TONEMAP_VF.to_owned());
         }
+        // Auto deinterlace: apply yadif when the source is interlaced.
+        if info.is_interlaced() {
+            filters.push("yadif=0:-1:0".to_owned());
+        }
+        // Auto desqueeze: when PAR != 1:1, scale to square pixels at decode
+        // time. Applied before rotation so PAR correction uses storage dims.
+        let mut out_w = info.width;
+        let mut out_h = info.height;
+        if let Some((tw, th)) = auto_desqueeze_target(&info) {
+            filters.push(format!("scale={tw}:{th}:flags=bilinear"));
+            out_w = tw;
+            out_h = th;
+        }
         if info.rotation != 0 {
             let vf = match info.rotation {
                 90 => "transpose=2", // 90° counterclockwise
@@ -77,14 +90,12 @@ impl Decoder {
         }
         // Preview decode budget: downscale only (never upscale) so preview
         // frames match the display instead of the full source resolution.
-        let mut out_w = info.width;
-        let mut out_h = info.height;
         if let Some(m) = max_dim.filter(|m| *m > 0) {
-            let longest = info.width.max(info.height);
+            let longest = out_w.max(out_h);
             if longest > m {
                 let s = m as f64 / longest as f64;
-                out_w = ((info.width as f64 * s).round() as u32).max(2) & !1;
-                out_h = ((info.height as f64 * s).round() as u32).max(2) & !1;
+                out_w = ((out_w as f64 * s).round() as u32).max(2) & !1;
+                out_h = ((out_h as f64 * s).round() as u32).max(2) & !1;
                 filters.push(format!("scale={out_w}:{out_h}"));
             }
         }
@@ -158,6 +169,34 @@ impl Decoder {
             }
         }
         Ok(frame)
+    }
+}
+
+/// Compute the desqueeze target dimensions from the source PAR.
+/// Returns `Some((target_w, target_h))` when the source has non-square pixels
+/// and the target width is a reasonable anamorphic size (even, ≤2048).
+fn auto_desqueeze_target(info: &crate::probe::VideoInfo) -> Option<(u32, u32)> {
+    let par = info.par.as_deref()?;
+    let (pn, pm) = parse_ratio(par)?;
+    if pm == 0 || pn == pm {
+        return None; // PAR 1:1 or invalid
+    }
+    let target_w = ((pn as f64 * info.width as f64 / pm as f64).round() as u32 + 1) & !1;
+    if target_w <= info.width || target_w > 2048 {
+        return None; // not anamorphic or unreasonably large
+    }
+    Some((target_w, info.height))
+}
+
+/// Parse a ratio string like "64:45" into `(num, den)`.
+fn parse_ratio(s: &str) -> Option<(u32, u32)> {
+    let (n, d) = s.split_once(':')?;
+    let n: u32 = n.trim().parse().ok()?;
+    let d: u32 = d.trim().parse().ok()?;
+    if d == 0 {
+        None
+    } else {
+        Some((n, d))
     }
 }
 
@@ -237,5 +276,115 @@ mod tests {
             frame.data, out.stdout,
             "scaled decode must match direct ffmpeg"
         );
+    }
+
+    #[test]
+    fn auto_desqueeze_pal_16by9() {
+        use crate::probe::VideoInfo;
+        let info = VideoInfo {
+            width: 720,
+            height: 576,
+            fps: 25.0,
+            duration: 1.0,
+            video_duration: 1.0,
+            rotation: 0,
+            color_transfer: None,
+            color_primaries: None,
+            video_codec: None,
+            audio_codec: None,
+            pix_fmt: None,
+            par: Some("64:45".into()),
+            dar: Some("16:9".into()),
+            field_order: None,
+            audio_tracks: vec![],
+            subtitle_tracks: vec![],
+        };
+        assert_eq!(auto_desqueeze_target(&info), Some((1024, 576)));
+    }
+
+    #[test]
+    fn auto_desqueeze_pal_4by3() {
+        use crate::probe::VideoInfo;
+        let info = VideoInfo {
+            width: 720,
+            height: 576,
+            fps: 25.0,
+            duration: 1.0,
+            video_duration: 1.0,
+            rotation: 0,
+            color_transfer: None,
+            color_primaries: None,
+            video_codec: None,
+            audio_codec: None,
+            pix_fmt: None,
+            par: Some("16:15".into()),
+            dar: Some("4:3".into()),
+            field_order: None,
+            audio_tracks: vec![],
+            subtitle_tracks: vec![],
+        };
+        assert_eq!(auto_desqueeze_target(&info), Some((768, 576)));
+    }
+
+    #[test]
+    fn auto_desqueeze_skips_square_pixels() {
+        use crate::probe::VideoInfo;
+        let info = VideoInfo {
+            width: 1920,
+            height: 1080,
+            fps: 24.0,
+            duration: 1.0,
+            video_duration: 1.0,
+            rotation: 0,
+            color_transfer: None,
+            color_primaries: None,
+            video_codec: None,
+            audio_codec: None,
+            pix_fmt: None,
+            par: Some("1:1".into()),
+            dar: Some("16:9".into()),
+            field_order: None,
+            audio_tracks: vec![],
+            subtitle_tracks: vec![],
+        };
+        assert_eq!(auto_desqueeze_target(&info), None);
+    }
+
+    #[test]
+    fn auto_desqueeze_skips_no_par() {
+        use crate::probe::VideoInfo;
+        let info = VideoInfo {
+            width: 720,
+            height: 576,
+            fps: 25.0,
+            duration: 1.0,
+            video_duration: 1.0,
+            rotation: 0,
+            color_transfer: None,
+            color_primaries: None,
+            video_codec: None,
+            audio_codec: None,
+            pix_fmt: None,
+            par: None,
+            dar: None,
+            field_order: None,
+            audio_tracks: vec![],
+            subtitle_tracks: vec![],
+        };
+        assert_eq!(auto_desqueeze_target(&info), None);
+    }
+
+    #[test]
+    fn parse_ratio_valid() {
+        assert_eq!(parse_ratio("64:45"), Some((64, 45)));
+        assert_eq!(parse_ratio("1:1"), Some((1, 1)));
+        assert_eq!(parse_ratio("16:15"), Some((16, 15)));
+    }
+
+    #[test]
+    fn parse_ratio_invalid() {
+        assert_eq!(parse_ratio(""), None);
+        assert_eq!(parse_ratio("abc"), None);
+        assert_eq!(parse_ratio("1:0"), None);
     }
 }

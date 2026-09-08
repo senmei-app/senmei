@@ -144,7 +144,7 @@ impl Encoder {
             cmd.arg("-i").arg(input);
         }
         cmd.arg("-copyts")
-            .args(["-map", "0:v:0", "-map", "1:a:0?"])
+            .args(["-map", "0:v:0", "-map", "1:a?", "-map", "1:s?"])
             .args(["-shortest"])
             .args(if temp_audio.is_some() {
                 vec!["-c:a".to_owned(), "copy".to_owned()]

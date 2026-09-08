@@ -25,10 +25,20 @@ function toFactor(v: string | null | undefined): number | null {
   return Number.isFinite(f) && f > 0 ? f : null;
 }
 
+/** Parse a "N:M" ratio string into a scale factor, or 1.0 if invalid. */
+function parsePar(par: string | null | undefined): number {
+  if (!par) return 1;
+  const [n, d] = par.split(":").map(Number);
+  if (!d || !n || d === 0) return 1;
+  return n / d;
+}
+
 /** Estimate the configured output's meta from the enabled pipeline steps. */
 export function computeOutputMeta(info: VideoInfo | null, steps: PipelineStep[]): OutputMeta {
+  // Start with display dimensions (after PAR desqueeze), not storage dims.
+  const parFactor = parsePar(info?.par);
   const out: OutputMeta = {
-    width: info?.width ?? null,
+    width: info?.width != null ? Math.round(info.width * parFactor) : null,
     height: info?.height ?? null,
     fps: info?.fps ?? null,
     duration: info?.duration ?? null,
@@ -117,12 +127,22 @@ export default function MetaBar({
   const outColor = out.colorTransfer ?? out.colorPrimaries ?? null;
   const outCodec = out.codec ? `${prettyCodec(out.codec)}${out.container ? ` · ${out.container}` : ""}` : dash;
 
+  const srcPar = info?.par ?? null;
+  const srcDar = info?.dar ?? null;
+  const srcField = info?.fieldOrder ?? null;
+  // Source display width after PAR desqueeze (matches what the decoder outputs).
+  const parFactor = parsePar(info?.par);
+  const srcDisplayW = info?.width != null ? Math.round(info.width * parFactor) : null;
+
   const rows: { key: string; src: string; out: string }[] = [
-    { key: t("meta.resolution"), src: fmtRes(info?.width ?? null, info?.height ?? null), out: fmtRes(out.width, out.height) },
+    { key: t("meta.resolution"), src: fmtRes(srcDisplayW, info?.height ?? null), out: fmtRes(out.width, out.height) },
     { key: t("meta.fps"), src: fmtFps(info?.fps ?? null), out: fmtFps(out.fps) },
     { key: t("meta.codec"), src: srcCodec ? prettyCodec(srcCodec) : dash, out: outCodec },
     { key: t("meta.duration"), src: fmtClock((info?.duration ?? 0) * 1000), out: fmtClock((out.duration ?? 0) * 1000) },
     { key: t("meta.color"), src: srcColor ?? dash, out: outColor ?? dash },
+    { key: "PAR", src: srcPar ?? dash, out: dash },
+    { key: "DAR", src: srcDar ?? dash, out: dash },
+    { key: t("meta.fieldOrder"), src: srcField ?? dash, out: dash },
   ];
 
   const block = [

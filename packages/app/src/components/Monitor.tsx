@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { Check, ChevronDown, Info, Pause, Play, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Select } from "@senmei/ui";
 import type { RenderProgress, StepTimingInfo, VideoInfo } from "@senmei/bridge";
 import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
@@ -170,6 +171,10 @@ export default function Monitor({
     void be()?.audioSeek(ms).catch(() => {});
   };
 
+  // Audio track selection. `null` = first/default track.
+  const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
+  const audioTracks = info?.audioTracks ?? [];
+
   // Stream the file's audio; a fresh `audioLoad` replaces the current pipe.
   useEffect(() => {
     // Drop the previous stream so a stale source can't play while the next loads.
@@ -177,11 +182,11 @@ export default function Monitor({
     setAudioReady(false);
     if (!be() || !file) return;
     be()!
-      .audioLoad(file, 0)
+      .audioLoad(file, 0, selectedTrack)
       .then(() => setAudioReady(true))
       .catch((e) => console.error("audio load failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, beReady]);
+  }, [file, beReady, selectedTrack]);
 
   // Audio resolves async; apply volume once ready, land on the playhead, and
   // join playback if it already started.
@@ -977,6 +982,22 @@ export default function Monitor({
               aria-label={t("monitor.volume")}
               className="h-1 w-16 cursor-pointer accent-indigo-500"
             />
+            {audioTracks.length > 1 && (
+              <Select
+                size="sm"
+                placement="up"
+                value={String(selectedTrack ?? audioTracks[0]?.index ?? 0)}
+                onChange={(v) => {
+                  const idx = Number(v);
+                  setSelectedTrack(idx === audioTracks[0]?.index ? null : idx);
+                }}
+                options={audioTracks.map((t) => ({
+                  value: String(t.index),
+                  label: `${(t.language ?? `T${t.index + 1}`).slice(0, 3).toUpperCase()}${t.channels >= 6 ? " 5.1" : ""}`,
+                }))}
+                className="w-16"
+              />
+            )}
           </div>
         </div>
         <Benchmark timings={timings} />

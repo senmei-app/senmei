@@ -246,6 +246,9 @@ async fn logs() -> ApiResult {
 #[derive(Deserialize)]
 struct StreamParams {
     path: String,
+    /// Optional audio track index (0-based).
+    #[serde(default)]
+    track: Option<u32>,
 }
 
 /// Serve a file with Range support (206) for the browser `<video>`; unsupported
@@ -301,20 +304,29 @@ fn prune_audio_cache(dir: &std::path::Path) {
 
 /// Transcode the source audio to a cached Vorbis/Ogg track (Chrome rejects
 /// this build's audio-only AAC MP4; libvorbis is LGPL-safe).
-fn transcode_audio(input: &str) -> Result<std::path::PathBuf, String> {
+/// `track_index` selects a specific audio stream (None = default/first).
+fn transcode_audio(input: &str, track_index: Option<u32>) -> Result<std::path::PathBuf, String> {
     if !media_path(std::path::Path::new(input)) {
         return Err("not a media file".into());
     }
     let dir = audio_cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let out = dir.join(format!("{}.ogg", senmei_media::sha256_hex_str(input)));
+    // Include track index in cache key so different tracks don't collide.
+    let cache_key = match track_index {
+        Some(idx) => format!("{}_t{idx}", senmei_media::sha256_hex_str(input)),
+        None => senmei_media::sha256_hex_str(input).to_string(),
+    };
+    let out = dir.join(format!("{cache_key}.ogg"));
     if out.is_file() {
         return Ok(out);
     }
     let ff = crate::core::ffmpeg();
-    let status = senmei_media::process::hidden(ff)
-        .args(["-y", "-loglevel", "error", "-i"])
-        .arg(input)
+    let mut cmd = senmei_media::process::hidden(ff);
+    cmd.args(["-y", "-loglevel", "error", "-i"]).arg(input);
+    if let Some(idx) = track_index {
+        cmd.args(["-map", &format!("0:a:{idx}")]);
+    }
+    let status = cmd
         .args(["-vn", "-c:a", "libvorbis", "-b:a", "96k", "-f", "ogg"])
         .arg(&out)
         .status()
@@ -336,7 +348,8 @@ async fn audio(
         return not_found();
     };
     let input = input.to_string_lossy().into_owned();
-    let out = match tokio::task::spawn_blocking(move || transcode_audio(&input)).await {
+    let track = p.track;
+    let out = match tokio::task::spawn_blocking(move || transcode_audio(&input, track)).await {
         Ok(Ok(o)) => o,
         _ => {
             return json_err(StatusCode::BAD_REQUEST, "audio transcode failed").into_response();

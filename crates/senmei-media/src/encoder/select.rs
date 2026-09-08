@@ -264,10 +264,7 @@ pub(super) fn pick_from_caps(
                 "libx265" => (codec.into(), vec!["-preset".into(), x265_preset().into()]),
                 "libopenh264" => (
                     codec.into(),
-                    vec![
-                        "-b:v".into(),
-                        bitrate_kbps(width, height),
-                    ],
+                    vec!["-b:v".into(), bitrate_kbps(width, height)],
                 ),
                 "libx264" => (codec.into(), vec!["-preset".into(), x264_preset().into()]),
                 other => (other.into(), vec![]),
@@ -284,10 +281,7 @@ pub(super) fn override_codec_args(
     height: u32,
 ) -> Vec<String> {
     if codec == "libopenh264" && !extra_args.iter().any(|a| a == "-b:v") {
-        vec![
-            "-b:v".into(),
-            bitrate_kbps(width, height),
-        ]
+        vec!["-b:v".into(), bitrate_kbps(width, height)]
     } else {
         Vec::new()
     }
@@ -321,7 +315,7 @@ pub(super) fn extract_audio_range(
     }
     cmd.arg("-i")
         .arg(input)
-        .args(["-map", "0:a:0?", "-c:a", "aac"])
+        .args(["-map", "0:a?", "-c:a", "aac"])
         .arg(&tmp)
         .stdout(Stdio::null())
         .stderr(Stdio::null());
