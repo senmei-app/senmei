@@ -293,7 +293,9 @@ async fn stream_rejects_unopened_and_serves_opened() {
 fn media_path_case_insensitive() {
     let dir = tmpdir("media_case");
     // Create real files so is_file() passes.
-    for name in &["a.mp4", "b.MP4", "c.Mp4", "d.FLAC", "e.Flac", "f.txt", "g.PNG", "h.sh"] {
+    for name in &[
+        "a.mp4", "b.MP4", "c.Mp4", "d.FLAC", "e.Flac", "f.txt", "g.PNG", "h.sh",
+    ] {
         std::fs::write(dir.join(name), b"x").unwrap();
     }
     assert!(media_path(&dir.join("a.mp4")));

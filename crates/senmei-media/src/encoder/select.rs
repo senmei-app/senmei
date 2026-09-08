@@ -3,7 +3,6 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 /// Read a preset env var; the default stays a literal (no per-call leak), only
@@ -63,15 +62,8 @@ pub(super) const HW_ENCODERS: [&str; 6] = [
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 pub(super) const HW_ENCODERS: [&str; 0] = [];
 
-/// Encode on the integrated GPU (iGPU) instead of the discrete GPU.
-static PREFER_IGPU: AtomicBool = AtomicBool::new(false);
-
-pub(super) fn set_vaapi_prefer_igpu(v: bool) {
-    PREFER_IGPU.store(v, Ordering::Relaxed);
-}
-
 /// VA-API device of the discrete GPU by default, or the iGPU when offloading.
-pub(super) fn vaapi_device() -> Option<PathBuf> {
+pub(super) fn vaapi_device(prefer_igpu: bool) -> Option<PathBuf> {
     if let Ok(dev) = std::env::var("SENMEI_VAAPI_DEVICE") {
         if !dev.is_empty() {
             let p = Path::new(&dev);
@@ -96,7 +88,7 @@ pub(super) fn vaapi_device() -> Option<PathBuf> {
         .filter(|(_, v)| *v > 0)
         .collect();
     cards.sort_by(|a, b| {
-        if PREFER_IGPU.load(Ordering::Relaxed) {
+        if prefer_igpu {
             a.1.cmp(&b.1)
         } else {
             b.1.cmp(&a.1)
@@ -129,7 +121,7 @@ pub(super) fn test_encode(ffmpeg: &Path, codec: &str, w: u32, h: u32) -> bool {
     let mut cmd = crate::process::hidden(ffmpeg);
     cmd.arg("-hide_banner").arg("-loglevel").arg("error");
     if codec.ends_with("_vaapi") {
-        let Some(dev) = vaapi_device() else {
+        let Some(dev) = vaapi_device(false) else {
             return false;
         };
         cmd.args(["-init_hw_device", &format!("vaapi=va:{}", dev.display())]);
@@ -264,10 +256,7 @@ pub(super) fn pick_from_caps(
                 "libx265" => (codec.into(), vec!["-preset".into(), x265_preset().into()]),
                 "libopenh264" => (
                     codec.into(),
-                    vec![
-                        "-b:v".into(),
-                        bitrate_kbps(width, height),
-                    ],
+                    vec!["-b:v".into(), bitrate_kbps(width, height)],
                 ),
                 "libx264" => (codec.into(), vec!["-preset".into(), x264_preset().into()]),
                 other => (other.into(), vec![]),
@@ -284,17 +273,13 @@ pub(super) fn override_codec_args(
     height: u32,
 ) -> Vec<String> {
     if codec == "libopenh264" && !extra_args.iter().any(|a| a == "-b:v") {
-        vec![
-            "-b:v".into(),
-            bitrate_kbps(width, height),
-        ]
+        vec!["-b:v".into(), bitrate_kbps(width, height)]
     } else {
         Vec::new()
     }
 }
 
-/// Trim the source audio to `[start_ms, start_ms + duration_ms)` into a
-/// temp `.m4a` (re-encoded AAC, 0-based PTS).
+/// Range-trim audio + subtitles into a temp `.mkv` (AAC audio, subs copied).
 pub(super) fn extract_audio_range(
     ffmpeg: &Path,
     input: &Path,
@@ -304,7 +289,7 @@ pub(super) fn extract_audio_range(
     use std::process::Stdio;
     use std::time::{SystemTime, UNIX_EPOCH};
     let tmp = std::env::temp_dir().join(format!(
-        "senmei_audio_{}_{}.m4a",
+        "senmei_range_{}_{}.mkv",
         std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -321,7 +306,9 @@ pub(super) fn extract_audio_range(
     }
     cmd.arg("-i")
         .arg(input)
-        .args(["-map", "0:a:0?", "-c:a", "aac"])
+        .args([
+            "-map", "0:a?", "-c:a", "aac", "-map", "0:s?", "-c:s", "copy",
+        ])
         .arg(&tmp)
         .stdout(Stdio::null())
         .stderr(Stdio::null());

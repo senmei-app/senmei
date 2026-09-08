@@ -3,7 +3,7 @@
 
 import type { ReactNode, RefObject } from "react";
 import { ChevronDown, FolderOpen } from "lucide-react";
-import type { ModelMetadata } from "@senmei/bridge";
+import type { ModelMetadata, SubtitleTrack } from "@senmei/bridge";
 import { Select } from "@senmei/ui";
 import { useI18n } from "../i18n";
 import {
@@ -24,6 +24,8 @@ const segBtn = (active: boolean) =>
 export interface StepEditorProps {
   step: PipelineStep;
   outputDir?: string | null;
+  /** Subtitle tracks of the currently open source (drives the pick list). */
+  subtitleTracks?: SubtitleTrack[] | null;
   interpolateModels: ModelMetadata[];
   upscaleModels: ModelMetadata[];
   denoiseModels: ModelMetadata[];
@@ -77,6 +79,7 @@ export default function StepEditor(props: StepEditorProps) {
   const {
     step: s,
     outputDir,
+    subtitleTracks,
     interpolateModels,
     upscaleModels,
     denoiseModels,
@@ -329,6 +332,16 @@ export default function StepEditor(props: StepEditorProps) {
         if (prof) updateParams(s.id, { quality: q, crf: prof.crf, preset: prof.preset });
         else updateParams(s.id, { quality: "Custom" });
       };
+      const SUB_MODES = ["None", "Copy", "Selected"];
+      const rawSubMode = s.params?.subtitleMode ?? "";
+      const subMode = SUB_MODES.includes(rawSubMode) ? rawSubMode : "None";
+      const subPicks = new Set<number>((s.params?.subtitleTracks ?? []).map(Number));
+      const toggleSub = (idx: number) => {
+        const next = new Set(subPicks);
+        if (next.has(idx)) next.delete(idx);
+        else next.add(idx);
+        updateParams(s.id, { subtitleTracks: [...next].sort((a, b) => a - b) });
+      };
       return (
         <>
           {field(
@@ -558,10 +571,36 @@ export default function StepEditor(props: StepEditorProps) {
           {field(
             t("subtitle.mode"),
             <Select
-              value={s.params?.subtitleMode ?? "None"}
+              value={subMode}
               onChange={(v) => updateParams(s.id, { subtitleMode: v })}
-              options={["None", "Copy", "HardSub", "SoftSub"].map((m) => ({ value: m, label: m }))}
+              options={[
+                { value: "None", label: t("subtitle.none") },
+                { value: "Copy", label: t("subtitle.all") },
+                { value: "Selected", label: t("subtitle.selected") },
+              ]}
             />,
+          )}
+          {subMode === "Selected" && (
+            <div className="space-y-1 rounded-lg border border-slate-200 p-2 dark:border-slate-700/60">
+              {subtitleTracks && subtitleTracks.length > 0 ? (
+                subtitleTracks.map((st) => (
+                  <label key={st.index} className="flex cursor-pointer items-center gap-2 text-[11px]">
+                    <input
+                      type="checkbox"
+                      checked={subPicks.has(st.index)}
+                      onChange={() => toggleSub(st.index)}
+                      className="accent-indigo-500"
+                    />
+                    <span className="truncate text-slate-700 dark:text-slate-200">
+                      {st.language ?? st.title ?? `Track ${st.index + 1}`}
+                      <span className="text-slate-400"> · {st.codec}</span>
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">{t("subtitle.openSource")}</p>
+              )}
+            </div>
           )}
           {field(
             t("output.ffmpeg"),

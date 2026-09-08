@@ -11,7 +11,7 @@ use crate::{Error, Result};
 
 use select::{
     extract_audio_range, hw_verifier, kvazaar_compat_args, override_codec_args, pick_from_caps,
-    set_vaapi_prefer_igpu, vaapi_compat_args, vaapi_device, EncoderPref,
+    vaapi_compat_args, vaapi_device, EncoderPref,
 };
 #[cfg(test)]
 use select::{test_encode, HW_ENCODERS};
@@ -36,12 +36,15 @@ pub struct EncodeOptions<'a> {
     pub fps: f64,
     pub start_ms: u64,
     pub duration_ms: Option<u64>,
+    /// Fed video length (ms); audio/subs are trimmed to it (`None` = -shortest fallback).
+    pub video_dur_ms: Option<u64>,
 }
 
 /// Parse senmei-specific sentinels from extra_args and remove them.
-/// Returns `(encoder_pref, vaapi_10bit)`.
-fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool) {
+/// Returns `(encoder_pref, vaapi_10bit, prefer_igpu)`.
+fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool, bool) {
     let mut pref = EncoderPref::Auto;
+    let mut prefer_igpu = false;
     if let Some(pos) = args.iter().position(|a| a == "-senmei_encoder") {
         if let Some(v) = args.get(pos + 1).cloned() {
             pref = match v.as_str() {
@@ -56,7 +59,7 @@ fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool) {
     }
     if let Some(pos) = args.iter().position(|a| a == "-senmei_vaapi") {
         if let Some(v) = args.get(pos + 1).cloned() {
-            set_vaapi_prefer_igpu(v == "igpu");
+            prefer_igpu = v == "igpu";
             args.drain(pos..pos + 2);
         } else {
             args.remove(pos);
@@ -65,7 +68,31 @@ fn parse_sentinels(args: &mut Vec<String>) -> (EncoderPref, bool) {
     let vaapi_10bit = args
         .windows(2)
         .any(|w| w[0] == "-pix_fmt" && w[1].starts_with("yuv4") && w[1].contains("10le"));
-    (pref, vaapi_10bit)
+    (pref, vaapi_10bit, prefer_igpu)
+}
+
+fn should_tune_interleaving(args: &[String]) -> bool {
+    !args.iter().any(|arg| arg == "-an") || args.iter().any(|arg| arg == "-c:s")
+}
+
+const PAL_SDR_FILTER: &str =
+    "setparams=range=tv:color_primaries=bt470bg:color_trc=bt470bg:colorspace=bt470bg";
+
+fn pal_sdr_filter(source: &crate::VideoInfo, args: &[String]) -> Option<&'static str> {
+    let has_manual_color = args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "-color_range" | "-color_primaries" | "-color_trc" | "-colorspace" | "-vf"
+        )
+    });
+    let untagged = |value: Option<&str>| matches!(value, None | Some("unknown"));
+    (source.video_codec.as_deref() == Some("mpeg2video")
+        && source.width == 720
+        && source.height == 576
+        && untagged(source.color_primaries.as_deref())
+        && untagged(source.color_transfer.as_deref())
+        && !has_manual_color)
+        .then_some(PAL_SDR_FILTER)
 }
 
 impl Encoder {
@@ -79,11 +106,15 @@ impl Encoder {
             fps,
             start_ms,
             duration_ms,
+            video_dur_ms,
         } = *cfg;
         let caps = crate::ffmpeg::probe(ffmpeg).encoders;
         let verify = hw_verifier(ffmpeg);
         let mut extra_args = extra_args.to_vec();
-        let (pref, vaapi_10bit) = parse_sentinels(&mut extra_args);
+        let (pref, vaapi_10bit, prefer_igpu) = parse_sentinels(&mut extra_args);
+        let color_filter = crate::probe(&crate::ffprobe_next_to(ffmpeg), input)
+            .ok()
+            .and_then(|source| pal_sdr_filter(&source, &extra_args));
         let verify_full = |codec: &str| select::test_encode(ffmpeg, codec, width, height);
         let (mut video_codec, mut codec_args) =
             pick_from_caps(&caps, width, height, pref, &verify, &verify_full);
@@ -103,7 +134,10 @@ impl Encoder {
         if video_codec.ends_with("_vaapi") {
             extra_args = vaapi_compat_args(&extra_args);
         }
-        let vaapi = video_codec.ends_with("_vaapi").then(vaapi_device).flatten();
+        let vaapi = video_codec
+            .ends_with("_vaapi")
+            .then(|| vaapi_device(prefer_igpu))
+            .flatten();
         if vaapi.is_some() && !extra_args.iter().any(|a| a == "-qp" || a == "-rc_mode") {
             codec_args = vec!["-qp".into(), "20".into()];
         }
@@ -138,29 +172,63 @@ impl Encoder {
             if start_ms > 0 {
                 cmd.args(["-ss", &format!("{:.3}", start_ms as f64 / 1000.0)]);
             }
-            if let Some(dur) = duration_ms {
-                cmd.args(["-t", &format!("{:.3}", dur as f64 / 1000.0)]);
+            // Input -t trims copied audio/subs to the fed video length (an output -t would EPIPE).
+            let trim_ms = duration_ms.or(video_dur_ms);
+            if let Some(trim) = trim_ms {
+                cmd.args(["-t", &format!("{:.3}", trim as f64 / 1000.0)]);
             }
             cmd.arg("-i").arg(input);
         }
-        cmd.arg("-copyts")
-            .args(["-map", "0:v:0", "-map", "1:a:0?"])
-            .args(["-shortest"])
-            .args(if temp_audio.is_some() {
-                vec!["-c:a".to_owned(), "copy".to_owned()]
+        if temp_audio.is_some() {
+            cmd.arg("-copyts");
+        }
+        // Map every audio stream, not just the first.
+        cmd.args(["-map", "0:v:0", "-map", "1:a?"]);
+        // Explicit per-track picks override the map-all default.
+        let pick_sub_maps = extra_args
+            .windows(2)
+            .any(|w| w[0] == "-map" && w[1].starts_with("1:s"));
+        if extra_args.iter().any(|a| a == "-c:s") && !pick_sub_maps {
+            cmd.args(["-map", "1:s?"]);
+        }
+        if video_dur_ms.is_none() {
+            cmd.args(["-shortest"]);
+        }
+        cmd.args(if temp_audio.is_some() {
+            vec!["-c:a".to_owned(), "copy".to_owned()]
+        } else {
+            Vec::new()
+        })
+        .args(["-c:v", &video_codec])
+        .args(codec_args)
+        .args(if let Some(filter) = color_filter {
+            let fmt = if vaapi_10bit { "p010" } else { "nv12" };
+            if vaapi.is_some() {
+                vec!["-vf".to_string(), format!("{filter},format={fmt},hwupload")]
             } else {
-                Vec::new()
-            })
-            .args(["-c:v", &video_codec])
-            .args(codec_args)
-            .args(if vaapi.is_some() {
-                let fmt = if vaapi_10bit { "p010" } else { "nv12" };
-                ["-vf".to_string(), format!("format={fmt},hwupload")]
-            } else {
-                ["-pix_fmt".to_owned(), "yuv420p".to_owned()]
-            })
-            .args(&extra_args)
-            .arg(path)
+                vec![
+                    "-vf".to_string(),
+                    filter.to_string(),
+                    "-pix_fmt".to_string(),
+                    "yuv420p".to_string(),
+                ]
+            }
+        } else if vaapi.is_some() {
+            let fmt = if vaapi_10bit { "p010" } else { "nv12" };
+            vec!["-vf".to_string(), format!("format={fmt},hwupload")]
+        } else {
+            vec!["-pix_fmt".to_owned(), "yuv420p".to_owned()]
+        })
+        .args(&extra_args);
+        if should_tune_interleaving(&extra_args) {
+            cmd.args([
+                "-max_interleave_delta",
+                "0",
+                "-max_muxing_queue_size",
+                "500000",
+            ]);
+        }
+        cmd.arg(path)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped());

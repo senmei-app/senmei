@@ -45,6 +45,9 @@ pub struct StepParams {
     pub audio_codec: Option<String>,
     #[serde(default)]
     pub subtitle_mode: Option<String>,
+    /// 0-based subtitle streams to copy (empty = copy none/all per mode).
+    #[serde(default)]
+    pub subtitle_tracks: Option<Vec<u32>>,
     /// Raw extra ffmpeg arguments for the output encode (e.g. `-c:v libx265 -crf 18`).
     /// Takes precedence per-flag over the structured fields below.
     #[serde(default)]

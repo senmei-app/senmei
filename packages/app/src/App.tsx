@@ -7,6 +7,7 @@ import type {
   ProjectEntry,
   ProjectSettings,
   Settings,
+  VideoInfo,
 } from "@senmei/bridge";
 import { backend as getBackend } from "./backend";
 import { I18nProvider, type Lang } from "./i18n";
@@ -45,6 +46,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  // Probe of the currently open source file (Monitor reports it) — feeds the
+  // output step's subtitle track picker.
+  const [sourceInfo, setSourceInfo] = useState<VideoInfo | null>(null);
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [mediaView, setMediaView] = useState<"library" | "queue">("library");
@@ -530,6 +534,7 @@ export default function App() {
       sampleOutMs={sampleRange?.outMs ?? 0}
       onSampleChange={(inMs, outMs) => setSampleRange({ inMs, outMs })}
       onRenderSample={renderSample}
+      onInfoChange={setSourceInfo}
       fullVideo={fullVideo}
       onToggleFullVideo={toggleFullVideo}
       toggleMetaHotkey={resolvedHotkeys.toggleMeta}
@@ -652,7 +657,7 @@ export default function App() {
               </Panel>
               <PanelResizeHandle className="w-1.5 cursor-col-resize bg-slate-200 transition-colors hover:bg-indigo-300/70 active:bg-indigo-400/80 dark:bg-slate-800/80 dark:hover:bg-indigo-400/40" />
               <Panel defaultSize={25} minSize={18}>
-                <RightPanel steps={steps} outputDir={outputDir} onChange={commitSteps} onSuggest={suggestPipeline} />
+                <RightPanel steps={steps} outputDir={outputDir} onChange={commitSteps} onSuggest={suggestPipeline} subtitleTracks={sourceInfo?.subtitleTracks ?? null} />
               </Panel>
             </PanelGroup>
             <StatusBar

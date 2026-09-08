@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { Check, ChevronDown, Info, Pause, Play, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Select } from "@senmei/ui";
 import type { RenderProgress, StepTimingInfo, VideoInfo } from "@senmei/bridge";
 import { backend, type Backend } from "../backend";
 import { useI18n } from "../i18n";
@@ -27,6 +28,7 @@ export default function Monitor({
   sampleOutMs = 0,
   onSampleChange,
   onRenderSample,
+  onInfoChange,
   fullVideo = false,
   onToggleFullVideo,
   togglePlayHotkey = "Space",
@@ -56,6 +58,8 @@ export default function Monitor({
   sampleOutMs?: number;
   onSampleChange?: (inMs: number, outMs: number) => void;
   onRenderSample?: () => void;
+  /** Reports the probed source info upward (drives the subtitle pick list). */
+  onInfoChange?: (info: VideoInfo | null) => void;
   /** Full Video Mode: the app fullscreens the OS window and shows only this
    *  monitor (video stays in the DOM — smooth, controlled dblclick). */
   fullVideo?: boolean;
@@ -117,6 +121,8 @@ export default function Monitor({
   const dblRef = useRef(0);
   const toggleRef = useRef(onToggleFullVideo);
   toggleRef.current = onToggleFullVideo;
+  const infoRef = useRef(onInfoChange);
+  infoRef.current = onInfoChange;
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const el = monitorRef.current;
@@ -170,18 +176,29 @@ export default function Monitor({
     void be()?.audioSeek(ms).catch(() => {});
   };
 
+  // Audio track selection. Reset on file change to avoid stale index.
+  const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
+  const prevFileRef = useRef<string | null>(null);
+  const audioTracks = info?.audioTracks ?? [];
+
+  useEffect(() => {
+    if (file !== prevFileRef.current) {
+      prevFileRef.current = file ?? null;
+      setSelectedTrack(null);
+    }
+  }, [file]);
+
   // Stream the file's audio; a fresh `audioLoad` replaces the current pipe.
   useEffect(() => {
-    // Drop the previous stream so a stale source can't play while the next loads.
     void be()?.audioClear().catch(() => {});
     setAudioReady(false);
     if (!be() || !file) return;
     be()!
-      .audioLoad(file, 0)
+      .audioLoad(file, 0, selectedTrack)
       .then(() => setAudioReady(true))
       .catch((e) => console.error("audio load failed:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, beReady]);
+  }, [file, beReady, selectedTrack]);
 
   // Audio resolves async; apply volume once ready, land on the playhead, and
   // join playback if it already started.
@@ -438,6 +455,7 @@ export default function Monitor({
           ? inMs
           : posMs;
     setInfo(null);
+    if (fileChanged) infoRef.current?.(null);
     posRef.current = next; // update the playhead ref immediately (audio targets it)
     setPosMs(next);
     // Keep the sound on the (possibly clamped) playhead: switching into the
@@ -461,6 +479,7 @@ export default function Monitor({
         .then((i) => {
           if (!on) return;
           setInfo(i);
+          if (fileChanged) infoRef.current?.(i);
           setNativeUrl(b.nativeVideoUrl(probeTarget));
           if (fileChanged) onSampleChange?.(0, snapFrame(Math.min(10000, (i.duration ?? 0) * 1000), i.fps ?? 0));
         })
@@ -977,6 +996,23 @@ export default function Monitor({
               aria-label={t("monitor.volume")}
               className="h-1 w-16 cursor-pointer accent-indigo-500"
             />
+            {audioTracks.length > 1 && (
+              <Select
+                size="sm"
+                placement="up"
+                aria-label={t("monitor.audioTrack")}
+                value={String(selectedTrack ?? audioTracks[0]?.index ?? 0)}
+                onChange={(v) => {
+                  const idx = Number(v);
+                  setSelectedTrack(idx === audioTracks[0]?.index ? null : idx);
+                }}
+                options={audioTracks.map((t) => ({
+                  value: String(t.index),
+                  label: `${(t.language ?? `T${t.index + 1}`).slice(0, 3).toUpperCase()} ${t.channels}ch`,
+                }))}
+                className="w-20"
+              />
+            )}
           </div>
         </div>
         <Benchmark timings={timings} />

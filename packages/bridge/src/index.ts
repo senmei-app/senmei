@@ -23,6 +23,8 @@ export type {
   ModelFileInfo,
   StepTimingInfo,
   VideoInfo,
+  AudioTrack,
+  SubtitleTrack,
   ThumbnailResult,
   FfmpegInfo as FfmpegStatus,
   RenderConfig,
@@ -88,8 +90,8 @@ export const readFrame = (
   onFrame: Channel<FramePixels>,
 ) => commands.readFrame(input, positionMs, onMeta, onFrame);
 
-export const audioLoad = (input: string, positionMs: number) =>
-  commands.audioLoad(input, positionMs);
+export const audioLoad = (input: string, positionMs: number, trackIndex?: number | null) =>
+  commands.audioLoad(input, positionMs, trackIndex ?? null);
 export const audioPlay = () => commands.audioPlay();
 export const audioPause = () => commands.audioPause();
 export const audioClear = () => commands.audioClear();

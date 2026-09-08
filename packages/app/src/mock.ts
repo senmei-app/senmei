@@ -109,6 +109,14 @@ function demoProbe(): VideoInfo {
     videoCodec: "h264",
     audioCodec: "aac",
     pixFmt: "yuv420p",
+    par: "1:1",
+    dar: "16:9",
+    fieldOrder: "progressive",
+    audioTracks: [{ index: 0, codec: "aac", language: "German", title: null, channels: 6 }],
+    subtitleTracks: [
+      { index: 0, codec: "subrip", language: "ger", title: null },
+      { index: 1, codec: "hdmv_pgs_subtitle", language: "eng", title: "Commentary" },
+    ],
   };
 }
 

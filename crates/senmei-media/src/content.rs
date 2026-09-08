@@ -163,7 +163,7 @@ mod tests {
             "flat color should look like anime"
         );
         assert!(!is_anime(ff, &live, 1000), "noisy testsrc should look live");
-        
+
         // Test blurry
         let blurry_live = dir.join("blurry_live.mp4");
         clip(

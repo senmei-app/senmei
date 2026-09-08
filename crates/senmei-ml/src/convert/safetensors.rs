@@ -28,20 +28,16 @@ pub fn convert_safetensors_to_bpk(
                 .map_err_str()?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
             let mut m = ParagonSrNet::<BurnBackend>::new(scale as usize, 24, 3, 2, 1.5, &device);
-            m.load_from(&mut store)
-                .map_err_str()?;
-            m.save_into(&mut save)
-                .map_err_str()?;
+            m.load_from(&mut store).map_err_str()?;
+            m.save_into(&mut save).map_err_str()?;
         }
         "dis" => {
-            let remapper = KeyRemapper::from_patterns(super::pth::dis_remap_patterns())
-                .map_err_str()?;
+            let remapper =
+                KeyRemapper::from_patterns(super::pth::dis_remap_patterns()).map_err_str()?;
             let mut store = SafetensorsStore::from_file(st_path).remap(remapper);
             let mut m = DisNet::<BurnBackend>::new(32, num_block as usize, scale as usize, &device);
-            m.load_from(&mut store)
-                .map_err_str()?;
-            m.save_into(&mut save)
-                .map_err_str()?;
+            m.load_from(&mut store).map_err_str()?;
+            m.save_into(&mut save).map_err_str()?;
         }
         other => return Err(Error::new(format!("unsupported arch: {other}"))),
     }

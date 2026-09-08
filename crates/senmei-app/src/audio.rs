@@ -65,6 +65,7 @@ struct Player {
     sink: Option<rodio::Sink>,
     volume: f32,
     input: Option<String>,
+    track_index: Option<u32>,
     pipe: Option<senmei_media::PcmPipe>,
 }
 
@@ -84,6 +85,7 @@ fn with_player<T>(f: impl FnOnce(&mut Player) -> Result<T, String>) -> Result<T,
                 sink: None,
                 volume: 1.0,
                 input: None,
+                track_index: None,
                 pipe: None,
             });
         }
@@ -110,14 +112,21 @@ fn preroll_pcm(rx: &mpsc::Receiver<Vec<u8>>) -> Vec<i16> {
     out
 }
 
-fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result<(), String> {
+fn start(
+    p: &mut Player,
+    input: &str,
+    position_ms: f64,
+    playing: bool,
+    track_index: Option<u32>,
+) -> Result<(), String> {
     if let Some(mut pipe) = p.pipe.take() {
         pipe.stop();
     }
     p.sink = None;
     let ffmpeg = senmei_media::resolve(&crate::store::data_dir());
-    let (pipe, rx) = senmei_media::stream_pcm(&ffmpeg, Path::new(input), position_ms, 48_000)
-        .map_err(|e| e.to_string())?;
+    let (pipe, rx) =
+        senmei_media::stream_pcm(&ffmpeg, Path::new(input), position_ms, 48_000, track_index)
+            .map_err(|e| e.to_string())?;
     let preroll = preroll_pcm(&rx);
     let source = PcmSource {
         rx,
@@ -141,8 +150,11 @@ fn start(p: &mut Player, input: &str, position_ms: f64, playing: bool) -> Result
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_load(input: String, position_ms: f64) -> Result<(), String> {
-    with_player(|p| start(p, &input, position_ms, false))
+pub fn audio_load(input: String, position_ms: f64, track_index: Option<u32>) -> Result<(), String> {
+    with_player(|p| {
+        p.track_index = track_index;
+        start(p, &input, position_ms, false, track_index)
+    })
 }
 
 #[tauri::command]
@@ -190,7 +202,8 @@ pub fn audio_seek(position_ms: f64) -> Result<(), String> {
             .clone()
             .ok_or_else(|| "no audio loaded".to_string())?;
         let playing = p.sink.as_ref().map(|s| !s.is_paused()).unwrap_or(false);
-        start(p, &input, position_ms, playing)
+        let track = p.track_index;
+        start(p, &input, position_ms, playing, track)
     })
 }
 

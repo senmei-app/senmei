@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "../i18n";
+import type { SubtitleTrack } from "@senmei/bridge";
 import type { PipelineStep } from "../steps";
 import Inspector from "./Inspector";
 import LogsPanel from "./LogsPanel";
@@ -11,11 +12,14 @@ export default function RightPanel({
   outputDir,
   onChange,
   onSuggest,
+  subtitleTracks,
 }: {
   steps: PipelineStep[];
   outputDir?: string | null;
   onChange: (steps: PipelineStep[]) => void;
   onSuggest?: () => void;
+  /** Subtitle tracks of the currently open source file (drives track pick UI). */
+  subtitleTracks?: SubtitleTrack[] | null;
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<"stack" | "logs">("stack");
@@ -36,7 +40,7 @@ export default function RightPanel({
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "stack" ? (
-          <Inspector steps={steps} outputDir={outputDir} onChange={onChange} onSuggest={onSuggest} />
+          <Inspector steps={steps} outputDir={outputDir} onChange={onChange} onSuggest={onSuggest} subtitleTracks={subtitleTracks} />
         ) : (
           <LogsPanel />
         )}

@@ -184,8 +184,8 @@ export const tauriBackend: Backend = {
     return typeof picked === "string" ? picked : null;
   },
 
-  async audioLoad(input, positionMs) {
-    await bridge.audioLoad(input, positionMs);
+  async audioLoad(input, positionMs, trackIndex) {
+    await bridge.audioLoad(input, positionMs, trackIndex ?? null);
   },
   async audioPlay() {
     await bridge.audioPlay();
