@@ -8,6 +8,38 @@
 
 ## Unreleased
 
+- **feat: DVD deinterlace/desqueeze, audio/subtitle selection + encode fixes (2026-09-08)**
+  — Decoder auto-deinterlaces (yadif, no fps doubling) and auto-desqueezes
+  anamorphic sources from the probed PAR, applied to storage dims before
+  rotation (PAL 720×576 → 1024×576 @16:9 / 768×576 @4:3; NTSC 4:3 720×480 →
+  640×480). Probe adds `par`/`dar`/`field_order` and `audio_tracks`/
+  `subtitle_tracks`.
+  — Encoder maps every audio stream (`-map 1:a?`); the output-step subtitle
+  mode is None / All / Selected — Selected is a per-track multi-select
+  (0-based picks persisted in `subtitleTracks`) fed by the open source's
+  streams; sample renders reuse the same args. Ranged renders carry subtitles
+  through the temp MKV (was: silently dropped). Source audio/subs are trimmed to
+  the fed video length so a render ends with the video (`-shortest` is only the
+  fallback) — a shorter secondary audio track can't truncate it, and feeding a
+  few frames beyond the estimate no longer breaks a finished encode (was: the
+  output file got deleted).
+  — Encoder reliability: VA-API encode device is per-render, not sticky (an
+  "iGPU (offload)" encode no longer redirects later "auto" encodes to the
+  iGPU); copied audio/subtitle streams get FFmpeg interleave tuning
+  (`-max_interleave_delta 0` + initialization queue) so a slow rawvideo pipe no
+  longer yields video-only packet runs or broken seeks (45 s real-DVD test: no
+  video-only runs, seek decodes audio, ~96 MB RSS); untagged 720×576 MPEG-2
+  output is tagged as PAL SDR (limited BT.470BG primaries/transfer/matrix;
+  explicit `-color_*`/`-vf` win).
+  — Monitor: audio-track selector (3-letter language + channel count) next to
+  the volume slider, with track switching over Tauri (PCM pipe) and HTTP
+  (`/api/audio?track=N`); a null pick explicitly maps track 0. MetaBar shows
+  PAR/DAR/field order and the source + configured subtitles, with
+  rotation-aware desqueezed dimensions.
+  — a11y: `Select` includes the current value in its accessible label.
+  — `AudioTrack`/`SubtitleTrack` re-exported via `@senmei/bridge`; i18n:
+  en/de/zh/ja.
+
 ## 0.3.1 (2026-09-03)
 
 - **feat: tauri-plugin-updater for signed auto-updates (2026-09-03)**

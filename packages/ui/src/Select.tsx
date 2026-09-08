@@ -11,8 +11,9 @@ export interface SelectProps {
   onChange: (value: string) => void;
   options: SelectOption[];
   className?: string;
-  /** Compact sizing for dense toolbars/headers. */
   size?: "sm" | "md";
+  placement?: "up" | "down";
+  "aria-label"?: string;
 }
 
 const Chevron = ({ open }: { open: boolean }) => (
@@ -25,7 +26,7 @@ const Chevron = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-export function Select({ value, onChange, options, className = "", size = "md" }: SelectProps) {
+export function Select({ value, onChange, options, className = "", size = "md", placement = "down", "aria-label": ariaLabel }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(() => options.findIndex((o) => o.value === value));
   const ref = useRef<HTMLDivElement>(null);
@@ -106,6 +107,7 @@ export function Select({ value, onChange, options, className = "", size = "md" }
         ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-label={ariaLabel ? (selectedLabel ? `${ariaLabel}: ${selectedLabel}` : ariaLabel) : undefined}
         className={`flex w-full items-center justify-between gap-1 rounded-lg border border-slate-300 bg-white text-left text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 ${
           size === "sm" ? "px-2 py-0.5 text-[11px]" : "p-1.5"
         }`}
@@ -115,7 +117,7 @@ export function Select({ value, onChange, options, className = "", size = "md" }
       </button>
 
       {open && (
-        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-950">
+        <ul className={`absolute z-50 max-h-60 w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-950 ${placement === "up" ? "bottom-full mb-1" : "mt-1"}`}>
           {options.map((opt, i) => (
             <li key={opt.value}>
               <button

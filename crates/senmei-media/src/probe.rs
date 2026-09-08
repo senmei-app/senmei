@@ -7,6 +7,25 @@ use crate::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct AudioTrack {
+    pub index: u32,
+    pub codec: String,
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub channels: u32,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleTrack {
+    pub index: u32,
+    pub codec: String,
+    pub language: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoInfo {
     /// Display width after applying rotation (stored dims for unrotated video).
     pub width: u32,
@@ -30,6 +49,14 @@ pub struct VideoInfo {
     pub audio_codec: Option<String>,
     /// Video pixel format (e.g. "yuv420p").
     pub pix_fmt: Option<String>,
+    /// Sample Aspect Ratio as a string ratio (e.g. "64:45", "12:11", "1:1").
+    pub par: Option<String>,
+    /// Display Aspect Ratio as a string ratio (e.g. "16:9", "4:3").
+    pub dar: Option<String>,
+    /// Field order from ffprobe (e.g. "tt", "bb", "progressive").
+    pub field_order: Option<String>,
+    pub audio_tracks: Vec<AudioTrack>,
+    pub subtitle_tracks: Vec<SubtitleTrack>,
 }
 
 impl VideoInfo {
@@ -39,6 +66,11 @@ impl VideoInfo {
             self.color_transfer.as_deref(),
             Some("smpte2084" | "arib-std-b67" | "smpte428-1")
         )
+    }
+
+    /// Interlaced when the field order is not progressive.
+    pub fn is_interlaced(&self) -> bool {
+        matches!(self.field_order.as_deref(), Some("tt" | "bb" | "tb" | "bt"))
     }
 }
 
@@ -70,6 +102,14 @@ struct Stream {
     color_primaries: Option<String>,
     #[serde(default)]
     pix_fmt: Option<String>,
+    #[serde(default)]
+    sample_aspect_ratio: Option<String>,
+    #[serde(default)]
+    display_aspect_ratio: Option<String>,
+    #[serde(default)]
+    field_order: Option<String>,
+    #[serde(default)]
+    channels: u32,
     #[serde(default)]
     tags: HashMap<String, String>,
     #[serde(default)]
@@ -165,12 +205,37 @@ fn parse(parsed: FfprobeOutput) -> Result<VideoInfo> {
         (stream.width, stream.height)
     };
 
-    let audio_codec = parsed
+    let audio_tracks: Vec<AudioTrack> = parsed
         .streams
         .iter()
-        .find(|s| s.codec_type == "audio")
-        .map(|s| s.codec_name.clone())
+        .filter(|s| s.codec_type == "audio")
+        .enumerate()
+        .map(|(i, s)| AudioTrack {
+            index: i as u32,
+            codec: s.codec_name.clone(),
+            language: s.tags.get("language").filter(|v| !v.is_empty()).cloned(),
+            title: s.tags.get("title").filter(|v| !v.is_empty()).cloned(),
+            channels: s.channels,
+        })
+        .collect();
+
+    let audio_codec = audio_tracks
+        .first()
+        .map(|t| t.codec.clone())
         .filter(|c| !c.is_empty());
+
+    let subtitle_tracks: Vec<SubtitleTrack> = parsed
+        .streams
+        .iter()
+        .filter(|s| s.codec_type == "subtitle")
+        .enumerate()
+        .map(|(i, s)| SubtitleTrack {
+            index: i as u32,
+            codec: s.codec_name.clone(),
+            language: s.tags.get("language").filter(|v| !v.is_empty()).cloned(),
+            title: s.tags.get("title").filter(|v| !v.is_empty()).cloned(),
+        })
+        .collect();
 
     Ok(VideoInfo {
         width,
@@ -184,6 +249,14 @@ fn parse(parsed: FfprobeOutput) -> Result<VideoInfo> {
         video_codec: Some(stream.codec_name.clone()).filter(|c| !c.is_empty()),
         audio_codec,
         pix_fmt: stream.pix_fmt.clone(),
+        par: stream.sample_aspect_ratio.clone().filter(|s| !s.is_empty()),
+        dar: stream
+            .display_aspect_ratio
+            .clone()
+            .filter(|s| !s.is_empty()),
+        field_order: stream.field_order.clone().filter(|s| !s.is_empty()),
+        audio_tracks,
+        subtitle_tracks,
     })
 }
 
@@ -200,7 +273,7 @@ fn parse_ratio(s: &str) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse, FfprobeOutput, VideoInfo};
+    use super::{parse, AudioTrack, FfprobeOutput, VideoInfo};
 
     fn info(transfer: Option<&str>) -> VideoInfo {
         VideoInfo {
@@ -215,6 +288,17 @@ mod tests {
             video_codec: Some("h264".into()),
             audio_codec: Some("aac".into()),
             pix_fmt: Some("yuv420p".into()),
+            par: Some("1:1".into()),
+            dar: Some("16:9".into()),
+            field_order: Some("progressive".into()),
+            audio_tracks: vec![AudioTrack {
+                index: 0,
+                codec: "aac".into(),
+                language: None,
+                title: None,
+                channels: 2,
+            }],
+            subtitle_tracks: vec![],
         }
     }
 

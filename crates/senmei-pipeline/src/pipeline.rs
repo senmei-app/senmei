@@ -132,6 +132,7 @@ impl Pipeline {
                 fps,
                 start_ms,
                 duration_ms: end_ms.map(|e| e.saturating_sub(start_ms)),
+                video_dur_ms: Some((total_frames as f64 * 1000.0 / fps).ceil() as u64),
             },
             &self.encoder_args,
         )?;

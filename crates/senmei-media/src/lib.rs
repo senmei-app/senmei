@@ -25,7 +25,7 @@ pub use frame::Frame;
 pub use preview::{encode_png, stream_pcm, PcmPipe};
 pub use preview_stream::{PreviewCache, PREVIEW_MAX_DIM};
 pub use preview_worker::PreviewWorker;
-pub use probe::{probe, VideoInfo};
+pub use probe::{probe, AudioTrack, SubtitleTrack, VideoInfo};
 pub use thumbnail::thumbnail;
 pub use videos::find_videos;
 

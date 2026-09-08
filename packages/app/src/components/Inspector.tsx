@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-import type { ModelMetadata } from "@senmei/bridge";
+import type { ModelMetadata, SubtitleTrack } from "@senmei/bridge";
 import { backend } from "../backend";
 import { useI18n } from "../i18n";
 import { STEP_META, STEP_ORDER, createStep, type PipelineStep, type StepType } from "../steps";
@@ -12,11 +12,13 @@ export default function Inspector({
   outputDir,
   onChange,
   onSuggest,
+  subtitleTracks,
 }: {
   steps: PipelineStep[];
   outputDir?: string | null;
   onChange: (steps: PipelineStep[]) => void;
   onSuggest?: () => void;
+  subtitleTracks?: SubtitleTrack[] | null;
 }) {
   const { t } = useI18n();
   const [models, setModels] = useState<ModelMetadata[]>([]);
@@ -425,6 +427,7 @@ export default function Inspector({
                     <StepEditor
                       step={s}
                       outputDir={outputDir}
+                      subtitleTracks={subtitleTracks}
                       interpolateModels={interpolateModels}
                       upscaleModels={upscaleModels}
                       denoiseModels={denoiseModels}

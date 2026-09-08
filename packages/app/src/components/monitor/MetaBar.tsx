@@ -25,11 +25,35 @@ function toFactor(v: string | null | undefined): number | null {
   return Number.isFinite(f) && f > 0 ? f : null;
 }
 
+/** Parse a "N:M" ratio string into a scale factor, or 1.0 if invalid. */
+function parsePar(par: string | null | undefined): number {
+  if (!par) return 1;
+  const [n, d] = par.split(":").map(Number);
+  if (!d || !n || d === 0) return 1;
+  return n / d;
+}
+
+/** Display dims after the decoder's PAR desqueeze + rotation (mirrors Decoder). */
+function desqueezed(par: number, rotation: number, dw: number, dh: number): [number, number] {
+  const rot90 = rotation === 90 || rotation === 270;
+  const sw = rot90 ? dh : dw;
+  const sh = rot90 ? dw : dh;
+  // decoder rounds to an even width; unchanged/oversized targets keep input dims
+  let tw = ((Math.round(sw * par) + 1) & ~1) || sw;
+  if (tw === sw || tw > 2048) return [dw, dh];
+  return rot90 ? [sh, tw] : [tw, sh];
+}
+
 /** Estimate the configured output's meta from the enabled pipeline steps. */
 export function computeOutputMeta(info: VideoInfo | null, steps: PipelineStep[]): OutputMeta {
+  // Base = display dims after the decoder's PAR desqueeze (pre-step estimates).
+  const [w0, h0] =
+    info?.width != null && info?.height != null
+      ? desqueezed(parsePar(info?.par), info?.rotation ?? 0, info.width, info.height)
+      : [info?.width ?? null, info?.height ?? null];
   const out: OutputMeta = {
-    width: info?.width ?? null,
-    height: info?.height ?? null,
+    width: w0,
+    height: h0,
     fps: info?.fps ?? null,
     duration: info?.duration ?? null,
     codec: null,
@@ -117,12 +141,38 @@ export default function MetaBar({
   const outColor = out.colorTransfer ?? out.colorPrimaries ?? null;
   const outCodec = out.codec ? `${prettyCodec(out.codec)}${out.container ? ` · ${out.container}` : ""}` : dash;
 
+  const srcPar = info?.par ?? null;
+  const srcDar = info?.dar ?? null;
+  const srcField = info?.fieldOrder ?? null;
+  // Source display size after the decoder's desqueeze (rotation-aware).
+  const [srcW, srcH] =
+    info?.width != null && info?.height != null
+      ? desqueezed(parsePar(info?.par), info?.rotation ?? 0, info.width, info.height)
+      : [null, null];
+  const subTracks = info?.subtitleTracks ?? [];
+  const srcSubs = subTracks.length
+    ? subTracks.map((s) => s.language ?? s.title ?? `T${s.index + 1}`).join(", ")
+    : dash;
+  // Configured subtitle copy on the (last) output step.
+  let outSubs = dash;
+  for (const stp of steps) {
+    if (!stp.enabled || stp.stepType !== "output") continue;
+    const m = stp.params?.subtitleMode;
+    if (m === "None") outSubs = dash;
+    else if (m === "Copy") outSubs = t("subtitle.all");
+    else if (m === "Selected") outSubs = String((stp.params?.subtitleTracks ?? []).length || 0);
+  }
+
   const rows: { key: string; src: string; out: string }[] = [
-    { key: t("meta.resolution"), src: fmtRes(info?.width ?? null, info?.height ?? null), out: fmtRes(out.width, out.height) },
+    { key: t("meta.resolution"), src: fmtRes(srcW, srcH), out: fmtRes(out.width, out.height) },
     { key: t("meta.fps"), src: fmtFps(info?.fps ?? null), out: fmtFps(out.fps) },
     { key: t("meta.codec"), src: srcCodec ? prettyCodec(srcCodec) : dash, out: outCodec },
     { key: t("meta.duration"), src: fmtClock((info?.duration ?? 0) * 1000), out: fmtClock((out.duration ?? 0) * 1000) },
     { key: t("meta.color"), src: srcColor ?? dash, out: outColor ?? dash },
+    { key: "PAR", src: srcPar ?? dash, out: dash },
+    { key: "DAR", src: srcDar ?? dash, out: dash },
+    { key: t("meta.fieldOrder"), src: srcField ?? dash, out: dash },
+    { key: t("meta.subtitles"), src: srcSubs, out: outSubs },
   ];
 
   const block = [

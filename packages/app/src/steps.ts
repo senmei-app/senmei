@@ -102,6 +102,7 @@ const DEFAULTS: Record<StepType, StepParams> = {
     videoCodec: "H.264",
     audioCodec: "Passthrough",
     subtitleMode: "None",
+    subtitleTracks: [],
     ffmpegArgs: "",
     crf: 20,
     preset: "veryfast",
@@ -213,7 +214,18 @@ export function buildEncoderArgs(params: StepParams | undefined, custom: string)
   let dropAudio = false;
   if (ac === "None") dropAudio = true;
   else if (ac && AUDIO_MAP[ac]) structured.push("-c:a", AUDIO_MAP[ac]);
-  if (params?.subtitleMode === "Copy") structured.push("-c:s", "copy");
+  // Subtitles: Copy = all streams, Selected = the picked indices only.
+  const subMode = params?.subtitleMode;
+  if (subMode === "Copy") structured.push("-c:s", "copy");
+  else if (subMode === "Selected") {
+    const picks = [...new Set((params?.subtitleTracks ?? []).filter((n) => Number.isInteger(n) && n >= 0))].sort(
+      (a, b) => a - b,
+    );
+    if (picks.length) {
+      structured.push("-c:s", "copy");
+      for (const idx of picks) structured.push("-map", `1:s:${idx}?`);
+    }
+  }
 
   const customTokens = custom.trim() ? splitArgs(custom) : [];
   const customFlags = new Set(customTokens.filter((t) => t.startsWith("-")));
