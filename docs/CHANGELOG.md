@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.3.2 (2026-09-08)
+
 - **feat: DVD deinterlace/desqueeze, audio/subtitle selection + encode fixes (2026-09-08)**
   — Decoder auto-deinterlaces (yadif, no fps doubling) and auto-desqueezes
   anamorphic sources from the probed PAR, applied to storage dims before
