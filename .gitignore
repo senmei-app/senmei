@@ -18,3 +18,5 @@ __pycache__/
 # test artifacts
 .local/
 .mimocode/
+codeql-custom-queries-rust/
+codeql-db/

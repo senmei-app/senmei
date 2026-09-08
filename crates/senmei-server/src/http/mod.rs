@@ -311,12 +311,17 @@ fn transcode_audio(input: &str, track_index: Option<u32>) -> Result<std::path::P
     }
     let dir = audio_cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let dir = std::fs::canonicalize(&dir).map_err(|e| e.to_string())?;
     // Include track index in cache key so different tracks don't collide.
     let cache_key = match track_index {
         Some(idx) => format!("{}_t{idx}", senmei_media::sha256_hex_str(input)),
         None => senmei_media::sha256_hex_str(input).to_string(),
     };
     let out = dir.join(format!("{cache_key}.ogg"));
+    // Canonicalized dir + starts_with — CodeQL recognized sanitizer pattern.
+    if !out.starts_with(&dir) {
+        return Err("invalid cache path".into());
+    }
     if out.is_file() {
         return Ok(out);
     }
