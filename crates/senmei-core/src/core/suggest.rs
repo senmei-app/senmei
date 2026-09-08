@@ -88,18 +88,10 @@ pub fn suggest_pipeline(input: &str) -> Result<String, String> {
     let ffmpeg_path = ffmpeg();
     let duration_ms = (info.duration * 1000.0) as u64;
 
-    let anime = senmei_media::is_anime(
-        &ffmpeg_path,
-        std::path::Path::new(input),
-        duration_ms,
-    );
+    let anime = senmei_media::is_anime(&ffmpeg_path, std::path::Path::new(input), duration_ms);
 
     let blurry = if !anime {
-        senmei_media::is_blurry(
-            &ffmpeg_path,
-            std::path::Path::new(input),
-            duration_ms,
-        )
+        senmei_media::is_blurry(&ffmpeg_path, std::path::Path::new(input), duration_ms)
     } else {
         false
     };
@@ -148,8 +140,14 @@ mod tests {
                     fps: 23.976,
                 },
                 expected_steps: vec![
-                    ("interpolation", serde_json::json!({ "fpsMultiplier": 2, "modelId": "rife-v4.6" })),
-                    ("upscale", serde_json::json!({ "scale": 4, "modelId": "realesrgan-animevideo-x4" })),
+                    (
+                        "interpolation",
+                        serde_json::json!({ "fpsMultiplier": 2, "modelId": "rife-v4.6" }),
+                    ),
+                    (
+                        "upscale",
+                        serde_json::json!({ "scale": 4, "modelId": "realesrgan-animevideo-x4" }),
+                    ),
                     ("output", serde_json::json!({})),
                 ],
             },
@@ -163,7 +161,10 @@ mod tests {
                     fps: 60.0,
                 },
                 expected_steps: vec![
-                    ("denoise", serde_json::json!({ "radius": 1, "modelId": "drunet-color" })),
+                    (
+                        "denoise",
+                        serde_json::json!({ "radius": 1, "modelId": "drunet-color" }),
+                    ),
                     ("output", serde_json::json!({})),
                 ],
             },
@@ -177,8 +178,14 @@ mod tests {
                     fps: 30.0,
                 },
                 expected_steps: vec![
-                    ("upscale", serde_json::json!({ "scale": 4, "modelId": "bsrgan" })),
-                    ("deblur", serde_json::json!({ "amount": 0.5, "modelId": "nafnet-gopro-width32" })),
+                    (
+                        "upscale",
+                        serde_json::json!({ "scale": 4, "modelId": "bsrgan" }),
+                    ),
+                    (
+                        "deblur",
+                        serde_json::json!({ "amount": 0.5, "modelId": "nafnet-gopro-width32" }),
+                    ),
                     ("output", serde_json::json!({})),
                 ],
             },
@@ -192,7 +199,10 @@ mod tests {
                     fps: 30.0,
                 },
                 expected_steps: vec![
-                    ("upscale", serde_json::json!({ "scale": 2, "modelId": "realesrgan-animevideo-x2" })),
+                    (
+                        "upscale",
+                        serde_json::json!({ "scale": 2, "modelId": "realesrgan-animevideo-x2" }),
+                    ),
                     ("output", serde_json::json!({})),
                 ],
             },

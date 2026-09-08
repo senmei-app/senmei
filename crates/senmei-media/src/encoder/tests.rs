@@ -322,7 +322,12 @@ fn finish_after_stderr_overflows() {
 
 #[test]
 fn parse_sentinels_hw_value() {
-    let mut args = vec!["-senmei_encoder".into(), "hw".into(), "-c:v".into(), "copy".into()];
+    let mut args = vec![
+        "-senmei_encoder".into(),
+        "hw".into(),
+        "-c:v".into(),
+        "copy".into(),
+    ];
     let (pref, _vaapi) = parse_sentinels(&mut args);
     assert!(matches!(pref, EncoderPref::Hardware));
     assert_eq!(args, vec!["-c:v", "copy"]);
@@ -349,7 +354,10 @@ fn parse_sentinels_missing_value() {
     let mut args = vec!["-senmei_encoder".into()];
     let (pref, _) = parse_sentinels(&mut args);
     assert!(matches!(pref, EncoderPref::Auto));
-    assert!(args.is_empty(), "trailing sentinel without value should be removed");
+    assert!(
+        args.is_empty(),
+        "trailing sentinel without value should be removed"
+    );
 }
 
 #[test]
@@ -370,9 +378,12 @@ fn parse_sentinels_vaapi_10bit_detected() {
 #[test]
 fn parse_sentinels_both_sentinels_removed() {
     let mut args = vec![
-        "-senmei_encoder".into(), "hw".into(),
-        "-senmei_vaapi".into(), "igpu".into(),
-        "-c:v".into(), "copy".into(),
+        "-senmei_encoder".into(),
+        "hw".into(),
+        "-senmei_vaapi".into(),
+        "igpu".into(),
+        "-c:v".into(),
+        "copy".into(),
     ];
     let (pref, _) = parse_sentinels(&mut args);
     assert!(matches!(pref, EncoderPref::Hardware));
