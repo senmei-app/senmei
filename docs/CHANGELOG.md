@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+- **fix: persist MIOpen cache (ROCm) (2026-09-09)** — the libtorch backend now
+  points `MIOPEN_USER_DB_PATH`/`MIOPEN_CUSTOM_CACHE_DIR` at the app data dir, so
+  MIOpen stops re-running autotune/JIT kernel compilation on every engine load
+  (the ~300% CPU spikes on each render/startup that hammer the GPU before any
+  inference on RDNA4).
+
 - **fix: hard render cancel (2026-09-09)** — cancelling a render now SIGKILLs
   the active render's ffmpeg decode/encode children via a small per-run
   watchdog, so a worker stuck on a stalled pipe or inside a GPU step can no

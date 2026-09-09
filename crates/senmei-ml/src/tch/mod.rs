@@ -118,12 +118,28 @@ fn probe_tensor_ok() -> bool {
     .unwrap_or(false)
 }
 
+/// Point MIOpen's tuned-solution DB and compiled-kernel cache at the app data
+/// dir so they persist across runs. Without a writable persistent cache MIOpen
+/// re-runs autotune/JIT on every engine load — the ~300% CPU spikes on each
+/// render/startup that keep hammering the GPU before any inference.
+fn miopen_cache_env(data_dir: &Path) {
+    let db = data_dir.join("miopen-db");
+    let kernels = data_dir.join("miopen-cache");
+    if std::fs::create_dir_all(&db).is_ok() {
+        std::env::set_var("MIOPEN_USER_DB_PATH", &db);
+    }
+    if std::fs::create_dir_all(&kernels).is_ok() {
+        std::env::set_var("MIOPEN_CUSTOM_CACHE_DIR", &kernels);
+    }
+}
+
 /// Resolve (download on first use) and dlopen a CUDA/ROCm libtorch, once per
 /// process. `Ok(None)` when no GPU is present — the caller (burn) owns CPU.
 /// ROCm builds preload the per-GPU ROCm SDK (Koharu-style) so the versioned
 /// SONAMEs libtorch dlopens resolve; the tensor probe (dtype-correct) guards
 /// against a wrapper/runtime ABI mismatch → clean fallback to burn-Vulkan.
 fn ensure_loaded(data_dir: &Path) -> Result<()> {
+    miopen_cache_env(data_dir);
     let install = RUNTIME_LIBTORCH.get_or_init(|| {
         let hw = crate::runtime::detect();
         let resolved = crate::runtime::resolve(data_dir, &hw);
