@@ -8130,6 +8130,7 @@ dependencies = [
 name = "senmei-media"
 version = "0.3.2"
 dependencies = [
+ "libc",
  "liblzma",
  "log",
  "png 0.17.16",

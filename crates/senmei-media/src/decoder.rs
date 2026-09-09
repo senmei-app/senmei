@@ -159,6 +159,11 @@ impl Decoder {
         })
     }
 
+    /// The ffmpeg child's pid (for the pipeline's hard-cancel kill).
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
     pub fn next_frame(&mut self) -> Result<Option<Frame>> {
         if let Some(r) = self.remaining.as_mut() {
             if *r == 0 {

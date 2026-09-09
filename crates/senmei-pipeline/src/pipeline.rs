@@ -136,6 +136,10 @@ impl Pipeline {
             },
             &self.encoder_args,
         )?;
+        // Pids for the hard-cancel watchdog; both children are still owned
+        // here (they move into the dec/enc threads below).
+        let dec_pid = decoder.pid();
+        let enc_pid = encoder.pid();
         let enc_cancel = self.cancel.clone();
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;
@@ -181,6 +185,28 @@ impl Pipeline {
                 }
             }
             Ok(())
+        });
+
+        // Hard-cancel watchdog: cancel is cooperative (flag checked between
+        // frames), so a main loop blocked in a GPU step or on a stalled ffmpeg
+        // pipe would hold the engine until the process dies. On cancel, SIGKILL
+        // both ffmpeg children: the blocked read/write returns, the dec/enc
+        // threads and their joins unwind, and `run` returns to drop the
+        // pipeline (and with it the engine).
+        let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
+        let cancel_watch = self.cancel.clone();
+        let wd = std::thread::spawn(move || loop {
+            use std::sync::mpsc::RecvTimeoutError::{Disconnected, Timeout};
+            match stop_rx.recv_timeout(std::time::Duration::from_millis(20)) {
+                Ok(()) | Err(Disconnected) => return,
+                Err(Timeout) => {}
+            }
+            if cancel_watch.load(Ordering::Relaxed) {
+                log::info!("pipeline: hard cancel — killing ffmpeg decode/encode");
+                senmei_media::process::kill(dec_pid);
+                senmei_media::process::kill(enc_pid);
+                return;
+            }
         });
 
         let mut main_err: Option<Error> = None;
@@ -303,12 +329,14 @@ impl Pipeline {
 
         drop(out_tx);
         drop(raw_rx); // unblock the decode thread if we bailed early
+        drop(stop_tx); // stop the hard-cancel watchdog (normal completion)
         let dec_res = dec_handle
             .join()
             .unwrap_or_else(|_| Err(Error::new("decode thread panicked")));
         let enc_res = enc_handle
             .join()
             .unwrap_or_else(|_| Err(Error::new("encode thread panicked")));
+        let _ = wd.join();
 
         // "encode channel closed" only means the encode thread exited first —
         // its join result carries the real cause (ffmpeg stderr). Cancellation

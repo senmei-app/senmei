@@ -274,6 +274,11 @@ impl Encoder {
         Ok(())
     }
 
+    /// The ffmpeg child's pid (for the pipeline's hard-cancel kill).
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
     fn read_stderr(&mut self) -> String {
         if let Some(h) = self.stderr_thread.take() {
             let _ = h.join();

@@ -26,3 +26,15 @@ pub fn command_output(cmd: &str, args: &[&str]) -> Option<String> {
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
 }
+
+/// SIGKILL a child by pid (unix). No-op elsewhere: non-unix teardown runs
+/// in-process via `Child::kill` once the owning thread unwinds.
+pub fn kill(pid: u32) {
+    #[cfg(unix)]
+    // Safety: pid belongs to a live child we spawned; SIGKILL is signal-safe.
+    unsafe {
+        libc::kill(pid as libc::pid_t, libc::SIGKILL);
+    }
+    #[cfg(not(unix))]
+    let _ = pid;
+}

@@ -8,6 +8,14 @@
 
 ## Unreleased
 
+- **fix: hard render cancel (2026-09-09)** — cancelling a render now SIGKILLs
+  the active render's ffmpeg decode/encode children via a small per-run
+  watchdog, so a worker stuck on a stalled pipe or inside a GPU step can no
+  longer hold the model/engine (or orphan ffmpeg processes) until the process
+  dies; `pipeline.run` unwinds and drops the engine deterministically on
+  cancel. Adds `senmei_media::process::kill` (unix) and `Decoder::pid`/
+  `Encoder::pid`.
+
 ## 0.3.2 (2026-09-08)
 
 - **feat: DVD deinterlace/desqueeze, audio/subtitle selection + encode fixes (2026-09-08)**
