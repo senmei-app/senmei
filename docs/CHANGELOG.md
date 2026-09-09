@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **ui: A/B compare shows the model per side (2026-09-09)** — the A/B panes now
+  label which model produced each render (A = previous result, B = current),
+  taken from that render's upscale/denoise/deblur/interp model, so model A vs B
+  is identifiable at a glance.
+
 - **fix: persist MIOpen cache (ROCm) (2026-09-09)** — the libtorch backend now
   points `MIOPEN_USER_DB_PATH`/`MIOPEN_CUSTOM_CACHE_DIR` at the app data dir, so
   MIOpen stops re-running autotune/JIT kernel compilation on every engine load

@@ -526,6 +526,8 @@ export default function App() {
       file={currentFile ?? undefined}
       renderedFile={batch.renderedFile}
       prevRenderedFile={batch.prevRenderedFile}
+      renderedModel={batch.renderedModel}
+      prevRenderedModel={batch.prevRenderedModel}
       rendering={batch.rendering}
       progress={batch.progress}
       timings={batch.timings}
@@ -550,7 +552,7 @@ export default function App() {
       modeCompareHotkey={resolvedHotkeys.modeCompare}
       modeABHotkey={resolvedHotkeys.modeAB}
     />
-  ), [currentFile, batch.renderedFile, batch.prevRenderedFile, batch.rendering, batch.progress, batch.timings, steps, sampleRange, renderSample, fullVideo, toggleFullVideo, resolvedHotkeys]);
+  ), [currentFile, batch.renderedFile, batch.prevRenderedFile, batch.renderedModel, batch.prevRenderedModel, batch.rendering, batch.progress, batch.timings, steps, sampleRange, renderSample, fullVideo, toggleFullVideo, resolvedHotkeys]);
 
   return (
     <I18nProvider lang={lang} setLang={changeLang}>

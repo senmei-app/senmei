@@ -10,12 +10,16 @@ export default function CompareView({
   file,
   effRendered,
   prevRenderedFile,
+  renderedModel,
+  prevRenderedModel,
   frames,
 }: {
   mode: string;
   file?: string;
   effRendered: string | null;
   prevRenderedFile?: string | null;
+  renderedModel?: string | null;
+  prevRenderedModel?: string | null;
   frames: Record<string, RawFrame>;
 }) {
   const { t } = useI18n();
@@ -35,9 +39,19 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
-            A
-          </span>
+          <div className="absolute top-2 left-2 flex max-w-[70%] flex-col items-start gap-1">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
+              A
+            </span>
+            {prevRenderedModel ? (
+              <span
+                className="max-w-full truncate rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-sky-200/90"
+                title={prevRenderedModel}
+              >
+                {prevRenderedModel}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="relative flex-1 overflow-hidden">
           {frames[effRendered] ? (
@@ -51,9 +65,19 @@ export default function CompareView({
               </span>
             </div>
           )}
-          <span className="absolute top-2 left-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">
-            B
-          </span>
+          <div className="absolute top-2 left-2 flex max-w-[70%] flex-col items-start gap-1">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">
+              B
+            </span>
+            {renderedModel ? (
+              <span
+                className="max-w-full truncate rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] text-amber-200/90"
+                title={renderedModel}
+              >
+                {renderedModel}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
     );

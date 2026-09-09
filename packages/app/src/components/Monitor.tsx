@@ -20,6 +20,8 @@ export default function Monitor({
   file,
   renderedFile,
   prevRenderedFile,
+  renderedModel,
+  prevRenderedModel,
   rendering,
   progress,
   timings = [],
@@ -52,6 +54,9 @@ export default function Monitor({
   timings?: StepTimingInfo[];
   /** Previous render result, kept for A/B compare. */
   prevRenderedFile?: string | null;
+  /** Model label of the current render (B side) and its A/B predecessor. */
+  renderedModel?: string | null;
+  prevRenderedModel?: string | null;
   /** Configured pipeline (drives the source→output meta readout). */
   steps?: PipelineStep[];
   sampleInMs?: number;
@@ -692,6 +697,8 @@ export default function Monitor({
           file={file}
           effRendered={effRendered}
           prevRenderedFile={prevRenderedFile}
+          renderedModel={renderedModel}
+          prevRenderedModel={prevRenderedModel}
           frames={frames}
         />
         {!showingCompare &&
