@@ -600,11 +600,15 @@ export default function Monitor({
     const durMs = (info.duration ?? 0) * 1000;
     const fps = info.fps ?? 0;
     const start = snapFrame(Math.min(posMs, durMs), fps);
-    onSampleChange?.(start, snapFrame(Math.min(start + sec * 1000, durMs), fps));
+    const end = snapFrame(Math.min(start + sec * 1000, durMs), fps);
+    onSampleChange?.(start, end);
+    setCustomVal(fmtDuration(end - start)); // reflect the pick in the field
   };
   const setFullRange = () => {
     if (!info) return;
-    onSampleChange?.(0, snapFrame((info.duration ?? 0) * 1000, info.fps ?? 0));
+    const end = snapFrame((info.duration ?? 0) * 1000, info.fps ?? 0);
+    onSampleChange?.(0, end);
+    setCustomVal(fmtDuration(end));
   };
 
   const presetOf = (): string => {

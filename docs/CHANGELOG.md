@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- **fix: sample preset writes the chosen duration into the field (2026-09-09)** —
+  picking a sample preset (10/30/60s/full) now fills the custom duration input
+  immediately; before, the value only appeared after reopening the menu.
+
 - **ui: A/B compare shows the model per side (2026-09-09)** — the A/B panes now
   label which model produced each render (A = previous result, B = current),
   taken from that render's upscale/denoise/deblur/interp model, so model A vs B
