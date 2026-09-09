@@ -187,12 +187,7 @@ impl Pipeline {
             Ok(())
         });
 
-        // Hard-cancel watchdog: cancel is cooperative (flag checked between
-        // frames), so a main loop blocked in a GPU step or on a stalled ffmpeg
-        // pipe would hold the engine until the process dies. On cancel, SIGKILL
-        // both ffmpeg children: the blocked read/write returns, the dec/enc
-        // threads and their joins unwind, and `run` returns to drop the
-        // pipeline (and with it the engine).
+        // Hard-cancel watchdog: SIGKILL the ffmpeg children on cancel so the joins unwind and `run` drops the engine.
         let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
         let cancel_watch = self.cancel.clone();
         let wd = std::thread::spawn(move || loop {
