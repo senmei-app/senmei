@@ -11,7 +11,20 @@ pub fn hidden<S: AsRef<OsStr>>(cmd: S) -> Command {
         c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         c
     }
-    #[cfg(not(windows))]
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let mut c = Command::new(cmd);
+        // Kill ffmpeg with senmei — no orphans on Ctrl+C/crash/SIGKILL.
+        unsafe {
+            c.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                Ok(())
+            });
+        }
+        c
+    }
+    #[cfg(not(any(windows, unix)))]
     {
         Command::new(cmd)
     }

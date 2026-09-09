@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- **fix: kill ffmpeg children with senmei — no orphaned processes (2026-09-09)** —
+  every ffmpeg/ffprobe child sets `PR_SET_PDEATHSIG` (SIGKILL), so Ctrl+C, a
+  crash or SIGKILL can no longer leave render processes running amok; the
+  kernel reaps them the moment senmei dies.
+
 - **fix: sample preset writes the chosen duration into the field (2026-09-09)** —
   picking a sample preset (10/30/60s/full) now fills the custom duration input
   immediately; before, the value only appeared after reopening the menu.
