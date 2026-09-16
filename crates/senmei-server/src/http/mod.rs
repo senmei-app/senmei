@@ -93,8 +93,9 @@ fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
     }
     let parent = canonical(p.parent()?)?;
     let name = p.file_name()?;
-    // Reject anything that isn't a plain filename (../, /, etc.)
-    if name.to_str()?.contains("..") || name.to_str()?.contains('/') {
+    // Component-level guard: name must be exactly one Normal component (no .., /, etc.)
+    let mut comps = Path::new(name).components();
+    if !matches!(comps.next(), Some(std::path::Component::Normal(_))) || comps.next().is_some() {
         return None;
     }
     let roots = state.roots.lock().unwrap();
