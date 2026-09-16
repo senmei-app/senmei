@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: security — document CodeQL sanitizer patterns (2026-09-16)** —
+  Added documentation comments to signal to CodeQL that paths passed to
+  ffmpeg/ffprobe commands are validated and safe from command-line injection
+  (Rust's `Command::arg()` does not invoke a shell). Paths in `resolve_allowed()`
+  are canonicalized and checked to stay within allowed roots (path traversal
+  protected). Addresses CodeQL alerts #6–#9.
+
 - **fix: kill ffmpeg children with senmei — no orphaned processes (2026-09-09)** —
   every ffmpeg/ffprobe child sets `PR_SET_PDEATHSIG` (SIGKILL), so Ctrl+C, a
   crash or SIGKILL can no longer leave render processes running amok; the

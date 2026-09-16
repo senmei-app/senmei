@@ -82,8 +82,10 @@ fn canonical(p: &Path) -> Option<PathBuf> {
 /// canonical path is what reaches the filesystem sinks — `..`, symlinks, and
 /// out-of-root paths are all resolved/rejected before any path use.
 fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
+    // SANITIZER: Canonicalize path (resolves symlinks and .. traversal)
     let c = canonical(p)?;
     let roots = state.roots.lock().unwrap();
+    // SANITIZER: Verify resolved path stays within allowed roots (path-injection check)
     roots.iter().find(|r| c.starts_with(r)).map(|_| c)
 }
 

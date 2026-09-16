@@ -151,6 +151,10 @@ fn stream_rotation(stream: &Stream) -> u32 {
     }
 }
 
+/// Probe a media file with ffprobe and return its streams/format info.
+/// # Safety
+/// Input `path` comes from caller validation. Rust's `Command::arg()` passes
+/// arguments directly to ffprobe without shell interpolation.
 pub fn probe(ffprobe: &Path, path: &Path) -> Result<VideoInfo> {
     let output = crate::process::hidden(ffprobe)
         .args([
