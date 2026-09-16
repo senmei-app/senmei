@@ -18,10 +18,6 @@ fn parse_after(stderr: &str, key: &str) -> Option<f64> {
 
 /// Run one FFmpeg metric filter (psnr/ssim) between two clips, scaling the
 /// rendered clip back to the original resolution. Returns the parsed summary.
-/// # Safety
-/// `rendered` and `original` are validated file paths from HTTP endpoints via
-/// `resolve_allowed_media()` before reaching this function. Rust's `Command::arg()`
-/// does not invoke a shell, so path arguments are safe.
 fn run_metric(
     ff: &Path,
     rendered: &str,

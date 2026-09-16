@@ -8069,7 +8069,7 @@ dependencies = [
 
 [[package]]
 name = "senmei"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -8089,7 +8089,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-app"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "base64 0.22.1",
  "env_logger",
@@ -8112,7 +8112,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-core"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "base64 0.22.1",
  "dirs",
@@ -8128,7 +8128,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-media"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "libc",
  "liblzma",
@@ -8146,7 +8146,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-ml"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "burn",
  "burn-store",
@@ -8166,7 +8166,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-pipeline"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "log",
  "senmei-media",
@@ -8176,7 +8176,7 @@ dependencies = [
 
 [[package]]
 name = "senmei-server"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "axum",

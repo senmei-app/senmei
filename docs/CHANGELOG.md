@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.3.3 (2026-09-16)
+
 - **fix: security — document CodeQL sanitizer patterns (2026-09-16)** —
   Added documentation comments to signal to CodeQL that paths passed to
   ffmpeg/ffprobe commands are validated and safe from command-line injection
@@ -42,6 +44,7 @@
   dies; `pipeline.run` unwinds and drops the engine deterministically on
   cancel. Adds `senmei_media::process::kill` (unix) and `Decoder::pid`/
   `Encoder::pid`.
+
 
 ## 0.3.2 (2026-09-08)
 
