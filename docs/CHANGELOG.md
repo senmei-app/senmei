@@ -10,6 +10,14 @@
 
 ## 0.3.3 (2026-09-16)
 
+- **fix: harden render cancel lifecycle (2026-09-16)** —
+  address Copilot review findings: encoder `finish()` now polls with `try_wait`
+  so the watchdog can `kill()` during finalization (deadlock fix); cancel flag
+  reset moved before worker spawn to close a race window; `PR_SET_PDEATHSIG`
+  captures parent PID before fork; `resolve_allowed_output` validates filename
+  components (CodeQL path-expression fix); HTTP render re-registers the output
+  folder; added `discard_pending_render` MCP+HTTP endpoint and test.
+
 - **fix: security — document CodeQL sanitizer patterns (2026-09-16)** —
   Added documentation comments to signal to CodeQL that paths passed to
   ffmpeg/ffprobe commands are validated and safe from command-line injection

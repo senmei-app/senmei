@@ -297,7 +297,13 @@ impl Encoder {
 
     pub fn finish(mut self) -> Result<()> {
         drop(self.stdin.take());
-        let status = self.child.lock().unwrap().wait()?;
+        // try_wait: watchdog needs the lock for kill() during finalization.
+        let status = loop {
+            if let Some(status) = self.child.lock().unwrap().try_wait()? {
+                break status;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
         let stderr = self.read_stderr();
         log::debug!("ffmpeg encode finished: {status}; stderr tail: {stderr}");
         if status.success() {

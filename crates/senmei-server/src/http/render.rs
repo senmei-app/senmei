@@ -90,6 +90,7 @@ pub(super) async fn render_start(
         let mut cfg = cfg;
         cfg.input = input.to_string_lossy().into_owned();
         cfg.output = output.to_string_lossy().into_owned();
+        register_parent(&state, &output);
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
             cfg.input,
@@ -124,6 +125,16 @@ pub(super) async fn render_cancel() -> ApiResult {
     {
         core::cancel_render();
         json_ok(&serde_json::json!({ "cancelled": true }))
+    }
+    #[cfg(not(feature = "render"))]
+    json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
+}
+
+pub(super) async fn render_discard() -> ApiResult {
+    #[cfg(feature = "render")]
+    {
+        core::discard_pending_render();
+        json_ok(&serde_json::json!({ "discarded": true }))
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")

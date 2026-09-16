@@ -18,9 +18,10 @@ pub fn hidden<S: AsRef<OsStr>>(cmd: S) -> Command {
     {
         use std::os::unix::process::CommandExt;
         let mut c = Command::new(cmd);
+        // Capture PID before fork so the child's getppid() check is correct.
+        let parent = unsafe { libc::getpid() };
         unsafe {
-            c.pre_exec(|| {
-                let parent = libc::getppid();
+            c.pre_exec(move || {
                 if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
                     return Err(std::io::Error::last_os_error());
                 }

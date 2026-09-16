@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-pub use lifecycle::{cancel_render, confirm_render, propose_render, render_status, RenderStatus};
+pub use lifecycle::{
+    cancel_render, confirm_render, discard_pending_render, propose_render,
+    render_status, RenderStatus,
+};
 pub use senmei_pipeline::Progress as RenderProgress;
 
 /// Serializes renders across transports: a new render is rejected while one is
@@ -275,7 +278,10 @@ fn render_inner(
             .get_or_init(|| Arc::new(AtomicBool::new(false)))
             .clone(),
     };
-    cancel.store(false, Ordering::Relaxed);
+    // Lifecycle resets in confirm_render; only reset for direct callers.
+    if opts.cancel.is_some() {
+        cancel.store(false, Ordering::Relaxed);
+    }
     let ffmpeg = ffmpeg();
     let input = PathBuf::from(&config.input);
     let output = PathBuf::from(&config.output);

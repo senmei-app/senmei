@@ -129,7 +129,7 @@ pub use config::{settings_schema, FilterConfig, RenderConfig};
 pub use download::download_model;
 #[cfg(feature = "render")]
 pub use render::{
-    cancel_render, confirm_render, engine_for_model, propose_render, render, render_sample,
+    cancel_render, confirm_render, discard_pending_render, engine_for_model, propose_render, render, render_sample,
     render_status, RenderOpts, RenderProgress, RenderStatus, StepTimingInfo,
 };
 pub use suggest::suggest_pipeline;

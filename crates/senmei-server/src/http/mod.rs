@@ -93,6 +93,10 @@ fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
     }
     let parent = canonical(p.parent()?)?;
     let name = p.file_name()?;
+    // Reject anything that isn't a plain filename (../, /, etc.)
+    if name.to_str()?.contains("..") || name.to_str()?.contains('/') {
+        return None;
+    }
     let roots = state.roots.lock().unwrap();
     roots.iter().find(|r| parent.starts_with(r))?;
     Some(parent.join(name))
@@ -105,7 +109,7 @@ fn register_root(state: &AppState, dir: &Path) {
 }
 
 /// Register the parent dir of a just-opened file (probe/thumbnail/render).
-fn register_parent(state: &AppState, p: &Path) {
+pub(super) fn register_parent(state: &AppState, p: &Path) {
     if let Some(parent) = p.parent() {
         register_root(state, parent);
     }
@@ -501,6 +505,7 @@ fn router_with_state(web_dir: Option<PathBuf>, state: AppState) -> Router {
         .route("/api/render", post(render_start))
         .route("/api/render/status", get(render_status))
         .route("/api/render/cancel", post(render_cancel))
+        .route("/api/render/discard", post(render_discard))
         .layer(middleware::from_fn(require_local_client))
         .with_state(state);
 
@@ -537,4 +542,6 @@ mod render;
 #[cfg(all(test, feature = "http"))]
 mod tests;
 
-use render::{download_model, render_cancel, render_start, render_status};
+use render::{
+    download_model, render_cancel, render_discard, render_start, render_status,
+};

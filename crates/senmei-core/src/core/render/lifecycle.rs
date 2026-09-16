@@ -72,6 +72,10 @@ pub fn confirm_render() -> Result<String, String> {
             state: "running".into(),
             ..Default::default()
         };
+        // Reset before spawn so a concurrent cancel_render() is not lost.
+        CANCEL_RENDER
+            .get_or_init(|| Arc::new(AtomicBool::new(false)))
+            .store(false, Ordering::Relaxed);
         drop(s);
         std::thread::spawn(move || {
             let progress_status = status.clone();
@@ -111,9 +115,22 @@ pub fn cancel_render() {
     }
 }
 
+/// Discard a pending (proposed but not yet confirmed) render config.
+pub fn discard_pending_render() {
+    let slot = PENDING_RENDER.get_or_init(|| Mutex::new(None));
+    let mut pending = slot.lock().unwrap();
+    if pending.take().is_some() {
+        log::info!("pending render discarded");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Tests share the process-wide OnceLock statics; serialize them.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn config() -> RenderConfig {
         RenderConfig {
@@ -136,6 +153,7 @@ mod tests {
 
     #[test]
     fn pending_render_is_not_overwritten_or_discarded_while_running() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset();
         propose_render(config()).unwrap();
         assert!(propose_render(config()).is_err());
@@ -147,6 +165,17 @@ mod tests {
             .state = "running".into();
         assert!(confirm_render().is_err());
         assert!(PENDING_RENDER.get().unwrap().lock().unwrap().is_some());
+        reset();
+    }
+
+    #[test]
+    fn discard_pending_render_clears_proposal() {
+        let _g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        reset();
+        propose_render(config()).unwrap();
+        assert!(PENDING_RENDER.get().unwrap().lock().unwrap().is_some());
+        discard_pending_render();
+        assert!(PENDING_RENDER.get().unwrap().lock().unwrap().is_none());
         reset();
     }
 }
