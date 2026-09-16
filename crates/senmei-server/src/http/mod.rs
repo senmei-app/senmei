@@ -88,20 +88,14 @@ fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
 }
 
 fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
-    // Validate untrusted output path shape before any filesystem access.
-    // Require a relative path made only of Normal components.
-    if p.is_absolute()
-        || p.components()
-            .any(|c| !matches!(c, std::path::Component::Normal(_)))
-    {
-        return None;
-    }
+    // Existing file: canonicalize + root check handles everything.
     if p.exists() {
         return resolve_allowed(state, p);
     }
+    // New file: validate parent exists under a root, filename is safe.
     let parent = canonical(p.parent()?)?;
     let name = p.file_name()?;
-    // Component-level guard: name must be exactly one Normal component (no .., /, etc.)
+    // Component-level guard: name must be exactly one Normal component.
     let mut comps = Path::new(name).components();
     if !matches!(comps.next(), Some(std::path::Component::Normal(_))) || comps.next().is_some() {
         return None;
