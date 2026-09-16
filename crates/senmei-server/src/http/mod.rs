@@ -93,7 +93,7 @@ fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
         return resolve_allowed(state, p);
     }
     // New file: validate parent exists under a root, filename is safe.
-    let parent = canonical(p.parent()?)?;
+    let canon_parent = canonical(p.parent()?)?;
     let name = p.file_name()?;
     // Component-level guard: name must be exactly one Normal component.
     let mut comps = Path::new(name).components();
@@ -101,8 +101,8 @@ fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
         return None;
     }
     let roots = state.roots.lock().unwrap();
-    roots.iter().find(|r| parent.starts_with(r))?;
-    Some(parent.join(name))
+    roots.iter().find(|r| canon_parent.starts_with(r))?;
+    Some(p.parent()?.join(name))
 }
 
 fn register_root(state: &AppState, dir: &Path) {
