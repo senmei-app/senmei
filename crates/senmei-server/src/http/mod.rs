@@ -118,7 +118,7 @@ fn register_root(state: &AppState, dir: &Path) {
 }
 
 /// Register the parent dir of a just-opened file (probe/thumbnail/render).
-pub(super) fn register_parent(state: &AppState, p: &Path) {
+fn register_parent(state: &AppState, p: &Path) {
     if let Some(parent) = p.parent() {
         register_root(state, parent);
     }
