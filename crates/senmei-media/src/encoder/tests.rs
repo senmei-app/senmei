@@ -247,7 +247,7 @@ fn encodes_through_selected_codec() {
     assert!(make.success(), "failed to create test input");
     let mut enc = Encoder::open(
         &EncodeOptions {
-            ffmpeg: &ff,
+            ffmpeg: ff,
             input: &input,
             output: &out,
             width: 64,

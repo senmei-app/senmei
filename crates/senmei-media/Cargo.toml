@@ -19,5 +19,5 @@ liblzma = "0.4"
 zip.workspace = true
 png = "0.17"
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

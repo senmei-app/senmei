@@ -2,7 +2,7 @@ mod select;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Stdio};
+use std::process::{ChildStdin, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -17,7 +17,7 @@ use select::{
 use select::{test_encode, HW_ENCODERS};
 
 pub struct Encoder {
-    child: Child,
+    child: crate::process::ChildHandle,
     stdin: Option<ChildStdin>,
     stderr: Arc<Mutex<String>>,
     stderr_thread: Option<JoinHandle<()>>,
@@ -250,7 +250,7 @@ impl Encoder {
         });
 
         Ok(Self {
-            child,
+            child: Arc::new(Mutex::new(child)),
             stdin: Some(stdin),
             stderr: stderr_buf,
             stderr_thread,
@@ -261,8 +261,10 @@ impl Encoder {
     pub fn write_frame(&mut self, frame: &Frame) -> Result<()> {
         if let Some(stdin) = self.stdin.as_mut() {
             if let Err(e) = stdin.write_all(&frame.data) {
-                let _ = self.child.kill();
-                let _ = self.child.wait();
+                let mut child = self.child.lock().unwrap();
+                let _ = child.kill();
+                let _ = child.wait();
+                drop(child);
                 let stderr = self.read_stderr();
                 return Err(Error::Command(if stderr.is_empty() {
                     format!("ffmpeg encode write failed: {e}")
@@ -274,9 +276,8 @@ impl Encoder {
         Ok(())
     }
 
-    /// The ffmpeg child's pid (for the pipeline's hard-cancel kill).
-    pub fn pid(&self) -> u32 {
-        self.child.id()
+    pub fn cancel_handle(&self) -> crate::process::ChildHandle {
+        self.child.clone()
     }
 
     fn read_stderr(&mut self) -> String {
@@ -296,7 +297,7 @@ impl Encoder {
 
     pub fn finish(mut self) -> Result<()> {
         drop(self.stdin.take());
-        let status = self.child.wait()?;
+        let status = self.child.lock().unwrap().wait()?;
         let stderr = self.read_stderr();
         log::debug!("ffmpeg encode finished: {status}; stderr tail: {stderr}");
         if status.success() {
@@ -311,15 +312,21 @@ impl Encoder {
     }
 
     pub fn abort(mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let mut child = self.child.lock().unwrap();
+        let _ = child.kill();
+        let _ = child.wait();
+        drop(child);
+        let _ = self.read_stderr();
     }
 }
 
 impl Drop for Encoder {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let mut child = self.child.lock().unwrap();
+        let _ = child.kill();
+        let _ = child.wait();
+        drop(child);
+        let _ = self.read_stderr();
         if let Some(tmp) = self.temp_audio.take() {
             let _ = std::fs::remove_file(tmp);
         }

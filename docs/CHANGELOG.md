@@ -17,10 +17,11 @@
   are canonicalized and checked to stay within allowed roots (path traversal
   protected). Addresses CodeQL alerts #6–#9.
 
-- **fix: kill ffmpeg children with senmei — no orphaned processes (2026-09-09)** —
-  every ffmpeg/ffprobe child sets `PR_SET_PDEATHSIG` (SIGKILL), so Ctrl+C, a
-  crash or SIGKILL can no longer leave render processes running amok; the
-  kernel reaps them the moment senmei dies.
+- **fix: safely cancel ffmpeg children across platforms (2026-09-16)** —
+  the render watchdog starts with the decoder and retains child handles rather
+  than raw PIDs, so cancellation cannot target a reused PID; Linux also sets
+  `PR_SET_PDEATHSIG` with an orphan-race check, while macOS and Windows use the
+  same owned child-handle cancellation path.
 
 - **fix: sample preset writes the chosen duration into the field (2026-09-09)** —
   picking a sample preset (10/30/60s/full) now fills the custom duration input
@@ -37,13 +38,10 @@
   (the ~300% CPU spikes on each render/startup that hammer the GPU before any
   inference on RDNA4).
 
-- **fix: hard render cancel (2026-09-09)** — cancelling a render now SIGKILLs
-  the active render's ffmpeg decode/encode children via a small per-run
-  watchdog, so a worker stuck on a stalled pipe or inside a GPU step can no
-  longer hold the model/engine (or orphan ffmpeg processes) until the process
-  dies; `pipeline.run` unwinds and drops the engine deterministically on
-  cancel. Adds `senmei_media::process::kill` (unix) and `Decoder::pid`/
-  `Encoder::pid`.
+- **fix: hard render cancel (2026-09-09)** — cancelling a render terminates
+  active decode/encode children through their owned handles, so a worker stuck
+  on a stalled pipe or inside a GPU step cannot hold the model/engine until the
+  process dies; `pipeline.run` unwinds and drops the engine deterministically.
 
 
 ## 0.3.2 (2026-09-08)

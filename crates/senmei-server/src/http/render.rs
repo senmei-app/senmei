@@ -78,10 +78,18 @@ pub(super) async fn render_start(
 ) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        if !is_allowed(&state, Path::new(&cfg.input)) {
+        let Some(input) = resolve_allowed(&state, Path::new(&cfg.input)) else {
             return json_err(StatusCode::BAD_REQUEST, "input not opened");
-        }
-        register_parent(&state, Path::new(&cfg.output));
+        };
+        let Some(output) = resolve_allowed_output(&state, Path::new(&cfg.output)) else {
+            return json_err(
+                StatusCode::BAD_REQUEST,
+                "output outside opened media directories",
+            );
+        };
+        let mut cfg = cfg;
+        cfg.input = input.to_string_lossy().into_owned();
+        cfg.output = output.to_string_lossy().into_owned();
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
             cfg.input,

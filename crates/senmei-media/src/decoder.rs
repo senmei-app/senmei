@@ -1,6 +1,7 @@
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 
 use crate::frame::Frame;
 use crate::{Error, Result};
@@ -21,7 +22,7 @@ pub enum Tonemap {
 const TONEMAP_VF: &str = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=rgb24";
 
 pub struct Decoder {
-    child: std::process::Child,
+    child: crate::process::ChildHandle,
     stdout: BufReader<std::process::ChildStdout>,
     pub width: u32,
     pub height: u32,
@@ -148,7 +149,7 @@ impl Decoder {
         let total_frames = remaining.unwrap_or((source_dur * fps).round().max(1.0) as u64);
 
         Ok(Self {
-            child,
+            child: Arc::new(Mutex::new(child)),
             stdout: BufReader::new(stdout),
             width: out_w,
             height: out_h,
@@ -159,9 +160,8 @@ impl Decoder {
         })
     }
 
-    /// The ffmpeg child's pid (for the pipeline's hard-cancel kill).
-    pub fn pid(&self) -> u32 {
-        self.child.id()
+    pub fn cancel_handle(&self) -> crate::process::ChildHandle {
+        self.child.clone()
     }
 
     pub fn next_frame(&mut self) -> Result<Option<Frame>> {
@@ -217,8 +217,9 @@ fn parse_ratio(s: &str) -> Option<(u32, u32)> {
 
 impl Drop for Decoder {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let mut child = self.child.lock().unwrap();
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }
 

@@ -87,8 +87,15 @@ fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
     roots.iter().find(|r| c.starts_with(r)).map(|_| c) // bounded by allowed roots
 }
 
-fn is_allowed(state: &AppState, p: &Path) -> bool {
-    resolve_allowed(state, p).is_some()
+fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
+    if p.exists() {
+        return resolve_allowed(state, p);
+    }
+    let parent = canonical(p.parent()?)?;
+    let name = p.file_name()?;
+    let roots = state.roots.lock().unwrap();
+    roots.iter().find(|r| parent.starts_with(r))?;
+    Some(parent.join(name))
 }
 
 fn register_root(state: &AppState, dir: &Path) {
@@ -441,10 +448,13 @@ async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Res
 }
 
 async fn compare(State(state): State<AppState>, Json(p): Json<CompareParams>) -> ApiResult {
-    if !is_allowed(&state, Path::new(&p.original)) || !is_allowed(&state, Path::new(&p.rendered)) {
+    let Some(original) = resolve_allowed(&state, Path::new(&p.original)) else {
         return json_err(StatusCode::BAD_REQUEST, "not an opened media file");
-    }
-    match core::compare_sample(&p.original, &p.rendered) {
+    };
+    let Some(rendered) = resolve_allowed(&state, Path::new(&p.rendered)) else {
+        return json_err(StatusCode::BAD_REQUEST, "not an opened media file");
+    };
+    match core::compare_sample(&original.to_string_lossy(), &rendered.to_string_lossy()) {
         Ok(v) => json_ok(&v),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }

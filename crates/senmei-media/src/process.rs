@@ -1,5 +1,8 @@
 use std::ffi::OsStr;
-use std::process::Command;
+use std::process::{Child, Command};
+use std::sync::{Arc, Mutex};
+
+pub type ChildHandle = Arc<Mutex<Child>>;
 
 /// A `Command` whose child never pops a console window (Windows: ffmpeg/
 /// ffprobe spawns flash otherwise).
@@ -11,20 +14,25 @@ pub fn hidden<S: AsRef<OsStr>>(cmd: S) -> Command {
         c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         c
     }
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         use std::os::unix::process::CommandExt;
         let mut c = Command::new(cmd);
-        // Kill ffmpeg with senmei — no orphans on Ctrl+C/crash/SIGKILL.
         unsafe {
             c.pre_exec(|| {
-                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                let parent = libc::getppid();
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::getppid() != parent {
+                    libc::kill(libc::getpid(), libc::SIGKILL);
+                }
                 Ok(())
             });
         }
         c
     }
-    #[cfg(not(any(windows, unix)))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         Command::new(cmd)
     }
@@ -40,13 +48,6 @@ pub fn command_output(cmd: &str, args: &[&str]) -> Option<String> {
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
 }
 
-/// SIGKILL a child by pid (unix); non-unix relies on in-process `Child::kill`.
-pub fn kill(pid: u32) {
-    #[cfg(unix)]
-    // Safety: pid belongs to a live child we spawned; SIGKILL is signal-safe.
-    unsafe {
-        libc::kill(pid as libc::pid_t, libc::SIGKILL);
-    }
-    #[cfg(not(unix))]
-    let _ = pid;
+pub fn kill(child: &ChildHandle) {
+    let _ = child.lock().unwrap().kill();
 }
