@@ -88,6 +88,14 @@ fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
 }
 
 fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
+    // Validate untrusted output path shape before any filesystem access.
+    // Require a relative path made only of Normal components.
+    if p.is_absolute()
+        || p.components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
     if p.exists() {
         return resolve_allowed(state, p);
     }
