@@ -12,7 +12,7 @@ fn preset_env(
     var: &str,
     default: &'static str,
 ) -> &'static str {
-    *cache.get_or_init(|| {
+    cache.get_or_init(|| {
         std::env::var(var)
             .ok()
             .filter(|s| !s.is_empty())

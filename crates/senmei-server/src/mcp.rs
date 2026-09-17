@@ -246,6 +246,17 @@ impl SenmeiServer {
         json_err(RENDER_UNAVAILABLE.to_owned())
     }
 
+    #[tool(description = "Discard a pending (proposed but not confirmed) render")]
+    async fn discard_pending_render(&self) -> Result<CallToolResult, McpError> {
+        #[cfg(feature = "render")]
+        {
+            core::discard_pending_render();
+            return json_ok(&"ok");
+        }
+        #[cfg(not(feature = "render"))]
+        json_err(RENDER_UNAVAILABLE.to_owned())
+    }
+
     #[tool(description = "Poll render status (idle/running/done/failed + frame counts)")]
     async fn get_render_status(&self) -> Result<CallToolResult, McpError> {
         #[cfg(feature = "render")]

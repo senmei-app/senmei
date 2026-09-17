@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use senmei_media::{Decoder, EncodeOptions, Encoder};
 
@@ -25,6 +25,48 @@ pub struct StepTiming {
 /// pathologically slower — docs/benchmarks.md, `bench_upscale_batch`), so the
 /// fused multi-frame path is not exercised on the shipped backend.
 const BATCH_SIZE: usize = 1;
+
+struct CancelWatchdog {
+    stop_tx: std::sync::mpsc::Sender<()>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl CancelWatchdog {
+    fn new(
+        cancel: Arc<AtomicBool>,
+        decoder: senmei_media::process::ChildHandle,
+        encoder: Arc<Mutex<Option<senmei_media::process::ChildHandle>>>,
+    ) -> Self {
+        let (stop_tx, stop_rx) = std::sync::mpsc::channel();
+        let handle = std::thread::spawn(move || loop {
+            match stop_rx.recv_timeout(std::time::Duration::from_millis(20)) {
+                Ok(()) => return,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            if cancel.load(Ordering::Relaxed) {
+                senmei_media::process::kill(&decoder);
+                if let Some(encoder) = encoder.lock().unwrap().as_ref() {
+                    senmei_media::process::kill(encoder);
+                }
+                return;
+            }
+        });
+        Self {
+            stop_tx,
+            handle: Some(handle),
+        }
+    }
+}
+
+impl Drop for CancelWatchdog {
+    fn drop(&mut self) {
+        let _ = self.stop_tx.send(());
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
 
 pub struct Pipeline {
     steps: Vec<Box<dyn Step>>,
@@ -100,6 +142,15 @@ impl Pipeline {
         let (start_ms, end_ms) = self.range.unwrap_or((0, None));
         let mut decoder =
             Decoder::open_with_range(ffmpeg, input, start_ms, end_ms, self.tonemap, None)?;
+        let encoder_handle = Arc::new(Mutex::new(None));
+        let _watchdog = CancelWatchdog::new(
+            self.cancel.clone(),
+            decoder.cancel_handle(),
+            encoder_handle.clone(),
+        );
+        if self.cancel.load(Ordering::Relaxed) {
+            return Err(Error::cancelled());
+        }
         let factor = self.interpolator.as_ref().map(|i| i.factor()).unwrap_or(1) as u64;
         // The interpolator emits 1 frame for the first input and `factor` for
         // each following one, so the output count is `1 + (N-1)*factor`, not
@@ -136,6 +187,7 @@ impl Pipeline {
             },
             &self.encoder_args,
         )?;
+        *encoder_handle.lock().unwrap() = Some(encoder.cancel_handle());
         let enc_cancel = self.cancel.clone();
         let enc_handle = std::thread::spawn(move || -> Result<()> {
             let mut enc = encoder;

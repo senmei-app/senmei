@@ -8,6 +8,50 @@
 
 ## Unreleased
 
+## 0.3.3 (2026-09-16)
+
+- **fix: harden render cancel lifecycle (2026-09-16)** —
+  address Copilot review findings: encoder `finish()` now polls with `try_wait`
+  so the watchdog can `kill()` during finalization (deadlock fix); cancel flag
+  reset moved before worker spawn to close a race window; `PR_SET_PDEATHSIG`
+  captures parent PID before fork; `resolve_allowed_output` validates filename
+  components (CodeQL path-expression fix); HTTP render re-registers the output
+  folder; added `discard_pending_render` MCP+HTTP endpoint and test.
+
+- **fix: security — document CodeQL sanitizer patterns (2026-09-16)** —
+  Added documentation comments to signal to CodeQL that paths passed to
+  ffmpeg/ffprobe commands are validated and safe from command-line injection
+  (Rust's `Command::arg()` does not invoke a shell). Paths in `resolve_allowed()`
+  are canonicalized and checked to stay within allowed roots (path traversal
+  protected). Addresses CodeQL alerts #6–#9.
+
+- **fix: safely cancel ffmpeg children across platforms (2026-09-16)** —
+  the render watchdog starts with the decoder and retains child handles rather
+  than raw PIDs, so cancellation cannot target a reused PID; Linux also sets
+  `PR_SET_PDEATHSIG` with an orphan-race check, while macOS and Windows use the
+  same owned child-handle cancellation path.
+
+- **fix: sample preset writes the chosen duration into the field (2026-09-09)** —
+  picking a sample preset (10/30/60s/full) now fills the custom duration input
+  immediately; before, the value only appeared after reopening the menu.
+
+- **ui: A/B compare shows the model per side (2026-09-09)** — the A/B panes now
+  label which model produced each render (A = previous result, B = current),
+  taken from that render's upscale/denoise/deblur/interp model, so model A vs B
+  is identifiable at a glance.
+
+- **fix: persist MIOpen cache (ROCm) (2026-09-09)** — the libtorch backend now
+  points `MIOPEN_USER_DB_PATH`/`MIOPEN_CUSTOM_CACHE_DIR` at the app data dir, so
+  MIOpen stops re-running autotune/JIT kernel compilation on every engine load
+  (the ~300% CPU spikes on each render/startup that hammer the GPU before any
+  inference on RDNA4).
+
+- **fix: hard render cancel (2026-09-09)** — cancelling a render terminates
+  active decode/encode children through their owned handles, so a worker stuck
+  on a stalled pipe or inside a GPU step cannot hold the model/engine until the
+  process dies; `pipeline.run` unwinds and drops the engine deterministically.
+
+
 ## 0.3.2 (2026-09-08)
 
 - **feat: DVD deinterlace/desqueeze, audio/subtitle selection + encode fixes (2026-09-08)**

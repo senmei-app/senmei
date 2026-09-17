@@ -50,6 +50,11 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
   // compared side by side (render once, tweak, render again).
   const [prevRenderedFile, setPrevRenderedFile] = useState<string | null>(null);
   const renderedRef = useRef<string | null>(null);
+  // Model label of the current render (B) and its predecessor (A), kept in
+  // step with the file pair so CompareView can show which model each side is.
+  const [renderedModel, setRenderedModelState] = useState<string | null>(null);
+  const [prevRenderedModel, setPrevRenderedModel] = useState<string | null>(null);
+  const renderedModelRef = useRef<string | null>(null);
   // Input of the last completed render; A/B keeps its pair when the same
   // single input is rendered again (model A → B).
   const lastInputRef = useRef<string | null>(null);
@@ -59,6 +64,9 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     if (v === null) {
       renderedRef.current = null;
       setPrevRenderedFile(null);
+      renderedModelRef.current = null;
+      setPrevRenderedModel(null);
+      setRenderedModelState(null);
     }
     setRenderedFileState(v);
   };
@@ -192,6 +200,8 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
       startMs: range?.inMs ?? null,
       endMs: range?.outMs ?? null,
     };
+    // A/B label: which model produced this render (shown on the B side).
+    const modelLabel = recipeLabel(config);
 
     const initial: BatchJob[] = inputs.map((f) => ({
       input: f,
@@ -206,9 +216,12 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     // single input (model A → B). A file switch or multi-file batch clears it.
     const keepPair = inputs.length === 1 && inputs[0] === lastInputRef.current;
     setRenderedFileState(null);
+    setRenderedModelState(null);
     if (!keepPair) {
       renderedRef.current = null;
       setPrevRenderedFile(null);
+      renderedModelRef.current = null;
+      setPrevRenderedModel(null);
     }
     setTimings([]);
     const q0: BatchQueueState = {
@@ -242,8 +255,11 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
           patch(i, { status: "done" });
           markDone(initial[i].input);
           setPrevRenderedFile(renderedRef.current);
+          setPrevRenderedModel(renderedModelRef.current);
           renderedRef.current = output;
+          renderedModelRef.current = modelLabel;
           setRenderedFile(output);
+          setRenderedModelState(modelLabel);
           lastInputRef.current = initial[i].input;
           if (range) {
             // Sample renders live in the project's sample/ folder: keep only the newest.
@@ -319,6 +335,8 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
     setTimings,
     renderedFile,
     setRenderedFile,
+    renderedModel,
+    prevRenderedModel,
     prevRenderedFile,
     savedQueue,
     resumeQueue,
@@ -332,4 +350,19 @@ export function useBatch({ files, selected, steps, outputDir, projectDir, onErro
 function toFactor(v: string): number | null {
   const f = Number(v);
   return f > 0 ? f : null;
+}
+
+/// Short "which model made this" label for A/B compare: the upscale model
+/// wins, then denoise/deblur/interp/decompress; null when no model ran.
+function recipeLabel(c: RenderConfig): string | null {
+  if (c.modelId) {
+    const s = c.scale && c.scale > 1 ? ` x${c.scale}` : "";
+    return `${c.modelId}${s}`;
+  }
+  const f = c.filter;
+  if (f?.denoiseModelId) return f.denoiseModelId ?? null;
+  if (f?.deblurModelId) return f.deblurModelId ?? null;
+  if (c.interpModel) return c.interpModel ?? null;
+  if (c.decompressModelId) return c.decompressModelId ?? null;
+  return null;
 }

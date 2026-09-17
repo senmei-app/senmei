@@ -78,10 +78,19 @@ pub(super) async fn render_start(
 ) -> ApiResult {
     #[cfg(feature = "render")]
     {
-        if !is_allowed(&state, Path::new(&cfg.input)) {
+        let Some(input) = resolve_allowed(&state, Path::new(&cfg.input)) else {
             return json_err(StatusCode::BAD_REQUEST, "input not opened");
-        }
-        register_parent(&state, Path::new(&cfg.output));
+        };
+        let Some(output) = resolve_allowed_output(&state, Path::new(&cfg.output)) else {
+            return json_err(
+                StatusCode::BAD_REQUEST,
+                "output outside opened media directories",
+            );
+        };
+        let mut cfg = cfg;
+        cfg.input = input.to_string_lossy().into_owned();
+        cfg.output = output.to_string_lossy().into_owned();
+        register_parent(&state, &output);
         log::info!(
             "http render start: {} -> {} (config {cfg:?})",
             cfg.input,
@@ -116,6 +125,16 @@ pub(super) async fn render_cancel() -> ApiResult {
     {
         core::cancel_render();
         json_ok(&serde_json::json!({ "cancelled": true }))
+    }
+    #[cfg(not(feature = "render"))]
+    json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")
+}
+
+pub(super) async fn render_discard() -> ApiResult {
+    #[cfg(feature = "render")]
+    {
+        core::discard_pending_render();
+        json_ok(&serde_json::json!({ "discarded": true }))
     }
     #[cfg(not(feature = "render"))]
     json_err(StatusCode::SERVICE_UNAVAILABLE, "render not compiled in")

@@ -201,14 +201,14 @@ fn allowed_roots_cover_canonical_children_only() {
 
     let state = AppState::default();
     register_root(&state, &root);
-    assert!(is_allowed(&state, &f));
+    assert!(resolve_allowed(&state, &f).is_some());
     // Sibling outside the root stays blocked.
     let outside = std::env::temp_dir().join(format!("senmei-outside-{}", std::process::id()));
     std::fs::write(&outside, b"x").unwrap();
-    assert!(!is_allowed(&state, &outside));
+    assert!(resolve_allowed(&state, &outside).is_none());
     // `..` traversal is rejected even under the root.
     let trav = format!("{}/../sub/../a.mp4", root.display());
-    assert!(!is_allowed(&state, Path::new(&trav)));
+    assert!(resolve_allowed(&state, Path::new(&trav)).is_none());
 
     std::fs::remove_dir_all(&root).ok();
     std::fs::remove_file(&outside).ok();
@@ -224,8 +224,25 @@ fn register_parent_covers_whole_directory() {
 
     let state = AppState::default();
     register_root(&state, a.parent().unwrap());
-    assert!(is_allowed(&state, &a));
-    assert!(is_allowed(&state, &b));
+    assert!(resolve_allowed(&state, &a).is_some());
+    assert!(resolve_allowed(&state, &b).is_some());
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn render_output_stays_in_an_allowed_root() {
+    let root = tmpdir("render_output");
+    let input = root.join("input.mp4");
+    let output = root.join("output.mp4");
+    let outside =
+        std::env::temp_dir().join(format!("senmei-outside-output-{}.mp4", std::process::id()));
+    std::fs::write(&input, b"x").unwrap();
+
+    let state = AppState::default();
+    register_root(&state, &root);
+    assert_eq!(resolve_allowed_output(&state, &output), Some(output));
+    assert!(resolve_allowed_output(&state, &outside).is_none());
 
     std::fs::remove_dir_all(&root).ok();
 }

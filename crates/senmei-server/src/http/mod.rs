@@ -82,13 +82,27 @@ fn canonical(p: &Path) -> Option<PathBuf> {
 /// canonical path is what reaches the filesystem sinks — `..`, symlinks, and
 /// out-of-root paths are all resolved/rejected before any path use.
 fn resolve_allowed(state: &AppState, p: &Path) -> Option<PathBuf> {
-    let c = canonical(p)?;
+    let c = canonical(p)?; // canonicalize resolves .. and symlinks
     let roots = state.roots.lock().unwrap();
-    roots.iter().find(|r| c.starts_with(r)).map(|_| c)
+    roots.iter().find(|r| c.starts_with(r)).map(|_| c) // bounded by allowed roots
 }
 
-fn is_allowed(state: &AppState, p: &Path) -> bool {
-    resolve_allowed(state, p).is_some()
+fn resolve_allowed_output(state: &AppState, p: &Path) -> Option<PathBuf> {
+    // Existing file: canonicalize + root check handles everything.
+    if p.exists() {
+        return resolve_allowed(state, p);
+    }
+    // New file: validate parent exists under a root, filename is safe.
+    let canon_parent = canonical(p.parent()?)?;
+    let name = p.file_name()?;
+    // Component-level guard: name must be exactly one Normal component.
+    let mut comps = Path::new(name).components();
+    if !matches!(comps.next(), Some(std::path::Component::Normal(_))) || comps.next().is_some() {
+        return None;
+    }
+    let roots = state.roots.lock().unwrap();
+    roots.iter().find(|r| canon_parent.starts_with(r))?;
+    Some(p.parent()?.join(name))
 }
 
 fn register_root(state: &AppState, dir: &Path) {
@@ -441,10 +455,13 @@ async fn frame(State(state): State<AppState>, Json(p): Json<FrameParams>) -> Res
 }
 
 async fn compare(State(state): State<AppState>, Json(p): Json<CompareParams>) -> ApiResult {
-    if !is_allowed(&state, Path::new(&p.original)) || !is_allowed(&state, Path::new(&p.rendered)) {
+    let Some(original) = resolve_allowed(&state, Path::new(&p.original)) else {
         return json_err(StatusCode::BAD_REQUEST, "not an opened media file");
-    }
-    match core::compare_sample(&p.original, &p.rendered) {
+    };
+    let Some(rendered) = resolve_allowed(&state, Path::new(&p.rendered)) else {
+        return json_err(StatusCode::BAD_REQUEST, "not an opened media file");
+    };
+    match core::compare_sample(&original.to_string_lossy(), &rendered.to_string_lossy()) {
         Ok(v) => json_ok(&v),
         Err(e) => json_err(StatusCode::BAD_REQUEST, e),
     }
@@ -491,6 +508,7 @@ fn router_with_state(web_dir: Option<PathBuf>, state: AppState) -> Router {
         .route("/api/render", post(render_start))
         .route("/api/render/status", get(render_status))
         .route("/api/render/cancel", post(render_cancel))
+        .route("/api/render/discard", post(render_discard))
         .layer(middleware::from_fn(require_local_client))
         .with_state(state);
 
@@ -527,4 +545,6 @@ mod render;
 #[cfg(all(test, feature = "http"))]
 mod tests;
 
-use render::{download_model, render_cancel, render_start, render_status};
+use render::{
+    download_model, render_cancel, render_discard, render_start, render_status,
+};
