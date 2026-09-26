@@ -331,8 +331,17 @@ fn transcode_audio(input: &str, track_index: Option<u32>) -> Result<std::path::P
         Some(idx) => format!("{}_t{idx}", senmei_media::sha256_hex_str(input)),
         None => senmei_media::sha256_hex_str(input).to_string(),
     };
+    // CodeQL barrier: the only modelled stateless path-injection guard
+    // (DotDotCheck). Key is sha256-hex [+ _t<dec>], so this can never fire —
+    // it exists so the analyzer can prove the filename can't traverse.
+    if cache_key.contains("..") {
+        return Err("invalid cache key".into());
+    }
     let out = dir.join(format!("{cache_key}.ogg"));
-    // Canonicalized dir + starts_with — CodeQL recognized sanitizer pattern.
+    // Fail-closed containment assertion (always true for a hex key). Note:
+    // CodeQL's path-injection query only honours starts_with after
+    // canonicalizing the *tainted* path; the barrier that closes #6/#7 is
+    // the contains("..") check above.
     if !out.starts_with(&dir) {
         return Err("invalid cache path".into());
     }

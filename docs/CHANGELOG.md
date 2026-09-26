@@ -8,6 +8,13 @@
 
 ## Unreleased
 
+- **fix: close CodeQL path-injection alerts #6/#7 (2026-09-26)** —
+  add a `contains("..")` guard on the audio transcode cache key (the only
+  stateless barrier modelled by CodeQL's `rust/path-injection` query);
+  correct the sanitiser comment on the existing `starts_with` containment
+  check, which the query does not honour before canonicalizing the tainted
+  path itself. No runtime change (key is sha256-hex [+ _t<dec>]).
+
 ## 0.3.3 (2026-09-16)
 
 - **fix: harden render cancel lifecycle (2026-09-16)** —
