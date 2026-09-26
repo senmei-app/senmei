@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+## 0.3.4 (2026-09-26)
+
 - **fix: close CodeQL path-injection alerts #6/#7 (2026-09-26)** —
   add a `contains("..")` guard on the audio transcode cache key (the only
   stateless barrier modelled by CodeQL's `rust/path-injection` query);
