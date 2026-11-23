@@ -54,12 +54,6 @@ yanked = "deny"
 # `unmaintained` advisories only — no CVEs, all unavoidable transitives
 # (recheck on next Tauri/burn update):
 ignore = [
-    # gtk-rs GTK3 bindings (gdk*/gtk* via tao/wry/webkit2gtk — the platform
-    # webview required by the "no CEF" binding decision):
-    "RUSTSEC-2024-0411", "RUSTSEC-2024-0412", "RUSTSEC-2024-0413",
-    "RUSTSEC-2024-0414", "RUSTSEC-2024-0415", "RUSTSEC-2024-0416",
-    "RUSTSEC-2024-0417", "RUSTSEC-2024-0418", "RUSTSEC-2024-0419",
-    "RUSTSEC-2024-0420",
     # paste / proc-macro-error — proc-macro helpers (build-time):
     "RUSTSEC-2024-0436", "RUSTSEC-2024-0370",
     # unic-* — unicode normalization via idna/url (web/network stack):
